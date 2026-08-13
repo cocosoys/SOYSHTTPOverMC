@@ -19,7 +19,7 @@ import java.util.Map;
  *
  * 路由优先级：
  *  1) 注解式 API（@GetMapping 注册，如 /api/status、/api/ping）→ dispatch；
- *  2) /favicon.ico → 204；
+ *  2) /favicon.ico → 优先 jar 内置 /web/favicon.ico（image/x-icon），缺失才 204；
  *  3) 静态资源：web.root 磁盘目录（含 .. 穿越防护）→ jar 内置 /web/ → 404。
  */
 public class WebFrontendHandler {
@@ -69,8 +69,18 @@ public class WebFrontendHandler {
         String cleanPath = stripQuery(rawPath);
         if (cleanPath.isEmpty() || cleanPath.equals("/")) cleanPath = "/";
 
-        // 动态接口
+        // favicon：优先实际图标（jar 内置 /web/favicon.ico），缺失才 204 无内容
         if (cleanPath.equals("/favicon.ico")) {
+            byte[] ico = readResource("/web/favicon.ico");
+            if (ico != null) {
+                return FrameProto.HttpResponseFrame.newBuilder()
+                        .setStatusCode(200)
+                        .putHeaders("Content-Type", "image/x-icon")
+                        .setBody(ByteString.copyFrom(ico))
+                        .setFragmentIndex(0)
+                        .setTotalFragments(1)
+                        .build();
+            }
             return FrameProto.HttpResponseFrame.newBuilder()
                     .setStatusCode(204)
                     .putHeaders("Content-Type", "image/x-icon")

@@ -1,5 +1,7 @@
 package soys.soyshttpovermc.api;
 
+import soys.soyshttpovermc.log.LogKit;
+
 import soys.soyshttpovermc.api.annotations.*;
 import soys.soyshttpovermc.api.util.AjaxResult;
 import soys.soyshttpovermc.gateway.policy.auth.AuthUtils;
@@ -14,7 +16,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
@@ -100,14 +101,14 @@ public class ApiRegistry {
                 EndpointMeta meta = new EndpointMeta(instance, m, apiName, permission, params);
                 EndpointMeta old = routes.put(key, meta);
                 if (old != null) {
-                    log.warning("[HTTP-Over-MC] API 路由重复注册被覆盖: " + key + "（新=" + cls.getName() + "，旧=" + old.method.getDeclaringClass().getName() + "）");
+                    LogKit.warn("[HTTP-Over-MC] API 路由重复注册被覆盖: " + key + "（新=" + cls.getName() + "，旧=" + old.method.getDeclaringClass().getName() + "）");
                 }
                 n++;
-                log.info("[HTTP-Over-MC] 注册 API: " + key + " 名称=" + apiName + (permission.isEmpty() ? "" : " 权限=" + permission));
+                LogKit.info("[HTTP-Over-MC] 注册 API: " + key + " 名称=" + apiName + (permission.isEmpty() ? "" : " 权限=" + permission));
             }
         }
         if (n == 0) {
-            log.warning("[HTTP-Over-MC] register(" + cls.getName() + ") 未发现映射注解方法（@GetMapping 等）");
+            LogKit.warn("[HTTP-Over-MC] register(" + cls.getName() + ") 未发现映射注解方法（@GetMapping 等）");
         }
     }
 
@@ -167,7 +168,7 @@ public class ApiRegistry {
                     return AjaxResult.forbidden("无权限访问: " + meta.apiName + "（需要 " + meta.permission + "）");
                 }
             } catch (Exception e) {
-                log.log(Level.WARNING, "[HTTP-Over-MC] PermissionService 异常，按拒绝处理: " + e, e);
+                LogKit.warn("[HTTP-Over-MC] PermissionService 异常，按拒绝处理: " + e, e);
                 return AjaxResult.forbidden("权限服务异常");
             }
         }
@@ -201,10 +202,10 @@ public class ApiRegistry {
             return AjaxResult.success(ret);
         } catch (InvocationTargetException e) {
             Throwable cause = e.getCause() == null ? e : e.getCause();
-            log.log(Level.WARNING, "[HTTP-Over-MC] API 处理异常 " + meta.method.getName() + ": " + cause, cause);
+            LogKit.warn("[HTTP-Over-MC] API 处理异常 " + meta.method.getName() + ": " + cause, cause);
             return AjaxResult.error("服务器内部错误: " + cause.getMessage());
         } catch (Exception e) {
-            log.log(Level.WARNING, "[HTTP-Over-MC] API 调用异常 " + meta.method.getName() + ": " + e, e);
+            LogKit.warn("[HTTP-Over-MC] API 调用异常 " + meta.method.getName() + ": " + e, e);
             return AjaxResult.error("服务器内部错误: " + e.getMessage());
         }
     }

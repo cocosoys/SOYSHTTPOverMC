@@ -1,5 +1,7 @@
 package soys.soyshttpovermc.bot;
 
+import soys.soyshttpovermc.log.LogKit;
+
 import com.github.steveice10.mc.protocol.MinecraftProtocol;
 import com.github.steveice10.mc.protocol.data.SubProtocol;
 import com.github.steveice10.mc.protocol.packet.ingame.client.ClientPluginMessagePacket;
@@ -21,7 +23,6 @@ import org.bukkit.plugin.java.JavaPlugin;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.logging.Level;
 
 /**
  * 内部无头 Bot：使用 MCProtocolLib 作为虚拟客户端，回环连接本服
@@ -68,7 +69,7 @@ public class InternalBot {
     }
 
     public void connect() {
-        plugin.getLogger().info("[HTTP-Over-MC] Bot 正在连接 " + host + ":" + port + " user=" + username);
+        LogKit.info("[HTTP-Over-MC] Bot 正在连接 " + host + ":" + port + " user=" + username);
         MinecraftProtocol protocol = new MinecraftProtocol(username);
         client = new Client(host, port, protocol, new TcpSessionFactory());
         session = client.getSession();
@@ -87,7 +88,7 @@ public class InternalBot {
 
     public void sendChannelMessage(String ch, byte[] data) {
         if (!waitUntilRegistered()) {
-            plugin.getLogger().warning("[HTTP-Over-MC] Bot 尚未就绪，丢弃请求帧（通道=" + ch + "）");
+            LogKit.warn("[HTTP-Over-MC] Bot 尚未就绪，丢弃请求帧（通道=" + ch + "）");
             return;
         }
         if (session != null && session.isConnected()) {
@@ -116,7 +117,7 @@ public class InternalBot {
         final Session s = session;
         sender.submit(() -> {
             s.send(new ClientPluginMessagePacket(REGISTER_CHANNEL, channel.getBytes(StandardCharsets.UTF_8)));
-            plugin.getLogger().info("[HTTP-Over-MC] Bot 已发送通道注册 " + channel);
+            LogKit.info("[HTTP-Over-MC] Bot 已发送通道注册 " + channel);
         });
     }
 
@@ -127,14 +128,14 @@ public class InternalBot {
         }
         sender.submit(() -> {
             s.send(p);
-            plugin.getLogger().info("[HTTP-Over-MC] 已发送 " + label);
+            LogKit.info("[HTTP-Over-MC] 已发送 " + label);
         });
     }
 
     private class BotSessionListener extends SessionAdapter {
         @Override
         public void connected(ConnectedEvent event) {
-            plugin.getLogger().info("[HTTP-Over-MC] Bot TCP 已连接，等待登录完成");
+            LogKit.info("[HTTP-Over-MC] Bot TCP 已连接，等待登录完成");
         }
 
         @Override
@@ -142,7 +143,7 @@ public class InternalBot {
             registered = false;
             inGame = false;
             Throwable cause = event.getCause();
-            plugin.getLogger().warning("[HTTP-Over-MC] Bot 断开连接: reason=" + event.getReason()
+            LogKit.warn("[HTTP-Over-MC] Bot 断开连接: reason=" + event.getReason()
                     + (cause != null ? " | cause=" + cause : " | cause=null"));
             if (cause != null) {
                 cause.printStackTrace();
@@ -159,7 +160,7 @@ public class InternalBot {
                     MinecraftProtocol mp = (MinecraftProtocol) s.getPacketProtocol();
                     if (!inGame && mp.getSubProtocol() == SubProtocol.GAME) {
                         inGame = true;
-                        plugin.getLogger().info("[HTTP-Over-MC] Bot 进入 GAME，开始登记通道");
+                        LogKit.info("[HTTP-Over-MC] Bot 进入 GAME，开始登记通道");
                         registerChannel();
                     }
                 }
@@ -180,14 +181,14 @@ public class InternalBot {
                 if (p instanceof ServerPluginMessagePacket) {
                     ServerPluginMessagePacket sp = (ServerPluginMessagePacket) p;
                     byte[] d = sp.getData();
-                    plugin.getLogger().info("[HTTP-Over-MC] Bot 收到服务端 PluginMessage channel="
+                    LogKit.info("[HTTP-Over-MC] Bot 收到服务端 PluginMessage channel="
                             + sp.getChannel() + " len=" + (d == null ? -1 : d.length));
                     if (listener != null) {
                         listener.onRawMessage(sp.getChannel(), sp.getData());
                     }
                 }
             } catch (Throwable t) {
-                plugin.getLogger().log(Level.WARNING, "[HTTP-Over-MC] Bot 处理数据包异常", t);
+                LogKit.warn("[HTTP-Over-MC] Bot 处理数据包异常", t);
             }
         }
     }

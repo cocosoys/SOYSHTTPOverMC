@@ -1,5 +1,7 @@
 package soys.soyshttpovermc.gateway.policy.tls;
 
+import soys.soyshttpovermc.log.LogKit;
+
 import org.bukkit.configuration.ConfigurationSection;
 
 import javax.net.ssl.KeyManagerFactory;
@@ -65,12 +67,12 @@ public class TlsContextFactory {
         try {
             sslContext = SSLContext.getInstance(minTls);
         } catch (Exception e) {
-            log.warning("[HTTP-Over-MC] 不支持 min-tls=" + minTls + "，回退 TLSv1.2: " + e.getMessage());
+            LogKit.warn("[HTTP-Over-MC] 不支持 min-tls=" + minTls + "，回退 TLSv1.2: " + e.getMessage());
             minTls = "TLSv1.2";
             sslContext = SSLContext.getInstance(minTls);
         }
         sslContext.init(kmf.getKeyManagers(), null, null);
-        log.info("[HTTP-Over-MC] TLS 上下文就绪 (min=" + minTls + ", 服务端模式)");
+        LogKit.info("[HTTP-Over-MC] TLS 上下文就绪 (min=" + minTls + ", 服务端模式)");
     }
 
     /** 每个新 TLS 连接调用一次，返回已配置为服务端模式的新引擎（线程安全）。 */
@@ -89,7 +91,7 @@ public class TlsContextFactory {
         }
         KeyManagerFactory kmf = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
         kmf.init(ks, keyPass.toCharArray());
-        log.info("[HTTP-Over-MC] 已加载 keystore: " + f.getAbsolutePath());
+        LogKit.info("[HTTP-Over-MC] 已加载 keystore: " + f.getAbsolutePath());
         return kmf;
     }
 
@@ -107,7 +109,7 @@ public class TlsContextFactory {
         ks.setKeyEntry("soys", priv, keyPass.toCharArray(), chain.toArray(new Certificate[0]));
         KeyManagerFactory kmf = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
         kmf.init(ks, keyPass.toCharArray());
-        log.info("[HTTP-Over-MC] 已加载 PEM: cert=" + certFile + " key=" + keyFile);
+        LogKit.info("[HTTP-Over-MC] 已加载 PEM: cert=" + certFile + " key=" + keyFile);
         return kmf;
     }
 
@@ -170,7 +172,7 @@ public class TlsContextFactory {
             if (rc != 0 || !p12.isFile()) {
                 throw new IllegalStateException("keytool 自签失败(rc=" + rc + "): " + out);
             }
-            log.info("[HTTP-Over-MC] 已自动生成自签证书: " + p12.getAbsolutePath() + " (CN=" + host + ", SAN=" + san + ")");
+            LogKit.info("[HTTP-Over-MC] 已自动生成自签证书: " + p12.getAbsolutePath() + " (CN=" + host + ", SAN=" + san + ")");
         }
         return loadKeyStore(p12, pass, pass);
     }

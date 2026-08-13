@@ -33,6 +33,18 @@ sniffer:
 web:
   root: ""
 
+# ============ 日志管控 ============
+# 统一日志门面 LogKit 的打印级别（全插件日志经此过滤）：
+#   OFF    - 关闭所有输出
+#   ERROR  - 仅严重错误
+#   WARN   - 错误 + 警告
+#   INFO   - 以上 + 常规运行信息（默认）
+#   DEBUG  - 以上 + 调试明细（策略明细、请求跟踪等）
+#   TRACE  - 以上 + 最细粒度追踪
+# 修改后 /soyshttp reload 热重载，无需重启服务器。
+log:
+  level: INFO
+
 # ============ 安全网关 ============
 # 网关配置已独立到 gateway/ 目录（总开关 gateway/config.yml、HTTPS gateway/https.yml、
 # 各安全策略 gateway/policies/<name>.yml，每个策略一个文件，便于未来扩展更多策略）。

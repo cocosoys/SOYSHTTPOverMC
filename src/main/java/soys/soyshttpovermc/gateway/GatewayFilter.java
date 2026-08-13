@@ -1,5 +1,7 @@
 package soys.soyshttpovermc.gateway;
 
+import soys.soyshttpovermc.log.LogKit;
+
 import org.bukkit.configuration.ConfigurationSection;
 import soys.soyshttpovermc.gateway.policy.*;
 import soys.soyshttpovermc.gateway.policy.auth.AuthPolicy;
@@ -15,7 +17,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
-import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
@@ -79,7 +80,7 @@ public class GatewayFilter {
                     String name = f.getName().substring(0, f.getName().length() - 4);
                     Supplier<SecurityPolicy> factory = REGISTRY.get(name);
                     if (factory == null) {
-                        log.warning("[HTTP-Over-MC] 忽略未注册的策略文件: " + f.getName()
+                        LogKit.warn("[HTTP-Over-MC] 忽略未注册的策略文件: " + f.getName()
                                 + "（如需启用请在 GatewayFilter.REGISTRY 注册对应实现）");
                         continue;
                     }
@@ -97,8 +98,15 @@ public class GatewayFilter {
         }
         list.sort(Comparator.comparingInt(SecurityPolicy::order));
         policies = list;
-        log.info("[HTTP-Over-MC] 网关策略链已加载：" + (list.isEmpty() ? "无启用策略" : describe(list))
+        LogKit.info("[HTTP-Over-MC] 网关策略链已加载：" + (list.isEmpty() ? "无启用策略" : describe(list))
                 + (issuerList.isEmpty() ? "" : " | 颁发器: " + describeIssuers(issuerList)));
+        if (LogKit.isDebugEnabled()) {
+            StringBuilder sb = new StringBuilder("[HTTP-Over-MC] 策略明细: ");
+            for (SecurityPolicy p : list) {
+                sb.append(p.name()).append('(').append(p.order()).append(p.isEnabled() ? ",enabled" : ",disabled").append(") ");
+            }
+            LogKit.debug(sb.toString().trim());
+        }
     }
 
     /** 扫描 gateway/issuers/*.yml，实例化并启用注册过的颁发器。 */
@@ -113,7 +121,7 @@ public class GatewayFilter {
             String name = f.getName().substring(0, f.getName().length() - 4);
             Supplier<CredentialIssuer> factory = ISSUER_REGISTRY.get(name);
             if (factory == null) {
-                log.warning("[HTTP-Over-MC] 忽略未注册的颁发器文件: " + f.getName()
+                LogKit.warn("[HTTP-Over-MC] 忽略未注册的颁发器文件: " + f.getName()
                         + "（如需启用请在 GatewayFilter.ISSUER_REGISTRY 注册对应实现）");
                 continue;
             }
@@ -155,7 +163,7 @@ public class GatewayFilter {
                 PolicyResult r = p.check(ctx);
                 if (r != null && !r.isAllow()) return new Outcome(p, r);
             } catch (Exception e) {
-                log.log(Level.WARNING, "[HTTP-Over-MC] 策略 " + p.name() + " 执行异常，按拒绝处理: " + e, e);
+                LogKit.warn("[HTTP-Over-MC] 策略 " + p.name() + " 执行异常，按拒绝处理: " + e, e);
                 return new Outcome(p, PolicyResult.deny(500, "Internal Server Error: policy " + p.name()));
             }
         }

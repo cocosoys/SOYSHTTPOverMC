@@ -1,0 +1,251 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>服务器资讯 · SOYS HTTP-Over-MC</title>
+<style>
+  :root{
+    --gold:#f5a623;          /* Hypixel 金 */
+    --gold-d:#d98e0f;
+    --navy:#16202d;          /* 深蓝 */
+    --navy2:#1d2b3a;
+    --line:#e2e6ec;
+    --bg:#eef1f5;            /* 浅灰内容区 */
+    --panel:#ffffff;
+    --txt:#2a3340;
+    --dim:#7a8794;
+    --link:#2f74b5;
+    --green:#3ca54a;
+  }
+  *{box-sizing:border-box; margin:0; padding:0}
+  body{
+    min-height:100vh; color:var(--txt); background:var(--bg);
+    font-family:"Segoe UI","Microsoft YaHei",system-ui,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  a{color:inherit; text-decoration:none}
+  .upper{text-transform:uppercase; letter-spacing:.08em}
+
+  /* ===== 顶栏（金+深蓝）===== */
+  header{
+    position:sticky; top:0; z-index:50;
+    background:linear-gradient(180deg,var(--navy),var(--navy2));
+    border-bottom:3px solid var(--gold);
+  }
+  nav{display:flex; align-items:center; height:66px; max-width:1120px; margin:0 auto; padding:0 22px}
+  .logo{display:flex; align-items:center; gap:12px; font-weight:800; font-size:20px; letter-spacing:.06em; color:#fff}
+  .logo .mk{width:30px; height:30px; border-radius:7px; background:linear-gradient(135deg,var(--gold),var(--gold-d));
+    display:flex; align-items:center; justify-content:center; color:var(--navy); font-weight:900; font-size:16px; box-shadow:0 0 12px rgba(245,166,35,.5)}
+  .logo b{color:var(--gold)}
+  .links{display:flex; gap:26px; margin-left:auto; align-items:center}
+  .links a{font-size:14px; font-weight:600; color:#cdd6e0; transition:.16s; padding:6px 2px}
+  .links a:hover{color:var(--gold)}
+  .links a.on{color:var(--gold); border-bottom:2px solid var(--gold)}
+
+  .wrap{max-width:1120px; margin:0 auto; padding:0 22px}
+
+  /* ===== 面包屑 ===== */
+  .crumb{font-size:13px; color:var(--dim); padding:18px 2px 6px}
+  .crumb a{color:var(--link)}
+  .crumb a:hover{text-decoration:underline}
+  .crumb span.sep{margin:0 8px; color:#c2cad3}
+
+  /* ===== 页面标题 ===== */
+  .phead{display:flex; align-items:flex-end; justify-content:space-between; gap:18px; padding:6px 2px 20px; flex-wrap:wrap}
+  .phead h1{font-size:30px; letter-spacing:.02em; color:var(--navy); font-weight:800}
+  .phead h1 .u{color:var(--gold)}
+  .phead .desc{font-size:14px; color:var(--dim); margin-top:6px}
+  .phead .online{font-size:13px; color:var(--green); display:flex; align-items:center; gap:8px; font-weight:600}
+  .phead .online .d{width:9px; height:9px; border-radius:50%; background:var(--green); box-shadow:0 0 8px var(--green)}
+
+  /* ===== 区块标题条 ===== */
+  .block{background:var(--panel); border:1px solid var(--line); border-radius:8px; overflow:hidden; margin-bottom:26px; box-shadow:0 1px 3px rgba(20,30,45,.05)}
+  .block .bh{background:linear-gradient(180deg,var(--navy),var(--navy2)); color:#fff; padding:13px 20px; font-size:15px; font-weight:700; letter-spacing:.04em; display:flex; align-items:center; gap:10px}
+  .block .bh .tag{width:4px; height:18px; background:var(--gold); border-radius:2px}
+  .block .bh .meta{margin-left:auto; font-size:12px; font-weight:500; color:#9fb0c0}
+
+  /* ===== 节点列表（论坛分区）===== */
+  .nodes{padding:6px 0}
+  .node{display:flex; align-items:center; gap:18px; padding:18px 20px; border-bottom:1px solid #f0f2f6; transition:.15s}
+  .node:last-child{border-bottom:none}
+  .node:hover{background:#fafbfc}
+  .node .ic{width:52px; height:52px; flex:0 0 52px; border-radius:12px; display:flex; align-items:center; justify-content:center; font-size:26px; background:#fef3e0; border:1px solid #f6e2bf}
+  .node .main{flex:1; min-width:0}
+  .node .main a.t{font-size:17px; font-weight:700; color:var(--navy)}
+  .node .main a.t:hover{color:var(--gold-d)}
+  .node .main p{font-size:13px; color:var(--dim); margin-top:4px; line-height:1.5}
+  .node .stat{text-align:center; min-width:78px; padding:0 6px; border-left:1px solid #eef1f5}
+  .node .stat .n{font-size:19px; font-weight:800; color:var(--navy)}
+  .node .stat .l{font-size:11px; color:var(--dim); text-transform:uppercase; letter-spacing:.06em; margin-top:2px}
+
+  /* ===== 主题列表（帖子行）===== */
+  .threads{padding:4px 0}
+  .th{display:flex; align-items:center; gap:16px; padding:16px 20px; border-bottom:1px solid #f0f2f6; transition:.15s}
+  .th:last-child{border-bottom:none}
+  .th:hover{background:#fafbfc}
+  .th .av{width:46px; height:46px; flex:0 0 46px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:20px; color:#fff; font-weight:700}
+  .th .body{flex:1; min-width:0}
+  .th .body .row1{display:flex; align-items:center; gap:10px; flex-wrap:wrap}
+  .th .body a.title{font-size:16px; font-weight:700; color:var(--navy)}
+  .th .body a.title:hover{color:var(--link)}
+  .th .body .meta{font-size:12.5px; color:var(--dim); margin-top:5px}
+  .th .body .meta b{color:var(--navy); font-weight:600}
+  .pill{font-size:11px; font-weight:700; padding:3px 9px; border-radius:4px; letter-spacing:.03em}
+  .pill.notice{background:#fdeaea; color:#c0392b}
+  .pill.event{background:#eaf4fd; color:#2f74b5}
+  .pill.update{background:#eafaf0; color:#27ae60}
+  .pill.guide{background:#fef3e0; color:#d98e0f}
+  .th .cols{display:flex; gap:26px; text-align:center; flex:0 0 auto}
+  .th .cols .c .n{font-size:16px; font-weight:800; color:var(--navy)}
+  .th .cols .c .l{font-size:11px; color:var(--dim); text-transform:uppercase; letter-spacing:.05em; margin-top:2px}
+  .th .last{flex:0 0 168px; text-align:right; font-size:12.5px; color:var(--dim); line-height:1.5}
+  .th .last b{color:var(--navy); font-weight:600; display:block}
+
+  .foot{text-align:center; color:var(--dim); font-size:13px; padding:30px 0 40px}
+  .foot a{color:var(--link)}
+  .foot a:hover{text-decoration:underline}
+
+  @media (max-width:720px){
+    .th .cols{display:none}
+    .th .last{display:none}
+    .node .stat{display:none}
+    .links a:not(.on){display:none}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <nav>
+    <div class="logo"><span class="mk">S</span>SOYS<b>·</b>NETWORK</div>
+    <div class="links">
+      <a href="/">首页</a>
+      <a href="/news" class="on">资讯</a>
+      <a href="/status">状态看板</a>
+    </div>
+  </nav>
+</header>
+
+<div class="wrap">
+  <div class="crumb">
+    <a href="/">首页</a><span class="sep">›</span><span>服务器资讯</span>
+  </div>
+
+  <div class="phead">
+    <div>
+      <h1>服务器<span class="u">资讯</span></h1>
+      <div class="desc">公告、活动、版本更新与教程 —— 由 SOYS HTTP-Over-MC 隧道实时呈现</div>
+    </div>
+    <div class="online"><span class="d"></span><span id="onTxt">在线状态检测中…</span></div>
+  </div>
+
+  <!-- 论坛分区 -->
+  <div class="block">
+    <div class="bh"><span class="tag"></span>资讯中心<span class="meta">4 个板块</span></div>
+    <div class="nodes">
+      <div class="node">
+        <div class="ic">📢</div>
+        <div class="main"><a class="t" href="#n1">公告与更新</a><p>服务器维护、版本发布与重要通知</p></div>
+        <div class="stat"><div class="n">12</div><div class="l">主题</div></div>
+        <div class="stat"><div class="n">86</div><div class="l">帖子</div></div>
+      </div>
+      <div class="node">
+        <div class="ic">🎉</div>
+        <div class="main"><a class="t" href="#n2">活动与赛事</a><p>限时活动、建筑赛、PVP 赛事与奖励</p></div>
+        <div class="stat"><div class="n">7</div><div class="l">主题</div></div>
+        <div class="stat"><div class="n">53</div><div class="l">帖子</div></div>
+      </div>
+      <div class="node">
+        <div class="ic">📦</div>
+        <div class="main"><a class="t" href="#n3">版本更新日志</a><p>插件迭代、隧道协议与安全网关变更记录</p></div>
+        <div class="stat"><div class="n">19</div><div class="l">主题</div></div>
+        <div class="stat"><div class="n">140</div><div class="l">帖子</div></div>
+      </div>
+      <div class="node">
+        <div class="ic">📘</div>
+        <div class="main"><a class="t" href="#n4">教程与文档</a><p>接入指南、API 调用示例与网关配置说明</p></div>
+        <div class="stat"><div class="n">9</div><div class="l">主题</div></div>
+        <div class="stat"><div class="n">61</div><div class="l">帖子</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 最新主题 -->
+  <div class="block">
+    <div class="bh"><span class="tag"></span>最新主题<span class="meta">按发布时间排序</span></div>
+    <div class="threads">
+      <div class="th">
+        <div class="av" style="background:#c0392b">SO</div>
+        <div class="body">
+          <div class="row1"><span class="pill notice">公告</span><a class="title" href="#">【维护】8 月例行维护与网关热重载演练</a></div>
+          <div class="meta">由 <b>SOYS_Ops</b> 发布于 2026-08-13 · 分类：公告与更新</div>
+        </div>
+        <div class="cols"><div class="c"><div class="n">24</div><div class="l">回复</div></div><div class="c"><div class="n">512</div><div class="l">浏览</div></div></div>
+        <div class="last"><b>LastNet</b>2026-08-13 15:02</div>
+      </div>
+
+      <div class="th">
+        <div class="av" style="background:#2f74b5">EV</div>
+        <div class="body">
+          <div class="row1"><span class="pill event">活动</span><a class="title" href="#">夏日建筑赛：以隧道为名的赛博城市</a></div>
+          <div class="meta">由 <b>EventTeam</b> 发布于 2026-08-11 · 分类：活动与赛事</div>
+        </div>
+        <div class="cols"><div class="c"><div class="n">41</div><div class="l">回复</div></div><div class="c"><div class="n">738</div><div class="l">浏览</div></div></div>
+        <div class="last"><b>build_ray</b>2026-08-12 21:40</div>
+      </div>
+
+      <div class="th">
+        <div class="av" style="background:#27ae60">UP</div>
+        <div class="body">
+          <div class="row1"><span class="pill update">更新</span><a class="title" href="#">v1.0.0：HTTPS 就地升级与注解式 API 上线</a></div>
+          <div class="meta">由 <b>DevCore</b> 发布于 2026-08-10 · 分类：版本更新日志</div>
+        </div>
+        <div class="cols"><div class="c"><div class="n">33</div><div class="l">回复</div></div><div class="c"><div class="n">905</div><div class="l">浏览</div></div></div>
+        <div class="last"><b>ping_pong</b>2026-08-11 09:15</div>
+      </div>
+
+      <div class="th">
+        <div class="av" style="background:#d98e0f">GD</div>
+        <div class="body">
+          <div class="row1"><span class="pill guide">教程</span><a class="title" href="#">如何为 HTTP API 申请 X-API-Key 凭证</a></div>
+          <div class="meta">由 <b>DocBot</b> 发布于 2026-08-09 · 分类：教程与文档</div>
+        </div>
+        <div class="cols"><div class="c"><div class="n">18</div><div class="l">回复</div></div><div class="c"><div class="n">420</div><div class="l">浏览</div></div></div>
+        <div class="last"><b>new_api</b>2026-08-10 14:08</div>
+      </div>
+
+      <div class="th">
+        <div class="av" style="background:#c0392b">SO</div>
+        <div class="body">
+          <div class="row1"><span class="pill notice">公告</span><a class="title" href="#">【安全】网关新增 IP 白名单与令牌桶限流策略</a></div>
+          <div class="meta">由 <b>SOYS_Ops</b> 发布于 2026-08-08 · 分类：公告与更新</div>
+        </div>
+        <div class="cols"><div class="c"><div class="n">29</div><div class="l">回复</div></div><div class="c"><div class="n">667</div><div class="l">浏览</div></div></div>
+        <div class="last"><b>guard_x</b>2026-08-09 18:33</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="foot">
+    SOYSHTTPOverMC · 同端口隧道网关 · <a href="/">返回首页</a> · <a href="/status">状态看板</a>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+async function probe(){
+  try{
+    const r = await fetch('/api/ping', {cache:'no-store'});
+    const j = await r.json();
+    const d = (j && j.data !== undefined) ? j.data : j;
+    const ok = r.ok && d && d.online;
+    $('onTxt').textContent = ok ? '服务器当前在线' : '服务器当前离线';
+    $('onTxt').style.color = ok ? 'var(--green)' : '#c0392b';
+  }catch(e){ $('onTxt').textContent = '在线状态获取失败'; }
+}
+probe();
+setInterval(probe, 15000);
+</script>
+</body>
+</html>

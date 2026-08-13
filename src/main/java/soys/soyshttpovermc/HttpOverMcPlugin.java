@@ -1,5 +1,7 @@
 package soys.soyshttpovermc;
 
+import soys.soyshttpovermc.log.LogKit;
+
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
 import org.bukkit.configuration.ConfigurationSection;
@@ -79,7 +81,10 @@ public class HttpOverMcPlugin extends JavaPlugin {
         File webRoot = resolveWebRoot(webRootRaw);
         Logger log = getLogger();
 
-        // 0) 安全网关（独立配置目录 gateway/）+ TLS 上下文（25564 就地升级，无独立端口）
+        // 0) 日志管控：统一日志门面 LogKit + 级别过滤（config.yml 的 log.level，/soyshttp reload 热重载）
+        LogKit.init(log, getConfig().getString("log.level", "INFO"));
+
+        // 0.5) 安全网关（独立配置目录 gateway/）+ TLS 上下文（25564 就地升级，无独立端口）
         rebuildGateway(gatewayDir, log);
         final Supplier<SSLEngine> tlsEngines = tlsFactory == null ? null : tlsFactory::newServerEngine;
 
@@ -117,7 +122,7 @@ public class HttpOverMcPlugin extends JavaPlugin {
             sniffer.install();
         }
 
-        log.info("HTTP-Over-MC 已启动（同端口嗅探 + 前端服务 + 安全网关 + 注解式API）: mc=" + mcHost + ":" + mcPort
+        LogKit.info("HTTP-Over-MC 已启动（同端口嗅探 + 前端服务 + 安全网关 + 注解式API）: mc=" + mcHost + ":" + mcPort
                 + " 通道=" + channel + " 嗅探器=" + (snifferEnabled ? "开" : "关")
                 + " 网关=" + (gateway == null ? "关" : "开")
                 + " HTTPS=" + (tlsEngines == null ? "关" : "开")
@@ -168,7 +173,7 @@ public class HttpOverMcPlugin extends JavaPlugin {
                     tlsFactory = new TlsContextFactory(log, getDataFolder(), https);
                     tlsFactory.init();
                 } catch (Exception e) {
-                    log.warning("[HTTP-Over-MC] TLS 初始化失败，HTTPS 功能禁用: " + e.getMessage());
+                    LogKit.warn("[HTTP-Over-MC] TLS 初始化失败，HTTPS 功能禁用: " + e.getMessage());
                     tlsFactory = null;
                 }
             }
@@ -192,16 +197,19 @@ public class HttpOverMcPlugin extends JavaPlugin {
         return f.getAbsoluteFile();
     }
 
-    /** /soyshttp reload：热重载网关策略与 TLS 配置（gateway/ 目录），无需重启服务器 */
+    /** /soyshttp reload：热重载日志级别 + 网关策略与 TLS 配置（gateway/ 目录），无需重启服务器 */
     private boolean handleReload(CommandSender sender) {
         reloadConfig();
+        String levelRaw = getConfig().getString("log.level", "INFO");
+        LogKit.setLevel(levelRaw); // 日志级别热重载
         Logger log = getLogger();
         File gatewayDir = ensureGatewayFiles();
         rebuildGateway(gatewayDir, log);
         sender.sendMessage("[SOYSHTTPOverMC] 网关策略已热重载："
                 + (gateway == null ? "网关关闭" : gateway.getPolicies().size() + " 个策略启用")
                 + "，HTTPS=" + (tlsFactory == null ? "关" : "开")
-                + "，事件调试=" + (debugEventsEnabled ? "开" : "关"));
+                + "，事件调试=" + (debugEventsEnabled ? "开" : "关")
+                + "，日志级别=" + LogKit.levelName() + "（配置=" + levelRaw + "）");
         return true;
     }
 
@@ -259,14 +267,14 @@ public class HttpOverMcPlugin extends JavaPlugin {
         @EventHandler
         public void onRequest(GatewayRequestEvent e) {
             if (!debugEventsEnabled) return;
-            getLogger().info("[EVENT] request " + e.getMethod() + " " + e.getPath()
+            LogKit.info("[EVENT] request " + e.getMethod() + " " + e.getPath()
                     + " ip=" + e.getIp() + (e.isTls() ? " (TLS)" : ""));
         }
 
         @EventHandler
         public void onDenied(GatewayAccessDeniedEvent e) {
             if (!debugEventsEnabled) return;
-            getLogger().info("[EVENT] denied " + e.getMethod() + " " + e.getPath()
+            LogKit.info("[EVENT] denied " + e.getMethod() + " " + e.getPath()
                     + " ip=" + e.getIp() + " policy=" + e.getPolicyName() + " code=" + e.getStatusCode()
                     + " reason=" + e.getReason());
         }
@@ -274,14 +282,14 @@ public class HttpOverMcPlugin extends JavaPlugin {
         @EventHandler
         public void onServed(GatewayRequestServedEvent e) {
             if (!debugEventsEnabled) return;
-            getLogger().info("[EVENT] served " + e.getMethod() + " " + e.getPath()
+            LogKit.info("[EVENT] served " + e.getMethod() + " " + e.getPath()
                     + " code=" + e.getStatusCode() + " " + e.getLatencyMs() + "ms");
         }
 
         @EventHandler
         public void onIssued(GatewayCredentialIssuedEvent e) {
             if (!debugEventsEnabled) return;
-            getLogger().info("[EVENT] credential issued subject=" + e.getSubject()
+            LogKit.info("[EVENT] credential issued subject=" + e.getSubject()
                     + " issuer=" + e.getIssuerName());
         }
     }
@@ -295,6 +303,6 @@ public class HttpOverMcPlugin extends JavaPlugin {
             bot.disconnect();
         }
         instance = null;
-        getLogger().info("HTTP-Over-MC 已关闭");
+        LogKit.info("HTTP-Over-MC 已关闭");
     }
 }

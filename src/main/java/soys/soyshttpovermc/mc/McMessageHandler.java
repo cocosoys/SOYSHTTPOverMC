@@ -1,5 +1,7 @@
 package soys.soyshttpovermc.mc;
 
+import soys.soyshttpovermc.log.LogKit;
+
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.plugin.messaging.PluginMessageListener;
@@ -54,7 +56,7 @@ public class McMessageHandler implements PluginMessageListener {
             // 保证响应可达。幂等、无副作用。
             if (!player.getListeningPluginChannels().contains(channel)) {
                 ensureListening(player, channel);
-                plugin.getLogger().info("[HTTP-Over-MC] 已为 Bot 强制登记监听通道 " + channel
+                LogKit.info("[HTTP-Over-MC] 已为 Bot 强制登记监听通道 " + channel
                         + " -> listening=" + player.getListeningPluginChannels());
             }
 
@@ -73,7 +75,7 @@ public class McMessageHandler implements PluginMessageListener {
             byte[] full = join(pr.buffers);
             FrameProto.HttpRequestFrame req = FrameProto.HttpRequestFrame.parseFrom(full);
 
-            plugin.getLogger().info("[HTTP-Over-MC] 收到请求 method=" + req.getMethod()
+            LogKit.info("[HTTP-Over-MC] 收到请求 method=" + req.getMethod()
                     + " path=" + req.getPath() + " (分片=" + total + ")");
 
             // 路由为前端资源 / 动态接口
@@ -97,7 +99,7 @@ public class McMessageHandler implements PluginMessageListener {
                 player.sendPluginMessage(plugin, channel, c.toByteArray());
             }
         } catch (Exception e) {
-            plugin.getLogger().warning("[HTTP-Over-MC] 处理消息失败: " + e);
+            LogKit.warn("[HTTP-Over-MC] 处理消息失败: " + e);
         }
     }
 
@@ -147,7 +149,7 @@ public class McMessageHandler implements PluginMessageListener {
             }
             m.invoke(player, ch);
         } catch (Exception e) {
-            plugin.getLogger().warning("[HTTP-Over-MC] 无法强制登记监听通道 " + ch + ": " + e);
+            LogKit.warn("[HTTP-Over-MC] 无法强制登记监听通道 " + ch + ": " + e);
         }
     }
 

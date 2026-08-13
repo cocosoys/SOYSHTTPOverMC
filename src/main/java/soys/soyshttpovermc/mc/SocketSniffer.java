@@ -1,5 +1,7 @@
 package soys.soyshttpovermc.mc;
 
+import soys.soyshttpovermc.log.LogKit;
+
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.Channel;
@@ -37,7 +39,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
-import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
@@ -115,14 +116,14 @@ public class SocketSniffer {
         try {
             Object serverConnection = getServerConnection();
             if (serverConnection == null) {
-                log.severe("[HTTP-Over-MC] 无法获取 ServerConnection，HTTP 同端口嗅探器安装失败");
+                LogKit.error("[HTTP-Over-MC] 无法获取 ServerConnection，HTTP 同端口嗅探器安装失败");
                 return;
             }
             @SuppressWarnings("unchecked")
             List<io.netty.channel.ChannelFuture> futures =
                     (List<io.netty.channel.ChannelFuture>) getField(serverConnection, "g");
             if (futures == null) {
-                log.severe("[HTTP-Over-MC] 无法获取监听 channel 列表（字段 g），安装失败");
+                LogKit.error("[HTTP-Over-MC] 无法获取监听 channel 列表（字段 g），安装失败");
                 return;
             }
             int n = 0;
@@ -135,16 +136,16 @@ public class SocketSniffer {
                     pipe.addFirst("http-over-mc-parent", new ParentInjectorHandler());
                     installedParents.add(parent);
                     n++;
-                    log.info("[HTTP-Over-MC] 已在 Spigot 监听端口 " + parent.localAddress() + " 上安装 HTTP 嗅探器");
+                    LogKit.info("[HTTP-Over-MC] 已在 Spigot 监听端口 " + parent.localAddress() + " 上安装 HTTP 嗅探器");
                 }
             }
             if (n == 0) {
-                log.warning("[HTTP-Over-MC] 未找到任何活跃监听端口，嗅探器未生效（请确认 Spigot 已绑定端口）");
+                LogKit.warn("[HTTP-Over-MC] 未找到任何活跃监听端口，嗅探器未生效（请确认 Spigot 已绑定端口）");
             } else {
-                log.info("[HTTP-Over-MC] 同端口嗅探器已安装：" + n + " 个端口。访问端口 == Spigot server-port，MC 与 HTTP 共用");
+                LogKit.info("[HTTP-Over-MC] 同端口嗅探器已安装：" + n + " 个端口。访问端口 == Spigot server-port，MC 与 HTTP 共用");
             }
         } catch (Throwable t) {
-            log.log(Level.SEVERE, "[HTTP-Over-MC] 安装嗅探器异常", t);
+            LogKit.error("[HTTP-Over-MC] 安装嗅探器异常", t);
         }
     }
 
@@ -484,7 +485,7 @@ public class SocketSniffer {
             writeResponse(ctx, out, tls);
         } catch (Exception e) {
             code = 502;
-            log.log(Level.WARNING, "[HTTP-Over-MC] 隧道转换失败: " + e, e);
+            LogKit.warn("[HTTP-Over-MC] 隧道转换失败: " + e, e);
             writeRaw(ctx, statusLine(502) + "HTTP-Over-MC tunnel error: "
                     + (e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage()) + "\r\n", 502, tls);
         } finally {
@@ -579,7 +580,7 @@ public class SocketSniffer {
             Method getServerConnection = mcServer.getClass().getMethod("getServerConnection");
             return getServerConnection.invoke(mcServer);
         } catch (Throwable t) {
-            log.log(Level.SEVERE, "[HTTP-Over-MC] 反射获取 ServerConnection 失败", t);
+            LogKit.error("[HTTP-Over-MC] 反射获取 ServerConnection 失败", t);
             return null;
         }
     }
