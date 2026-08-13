@@ -2,12 +2,12 @@ package soys.soyshttpovermc;
 
 import soys.soyshttpovermc.log.LogKit;
 
-import org.bukkit.command.Command;
-import org.bukkit.command.CommandSender;
+import soys.soyshttpovermc.command.SoysHttpCommand;
+import soys.soyshttpovermc.config.ConfigManager;
+import soys.soyshttpovermc.event.ApiLifecycleListener;
+import soys.soyshttpovermc.event.GatewayEventListener;
+
 import org.bukkit.configuration.ConfigurationSection;
-import org.bukkit.event.EventHandler;
-import org.bukkit.event.Listener;
-import org.bukkit.event.server.PluginDisableEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import soys.soyshttpovermc.api.ApiRegistry;
@@ -17,18 +17,9 @@ import soys.soyshttpovermc.api.spring.impl.StatusServiceImpl;
 import soys.soyshttpovermc.api.spring.impl.SystemServiceImpl;
 import soys.soyshttpovermc.api.spring.service.IStatusService;
 import soys.soyshttpovermc.api.spring.service.ISystemService;
-import soys.soyshttpovermc.api.event.ApiInfo;
-import soys.soyshttpovermc.api.event.ApiRegisteredEvent;
-import soys.soyshttpovermc.api.event.ApiUnregisteredEvent;
-import soys.soyshttpovermc.api.event.GatewayAccessDeniedEvent;
-import soys.soyshttpovermc.api.event.GatewayCredentialIssuedEvent;
-import soys.soyshttpovermc.api.event.GatewayRequestEvent;
-import soys.soyshttpovermc.api.event.GatewayRequestServedEvent;
 import soys.soyshttpovermc.bot.InternalBot;
-import soys.soyshttpovermc.gateway.policy.auth.issuer.CredentialIssuer;
 import soys.soyshttpovermc.gateway.GatewayConfig;
 import soys.soyshttpovermc.gateway.GatewayFilter;
-import soys.soyshttpovermc.gateway.policy.auth.issuer.IssuedCredential;
 import soys.soyshttpovermc.gateway.policy.tls.TlsContextFactory;
 import soys.soyshttpovermc.http.HttpMcTranslator;
 import soys.soyshttpovermc.link.McLink;
@@ -52,6 +43,7 @@ public class HttpOverMcPlugin extends JavaPlugin {
     private GatewayFilter gateway;
     private TlsContextFactory tlsFactory;
     private ApiRegistry apiRegistry;
+    private GatewayEventListener gatewayEventListener;
     private volatile boolean debugEventsEnabled = false;
     private String channel;
     private String botUsername;
@@ -71,12 +63,22 @@ public class HttpOverMcPlugin extends JavaPlugin {
         return gateway;
     }
 
+    /** HTTPS（TLS 引擎）是否可用 */
+    public boolean isTlsEnabled() {
+        return tlsFactory != null;
+    }
+
+    /** 网关事件调试日志是否开启（gateway/config.yml 的 debug-events） */
+    public boolean isDebugEventsEnabled() {
+        return debugEventsEnabled;
+    }
+
     @Override
     public void onEnable() {
         instance = this;
         saveDefaultConfig();
         // 首次运行生成 gateway/ 目录下的默认配置（config.yml / https.yml / policies/*.yml）
-        File gatewayDir = ensureGatewayFiles();
+        File gatewayDir = ConfigManager.ensureGatewayFiles(this);
         botUsername = getConfig().getString("bot.username", "__http_proxy__");
         channel = getConfig().getString("channel", "httpproxy:main");
         // Bot 回连的本服地址 = Spigot 的 server-port（同端口方案的核心：访问端口 == 服务器端口）
@@ -84,9 +86,9 @@ public class HttpOverMcPlugin extends JavaPlugin {
         int mcPort = getConfig().getInt("mc.port", 25564);
         boolean snifferEnabled = getConfig().getBoolean("sniffer.enabled", true);
         int maxBody = getConfig().getInt("sniffer.max-body-bytes", 8 * 1024 * 1024);
-        // 前端资源目录：留空则用 jar 内置默认面板；非空则优先从磁盘读取（支持热替换）
+        // 前端资源目录：留空则用 jar 内置默认面板解压到数据目录 web/（支持磁盘热替换编辑）
         String webRootRaw = getConfig().getString("web.root", "");
-        File webRoot = resolveWebRoot(webRootRaw);
+        File webRoot = ConfigManager.resolveWebRoot(this, getFile(), webRootRaw);
         Logger log = getLogger();
 
         // 0) 日志管控：统一日志门面 LogKit + 级别过滤（config.yml 的 log.level，/soyshttp reload 热重载）
@@ -97,18 +99,18 @@ public class HttpOverMcPlugin extends JavaPlugin {
         final Supplier<SSLEngine> tlsEngines = tlsFactory == null ? null : tlsFactory::newServerEngine;
 
         // 0.5) 注解式 API 框架（仿 Spring：@GetMapping/@ApiName/@ApiPermission + AjaxResult）
-        // 全局前缀 api-prefix 始终生效（与 auth 是否启用解耦），保证 API 地址恒定（如 /api/ping），
-        // 避免「未开启 auth 时 API 地址变化」导致用户在 exempt/paths 中需手动写 /api 前缀的问题。
-        // 网关在匹配 exempt/paths 时也会自动兼容逻辑路径（/ping）与显式路径（/api/ping）。
+        // 全局前缀 api-prefix 始终生效（与 auth 是否启用解耦），保证 API 地址恒定（如 /api/ping）。
+        // 控制器类上可写 @RequestMapping("/xxx") 为其下所有方法统一加类级前缀（/api/xxx/...）。
         ConfigurationSection gwCfg = GatewayConfig.loadYml(new File(gatewayDir, "config.yml"));
         String apiPrefix = gwCfg == null ? "/api" : gwCfg.getString("api-prefix", "/api");
         apiRegistry = new ApiRegistry(this, log);
         apiRegistry.setPathPrefix(apiPrefix);
-        // 先注册事件监听器（含 API 注册/卸载调试日志），确保后续 register 触发的事件能被捕获
-        getServer().getPluginManager().registerEvents(new GatewayEventLogger(), this);
-        // API 自动生命周期：插件卸载时自动卸载其名下全部注解式 API（并触发 ApiUnregisteredEvent）
-        getServer().getPluginManager().registerEvents(new ApiLifecycleListener(), this);
-        // 系统 API：装配 SystemServiceImpl → SystemApi（控制器仅依赖 ISystemService 接口）
+        // 事件监听器：网关事件调试日志 + 插件卸载自动卸载其名下全部注解式 API
+        gatewayEventListener = new GatewayEventListener();
+        gatewayEventListener.setDebugEnabled(debugEventsEnabled);
+        getServer().getPluginManager().registerEvents(gatewayEventListener, this);
+        getServer().getPluginManager().registerEvents(new ApiLifecycleListener(apiRegistry, this), this);
+        // 系统 API：装配 SystemServiceImpl → SystemController
         ISystemService systemService = new SystemServiceImpl(mcPort);
         apiRegistry.register(new SystemController(systemService));
 
@@ -120,7 +122,7 @@ public class HttpOverMcPlugin extends JavaPlugin {
 
         // 2) 前端 + 统计 + 注解式 API 分发：把隧道请求路由为注解式 API / 静态资源
         RequestStats stats = new RequestStats();
-        // 状态 API：装配 StatusServiceImpl（持有统计来源）→ StatusApi（控制器仅依赖 IStatusService 接口）
+        // 状态 API：装配 StatusServiceImpl（持有统计来源）→ StatusController
         IStatusService statusService = new StatusServiceImpl(stats, mcPort, botUsername); // /api/status 注解式重写
         apiRegistry.register(new StatusController(statusService));
         WebFrontendHandler web = new WebFrontendHandler(
@@ -136,6 +138,11 @@ public class HttpOverMcPlugin extends JavaPlugin {
             sniffer.install();
         }
 
+        // 命令：/soyshttp reload | /soyshttp key <subject>
+        if (getCommand("soyshttp") != null) {
+            getCommand("soyshttp").setExecutor(new SoysHttpCommand(this));
+        }
+
         LogKit.info("HTTP-Over-MC 已启动（同端口嗅探 + 前端服务 + 安全网关 + 注解式API）: mc=" + mcHost + ":" + mcPort
                 + " 通道=" + channel + " 嗅探器=" + (snifferEnabled ? "开" : "关")
                 + " 网关=" + (gateway == null ? "关" : "开")
@@ -143,28 +150,6 @@ public class HttpOverMcPlugin extends JavaPlugin {
                 + " API注册数=" + (apiRegistry == null ? 0 : apiRegistry.getRoutes().size())
                 + " webroot=" + (webRoot == null ? "(jar 内置)" : webRoot.getAbsolutePath())
                 + " | 25564 三协议端口：MC / 明文 HTTP / HTTPS");
-    }
-
-    /** 首次运行生成 gateway/ 目录默认配置；返回 gateway 目录 */
-    private File ensureGatewayFiles() {
-        File gwDir = new File(getDataFolder(), "gateway");
-        saveDefaultFile("gateway/config.yml");
-        saveDefaultFile("gateway/https.yml");
-        saveDefaultFile("gateway/policies/tls.yml");
-        saveDefaultFile("gateway/policies/ip-allowlist.yml");
-        saveDefaultFile("gateway/policies/auth.yml");
-        saveDefaultFile("gateway/policies/rate-limit.yml");
-        saveDefaultFile("gateway/issuers/session-token.yml");
-        return gwDir;
-    }
-
-    /** 从 jar 资源复制默认配置到数据目录（已存在则不覆盖） */
-    private void saveDefaultFile(String path) {
-        if (getResource(path) == null) return;
-        File target = new File(getDataFolder(), path);
-        if (!target.isFile()) {
-            saveResource(path, false);
-        }
     }
 
     /**
@@ -177,6 +162,9 @@ public class HttpOverMcPlugin extends JavaPlugin {
         tlsFactory = null;
         ConfigurationSection gwCfg = GatewayConfig.loadYml(new File(gatewayDir, "config.yml"));
         debugEventsEnabled = gwCfg != null && gwCfg.getBoolean("debug-events", false);
+        if (gatewayEventListener != null) {
+            gatewayEventListener.setDebugEnabled(debugEventsEnabled);
+        }
         boolean gatewayEnabled = gwCfg != null && gwCfg.getBoolean("enabled", true);
         if (gatewayEnabled) {
             gateway = new GatewayFilter(log);
@@ -199,145 +187,13 @@ public class HttpOverMcPlugin extends JavaPlugin {
         }
     }
 
-    /** 解析 web.root：相对 data 目录；为空返回 null（使用 jar 内置资源） */
-    private File resolveWebRoot(String raw) {
-        if (raw == null || raw.trim().isEmpty()) {
-            return null;
-        }
-        File f = new File(raw);
-        if (!f.isAbsolute()) {
-            f = new File(getDataFolder(), raw);
-        }
-        return f.getAbsoluteFile();
-    }
-
     /** /soyshttp reload：热重载日志级别 + 网关策略与 TLS 配置（gateway/ 目录），无需重启服务器 */
-    private boolean handleReload(CommandSender sender) {
+    public void reloadHttpConfig() {
         reloadConfig();
         String levelRaw = getConfig().getString("log.level", "INFO");
         LogKit.setLevel(levelRaw); // 日志级别热重载
-        Logger log = getLogger();
-        File gatewayDir = ensureGatewayFiles();
-        rebuildGateway(gatewayDir, log);
-        sender.sendMessage("[SOYSHTTPOverMC] 网关策略已热重载："
-                + (gateway == null ? "网关关闭" : gateway.getPolicies().size() + " 个策略启用")
-                + "，HTTPS=" + (tlsFactory == null ? "关" : "开")
-                + "，事件调试=" + (debugEventsEnabled ? "开" : "关")
-                + "，日志级别=" + LogKit.levelName() + "（配置=" + levelRaw + "）");
-        return true;
-    }
-
-    /** /soyshttp key <subject>：调用启用的凭证颁发器为指定主体下发凭证（X-API-Key/Bearer/Cookie 三种形态） */
-    private boolean handleIssueKey(CommandSender sender, String subject) {
-        if (gateway == null) {
-            sender.sendMessage("[SOYSHTTPOverMC] 网关未启用，无法下发凭证");
-            return true;
-        }
-        int n = 0;
-        for (CredentialIssuer issuer : gateway.getIssuers()) {
-            if (!issuer.isEnabled()) continue;
-            IssuedCredential c = issuer.issue(subject);
-            n++;
-            StringBuilder sb = new StringBuilder();
-            sb.append("[SOYSHTTPOverMC] 已为 ").append(subject).append(" 下发凭证（").append(issuer.name()).append("）:");
-            if (c.getApiKey() != null) sb.append("\n  X-API-Key: ").append(c.getApiKey());
-            if (c.getBearer() != null) sb.append("\n  Authorization: Bearer ").append(c.getBearer());
-            if (c.getCookieName() != null) sb.append("\n  Cookie: ").append(c.getCookieName()).append('=').append(c.getCookieValue());
-            sb.append("\n  curl -sk https://127.0.0.1:25564/api/status -H \"X-API-Key: ").append(c.getApiKey()).append('"');
-            sender.sendMessage(sb.toString());
-            // 触发凭证下发事件（供其他插件联动；同步事件，命令路径在主线程）
-            try {
-                getServer().getPluginManager().callEvent(new GatewayCredentialIssuedEvent(subject, issuer, c));
-            } catch (Throwable ignored) {
-            }
-        }
-        if (n == 0) {
-            sender.sendMessage("[SOYSHTTPOverMC] 未启用任何凭证颁发器（请在 gateway/issuers/ 下将对应 yml 的 enabled 设为 true）");
-        }
-        return true;
-    }
-
-    @Override
-    public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
-        if (!command.getName().equalsIgnoreCase("soyshttp")) {
-            return false;
-        }
-        if (args.length >= 1 && args[0].equalsIgnoreCase("reload")) {
-            return handleReload(sender);
-        }
-        if (args.length >= 2 && args[0].equalsIgnoreCase("key")) {
-            return handleIssueKey(sender, args[1]);
-        }
-        sender.sendMessage("用法: /soyshttp reload | /soyshttp key <subject>");
-        return true;
-    }
-
-    /**
-     * 内置事件调试监听器（gateway/config.yml 的 debug-events: true 时打印网关事件日志；
-     * 也是给其他插件演示"如何监听网关事件"的范例）。
-     */
-    private class GatewayEventLogger implements Listener {
-
-        @EventHandler
-        public void onRequest(GatewayRequestEvent e) {
-            if (!debugEventsEnabled) return;
-            LogKit.info("[EVENT] request " + e.getMethod() + " " + e.getPath()
-                    + " ip=" + e.getIp() + (e.isTls() ? " (TLS)" : ""));
-        }
-
-        @EventHandler
-        public void onDenied(GatewayAccessDeniedEvent e) {
-            if (!debugEventsEnabled) return;
-            LogKit.info("[EVENT] denied " + e.getMethod() + " " + e.getPath()
-                    + " ip=" + e.getIp() + " policy=" + e.getPolicyName() + " code=" + e.getStatusCode()
-                    + " reason=" + e.getReason());
-        }
-
-        @EventHandler
-        public void onServed(GatewayRequestServedEvent e) {
-            if (!debugEventsEnabled) return;
-            LogKit.info("[EVENT] served " + e.getMethod() + " " + e.getPath()
-                    + " code=" + e.getStatusCode() + " " + e.getLatencyMs() + "ms");
-        }
-
-        @EventHandler
-        public void onIssued(GatewayCredentialIssuedEvent e) {
-            if (!debugEventsEnabled) return;
-            LogKit.info("[EVENT] credential issued subject=" + e.getSubject()
-                    + " issuer=" + e.getIssuerName());
-        }
-
-        @EventHandler
-        public void onApiRegistered(ApiRegisteredEvent e) {
-            if (!debugEventsEnabled) return;
-            StringBuilder sb = new StringBuilder("[EVENT] api registered plugin=").append(e.getOwnerPlugin())
-                    .append(" count=").append(e.getApis().size());
-            for (ApiInfo a : e.getApis()) {
-                sb.append("\n    ").append(a.toString());
-            }
-            LogKit.info(sb.toString());
-        }
-
-        @EventHandler
-        public void onApiUnregistered(ApiUnregisteredEvent e) {
-            if (!debugEventsEnabled) return;
-            LogKit.info("[EVENT] api unregistered plugin=" + e.getOwnerPlugin()
-                    + " count=" + e.getApis().size());
-        }
-    }
-
-    /**
-     * API 自动生命周期监听器：任一插件（非本插件）被禁用时，自动卸载其名下全部注解式 API。
-     * 这样第三方插件无需手动在 onDisable 里清理，避免其 API 残留导致的内存泄漏/路由污染。
-     */
-    private class ApiLifecycleListener implements Listener {
-
-        @EventHandler(priority = org.bukkit.event.EventPriority.MONITOR)
-        public void onPluginDisable(PluginDisableEvent e) {
-            if (apiRegistry == null) return;
-            if (e.getPlugin() == HttpOverMcPlugin.this) return; // 本插件卸载由 onDisable 统一处理
-            apiRegistry.unregisterPlugin(e.getPlugin().getName());
-        }
+        File gatewayDir = ConfigManager.ensureGatewayFiles(this);
+        rebuildGateway(gatewayDir, getLogger());
     }
 
     @Override

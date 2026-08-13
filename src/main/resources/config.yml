@@ -25,10 +25,11 @@ sniffer:
   max-body-bytes: 8388608
 
 # 前端资源目录（可选）
-# - 留空：使用插件 jar 内置的默认赛博朋克状态面板（/web/index.html）。
-# - 指定路径：优先从该目录读取静态文件（支持热替换，改完刷新浏览器即可，无需重构建），
-#   磁盘不存在的文件回退到 jar 内置资源。相对路径相对于插件数据目录
-#   （如 plugins/SOYSHTTPOverMC/webroot）；绝对路径直接使用。
+# - 留空（默认）：插件首次运行会把 jar 内置的 /web/* 解压到插件数据目录的 web/ 文件夹
+#   （即 plugins/SOYSHTTPOverMC/web/），并直接以该磁盘目录为前端根目录。
+#   此后可直接编辑磁盘上的文件（index.html / news/ / status/ 等），刷新浏览器即生效，无需重构建；
+#   已存在的文件不会被覆盖（保留你的修改），仅补回缺失的内置默认资源；磁盘缺失的文件回退 jar 内置。
+# - 指定路径：优先从该目录读取静态文件（相对数据目录或绝对路径）。
 # 支持路径：/、/index.html、/app.js、/styles.css、/api/status(动态JSON) 等。
 web:
   root: ""

@@ -55,6 +55,9 @@ import java.util.logging.Logger;
  *   <li><b>全局前缀</b>：注解式 API 始终挂载在网关配置的 {@code api-prefix}（默认 /api）之下，
  *       注解内无需写前缀、已写前缀不重复；无论 auth 是否启用，地址恒定（如 /api/ping），
  *       避免「未开启 auth 时 API 地址变化」的问题。该前缀由网关自动添加；</li>
+ *   <li><b>类级前缀</b>：在控制器类上写 {@code @RequestMapping("/admin")}，其下所有方法自动获得
+ *       {@code /admin} 段（位于全局前缀之后），无需每个方法重复写。最终路径 = 全局前缀 + 类前缀 + 方法路径
+ *       （如 /api/admin/users）。仅取类级注解的 value/path，不约束 HTTP 方法（方法由方法级注解决定）；</li>
  *   <li>方法返回 {@link AjaxResult} 原样序列化；返回其他对象自动包 {@link AjaxResult#success(Object)}；</li>
  *   <li>{@link ApiPermission} 由 {@link PermissionService} 判定，未注册服务时注解不阻断；</li>
  *   <li>参数支持 {@link RequestParam}（query 绑定 + 类型转换）与 {@link RequestBody}（String body）。</li>
@@ -116,6 +119,8 @@ public class ApiRegistry {
         if (ownerName == null) ownerName = pluginNameOfInstance(instance);
         String clsName = classApiName(cls);
         String clsPermission = classApiPermission(cls);
+        // 类级 @RequestMapping 路径前缀（位于全局 api-prefix 之后），为该类下所有方法统一加前缀
+        String classPrefix = classMappingPrefix(cls);
         int n = 0;
         List<ApiInfo> registered = new ArrayList<>();
         for (Method m : cls.getDeclaredMethods()) {
@@ -127,7 +132,8 @@ public class ApiRegistry {
             List<ParamBinding> params = analyzeParams(m);
             for (String[] plan : plans) {
                 String method = plan[0];
-                String path = applyPrefix(normalizePath(plan[1]));
+                // 路径 = 全局前缀 + 类级前缀 + 方法路径
+                String path = applyPrefix(joinPath(classPrefix, plan[1]));
                 String key = method + " " + path;
                 EndpointMeta meta = new EndpointMeta(instance, m, apiName, permission, params, path, method, ownerName, cls.getName());
                 EndpointMeta old = routes.put(key, meta);
@@ -430,6 +436,23 @@ public class ApiRegistry {
     private static String classApiPermission(Class<?> cls) {
         ApiPermission ap = cls.getAnnotation(ApiPermission.class);
         return ap == null ? "" : ap.value();
+    }
+
+    /** 类级 @RequestMapping 路径前缀（为空字符串表示无前缀）。仅取 value/path，不约束方法。 */
+    private static String classMappingPrefix(Class<?> cls) {
+        RequestMapping rm = cls.getAnnotation(RequestMapping.class);
+        if (rm == null) return "";
+        String p = firstNonEmpty(rm.path(), rm.value());
+        return p == null ? "" : p.trim();
+    }
+
+    /** 拼接类级前缀与方法路径（均先归一化为 / 开头，两者直接拼接即可得到 /admin/users） */
+    private static String joinPath(String prefix, String sub) {
+        if (prefix.isEmpty()) return normalizePath(sub);
+        if (sub == null || sub.isEmpty()) return normalizePath(prefix);
+        String p = normalizePath(prefix);                  // 例如 /admin（以 / 开头）
+        String s = normalizePath(sub);                     // 例如 /users（以 / 开头）
+        return p + s;                                      // → /admin/users
     }
 
     private static String firstNonEmpty(String... vals) {
