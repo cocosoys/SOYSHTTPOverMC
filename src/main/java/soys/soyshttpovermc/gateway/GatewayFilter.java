@@ -57,15 +57,26 @@ public class GatewayFilter {
     private final Logger log;
     private volatile List<SecurityPolicy> policies = new ArrayList<>();
     private volatile List<CredentialIssuer> issuers = new ArrayList<>();
+    /** 网关统一的 API 前缀（gateway/config.yml api-prefix，默认 /api；始终生效） */
+    private volatile String apiPrefix = "/api";
 
     public GatewayFilter(Logger log) {
         this.log = log;
+    }
+
+    /** 网关统一的 API 前缀（auth 策略匹配 exempt/paths 时自动兼容逻辑路径）。 */
+    public String getApiPrefix() {
+        return apiPrefix;
     }
 
     /** 从 gateway/ 目录重建策略链与颁发器（启动与 /soyshttp reload 均走这里）。 */
     public synchronized void reload(File gatewayDir) {
         List<CredentialIssuer> issuerList = loadIssuers(gatewayDir);
         this.issuers = issuerList;
+
+        // 读取网关全局 API 前缀（config.yml api-prefix，默认 /api，始终生效）
+        ConfigurationSection cfg = GatewayConfig.loadYml(new File(gatewayDir, "config.yml"));
+        this.apiPrefix = cfg == null ? "/api" : cfg.getString("api-prefix", "/api");
 
         List<SecurityPolicy> list = new ArrayList<>();
         if (gatewayDir != null && gatewayDir.isDirectory()) {
@@ -91,6 +102,7 @@ public class GatewayFilter {
                     }
                     if (p instanceof AuthPolicy) {
                         ((AuthPolicy) p).setIssuers(issuerList);
+                        ((AuthPolicy) p).setApiPrefix(apiPrefix);
                     }
                     if (p.isEnabled()) list.add(p);
                 }
@@ -99,7 +111,8 @@ public class GatewayFilter {
         list.sort(Comparator.comparingInt(SecurityPolicy::order));
         policies = list;
         LogKit.info("[HTTP-Over-MC] 网关策略链已加载：" + (list.isEmpty() ? "无启用策略" : describe(list))
-                + (issuerList.isEmpty() ? "" : " | 颁发器: " + describeIssuers(issuerList)));
+                + (issuerList.isEmpty() ? "" : " | 颁发器: " + describeIssuers(issuerList))
+                + " | api-prefix=" + apiPrefix);
         if (LogKit.isDebugEnabled()) {
             StringBuilder sb = new StringBuilder("[HTTP-Over-MC] 策略明细: ");
             for (SecurityPolicy p : list) {
@@ -183,6 +196,21 @@ public class GatewayFilter {
 
     public List<SecurityPolicy> getPolicies() {
         return policies;
+    }
+
+    /**
+     * 解析请求头中的凭证为 {@link Credential}（权限控制抽象载体）。
+     * 供 TLS 策略在链路最前判断"是否携带有效 X-API-Key 可旁路 HTTPS 强制升级"复用，
+     * 与 AuthPolicy 共用同一校验逻辑（静态 keys + 启用颁发器）。
+     * 未启用 auth 策略时返回 null（无有效凭证）。
+     */
+    public Credential resolveCredential(java.util.Map<String, String> headers) {
+        for (SecurityPolicy p : policies) {
+            if (p instanceof AuthPolicy) {
+                return ((AuthPolicy) p).resolveFromHeaders(headers);
+            }
+        }
+        return null;
     }
 
     /** auth 鉴权策略是否启用（决定注解式 API 是否自动加 /api 全局前缀） */

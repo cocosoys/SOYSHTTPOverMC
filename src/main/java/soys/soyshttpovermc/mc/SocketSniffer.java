@@ -22,6 +22,7 @@ import soys.soyshttpovermc.api.event.GatewayRequestEvent;
 import soys.soyshttpovermc.api.event.GatewayRequestServedEvent;
 import soys.soyshttpovermc.gateway.GatewayContext;
 import soys.soyshttpovermc.gateway.GatewayFilter;
+import soys.soyshttpovermc.gateway.Credential;
 import soys.soyshttpovermc.gateway.PolicyResult;
 import soys.soyshttpovermc.http.HttpMcTranslator;
 import soys.soyshttpovermc.proto.FrameProto;
@@ -450,7 +451,9 @@ public class SocketSniffer {
             // 1) 网关安全策略链：任一策略拒绝即短路，直接写响应，不占隧道、无 30s 超时风险
             GatewayFilter gw = gateway;
             if (gw != null) {
-                GatewayContext gctx = new GatewayContext(p.method, p.path, p.headers, ip, tls);
+                // 预先解析凭证（权限控制抽象）：携带有效 X-API-Key 时允许明文 HTTP 旁路 HTTPS 强制升级
+                Credential cred = gw.resolveCredential(p.headers);
+                GatewayContext gctx = new GatewayContext(p.method, p.path, p.headers, ip, tls, cred);
                 GatewayFilter.Outcome oc = gw.filterDetailed(gctx);
                 PolicyResult res = oc.result;
                 if (!res.isAllow()) {

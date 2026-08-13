@@ -3,9 +3,16 @@ package soys.soyshttpovermc.api;
 import soys.soyshttpovermc.log.LogKit;
 
 import soys.soyshttpovermc.api.annotations.*;
+import soys.soyshttpovermc.api.event.ApiInfo;
+import soys.soyshttpovermc.api.event.ApiRegisteredEvent;
+import soys.soyshttpovermc.api.event.ApiUnregisteredEvent;
 import soys.soyshttpovermc.api.util.AjaxResult;
 import soys.soyshttpovermc.gateway.policy.auth.AuthUtils;
 import soys.soyshttpovermc.gateway.policy.auth.issuer.CredentialPresentation;
+
+import org.bukkit.Bukkit;
+import org.bukkit.event.Event;
+import org.bukkit.plugin.Plugin;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.InvocationTargetException;
@@ -13,6 +20,7 @@ import java.lang.reflect.Method;
 import java.net.URLDecoder;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -34,12 +42,19 @@ import java.util.logging.Logger;
  *   HttpOverMcPlugin.getInstance().getApiRegistry().register(new MyApi());
  * </pre>
  *
- * 约定：
+ * <h3>插件归属与生命周期（自动）</h3>
+ * 注册时网关会<b>自动标记注册该 API 的插件名</b>（按处理器实例的 ClassLoader 归属，无需调用方手动传入）。
+ * 监听 {@link ApiRegisteredEvent} 可获取本批端点清单（方法 / 路径 / 端点名 / 权限 / 处理器类 / 所属插件）。
+ * 插件卸载时（{@code PluginDisableEvent}）网关会<b>自动卸载其名下全部 API</b>并触发
+ * {@link ApiUnregisteredEvent}；亦可调用 {@link #unregister(Object)} / {@link #unregisterPlugin(String)} 显式卸载。
+ *
+ * <h3>路由约定</h3>
  * <ul>
  *   <li>映射注解：{@link GetMapping} / {@link PostMapping} / {@link PutMapping} /
  *       {@link DeleteMapping} / {@link PatchMapping} / {@link RequestMapping}(method 可多值/空=任意方法)；</li>
- *   <li><b>全局前缀</b>：auth 策略启用时注册的 API 自动加 {@code /api} 前缀（由插件
- *       {@link #setPathPrefix} 注入），注解内无需写前缀；已写前缀则不再重复；</li>
+ *   <li><b>全局前缀</b>：注解式 API 始终挂载在网关配置的 {@code api-prefix}（默认 /api）之下，
+ *       注解内无需写前缀、已写前缀不重复；无论 auth 是否启用，地址恒定（如 /api/ping），
+ *       避免「未开启 auth 时 API 地址变化」的问题。该前缀由网关自动添加；</li>
  *   <li>方法返回 {@link AjaxResult} 原样序列化；返回其他对象自动包 {@link AjaxResult#success(Object)}；</li>
  *   <li>{@link ApiPermission} 由 {@link PermissionService} 判定，未注册服务时注解不阻断；</li>
  *   <li>参数支持 {@link RequestParam}（query 绑定 + 类型转换）与 {@link RequestBody}（String body）。</li>
@@ -50,12 +65,15 @@ public class ApiRegistry {
     private static final String ANY_METHOD = "*";
 
     private final Logger log;
+    /** 宿主插件（SOYSHTTPOverMC 本体）：注册时若无法归属到其它插件则归为本插件 */
+    private final Plugin hostPlugin;
     private final Map<String, EndpointMeta> routes = new ConcurrentHashMap<>();
     private volatile PermissionService permissionService;
-    /** 全局路径前缀（auth 开启时为 /api，否则空）；注册时写入路由 */
-    private volatile String pathPrefix = "";
+    /** 全局路径前缀（网关配置 api-prefix，默认 /api；始终生效，与 auth 是否启用解耦） */
+    private volatile String pathPrefix = "/api";
 
-    public ApiRegistry(Logger log) {
+    public ApiRegistry(Plugin hostPlugin, Logger log) {
+        this.hostPlugin = hostPlugin;
         this.log = log;
     }
 
@@ -70,7 +88,7 @@ public class ApiRegistry {
 
     /**
      * 设置全局路径前缀（如 "/api"）：后续 register 的 API 自动拼接该前缀。
-     * 由插件在 auth 策略启用时调用（auth 关闭时传空串表示不加前缀）。
+     * 由插件在启动时从 gateway/config.yml 读取（始终生效，与 auth 启用与否无关）。
      */
     public void setPathPrefix(String prefix) {
         this.pathPrefix = prefix == null ? "" : prefix.trim();
@@ -80,13 +98,26 @@ public class ApiRegistry {
         return pathPrefix;
     }
 
-    /** 注册一个带映射注解的处理器实例（扫描其全部方法）。 */
+    /**
+     * 注册一个带映射注解的处理器实例（自动标记其所属插件 = 处理器实例的 ClassLoader 归属插件）。
+     */
     public void register(Object instance) {
+        register(pluginOfInstance(instance), instance);
+    }
+
+    /**
+     * 注册一个带映射注解的处理器实例，并显式指定所属插件（用于跨插件代理注册等场景）。
+     * 不传插件时由 {@link #register(Object)} 自动推断。
+     */
+    public void register(Plugin owner, Object instance) {
         if (instance == null) return;
         Class<?> cls = instance.getClass();
+        String ownerName = owner == null ? null : owner.getName();
+        if (ownerName == null) ownerName = pluginNameOfInstance(instance);
         String clsName = classApiName(cls);
         String clsPermission = classApiPermission(cls);
         int n = 0;
+        List<ApiInfo> registered = new ArrayList<>();
         for (Method m : cls.getDeclaredMethods()) {
             List<String[]> plans = resolveMapping(m); // [method|*, path]
             if (plans.isEmpty()) continue;
@@ -98,53 +129,63 @@ public class ApiRegistry {
                 String method = plan[0];
                 String path = applyPrefix(normalizePath(plan[1]));
                 String key = method + " " + path;
-                EndpointMeta meta = new EndpointMeta(instance, m, apiName, permission, params);
+                EndpointMeta meta = new EndpointMeta(instance, m, apiName, permission, params, path, method, ownerName, cls.getName());
                 EndpointMeta old = routes.put(key, meta);
                 if (old != null) {
-                    LogKit.warn("[HTTP-Over-MC] API 路由重复注册被覆盖: " + key + "（新=" + cls.getName() + "，旧=" + old.method.getDeclaringClass().getName() + "）");
+                    LogKit.warn("[HTTP-Over-MC] API 路由重复注册被覆盖: " + key + "（新=" + cls.getName()
+                            + "，旧=" + old.method.getDeclaringClass().getName() + "）");
                 }
                 n++;
-                LogKit.info("[HTTP-Over-MC] 注册 API: " + key + " 名称=" + apiName + (permission.isEmpty() ? "" : " 权限=" + permission));
+                registered.add(new ApiInfo(method, path, apiName, permission, cls.getName(), ownerName));
+                LogKit.info("[HTTP-Over-MC] 注册 API: " + key + " 名称=" + apiName
+                        + " 插件=" + ownerName + (permission.isEmpty() ? "" : " 权限=" + permission));
             }
         }
         if (n == 0) {
             LogKit.warn("[HTTP-Over-MC] register(" + cls.getName() + ") 未发现映射注解方法（@GetMapping 等）");
+            return;
         }
+        // 发射注册事件（同步事件，确保在主线程触发；监听器异常不影响注册）
+        fireApiEvent(new ApiRegisteredEvent(ownerName, registered));
     }
 
-    /** 解析方法上的映射注解 → [method|*, path] 列表（一个方法可注册多个方法路由） */
-    private static List<String[]> resolveMapping(Method m) {
-        List<String[]> list = new ArrayList<>();
-        GetMapping g = m.getAnnotation(GetMapping.class);
-        if (g != null) list.add(new String[]{"GET", firstNonEmpty(g.path(), g.value())});
-        PostMapping po = m.getAnnotation(PostMapping.class);
-        if (po != null) list.add(new String[]{"POST", firstNonEmpty(po.path(), po.value())});
-        PutMapping pu = m.getAnnotation(PutMapping.class);
-        if (pu != null) list.add(new String[]{"PUT", firstNonEmpty(pu.path(), pu.value())});
-        DeleteMapping d = m.getAnnotation(DeleteMapping.class);
-        if (d != null) list.add(new String[]{"DELETE", firstNonEmpty(d.path(), d.value())});
-        PatchMapping pa = m.getAnnotation(PatchMapping.class);
-        if (pa != null) list.add(new String[]{"PATCH", firstNonEmpty(pa.path(), pa.value())});
-        RequestMapping rm = m.getAnnotation(RequestMapping.class);
-        if (rm != null) {
-            String p = firstNonEmpty(rm.path(), rm.value());
-            RequestMethod[] methods = rm.method();
-            if (methods.length == 0) {
-                list.add(new String[]{ANY_METHOD, p});
-            } else {
-                for (RequestMethod rmethod : methods) {
-                    list.add(new String[]{rmethod.name(), p});
-                }
+    /** 卸载某处理器实例注册的全部端点（插件可显式调用；亦会在 PluginDisable 时自动调用）。 */
+    public List<ApiInfo> unregister(Object instance) {
+        List<ApiInfo> removed = new ArrayList<>();
+        if (instance == null) return removed;
+        Iterator<Map.Entry<String, EndpointMeta>> it = routes.entrySet().iterator();
+        while (it.hasNext()) {
+            Map.Entry<String, EndpointMeta> en = it.next();
+            EndpointMeta m = en.getValue();
+            if (m.instance == instance) {
+                removed.add(toInfo(m));
+                it.remove();
             }
         }
-        return list;
+        if (!removed.isEmpty()) {
+            LogKit.info("[HTTP-Over-MC] 卸载 API（实例 " + instance.getClass().getName() + "）：共 " + removed.size() + " 个");
+            fireApiEvent(new ApiUnregisteredEvent(removed.get(0).getOwnerPlugin(), removed));
+        }
+        return removed;
     }
 
-    private String applyPrefix(String path) {
-        String prefix = pathPrefix;
-        if (prefix.isEmpty() || prefix.equals("/")) return path;
-        if (path.startsWith(prefix)) return path; // 已写前缀不重复
-        return prefix + path;
+    /** 卸载指定插件名注册的全部 API（监听 PluginDisableEvent 时调用）。 */
+    public List<ApiInfo> unregisterPlugin(String pluginName) {
+        List<ApiInfo> removed = new ArrayList<>();
+        if (pluginName == null || pluginName.isEmpty()) return removed;
+        Iterator<Map.Entry<String, EndpointMeta>> it = routes.entrySet().iterator();
+        while (it.hasNext()) {
+            EndpointMeta m = it.next().getValue();
+            if (pluginName.equals(m.ownerPlugin)) {
+                removed.add(toInfo(m));
+                it.remove();
+            }
+        }
+        if (!removed.isEmpty()) {
+            LogKit.info("[HTTP-Over-MC] 卸载 API（插件 " + pluginName + "）：共 " + removed.size() + " 个");
+            fireApiEvent(new ApiUnregisteredEvent(pluginName, removed));
+        }
+        return removed;
     }
 
     /**
@@ -214,6 +255,49 @@ public class ApiRegistry {
         return routes;
     }
 
+    // ===== 插件归属推断 =====
+
+    /** 按处理器实例的 ClassLoader 归属插件；找不到（如宿主自身）则归为宿主插件。 */
+    private Plugin pluginOfInstance(Object instance) {
+        String name = pluginNameOfInstance(instance);
+        if (name != null) {
+            Plugin p = Bukkit.getPluginManager().getPlugin(name);
+            if (p != null) return p;
+        }
+        return hostPlugin;
+    }
+
+    private String pluginNameOfInstance(Object instance) {
+        if (instance == null) return null;
+        ClassLoader cl = instance.getClass().getClassLoader();
+        for (Plugin p : Bukkit.getPluginManager().getPlugins()) {
+            if (p.getClass().getClassLoader() == cl) return p.getName();
+        }
+        return null;
+    }
+
+    /** 主线程安全触发 API 注册/卸载事件（同步事件，必在主线程触发，规避 1.12.2 异步事件限制）。 */
+    private void fireApiEvent(Event e) {
+        try {
+            if (Bukkit.isPrimaryThread()) {
+                Bukkit.getPluginManager().callEvent(e);
+            } else {
+                final Plugin host = hostPlugin;
+                Bukkit.getScheduler().runTask(host, () -> {
+                    try {
+                        Bukkit.getPluginManager().callEvent(e);
+                    } catch (Throwable ignored) {
+                    }
+                });
+            }
+        } catch (Throwable ignored) {
+        }
+    }
+
+    private static ApiInfo toInfo(EndpointMeta m) {
+        return new ApiInfo(m.httpMethod, m.path, m.apiName, m.permission, m.handlerClass, m.ownerPlugin);
+    }
+
     // ===== 元数据 =====
 
     public static final class EndpointMeta {
@@ -222,13 +306,26 @@ public class ApiRegistry {
         public final String apiName;
         public final String permission;
         public final List<ParamBinding> params;
+        /** 实际挂载路径（含前缀，如 /api/ping） */
+        public final String path;
+        /** HTTP 方法（GET/POST/... 或 *） */
+        public final String httpMethod;
+        /** 注册该 API 的插件名（网关自动标记） */
+        public final String ownerPlugin;
+        /** 处理器类全限定名 */
+        public final String handlerClass;
 
-        EndpointMeta(Object instance, Method method, String apiName, String permission, List<ParamBinding> params) {
+        EndpointMeta(Object instance, Method method, String apiName, String permission,
+                     List<ParamBinding> params, String path, String httpMethod, String ownerPlugin, String handlerClass) {
             this.instance = instance;
             this.method = method;
             this.apiName = apiName;
             this.permission = permission;
             this.params = params;
+            this.path = path;
+            this.httpMethod = httpMethod;
+            this.ownerPlugin = ownerPlugin == null ? "" : ownerPlugin;
+            this.handlerClass = handlerClass;
         }
     }
 
@@ -313,6 +410,13 @@ public class ApiRegistry {
         }
     }
 
+    private String applyPrefix(String path) {
+        String prefix = pathPrefix;
+        if (prefix.isEmpty() || prefix.equals("/")) return path;
+        if (path.startsWith(prefix)) return path; // 已写前缀不重复
+        return prefix + path;
+    }
+
     private static String normalizePath(String p) {
         if (p == null || p.isEmpty()) return "/";
         return p.startsWith("/") ? p : "/" + p;
@@ -333,5 +437,33 @@ public class ApiRegistry {
             if (v != null && !v.isEmpty()) return v;
         }
         return "";
+    }
+
+    /** 解析方法上的映射注解 → [method|*, path] 列表（一个方法可注册多个方法路由） */
+    private static List<String[]> resolveMapping(Method m) {
+        List<String[]> list = new ArrayList<>();
+        GetMapping g = m.getAnnotation(GetMapping.class);
+        if (g != null) list.add(new String[]{"GET", firstNonEmpty(g.path(), g.value())});
+        PostMapping po = m.getAnnotation(PostMapping.class);
+        if (po != null) list.add(new String[]{"POST", firstNonEmpty(po.path(), po.value())});
+        PutMapping pu = m.getAnnotation(PutMapping.class);
+        if (pu != null) list.add(new String[]{"PUT", firstNonEmpty(pu.path(), pu.value())});
+        DeleteMapping d = m.getAnnotation(DeleteMapping.class);
+        if (d != null) list.add(new String[]{"DELETE", firstNonEmpty(d.path(), d.value())});
+        PatchMapping pa = m.getAnnotation(PatchMapping.class);
+        if (pa != null) list.add(new String[]{"PATCH", firstNonEmpty(pa.path(), pa.value())});
+        RequestMapping rm = m.getAnnotation(RequestMapping.class);
+        if (rm != null) {
+            String p = firstNonEmpty(rm.path(), rm.value());
+            RequestMethod[] methods = rm.method();
+            if (methods.length == 0) {
+                list.add(new String[]{ANY_METHOD, p});
+            } else {
+                for (RequestMethod rmethod : methods) {
+                    list.add(new String[]{rmethod.name(), p});
+                }
+            }
+        }
+        return list;
     }
 }

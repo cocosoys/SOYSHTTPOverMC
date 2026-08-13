@@ -1,42 +1,33 @@
-package soys.soyshttpovermc.api.controller;
+package soys.soyshttpovermc.api.spring.impl;
 
-import soys.soyshttpovermc.api.util.AjaxResult;
-import soys.soyshttpovermc.api.annotations.ApiName;
-import soys.soyshttpovermc.api.annotations.ApiPermission;
-import soys.soyshttpovermc.api.annotations.GetMapping;
-import soys.soyshttpovermc.api.entity.LatencyEntity;
-import soys.soyshttpovermc.api.entity.RecentRequestEntity;
-import soys.soyshttpovermc.api.entity.RequestCountEntity;
-import soys.soyshttpovermc.api.entity.StatusEntity;
+import soys.soyshttpovermc.api.spring.entity.LatencyEntity;
+import soys.soyshttpovermc.api.spring.entity.RecentRequestEntity;
+import soys.soyshttpovermc.api.spring.entity.RequestCountEntity;
+import soys.soyshttpovermc.api.spring.entity.StatusEntity;
+import soys.soyshttpovermc.api.spring.service.IStatusService;
 import soys.soyshttpovermc.web.RequestStats;
 
 import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 隧道状态 API（注解式书写 + 实体类返回）：
- * GET /status → 实际路由为 /api/status（auth 开启时自动加 /api 前缀）
- * → AjaxResult {code,msg,data:{online,port,bot,uptime,requests,latency,recent}}
- *
- * <p>data 为 {@link StatusEntity}（继承 BaseEntity，实现 Serializable），
- * 结构与原版平铺 JSON 一致（面板可读），延迟字段为数值/空（null）。
+ * 隧道状态 Service 实现（仿 MyBatis-Plus 的 {@code XxxServiceImpl extends ServiceImpl implements XxxService}）：
+ * <b>业务逻辑集中于此</b>，控制器只调用接口方法。数据来源为隧道统计 {@link RequestStats}。
  */
-public class StatusApi {
+public class StatusServiceImpl extends BaseServiceImpl<StatusEntity> implements IStatusService {
 
     private final RequestStats stats;
     private final int port;
     private final String botName;
 
-    public StatusApi(RequestStats stats, int port, String botName) {
+    public StatusServiceImpl(RequestStats stats, int port, String botName) {
         this.stats = stats;
         this.port = port;
         this.botName = botName == null ? "" : botName;
     }
 
-    @ApiName("隧道状态")
-    @ApiPermission("soyshttp:api:status")
-    @GetMapping("/status")
-    public AjaxResult status() {
+    @Override
+    public StatusEntity getStatus() {
         long up = System.currentTimeMillis() - stats.getStartTime();
 
         StatusEntity status = new StatusEntity();
@@ -58,6 +49,16 @@ public class StatusApi {
         latency.setMaxMs(nonNegative(stats.getMaxLatencyMs()));
         status.setLatency(latency);
 
+        status.setRecent(buildRecent());
+        return status;
+    }
+
+    @Override
+    public List<RecentRequestEntity> getRecentRequests() {
+        return buildRecent();
+    }
+
+    private List<RecentRequestEntity> buildRecent() {
         List<RecentRequestEntity> recent = new ArrayList<>();
         for (RequestStats.RecentReq r : stats.getRecent()) {
             RecentRequestEntity item = new RecentRequestEntity();
@@ -67,9 +68,7 @@ public class StatusApi {
             item.setMs(nonNegative(r.latencyMs()));
             recent.add(item);
         }
-        status.setRecent(recent);
-
-        return AjaxResult.success(status);
+        return recent;
     }
 
     /** 负值（无样本）→ null，否则数值（面板兼容 toFixed） */

@@ -1,6 +1,7 @@
-package soys.soyshttpovermc.api.entity;
+package soys.soyshttpovermc.api.spring.entity;
 
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 
 import java.util.List;
 
@@ -15,6 +16,7 @@ import java.util.List;
  * }
  * </pre>
  */
+@EqualsAndHashCode(callSuper = true)
 @Data
 public class StatusEntity extends BaseEntity {
 

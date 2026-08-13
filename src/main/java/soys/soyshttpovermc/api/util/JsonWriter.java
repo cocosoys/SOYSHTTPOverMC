@@ -9,7 +9,7 @@ import java.util.Map;
 /**
  * 零依赖的最小 JSON 序列化器（避免引入 Jackson）。
  * 支持：Map / Collection / 数组 / String / Number / Boolean / null / POJO（反射 getter）。
- * <p>实体类（继承 {@link soys.soyshttpovermc.api.entity.BaseEntity}）可直接放入
+ * <p>实体类（继承 {@link soys.soyshttpovermc.api.spring.entity.BaseEntity}）可直接放入
  * {@link AjaxResult#success(Object)} 序列化输出。
  */
 public final class JsonWriter {

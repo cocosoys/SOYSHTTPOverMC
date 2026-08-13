@@ -7,11 +7,19 @@ import org.bukkit.command.CommandSender;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
+import org.bukkit.event.server.PluginDisableEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import soys.soyshttpovermc.api.ApiRegistry;
-import soys.soyshttpovermc.api.controller.StatusApi;
-import soys.soyshttpovermc.api.controller.SystemApi;
+import soys.soyshttpovermc.api.spring.controller.StatusController;
+import soys.soyshttpovermc.api.spring.controller.SystemController;
+import soys.soyshttpovermc.api.spring.impl.StatusServiceImpl;
+import soys.soyshttpovermc.api.spring.impl.SystemServiceImpl;
+import soys.soyshttpovermc.api.spring.service.IStatusService;
+import soys.soyshttpovermc.api.spring.service.ISystemService;
+import soys.soyshttpovermc.api.event.ApiInfo;
+import soys.soyshttpovermc.api.event.ApiRegisteredEvent;
+import soys.soyshttpovermc.api.event.ApiUnregisteredEvent;
 import soys.soyshttpovermc.api.event.GatewayAccessDeniedEvent;
 import soys.soyshttpovermc.api.event.GatewayCredentialIssuedEvent;
 import soys.soyshttpovermc.api.event.GatewayRequestEvent;
@@ -89,16 +97,20 @@ public class HttpOverMcPlugin extends JavaPlugin {
         final Supplier<SSLEngine> tlsEngines = tlsFactory == null ? null : tlsFactory::newServerEngine;
 
         // 0.5) 注解式 API 框架（仿 Spring：@GetMapping/@ApiName/@ApiPermission + AjaxResult）
-        // 全局前缀：auth 策略启用时注解 API 自动加 /api（注解内无需写前缀，auth 关闭则不加）
-        String apiPrefix = "";
-        if (gateway != null && gateway.isAuthEnabled()) {
-            ConfigurationSection gwCfg = GatewayConfig.loadYml(new File(gatewayDir, "config.yml"));
-            apiPrefix = gwCfg == null ? "/api" : gwCfg.getString("api-prefix", "/api");
-        }
-        apiRegistry = new ApiRegistry(log);
+        // 全局前缀 api-prefix 始终生效（与 auth 是否启用解耦），保证 API 地址恒定（如 /api/ping），
+        // 避免「未开启 auth 时 API 地址变化」导致用户在 exempt/paths 中需手动写 /api 前缀的问题。
+        // 网关在匹配 exempt/paths 时也会自动兼容逻辑路径（/ping）与显式路径（/api/ping）。
+        ConfigurationSection gwCfg = GatewayConfig.loadYml(new File(gatewayDir, "config.yml"));
+        String apiPrefix = gwCfg == null ? "/api" : gwCfg.getString("api-prefix", "/api");
+        apiRegistry = new ApiRegistry(this, log);
         apiRegistry.setPathPrefix(apiPrefix);
-        apiRegistry.register(new SystemApi(mcPort));
+        // 先注册事件监听器（含 API 注册/卸载调试日志），确保后续 register 触发的事件能被捕获
         getServer().getPluginManager().registerEvents(new GatewayEventLogger(), this);
+        // API 自动生命周期：插件卸载时自动卸载其名下全部注解式 API（并触发 ApiUnregisteredEvent）
+        getServer().getPluginManager().registerEvents(new ApiLifecycleListener(), this);
+        // 系统 API：装配 SystemServiceImpl → SystemApi（控制器仅依赖 ISystemService 接口）
+        ISystemService systemService = new SystemServiceImpl(mcPort);
+        apiRegistry.register(new SystemController(systemService));
 
         // 1) Bot 回环连接本服（目标即 Spigot 监听端口，例如 25564）。connect() 异步，不阻塞。
         bot = new InternalBot(this, botUsername, channel, mcHost, mcPort);
@@ -108,7 +120,9 @@ public class HttpOverMcPlugin extends JavaPlugin {
 
         // 2) 前端 + 统计 + 注解式 API 分发：把隧道请求路由为注解式 API / 静态资源
         RequestStats stats = new RequestStats();
-        apiRegistry.register(new StatusApi(stats, mcPort, botUsername)); // /api/status 注解式重写
+        // 状态 API：装配 StatusServiceImpl（持有统计来源）→ StatusApi（控制器仅依赖 IStatusService 接口）
+        IStatusService statusService = new StatusServiceImpl(stats, mcPort, botUsername); // /api/status 注解式重写
+        apiRegistry.register(new StatusController(statusService));
         WebFrontendHandler web = new WebFrontendHandler(
                 webRoot == null ? null : webRoot.getAbsolutePath(), apiRegistry);
         McMessageHandler handler = new McMessageHandler(this, botUsername, channel, web);
@@ -291,6 +305,38 @@ public class HttpOverMcPlugin extends JavaPlugin {
             if (!debugEventsEnabled) return;
             LogKit.info("[EVENT] credential issued subject=" + e.getSubject()
                     + " issuer=" + e.getIssuerName());
+        }
+
+        @EventHandler
+        public void onApiRegistered(ApiRegisteredEvent e) {
+            if (!debugEventsEnabled) return;
+            StringBuilder sb = new StringBuilder("[EVENT] api registered plugin=").append(e.getOwnerPlugin())
+                    .append(" count=").append(e.getApis().size());
+            for (ApiInfo a : e.getApis()) {
+                sb.append("\n    ").append(a.toString());
+            }
+            LogKit.info(sb.toString());
+        }
+
+        @EventHandler
+        public void onApiUnregistered(ApiUnregisteredEvent e) {
+            if (!debugEventsEnabled) return;
+            LogKit.info("[EVENT] api unregistered plugin=" + e.getOwnerPlugin()
+                    + " count=" + e.getApis().size());
+        }
+    }
+
+    /**
+     * API 自动生命周期监听器：任一插件（非本插件）被禁用时，自动卸载其名下全部注解式 API。
+     * 这样第三方插件无需手动在 onDisable 里清理，避免其 API 残留导致的内存泄漏/路由污染。
+     */
+    private class ApiLifecycleListener implements Listener {
+
+        @EventHandler(priority = org.bukkit.event.EventPriority.MONITOR)
+        public void onPluginDisable(PluginDisableEvent e) {
+            if (apiRegistry == null) return;
+            if (e.getPlugin() == HttpOverMcPlugin.this) return; // 本插件卸载由 onDisable 统一处理
+            apiRegistry.unregisterPlugin(e.getPlugin().getName());
         }
     }
 

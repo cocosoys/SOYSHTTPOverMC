@@ -1,5 +1,7 @@
 package soys.soyshttpovermc.gateway.policy.auth;
 
+import soys.soyshttpovermc.gateway.Credential;
+import soys.soyshttpovermc.gateway.policy.auth.issuer.CredentialIssuer;
 import soys.soyshttpovermc.gateway.policy.auth.issuer.CredentialPresentation;
 
 import java.nio.charset.StandardCharsets;
@@ -8,7 +10,9 @@ import java.security.SecureRandom;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * 鉴权工具类：集中提供凭证头解析、Cookie 解析、路径匹配、常量时间比较与令牌生成，
@@ -99,6 +103,63 @@ public final class AuthUtils {
         Map<String, String> cookies = acceptCookie ? parseCookies(getHeader(headers, "Cookie"))
                 : Collections.<String, String>emptyMap();
         return new CredentialPresentation(apiKey, bearer, basicUser, basicPass, cookies);
+    }
+
+    /**
+     * 解析请求携带的凭证为 {@link Credential}（权限控制抽象载体）。
+     * 复用与 AuthPolicy 一致的校验逻辑：静态 keys（常量时间比较）+ 启用的颁发器。
+     * 有效返回非 null（含脱敏 subject 与 source），无效返回 null。
+     * 这是「带有效 X-API-Key 可旁路 HTTPS 强制升级」与「未来按权限细分」共用的唯一校验入口。
+     */
+    public static Credential resolveCredential(Map<String, String> headers,
+                                                String apiKeyHeader,
+                                                boolean acceptHeader,
+                                                boolean acceptBearer,
+                                                boolean acceptBasic,
+                                                boolean acceptCookie,
+                                                java.util.List<CredentialIssuer> issuers,
+                                                Set<String> keys) {
+        CredentialPresentation p = extractPresentation(headers, apiKeyHeader,
+                acceptHeader, acceptBearer, acceptBasic, acceptCookie);
+        // 1) 静态 key：X-API-Key 头 / Bearer / Basic 用户名=key
+        if (acceptHeader && matchAnyKey(keys, p.getApiKey())) {
+            return new Credential("api-key:" + fingerprint(p.getApiKey()), "api-key");
+        }
+        if (acceptBearer && matchAnyKey(keys, p.getBearer())) {
+            return new Credential("bearer:" + fingerprint(p.getBearer()), "bearer");
+        }
+        if (acceptBasic && matchAnyKey(keys, p.getBasicUser())) {
+            return new Credential("basic:" + fingerprint(p.getBasicUser()), "basic");
+        }
+        // 2) 启用的颁发器校验（Bearer / X-API-Key / Cookie 均可识别）
+        if (issuers != null) {
+            for (CredentialIssuer issuer : issuers) {
+                if (!issuer.isEnabled()) continue;
+                try {
+                    if (issuer.validate(p)) {
+                        return new Credential("issuer:" + issuer.name(), "issuer:" + issuer.name());
+                    }
+                } catch (Exception ignored) {
+                }
+            }
+        }
+        return null;
+    }
+
+    /** 常量时间匹配任一静态 key */
+    private static boolean matchAnyKey(Set<String> keys, String presented) {
+        if (keys == null || presented == null) return false;
+        for (String k : keys) {
+            if (constantTimeEquals(k, presented)) return true;
+        }
+        return false;
+    }
+
+    /** 密钥指纹（SHA-256 前 8 位），用于 subject 脱敏，避免日志泄露原始密钥。 */
+    private static String fingerprint(String v) {
+        if (v == null) return "?";
+        String h = sha256Hex(v);
+        return h.length() > 8 ? h.substring(0, 8) : h;
     }
 
     /** 大小写不敏感读取请求头 */

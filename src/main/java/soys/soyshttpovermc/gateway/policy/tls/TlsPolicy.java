@@ -43,6 +43,9 @@ public class TlsPolicy extends SecurityPolicy {
     @Override
     public PolicyResult check(GatewayContext ctx) {
         if (ctx.isTls()) return PolicyResult.ALLOW;
+        // 携带有效 X-API-Key（或任一有效凭证）的请求：允许明文 HTTP 直接访问，旁路 HTTPS 强制升级。
+        // 权限控制抽象：当前有效凭证 = 拥有全部权限；未来可在此加 hasPermission 细粒度条件。
+        if (ctx.isAuthenticated()) return PolicyResult.ALLOW;
         String loc = "https://" + host + ctx.getPath();
         Map<String, String> h = new HashMap<>();
         h.put("Location", loc);

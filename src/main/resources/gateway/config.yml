@@ -6,9 +6,10 @@
 #   gateway/issuers/<name>.yml   每个凭证颁发器一个文件（登录插件接入）
 # 修改后执行 /soyshttp reload 热重载，无需重启服务器。
 enabled: true
-# 注解式 API 全局前缀：auth 策略启用时，@GetMapping("/status") 自动映射为 /api/status
-#（注解内无需写前缀；已写前缀不重复；auth 关闭时前缀不生效，按注解原样路由）
-# 修改需重启服务器（/soyshttp reload 不重注册路由）。
+# 注解式 API 全局前缀：始终生效（与 auth 是否启用无关），@GetMapping("/ping") 一律映射为 /api/ping。
+# 这样 API 地址恒定，避免「未开启 auth 时 API 地址变化」带来的配置不一致问题。
+# 在 auth.yml 的 paths/exempt 中写逻辑路径（如 /ping）即可，网关会自动补 /api 前缀后再匹配，
+#（也兼容显式写 /api/ping）。修改需重启服务器（/soyshttp reload 不重注册路由）。
 api-prefix: /api
-# 事件调试：true 时在控制台打印网关事件（请求进入/拒绝/完成/凭证下发），便于排查
+# 事件调试：true 时在控制台打印网关事件（请求进入/拒绝/完成/凭证下发/API注册/API卸载），便于排查
 debug-events: false

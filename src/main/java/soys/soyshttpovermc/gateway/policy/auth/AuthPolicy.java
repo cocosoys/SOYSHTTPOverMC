@@ -1,9 +1,9 @@
 package soys.soyshttpovermc.gateway.policy.auth;
 
 import org.bukkit.configuration.ConfigurationSection;
+import soys.soyshttpovermc.log.LogKit;
 import soys.soyshttpovermc.gateway.*;
 import soys.soyshttpovermc.gateway.policy.auth.issuer.CredentialIssuer;
-import soys.soyshttpovermc.gateway.policy.auth.issuer.CredentialPresentation;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -33,6 +33,8 @@ public class AuthPolicy extends SecurityPolicy {
     private boolean acceptBasic = true;
     private boolean acceptCookie = true;
     private volatile List<CredentialIssuer> issuers = new ArrayList<>();
+    /** 网关统一的 API 前缀（config.yml api-prefix，默认 /api）：匹配 exempt/paths 时自动兼容逻辑路径 */
+    private volatile String apiPrefix = "/api";
 
     @Override
     public String name() {
@@ -71,50 +73,65 @@ public class AuthPolicy extends SecurityPolicy {
         this.issuers = issuers == null ? new ArrayList<CredentialIssuer>() : issuers;
     }
 
+    /** 由 GatewayFilter 注入网关统一的 API 前缀（config.yml api-prefix）；匹配 exempt/paths 时自动兼容逻辑路径 */
+    public void setApiPrefix(String prefix) {
+        this.apiPrefix = prefix == null ? "" : prefix.trim();
+    }
+
     @Override
     public boolean appliesTo(GatewayContext ctx) {
         String path = ctx.getPath();
-        // 豁免路径（公开端点，如 /api/ping）：命中则本策略不适用，直接放行
+        // 豁免路径（公开端点，如 /api/ping）：命中则本策略不适用，直接放行。
+        // 同时兼容逻辑路径（/ping）与显式路径（/api/ping）——网关会自动给逻辑路径补上前缀后再匹配，
+        // 因此用户在 auth.yml 中写 /ping 即可，无需手动写 /api 前缀（避免未开 auth 时地址不一致问题）。
         for (String exempt : exemptPatterns) {
-            if (AuthUtils.matchesPath(path, exempt)) return false;
+            if (matchesPattern(path, exempt)) return false;
         }
         if (pathPatterns.isEmpty()) return true; // 未配置路径 = 保护所有
         for (String pattern : pathPatterns) {
-            if (AuthUtils.matchesPath(path, pattern)) return true;
+            if (matchesPattern(path, pattern)) return true;
         }
         return false;
+    }
+
+    /**
+     * 路径匹配：支持两种写法——用户直接写显式路径（/api/ping），或写逻辑路径（/ping）。
+     * 对逻辑路径自动补 api-prefix 后再匹配（已带前缀则不重复补）。
+     * 这样 exempt/paths 的写法与「auth 是否启用」「API 前缀是否生效」完全解耦。
+     */
+    private boolean matchesPattern(String path, String pattern) {
+        if (pattern == null || pattern.isEmpty()) return true;
+        if ("*".equals(pattern)) return true;
+        if (AuthUtils.matchesPath(path, pattern)) return true;
+        String prefixed = applyApiPrefix(pattern);
+        return prefixed != null && !prefixed.equals(pattern) && AuthUtils.matchesPath(path, prefixed);
+    }
+
+    /** 给逻辑路径补 api-prefix（已带前缀 / 空前缀 / 通配前缀则不处理） */
+    private String applyApiPrefix(String pattern) {
+        if (apiPrefix == null || apiPrefix.isEmpty() || apiPrefix.equals("/")) return null;
+        if (pattern.startsWith(apiPrefix)) return null; // 已显式带前缀
+        if (pattern.equals("*")) return null;
+        return apiPrefix + pattern;
     }
 
     @Override
     public PolicyResult check(GatewayContext ctx) {
-        CredentialPresentation p = AuthUtils.extractPresentation(ctx.getHeaders(), header,
-                acceptHeader, acceptBearer, acceptBasic, acceptCookie);
-        if (isValid(p)) return PolicyResult.ALLOW;
+        if (resolve(ctx) != null) return PolicyResult.ALLOW;
         return PolicyResult.deny(401, "Unauthorized: missing or invalid credential");
     }
 
-    private boolean isValid(CredentialPresentation p) {
-        // 1) 静态 key：X-API-Key 头 或 Bearer（常量时间比较）
-        if (acceptHeader && matchesAnyKey(p.getApiKey())) return true;
-        if (acceptBearer && matchesAnyKey(p.getBearer())) return true;
-        // 2) Basic：用户名=key（密码不校验，仅作浏览器弹窗/客户端友好形态）
-        if (acceptBasic && matchesAnyKey(p.getBasicUser())) return true;
-        // 3) 启用的颁发器校验（Bearer / X-API-Key / Cookie 均可被颁发器识别）
-        for (CredentialIssuer issuer : issuers) {
-            if (!issuer.isEnabled()) continue;
-            try {
-                if (issuer.validate(p)) return true;
-            } catch (Exception ignored) {
-            }
-        }
-        return false;
+    /**
+     * 解析请求携带的凭证为 {@link Credential}（权限控制抽象载体）。
+     * 与 {@link #check} 共用同一校验逻辑，供 TLS 策略判断"是否携带有效 X-API-Key 可旁路 HTTPS"。
+     */
+    public Credential resolve(GatewayContext ctx) {
+        return resolveFromHeaders(ctx.getHeaders());
     }
 
-    private boolean matchesAnyKey(String presented) {
-        if (presented == null) return false;
-        for (String k : keys) {
-            if (AuthUtils.constantTimeEquals(k, presented)) return true;
-        }
-        return false;
+    /** 从原始请求头解析凭证（无需构建 GatewayContext，便于 GatewayFilter 在链路最前复用）。 */
+    public Credential resolveFromHeaders(java.util.Map<String, String> headers) {
+        return AuthUtils.resolveCredential(headers, header,
+                acceptHeader, acceptBearer, acceptBasic, acceptCookie, issuers, keys);
     }
 }

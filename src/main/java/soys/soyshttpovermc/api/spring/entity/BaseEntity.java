@@ -1,4 +1,4 @@
-package soys.soyshttpovermc.api.entity;
+package soys.soyshttpovermc.api.spring.entity;
 
 import lombok.Data;
 import soys.soyshttpovermc.api.util.JsonWriter;
