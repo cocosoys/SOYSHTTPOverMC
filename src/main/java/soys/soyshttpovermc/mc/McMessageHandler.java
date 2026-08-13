@@ -5,28 +5,34 @@ import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.plugin.messaging.PluginMessageListener;
 
 import soys.soyshttpovermc.proto.FrameProto;
+import soys.soyshttpovermc.web.WebFrontendHandler;
 
 import com.google.protobuf.ByteString;
 
-import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * 服务端侧：接收来自虚拟 Bot 的 PluginMessage，解析 HttpRequestFrame，
- * 第一版做可读回显，证明隧道端到端打通。安全规则：只处理来自虚拟 Bot 的消息。
+ * 路由为静态资源 / 动态接口（替代第一版的可读回显），证明隧道端到端打通。
+ * 安全规则：只处理来自虚拟 Bot 的消息。支持大请求多分片重组（与客户端 McLink 对称）。
  */
 public class McMessageHandler implements PluginMessageListener {
 
     private final JavaPlugin plugin;
     private final String botUsername;
     private final String channel;
+    private final WebFrontendHandler web;
 
-    public McMessageHandler(JavaPlugin plugin, String botUsername, String channel) {
+    private final Map<Long, PendingReq> pending = new ConcurrentHashMap<>();
+
+    public McMessageHandler(JavaPlugin plugin, String botUsername, String channel, WebFrontendHandler web) {
         this.plugin = plugin;
         this.botUsername = botUsername;
         this.channel = channel;
+        this.web = web;
     }
 
     @Override
@@ -39,74 +45,76 @@ public class McMessageHandler implements PluginMessageListener {
             return;
         }
         try {
-            FrameProto.HttpRequestFrame req = FrameProto.HttpRequestFrame.parseFrom(message);
+            FrameProto.HttpRequestFrame chunk = FrameProto.HttpRequestFrame.parseFrom(message);
 
             // 关键修复：Spigot 仅在 player.getListeningPluginChannels() 含该通道时，才会向客户端
             // 投递 sendPluginMessage；无头 Bot 经 MCProtocolLib 发出的 "minecraft:register" 在
             // 1.12.2 下未被服务端识别（实测 listening=[]），导致响应被静默丢弃、translate() 超时、
-            // curl 无响应。这里直接调用 CraftPlayer.addChannel（即服务端处理 register 时使用的同一
-            // 内部方法）强制把 Bot 加入 listening 集合，保证响应可达。幂等、无副作用。
+            // curl 无响应。这里直接调用 CraftPlayer.addChannel 强制把 Bot 加入 listening 集合，
+            // 保证响应可达。幂等、无副作用。
             if (!player.getListeningPluginChannels().contains(channel)) {
                 ensureListening(player, channel);
                 plugin.getLogger().info("[HTTP-Over-MC] 已为 Bot 强制登记监听通道 " + channel
                         + " -> listening=" + player.getListeningPluginChannels());
             }
 
-            // 重建原始请求帧（单分片时 chunk body 即原始请求帧的序列化），用于可读回显
-            FrameProto.HttpRequestFrame original = req;
-            try {
-                if (req.getTotalFragments() <= 1) {
-                    original = FrameProto.HttpRequestFrame.parseFrom(req.getBody());
-                }
-            } catch (Exception ignored) {
+            long id = chunk.getRequestId();
+            int rawTotal = chunk.getTotalFragments();
+            final int total = rawTotal < 1 ? 1 : rawTotal;
+            PendingReq pr = pending.computeIfAbsent(id, k -> new PendingReq(total));
+            int idx = Math.min(chunk.getFragmentIndex(), total - 1);
+            pr.buffers[idx] = chunk.getBody().toByteArray();
+            if (++pr.received < total) {
+                return; // 等待更多分片
             }
+            pending.remove(id);
 
-            String bodyStr;
-            try {
-                bodyStr = new String(original.getBody().toByteArray(), StandardCharsets.UTF_8);
-            } catch (Exception e) {
-                bodyStr = "<binary:" + original.getBody().size() + " bytes>";
-            }
+            // 重组出原始请求帧（chunk body 是原始请求帧序列化的一个分片）
+            byte[] full = join(pr.buffers);
+            FrameProto.HttpRequestFrame req = FrameProto.HttpRequestFrame.parseFrom(full);
 
-            plugin.getLogger().info("[HTTP-Over-MC] 收到请求 method=" + original.getMethod()
-                    + " path=" + original.getPath());
+            plugin.getLogger().info("[HTTP-Over-MC] 收到请求 method=" + req.getMethod()
+                    + " path=" + req.getPath() + " (分片=" + total + ")");
 
-            // 第一版简单回显：把请求以可读文本返回，证明隧道端到端打通
-            StringBuilder sb = new StringBuilder();
-            sb.append("HTTP-Over-MC echo\r\nmethod=").append(original.getMethod())
-                    .append("\r\npath=").append(original.getPath()).append("\r\nheaders:\r\n");
-            for (Map.Entry<String, String> e : original.getHeadersMap().entrySet()) {
-                sb.append("  ").append(e.getKey()).append(": ").append(e.getValue()).append("\r\n");
-            }
-            sb.append("body: ").append(bodyStr.isEmpty() ? "(empty)" : bodyStr).append("\r\n");
-            byte[] echoBody = sb.toString().getBytes(StandardCharsets.UTF_8);
+            // 路由为前端资源 / 动态接口
+            FrameProto.HttpResponseFrame resp = web.handle(
+                    req.getMethod(), req.getPath(), req.getHeadersMap(), req.getBody().toByteArray());
+            // 关键：响应帧必须带回原始 request_id，否则客户端 McLink 的多路复用 pending 表
+            // 按真实 id 查找会 miss（WebFrontendHandler 不感知 id，默认 0），导致响应被丢弃、
+            // 隧道 future 超时、curl 收到 502。
+            resp = resp.toBuilder().setRequestId(req.getRequestId()).build();
 
-            FrameProto.HttpResponseFrame resp = FrameProto.HttpResponseFrame.newBuilder()
-                    .setRequestId(req.getRequestId())
-                    .setStatusCode(200)
-                    .putHeaders("Content-Type", "text/plain; charset=utf-8")
-                    .setBody(ByteString.copyFrom(echoBody))
-                    .setFragmentIndex(0)
-                    .setTotalFragments(1)
-                    .build();
-
-            // 分片发送（第一版 body 很小，通常单帧）
+            // 按 32000 字节上限分片发回（响应帧整体切片，客户端 McLink 对称重组）
             List<byte[]> chunks = split(resp.toByteArray());
-            int total = chunks.size();
-            for (int i = 0; i < total; i++) {
-                FrameProto.HttpResponseFrame chunk = FrameProto.HttpResponseFrame.newBuilder()
-                        .setRequestId(req.getRequestId())
-                        .setStatusCode(200)
-                        .putHeaders("Content-Type", "text/plain; charset=utf-8")
+            int nt = chunks.size();
+            for (int i = 0; i < nt; i++) {
+                FrameProto.HttpResponseFrame c = resp.toBuilder()
+                        .clearBody()
                         .setBody(ByteString.copyFrom(chunks.get(i)))
                         .setFragmentIndex(i)
-                        .setTotalFragments(total)
+                        .setTotalFragments(nt)
                         .build();
-                player.sendPluginMessage(plugin, channel, chunk.toByteArray());
+                player.sendPluginMessage(plugin, channel, c.toByteArray());
             }
         } catch (Exception e) {
             plugin.getLogger().warning("[HTTP-Over-MC] 处理消息失败: " + e);
         }
+    }
+
+    private static byte[] join(byte[][] parts) {
+        int len = 0;
+        for (byte[] p : parts) {
+            if (p != null) len += p.length;
+        }
+        byte[] out = new byte[len];
+        int off = 0;
+        for (byte[] p : parts) {
+            if (p != null) {
+                System.arraycopy(p, 0, out, off, p.length);
+                off += p.length;
+            }
+        }
+        return out;
     }
 
     private static List<byte[]> split(byte[] data) {
@@ -140,6 +148,15 @@ public class McMessageHandler implements PluginMessageListener {
             m.invoke(player, ch);
         } catch (Exception e) {
             plugin.getLogger().warning("[HTTP-Over-MC] 无法强制登记监听通道 " + ch + ": " + e);
+        }
+    }
+
+    private static class PendingReq {
+        final byte[][] buffers;
+        int received = 0;
+
+        PendingReq(int total) {
+            this.buffers = new byte[total][];
         }
     }
 }

@@ -23,3 +23,12 @@ sniffer:
   enabled: true
   # HTTP 请求体上限（字节），超过返回 413
   max-body-bytes: 8388608
+
+# 前端资源目录（可选）
+# - 留空：使用插件 jar 内置的默认赛博朋克状态面板（/web/index.html）。
+# - 指定路径：优先从该目录读取静态文件（支持热替换，改完刷新浏览器即可，无需重构建），
+#   磁盘不存在的文件回退到 jar 内置资源。相对路径相对于插件数据目录
+#   （如 plugins/SOYSHTTPOverMC/webroot）；绝对路径直接使用。
+# 支持路径：/、/index.html、/app.js、/styles.css、/api/status(动态JSON) 等。
+web:
+  root: ""

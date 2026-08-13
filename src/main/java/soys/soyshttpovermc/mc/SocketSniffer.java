@@ -15,6 +15,7 @@ import org.bukkit.plugin.java.JavaPlugin;
 
 import soys.soyshttpovermc.http.HttpMcTranslator;
 import soys.soyshttpovermc.proto.FrameProto;
+import soys.soyshttpovermc.web.RequestStats;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
@@ -60,6 +61,7 @@ public class SocketSniffer {
     private final HttpMcTranslator translator;
     private final BooleanSupplier ready;
     private final int maxBodyBytes;
+    private final RequestStats stats;
 
     private final ExecutorService executor = Executors.newCachedThreadPool(r -> {
         Thread t = new Thread(r, "HTTP-Over-MC-Sniffer");
@@ -68,12 +70,14 @@ public class SocketSniffer {
     });
     private final java.util.List<Channel> installedParents = new java.util.ArrayList<>();
 
-    public SocketSniffer(JavaPlugin plugin, HttpMcTranslator translator, BooleanSupplier ready, int maxBodyBytes) {
+    public SocketSniffer(JavaPlugin plugin, HttpMcTranslator translator, BooleanSupplier ready,
+                         int maxBodyBytes, RequestStats stats) {
         this.plugin = plugin;
         this.log = plugin.getLogger();
         this.translator = translator;
         this.ready = ready;
         this.maxBodyBytes = maxBodyBytes;
+        this.stats = stats;
     }
 
     /** 在 Spigot 自身监听的端口上安装 HTTP 嗅探器 */
@@ -374,13 +378,16 @@ public class SocketSniffer {
 
     // ===== HTTP 处理（在线程池中执行，不阻塞 Netty IO 线程）=====
     private void handleHttp(ChannelHandlerContext ctx, RequestParsed p) {
+        long t0 = System.nanoTime();
+        int code = 200;
         try {
             if (!ready.getAsBoolean()) {
+                code = 503;
                 writeRaw(ctx, statusLine(503) + "HTTP-Over-MC tunnel not ready\r\n", 503);
                 return;
             }
             FrameProto.HttpResponseFrame resp = translator.translate(p.method, p.path, p.headers, p.body);
-            int code = resp.getStatusCode();
+            code = resp.getStatusCode();
             byte[] body = resp.getBody().toByteArray();
             String contentType = resp.getHeadersMap().getOrDefault("Content-Type", "application/octet-stream");
 
@@ -399,9 +406,13 @@ public class SocketSniffer {
             //（prepender/encoder 会给响应套上 MC 包帧，导致 curl 收到乱码报 HTTP/0.9）
             ctx.pipeline().firstContext().writeAndFlush(out).addListener(ChannelFutureListener.CLOSE);
         } catch (Exception e) {
+            code = 502;
             log.log(Level.WARNING, "[HTTP-Over-MC] 隧道转换失败: " + e, e);
             writeRaw(ctx, statusLine(502) + "HTTP-Over-MC tunnel error: "
                     + (e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage()) + "\r\n", 502);
+        } finally {
+            long dtUs = (System.nanoTime() - t0) / 1000;
+            stats.recordRequest(p.method, p.path, code, dtUs);
         }
     }
 

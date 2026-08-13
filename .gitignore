@@ -4,3 +4,4 @@ target/
 TODO.md
 server*/
 build*.log
+/dependency-reduced-pom.xml
