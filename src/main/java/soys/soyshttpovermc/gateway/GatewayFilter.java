@@ -17,15 +17,16 @@ import java.util.logging.Logger;
  * 安全策略链执行器（nginx 式网关的核心）：
  * 按 order 升序遍历已启用的策略，任一 DENY 立即短路返回。
  *
- * <p>配置采用独立文件布局（便于未来接入更多策略）：
+ * <p>配置采用独立文件布局（便于未来接入更多策略/颁发器）：
  * <pre>
- *   gateway/config.yml             总开关 enabled
- *   gateway/https.yml              HTTPS 设置（host 会覆盖 tls 策略的 host）
- *   gateway/policies/&lt;name&gt;.yml   每个策略一个文件，文件名即策略名
+ *   gateway/config.yml               总开关 enabled
+ *   gateway/https.yml                HTTPS 设置（host 会覆盖 tls 策略的 host）
+ *   gateway/policies/&lt;name&gt;.yml     每个策略一个文件，文件名即策略名
+ *   gateway/issuers/&lt;name&gt;.yml      每个凭证颁发器一个文件（注入给 auth 策略）
  * </pre>
- * 新增策略 = 1) 继承 {@link SecurityPolicy} 实现 check；2) 在 {@link #REGISTRY} 注册一行；
- * 3) 在 gateway/policies/ 放一个 &lt;name&gt;.yml。无需改动链执行逻辑。
- * 修改配置后 /soyshttp reload 热重载，无需重启。
+ * 新增策略 = 1) 继承 {@link SecurityPolicy}；2) {@link #REGISTRY} 注册一行；3) policies/ 放 yml。
+ * 新增凭证颁发器（登录插件接入）= 1) 继承 {@link CredentialIssuer}；2) {@link #ISSUER_REGISTRY}
+ * 注册一行；3) issuers/ 放 yml。均无需改动链执行逻辑，/soyshttp reload 热重载。
  */
 public class GatewayFilter {
 
@@ -34,20 +35,32 @@ public class GatewayFilter {
 
     static {
         REGISTRY.put("tls", TlsPolicy::new);
+        REGISTRY.put("auth", AuthPolicy::new);
+//        REGISTRY.put("api-key", AuthPolicy::new); // 兼容旧名（旧 api-key.yml 仍可加载）
         REGISTRY.put("ip-allowlist", IpAllowlistPolicy::new);
-        REGISTRY.put("api-key", ApiKeyPolicy::new);
         REGISTRY.put("rate-limit", RateLimitPolicy::new);
+    }
+
+    /** 凭证颁发器注册表：颁发器名（= issuers 目录下的文件名）→ 工厂。登录插件在此注册。 */
+    private static final Map<String, Supplier<CredentialIssuer>> ISSUER_REGISTRY = new LinkedHashMap<>();
+
+    static {
+        ISSUER_REGISTRY.put("session-token", SessionTokenIssuer::new);
     }
 
     private final Logger log;
     private volatile List<SecurityPolicy> policies = new ArrayList<>();
+    private volatile List<CredentialIssuer> issuers = new ArrayList<>();
 
     public GatewayFilter(Logger log) {
         this.log = log;
     }
 
-    /** 从 gateway/ 目录重建策略链（启动与 /soyshttp reload 均走这里）。 */
+    /** 从 gateway/ 目录重建策略链与颁发器（启动与 /soyshttp reload 均走这里）。 */
     public synchronized void reload(File gatewayDir) {
+        List<CredentialIssuer> issuerList = loadIssuers(gatewayDir);
+        this.issuers = issuerList;
+
         List<SecurityPolicy> list = new ArrayList<>();
         if (gatewayDir != null && gatewayDir.isDirectory()) {
             ConfigurationSection https = GatewayConfig.loadYml(new File(gatewayDir, "https.yml"));
@@ -70,13 +83,40 @@ public class GatewayFilter {
                     if (p instanceof TlsPolicy && httpsHost != null && !httpsHost.isEmpty()) {
                         ((TlsPolicy) p).setHost(httpsHost);
                     }
+                    if (p instanceof AuthPolicy) {
+                        ((AuthPolicy) p).setIssuers(issuerList);
+                    }
                     if (p.isEnabled()) list.add(p);
                 }
             }
         }
         list.sort(Comparator.comparingInt(SecurityPolicy::order));
         policies = list;
-        log.info("[HTTP-Over-MC] 网关策略链已加载：" + (list.isEmpty() ? "无启用策略" : describe(list)));
+        log.info("[HTTP-Over-MC] 网关策略链已加载：" + (list.isEmpty() ? "无启用策略" : describe(list))
+                + (issuerList.isEmpty() ? "" : " | 颁发器: " + describeIssuers(issuerList)));
+    }
+
+    /** 扫描 gateway/issuers/*.yml，实例化并启用注册过的颁发器。 */
+    private List<CredentialIssuer> loadIssuers(File gatewayDir) {
+        List<CredentialIssuer> list = new ArrayList<>();
+        if (gatewayDir == null || !gatewayDir.isDirectory()) return list;
+        File dir = new File(gatewayDir, "issuers");
+        File[] files = dir.isDirectory() ? dir.listFiles((d, n) -> n.endsWith(".yml")) : null;
+        if (files == null) return list;
+        Arrays.sort(files, Comparator.comparing(File::getName));
+        for (File f : files) {
+            String name = f.getName().substring(0, f.getName().length() - 4);
+            Supplier<CredentialIssuer> factory = ISSUER_REGISTRY.get(name);
+            if (factory == null) {
+                log.warning("[HTTP-Over-MC] 忽略未注册的颁发器文件: " + f.getName()
+                        + "（如需启用请在 GatewayFilter.ISSUER_REGISTRY 注册对应实现）");
+                continue;
+            }
+            CredentialIssuer issuer = factory.get();
+            issuer.reload(GatewayConfig.loadYml(f));
+            if (issuer.isEnabled()) list.add(issuer);
+        }
+        return list;
     }
 
     private static String describe(List<SecurityPolicy> list) {
@@ -84,6 +124,15 @@ public class GatewayFilter {
         for (SecurityPolicy p : list) {
             if (sb.length() > 0) sb.append(", ");
             sb.append(p.name()).append("(order=").append(p.order()).append(')');
+        }
+        return sb.toString();
+    }
+
+    private static String describeIssuers(List<CredentialIssuer> list) {
+        StringBuilder sb = new StringBuilder();
+        for (CredentialIssuer i : list) {
+            if (sb.length() > 0) sb.append(", ");
+            sb.append(i.name());
         }
         return sb.toString();
     }
@@ -105,5 +154,10 @@ public class GatewayFilter {
 
     public List<SecurityPolicy> getPolicies() {
         return policies;
+    }
+
+    /** 已启用的凭证颁发器（供 /soyshttp key 下发命令使用） */
+    public List<CredentialIssuer> getIssuers() {
+        return issuers;
     }
 }

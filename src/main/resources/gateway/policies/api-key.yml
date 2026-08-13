@@ -1,6 +1,0 @@
-# API Key 鉴权策略（order 20）：支持 X-API-Key 头 或 Authorization: Bearer <key>；按路径保护。
-# paths 空=保护所有路径；* 全匹配；/api/* 前缀匹配。
-enabled: true
-header: X-API-Key
-keys: []                 # 例: ["sk-abc123"]，留空则所有受保护路径全部 401
-paths: [/api/*]

@@ -1,0 +1,7 @@
+# 会话令牌颁发器（CredentialIssuer 参考实现，演示接入模式；未来登录插件参照实现自己的颁发器）
+# 启用后：/soyshttp key <subject> 下发会话令牌（同一 token 可作 X-API-Key / Bearer / Cookie 使用），
+# auth 策略会自动用它校验 Bearer / X-API-Key / Cookie(soys_session) 三种来源。
+# 注：令牌为内存态，服务重启后全部失效。
+enabled: false
+cookie-name: soys_session
+ttl-seconds: 86400

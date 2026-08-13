@@ -6,8 +6,10 @@ import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import soys.soyshttpovermc.bot.InternalBot;
+import soys.soyshttpovermc.gateway.CredentialIssuer;
 import soys.soyshttpovermc.gateway.GatewayConfig;
 import soys.soyshttpovermc.gateway.GatewayFilter;
+import soys.soyshttpovermc.gateway.IssuedCredential;
 import soys.soyshttpovermc.gateway.TlsContextFactory;
 import soys.soyshttpovermc.http.HttpMcTranslator;
 import soys.soyshttpovermc.link.McLink;
@@ -88,8 +90,9 @@ public class HttpOverMcPlugin extends JavaPlugin {
         saveDefaultFile("gateway/https.yml");
         saveDefaultFile("gateway/policies/tls.yml");
         saveDefaultFile("gateway/policies/ip-allowlist.yml");
-        saveDefaultFile("gateway/policies/api-key.yml");
+        saveDefaultFile("gateway/policies/auth.yml");
         saveDefaultFile("gateway/policies/rate-limit.yml");
+        saveDefaultFile("gateway/issuers/session-token.yml");
         return gwDir;
     }
 
@@ -157,6 +160,31 @@ public class HttpOverMcPlugin extends JavaPlugin {
         return true;
     }
 
+    /** /soyshttp key <subject>：调用启用的凭证颁发器为指定主体下发凭证（X-API-Key/Bearer/Cookie 三种形态） */
+    private boolean handleIssueKey(CommandSender sender, String subject) {
+        if (gateway == null) {
+            sender.sendMessage("[SOYSHTTPOverMC] 网关未启用，无法下发凭证");
+            return true;
+        }
+        int n = 0;
+        for (CredentialIssuer issuer : gateway.getIssuers()) {
+            if (!issuer.isEnabled()) continue;
+            IssuedCredential c = issuer.issue(subject);
+            n++;
+            StringBuilder sb = new StringBuilder();
+            sb.append("[SOYSHTTPOverMC] 已为 ").append(subject).append(" 下发凭证（").append(issuer.name()).append("）:");
+            if (c.getApiKey() != null) sb.append("\n  X-API-Key: ").append(c.getApiKey());
+            if (c.getBearer() != null) sb.append("\n  Authorization: Bearer ").append(c.getBearer());
+            if (c.getCookieName() != null) sb.append("\n  Cookie: ").append(c.getCookieName()).append('=').append(c.getCookieValue());
+            sb.append("\n  curl -sk https://127.0.0.1:25564/api/status -H \"X-API-Key: ").append(c.getApiKey()).append('"');
+            sender.sendMessage(sb.toString());
+        }
+        if (n == 0) {
+            sender.sendMessage("[SOYSHTTPOverMC] 未启用任何凭证颁发器（请在 gateway/issuers/ 下将对应 yml 的 enabled 设为 true）");
+        }
+        return true;
+    }
+
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         if (!command.getName().equalsIgnoreCase("soyshttp")) {
@@ -165,7 +193,10 @@ public class HttpOverMcPlugin extends JavaPlugin {
         if (args.length >= 1 && args[0].equalsIgnoreCase("reload")) {
             return handleReload(sender);
         }
-        sender.sendMessage("用法: /soyshttp reload");
+        if (args.length >= 2 && args[0].equalsIgnoreCase("key")) {
+            return handleIssueKey(sender, args[1]);
+        }
+        sender.sendMessage("用法: /soyshttp reload | /soyshttp key <subject>");
         return true;
     }
 

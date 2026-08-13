@@ -1,0 +1,14 @@
+# 统一凭证鉴权策略（order 20）：支持三种凭证来源 + 可插拔颁发器，按路径保护。
+# 1) X-API-Key 头（header 可配，默认 X-API-Key）：值匹配静态 keys；
+# 2) Authorization：Bearer <key>（匹配静态 keys）或 Basic（用户名=key）；
+# 3) Cookie：请求携带的 cookie 交由 gateway/issuers/ 下启用的颁发器校验（如 session-token）。
+# 静态 keys 与任一启用颁发器匹配即放行，全部不匹配 → 401。
+enabled: true
+header: X-API-Key
+keys: []                 # 静态凭证（X-API-Key 头 或 Authorization: Bearer 均可匹配）
+paths: [/api/*]          # 空=保护所有路径；* 全匹配；/api/* 前缀匹配
+accept:
+  header: true           # 接受 X-API-Key 头
+  bearer: true           # 接受 Authorization: Bearer
+  basic: true            # 接受 Authorization: Basic（用户名=key）
+  cookie: true           # 接受 Cookie（值由启用的颁发器校验）
