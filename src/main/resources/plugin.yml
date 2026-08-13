@@ -2,4 +2,13 @@ name: SOYSHTTPOverMC
 version: '${project.version}'
 main: soys.soyshttpovermc.HttpOverMcPlugin
 author: SOYS
-description: Mount HTTP over the MC join channel (HTTP-Over-MC tunnel, first version)
+description: Mount HTTP over the MC join channel (HTTP-Over-MC tunnel)
+commands:
+  soyshttp:
+    description: SOYSHTTPOverMC 管理：/soyshttp reload 热重载网关策略与配置
+    usage: /soyshttp reload
+    permission: soyshttp.admin
+permissions:
+  soyshttp.admin:
+    description: 允许执行 /soyshttp 管理命令
+    default: op

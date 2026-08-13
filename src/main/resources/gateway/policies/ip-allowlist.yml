@@ -1,0 +1,8 @@
+# IP 白/黑名单策略（order 10）：支持精确 IP 与 CIDR 段（IPv4）。
+# default: allow → 列表即黑名单（命中拒绝），其余放行；
+# default: deny  → 列表即白名单（仅命中放行），其余拒绝。
+# trust-proxy=true 时优先取 X-Forwarded-For 首个 IP（用于前置可信代理场景）。
+enabled: false
+default: allow
+list: []                 # 例: ["127.0.0.1", "192.168.1.0/24"]
+trust-proxy: false

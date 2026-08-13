@@ -1,0 +1,4 @@
+# TLS 强制策略（order 5）：明文 HTTP → 426 Upgrade Required（Location 指向同端口 https）。
+# host 留空时使用 gateway/https.yml 的 host。
+enabled: true
+host: ""

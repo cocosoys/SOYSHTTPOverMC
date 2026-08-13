@@ -8,17 +8,23 @@ import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.channel.ChannelPipeline;
+import io.netty.handler.ssl.SslHandler;
 import io.netty.util.ReferenceCountUtil;
 
 import org.bukkit.Bukkit;
 import org.bukkit.plugin.java.JavaPlugin;
 
+import soys.soyshttpovermc.gateway.GatewayContext;
+import soys.soyshttpovermc.gateway.GatewayFilter;
+import soys.soyshttpovermc.gateway.PolicyResult;
 import soys.soyshttpovermc.http.HttpMcTranslator;
 import soys.soyshttpovermc.proto.FrameProto;
 import soys.soyshttpovermc.web.RequestStats;
 
+import javax.net.ssl.SSLEngine;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.List;
@@ -26,6 +32,7 @@ import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.function.BooleanSupplier;
+import java.util.function.Supplier;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -38,8 +45,10 @@ import java.util.logging.Logger;
  *    {@code channelRead(childChannel)} 的形式把子 Channel 透传给内部的 ServerBootstrapAcceptor。
  *  - 我们在父 Channel pipeline 最前插入 ParentInjectorHandler：拿到每个子 Channel 后，
  *    在其 pipeline 最前插入 HttpSnifferHandler，再向下游 fire（让 Spigot 的 MC 解码器照常工作）。
- *  - HttpSnifferHandler 嗅探首包：若像 HTTP 方法行 → 就地经 Bot 隧道转换并写回 HTTP 响应后关闭；
- *    否则原样放行给 Spigot 的 PacketSplitter/Decoder（MC 协议）。
+ *  - HttpSnifferHandler 嗅探首包，三协议分流（25564 为三协议端口）：
+ *      明文 HTTP（A-Z 方法词）→ 网关策略链 → Bot 隧道转换并写回 HTTP 响应；
+ *      TLS（0x16 0x03）→ 就地 addFirst(SslHandler) 解密 → 同一策略链 → 服务；
+ *      MC（0xFE / varint+0x00）→ 原样放行给 Spigot 的 MC 解码器。
  *
  * 关键约束：本类使用 io.netty.* 必须复用 Spigot 运行时的 netty（pom 里 netty 为 provided），
  * 否则嗅探器里的 ByteBuf 与 Spigot pipeline 里的不是同一个 Class，instanceof 失效。
@@ -54,6 +63,7 @@ public class SocketSniffer {
     private static final String[] METHODS = {"GET", "POST", "PUT", "HEAD", "DELETE", "OPTIONS", "TRACE", "CONNECT"};
     private static final int CLASSIFY_HTTP = 1;
     private static final int CLASSIFY_MC = 2;
+    private static final int CLASSIFY_TLS = 3;
     private static final int CLASSIFY_UNKNOWN = 0;
 
     private final JavaPlugin plugin;
@@ -62,6 +72,9 @@ public class SocketSniffer {
     private final BooleanSupplier ready;
     private final int maxBodyBytes;
     private final RequestStats stats;
+    private volatile GatewayFilter gateway;
+    /** TLS 引擎提供者；null 表示未启用 HTTPS（0x16 0x03 不再判 TLS，直接按 MC 处理） */
+    private volatile Supplier<SSLEngine> tlsEngineSupplier;
 
     private final ExecutorService executor = Executors.newCachedThreadPool(r -> {
         Thread t = new Thread(r, "HTTP-Over-MC-Sniffer");
@@ -71,13 +84,26 @@ public class SocketSniffer {
     private final java.util.List<Channel> installedParents = new java.util.ArrayList<>();
 
     public SocketSniffer(JavaPlugin plugin, HttpMcTranslator translator, BooleanSupplier ready,
-                         int maxBodyBytes, RequestStats stats) {
+                         int maxBodyBytes, RequestStats stats,
+                         GatewayFilter gateway, Supplier<SSLEngine> tlsEngineSupplier) {
         this.plugin = plugin;
         this.log = plugin.getLogger();
         this.translator = translator;
         this.ready = ready;
         this.maxBodyBytes = maxBodyBytes;
         this.stats = stats;
+        this.gateway = gateway;
+        this.tlsEngineSupplier = tlsEngineSupplier;
+    }
+
+    /** 热重载网关策略链（/soyshttp reload 调用） */
+    public void setGateway(GatewayFilter gateway) {
+        this.gateway = gateway;
+    }
+
+    /** 热重载 TLS 引擎提供者（/soyshttp reload 调用） */
+    public void setTlsEngineSupplier(Supplier<SSLEngine> tlsEngineSupplier) {
+        this.tlsEngineSupplier = tlsEngineSupplier;
     }
 
     /** 在 Spigot 自身监听的端口上安装 HTTP 嗅探器 */
@@ -145,13 +171,15 @@ public class SocketSniffer {
         }
     }
 
-    // ===== 子连接处理器：嗅探首包决定 HTTP / MC =====
+    // ===== 子连接处理器：嗅探首包决定 HTTP / TLS / MC =====
     private class HttpSnifferHandler extends ChannelInboundHandlerAdapter {
         private ByteBuf buffer;
         private boolean decided = false;
         private boolean isHttp = false;
         private boolean mcMode = false;
         private boolean httpHandled = false;
+        /** true=连接已就地升级为 TLS（后续收到的都是解密后的明文 HTTP） */
+        private boolean tlsMode = false;
 
         @Override
         public void handlerAdded(ChannelHandlerContext ctx) {
@@ -190,8 +218,7 @@ public class SocketSniffer {
             }
             ByteBuf in = (ByteBuf) msg;
             if (buffer == null) {
-                ctx.fireChannelRead(msg);
-                return;
+                buffer = ctx.alloc().buffer(1024);
             }
             buffer.writeBytes(in);
             in.release();
@@ -201,6 +228,14 @@ public class SocketSniffer {
                 if (c == CLASSIFY_HTTP) {
                     decided = true;
                     isHttp = true;
+                } else if (c == CLASSIFY_TLS) {
+                    // 就地 TLS 升级：管道最前加 SslHandler，把缓冲的 ClientHello 首包重放给它，
+                    // 握手完成后解密出的明文 HTTP 会以 tlsMode 形式继续流入本 handler。
+                    decided = true;
+                    isHttp = true;
+                    tlsMode = true;
+                    upgradeToTls(ctx);
+                    return;
                 } else if (c == CLASSIFY_MC) {
                     switchToMc(ctx);
                     return;
@@ -218,15 +253,27 @@ public class SocketSniffer {
                 RequestParsed parsed = tryParseHttp(buffer);
                 if (parsed == null) {
                     if (buffer.readableBytes() > maxBodyBytes + 1024 * 1024) {
-                        writeRaw(ctx, statusLine(413) + "Payload Too Large\r\n", 413);
+                        writeRaw(ctx, statusLine(413) + "Payload Too Large\r\n", 413, tlsMode);
                     }
                     return; // 等待更多数据
                 }
                 // 已提取完整请求，buffer 不再需要
                 releaseBuffer();
                 httpHandled = true;
-                executor.submit(() -> handleHttp(ctx, parsed));
+                final boolean tls = tlsMode;
+                executor.submit(() -> handleHttp(ctx, parsed, tls));
             }
+        }
+
+        /** 就地 TLS 升级：管道最前插入 SslHandler 并重放缓冲的 ClientHello 首包。 */
+        private void upgradeToTls(ChannelHandlerContext ctx) {
+            SSLEngine engine = tlsEngineSupplier.get();
+            SslHandler ssl = new SslHandler(engine);
+            ctx.pipeline().addFirst("http-over-mc-ssl", ssl);
+            // 缓冲首包所有权移交给 SslHandler（它负责消费并驱动握手），本 handler 置空。
+            ByteBuf replay = buffer;
+            buffer = null;
+            ctx.pipeline().fireChannelRead(replay);
         }
 
         private void switchToMc(ChannelHandlerContext ctx) {
@@ -258,12 +305,24 @@ public class SocketSniffer {
         byte[] body;
     }
 
-    /** 嗅探分类：依据首包前几个字节判断是否为 HTTP 方法行 */
+    /** 嗅探分类：依据首包前几个字节判断为明文 HTTP / TLS / MC */
     private int classify(ByteBuf buf) {
         int len = buf.readableBytes();
         if (len == 0) return CLASSIFY_UNKNOWN;
         int idx = buf.readerIndex();
         byte b0 = buf.getByte(idx);
+
+        // TLS 签名：首字节 0x16(Handshake 记录) + 0x03(版本) + 0x01|0x03(TLS1.0/1.1/1.2/1.3)。
+        // 注意 0x16 也可能是 MC 握手 varint 长度（0x16=22）的巧合，但 MC 第 2 字节必为包 ID 0x00，
+        // 而 TLS 第 2 字节恒为 0x03 —— 0x16 0x03 组合在合法 MC 流中不存在，可稳定区分。
+        if (tlsEngineSupplier != null && b0 == 0x16) {
+            if (len < 3) return CLASSIFY_UNKNOWN; // 等第 2-3 字节再定
+            byte b1 = buf.getByte(idx + 1);
+            byte b2 = buf.getByte(idx + 2);
+            if (b1 == 0x03 && (b2 == 0x01 || b2 == 0x03)) return CLASSIFY_TLS;
+            // 否则是 MC 长度巧合，落入下方 MC 判定
+        }
+
         // HTTP 方法首字母必为大写字母；MC 握手首字节是 varint 长度，绝大多数非字母
         if (b0 < 'A' || b0 > 'Z') return CLASSIFY_MC;
 
@@ -377,13 +436,24 @@ public class SocketSniffer {
     }
 
     // ===== HTTP 处理（在线程池中执行，不阻塞 Netty IO 线程）=====
-    private void handleHttp(ChannelHandlerContext ctx, RequestParsed p) {
+    private void handleHttp(ChannelHandlerContext ctx, RequestParsed p, boolean tls) {
         long t0 = System.nanoTime();
         int code = 200;
         try {
+            // 1) 网关安全策略链：任一策略拒绝即短路，直接写响应，不占隧道、无 30s 超时风险
+            GatewayFilter gw = gateway;
+            if (gw != null) {
+                GatewayContext gctx = new GatewayContext(p.method, p.path, p.headers, clientIp(ctx), tls);
+                PolicyResult res = gw.filter(gctx);
+                if (!res.isAllow()) {
+                    code = res.getStatusCode();
+                    writeDeny(ctx, res, tls);
+                    return;
+                }
+            }
             if (!ready.getAsBoolean()) {
                 code = 503;
-                writeRaw(ctx, statusLine(503) + "HTTP-Over-MC tunnel not ready\r\n", 503);
+                writeRaw(ctx, statusLine(503) + "HTTP-Over-MC tunnel not ready\r\n", 503, tls);
                 return;
             }
             FrameProto.HttpResponseFrame resp = translator.translate(p.method, p.path, p.headers, p.body);
@@ -402,23 +472,64 @@ public class SocketSniffer {
             ByteBuf out = Unpooled.buffer(head.length + body.length);
             out.writeBytes(head);
             out.writeBytes(body);
-            // 关键：经管道 HeadContext 直接写原始字节到 socket，绕过 Spigot 的 MC 出站编码器
-            //（prepender/encoder 会给响应套上 MC 包帧，导致 curl 收到乱码报 HTTP/0.9）
-            ctx.pipeline().firstContext().writeAndFlush(out).addListener(ChannelFutureListener.CLOSE);
+            writeResponse(ctx, out, tls);
         } catch (Exception e) {
             code = 502;
             log.log(Level.WARNING, "[HTTP-Over-MC] 隧道转换失败: " + e, e);
             writeRaw(ctx, statusLine(502) + "HTTP-Over-MC tunnel error: "
-                    + (e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage()) + "\r\n", 502);
+                    + (e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage()) + "\r\n", 502, tls);
         } finally {
             long dtUs = (System.nanoTime() - t0) / 1000;
             stats.recordRequest(p.method, p.path, code, dtUs);
         }
     }
 
-    private void writeRaw(ChannelHandlerContext ctx, String text, int code) {
-        byte[] b = text.getBytes(StandardCharsets.US_ASCII);
-        ctx.pipeline().firstContext().writeAndFlush(Unpooled.wrappedBuffer(b)).addListener(ChannelFutureListener.CLOSE);
+    /**
+     * 写出 HTTP 响应。
+     * - 明文连接：经管道 HeadContext 直接写原始字节到 socket，绕过 Spigot 的 MC 出站编码器
+     *   （prepender/encoder 会给响应套上 MC 包帧，导致 curl 收到乱码报 HTTP/0.9）；
+     * - TLS 连接：必须经本 handler 的 ctx 出站（先过最前的 SslHandler 加密再出 socket），
+     *   绝不能走 firstContext()，否则会绕过 ssl 明文外发。
+     */
+    private void writeResponse(ChannelHandlerContext ctx, ByteBuf out, boolean tls) {
+        if (tls) {
+            ctx.writeAndFlush(out).addListener(ChannelFutureListener.CLOSE);
+        } else {
+            ctx.pipeline().firstContext().writeAndFlush(out).addListener(ChannelFutureListener.CLOSE);
+        }
+    }
+
+    private void writeRaw(ChannelHandlerContext ctx, String text, int code, boolean tls) {
+        writeResponse(ctx, Unpooled.wrappedBuffer(text.getBytes(StandardCharsets.US_ASCII)), tls);
+    }
+
+    /** 写出网关策略拒绝响应（401/403/426/429/500），附带策略指定的响应头。 */
+    private void writeDeny(ChannelHandlerContext ctx, PolicyResult res, boolean tls) {
+        byte[] body = res.getBodyBytes();
+        StringBuilder sb = new StringBuilder();
+        sb.append(statusLine(res.getStatusCode()));
+        for (Map.Entry<String, String> h : res.getHeaders().entrySet()) {
+            sb.append(h.getKey()).append(": ").append(h.getValue()).append("\r\n");
+        }
+        sb.append("Content-Type: text/plain; charset=utf-8\r\n");
+        sb.append("Content-Length: ").append(body.length).append("\r\n");
+        sb.append("Connection: close\r\n\r\n");
+        ByteBuf out = Unpooled.buffer(sb.length() + body.length);
+        out.writeBytes(sb.toString().getBytes(StandardCharsets.US_ASCII));
+        out.writeBytes(body);
+        writeResponse(ctx, out, tls);
+    }
+
+    /** TCP socket 上的客户端源 IP（HTTPS/HTTP 均为真实对端；无代理时即公网 IP） */
+    private static String clientIp(ChannelHandlerContext ctx) {
+        try {
+            java.net.SocketAddress sa = ctx.channel().remoteAddress();
+            if (sa instanceof InetSocketAddress) {
+                return ((InetSocketAddress) sa).getAddress().getHostAddress();
+            }
+        } catch (Exception ignored) {
+        }
+        return "0.0.0.0";
     }
 
     private static String statusLine(int code) {
@@ -429,7 +540,12 @@ public class SocketSniffer {
         switch (code) {
             case 200: return "OK";
             case 400: return "Bad Request";
+            case 401: return "Unauthorized";
+            case 403: return "Forbidden";
             case 413: return "Payload Too Large";
+            case 426: return "Upgrade Required";
+            case 429: return "Too Many Requests";
+            case 500: return "Internal Server Error";
             case 502: return "Bad Gateway";
             case 503: return "Service Unavailable";
             default: return "Status";

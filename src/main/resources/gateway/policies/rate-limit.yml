@@ -1,0 +1,6 @@
+# 令牌桶限流策略（order 30）：按 IP 或 Key 维度，rpm 每分钟补充，burst 突发上限；
+# 超限 → 429 + Retry-After。scope=key 时按请求携带的 API Key 维度限流。
+enabled: false
+scope: ip                # ip | key
+rpm: 60
+burst: 10

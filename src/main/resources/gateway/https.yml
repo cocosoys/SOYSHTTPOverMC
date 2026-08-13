@@ -1,0 +1,12 @@
+# ============ HTTPS 设置（25564 上就地 TLS，无独立端口）============
+# 嗅探器识别 TLS 首包（0x16 0x03）后动态挂 SslHandler 解密，MC / 明文 HTTP / HTTPS 三协议共存。
+# 证书来源优先级：keystore(PKCS12) > cert+key(PEM, 私钥须 PKCS8) > 留空自动 keytool 自签（纯离线）。
+# 公网浏览器不信任自签属已知取舍，API 客户端可用 -k / 固定证书解决。
+enabled: true
+host: ""                 # 自签 CN/SAN 与 426 Location 使用的主机名（留空=127.0.0.1）
+cert: ""                 # PEM 证书路径（可选）
+key: ""                  # PEM 私钥路径（可选，PKCS8）
+keystore: ""             # 或 PKCS12 keystore 路径（可选，优先于 cert/key）
+keystore-pass: ""
+key-pass: ""
+min-tls: TLSv1.2

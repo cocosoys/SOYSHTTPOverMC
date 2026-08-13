@@ -1,0 +1,7 @@
+# ============ 安全网关总开关（独立于主 config.yml）============
+# 网关配置采用独立目录布局：
+#   gateway/config.yml           总开关（本文件）
+#   gateway/https.yml            HTTPS 设置（25564 就地升级）
+#   gateway/policies/<name>.yml  每个安全策略一个文件，文件名即策略名
+# 修改后执行 /soyshttp reload 热重载，无需重启服务器。
+enabled: true

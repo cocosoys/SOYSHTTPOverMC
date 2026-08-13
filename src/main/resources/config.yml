@@ -32,3 +32,8 @@ sniffer:
 # 支持路径：/、/index.html、/app.js、/styles.css、/api/status(动态JSON) 等。
 web:
   root: ""
+
+# ============ 安全网关 ============
+# 网关配置已独立到 gateway/ 目录（总开关 gateway/config.yml、HTTPS gateway/https.yml、
+# 各安全策略 gateway/policies/<name>.yml，每个策略一个文件，便于未来扩展更多策略）。
+# 修改后 /soyshttp reload 热重载，无需重启服务器。
