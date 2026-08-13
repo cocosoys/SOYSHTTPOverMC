@@ -1,0 +1,5 @@
+name: SOYSHTTPOverMC
+version: '${project.version}'
+main: soys.soyshttpovermc.HttpOverMcPlugin
+author: SOYS
+description: Mount HTTP over the MC join channel (HTTP-Over-MC tunnel, first version)

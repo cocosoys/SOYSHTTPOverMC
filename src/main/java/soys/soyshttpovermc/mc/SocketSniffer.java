@@ -1,0 +1,451 @@
+package soys.soyshttpovermc.mc;
+
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
+import io.netty.channel.Channel;
+import io.netty.channel.ChannelFutureListener;
+import io.netty.channel.ChannelHandler;
+import io.netty.channel.ChannelHandlerContext;
+import io.netty.channel.ChannelInboundHandlerAdapter;
+import io.netty.channel.ChannelPipeline;
+import io.netty.util.ReferenceCountUtil;
+
+import org.bukkit.Bukkit;
+import org.bukkit.plugin.java.JavaPlugin;
+
+import soys.soyshttpovermc.http.HttpMcTranslator;
+import soys.soyshttpovermc.proto.FrameProto;
+
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.function.BooleanSupplier;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
+/**
+ * 同端口嗅探器：在 Spigot 自身监听的 socket 上做 Geyser 式流量分流。
+ *
+ * 原理（深度挂接 Spigot 的 Netty pipeline，访问端口 == Spigot 的 server-port）：
+ *  - Spigot 的 {@code ServerConnection} 把每个监听端口存在字段 {@code g}(List<ChannelFuture>)，
+ *    其 channel 是父(Server)Channel；每接受一个子连接，父 Channel 的 pipeline 会以
+ *    {@code channelRead(childChannel)} 的形式把子 Channel 透传给内部的 ServerBootstrapAcceptor。
+ *  - 我们在父 Channel pipeline 最前插入 ParentInjectorHandler：拿到每个子 Channel 后，
+ *    在其 pipeline 最前插入 HttpSnifferHandler，再向下游 fire（让 Spigot 的 MC 解码器照常工作）。
+ *  - HttpSnifferHandler 嗅探首包：若像 HTTP 方法行 → 就地经 Bot 隧道转换并写回 HTTP 响应后关闭；
+ *    否则原样放行给 Spigot 的 PacketSplitter/Decoder（MC 协议）。
+ *
+ * 关键约束：本类使用 io.netty.* 必须复用 Spigot 运行时的 netty（pom 里 netty 为 provided），
+ * 否则嗅探器里的 ByteBuf 与 Spigot pipeline 里的不是同一个 Class，instanceof 失效。
+ */
+public class SocketSniffer {
+
+    /** 判断隧道是否就绪（Bot 已连接并 REGISTER 通道），未就绪时 HTTP 返回 503 */
+    public interface ReadyChecker {
+        boolean isReady();
+    }
+
+    private static final String[] METHODS = {"GET", "POST", "PUT", "HEAD", "DELETE", "OPTIONS", "TRACE", "CONNECT"};
+    private static final int CLASSIFY_HTTP = 1;
+    private static final int CLASSIFY_MC = 2;
+    private static final int CLASSIFY_UNKNOWN = 0;
+
+    private final JavaPlugin plugin;
+    private final Logger log;
+    private final HttpMcTranslator translator;
+    private final BooleanSupplier ready;
+    private final int maxBodyBytes;
+
+    private final ExecutorService executor = Executors.newCachedThreadPool(r -> {
+        Thread t = new Thread(r, "HTTP-Over-MC-Sniffer");
+        t.setDaemon(true);
+        return t;
+    });
+    private final java.util.List<Channel> installedParents = new java.util.ArrayList<>();
+
+    public SocketSniffer(JavaPlugin plugin, HttpMcTranslator translator, BooleanSupplier ready, int maxBodyBytes) {
+        this.plugin = plugin;
+        this.log = plugin.getLogger();
+        this.translator = translator;
+        this.ready = ready;
+        this.maxBodyBytes = maxBodyBytes;
+    }
+
+    /** 在 Spigot 自身监听的端口上安装 HTTP 嗅探器 */
+    public void install() {
+        try {
+            Object serverConnection = getServerConnection();
+            if (serverConnection == null) {
+                log.severe("[HTTP-Over-MC] 无法获取 ServerConnection，HTTP 同端口嗅探器安装失败");
+                return;
+            }
+            @SuppressWarnings("unchecked")
+            List<io.netty.channel.ChannelFuture> futures =
+                    (List<io.netty.channel.ChannelFuture>) getField(serverConnection, "g");
+            if (futures == null) {
+                log.severe("[HTTP-Over-MC] 无法获取监听 channel 列表（字段 g），安装失败");
+                return;
+            }
+            int n = 0;
+            for (io.netty.channel.ChannelFuture cf : futures) {
+                if (cf == null) continue;
+                Channel parent = cf.channel();
+                if (parent == null || !parent.isActive()) continue;
+                ChannelPipeline pipe = parent.pipeline();
+                if (pipe.get("http-over-mc-parent") == null) {
+                    pipe.addFirst("http-over-mc-parent", new ParentInjectorHandler());
+                    installedParents.add(parent);
+                    n++;
+                    log.info("[HTTP-Over-MC] 已在 Spigot 监听端口 " + parent.localAddress() + " 上安装 HTTP 嗅探器");
+                }
+            }
+            if (n == 0) {
+                log.warning("[HTTP-Over-MC] 未找到任何活跃监听端口，嗅探器未生效（请确认 Spigot 已绑定端口）");
+            } else {
+                log.info("[HTTP-Over-MC] 同端口嗅探器已安装：" + n + " 个端口。访问端口 == Spigot server-port，MC 与 HTTP 共用");
+            }
+        } catch (Throwable t) {
+            log.log(Level.SEVERE, "[HTTP-Over-MC] 安装嗅探器异常", t);
+        }
+    }
+
+    public void uninstall() {
+        for (Channel parent : installedParents) {
+            try {
+                ChannelHandler h = parent.pipeline().get("http-over-mc-parent");
+                if (h != null) parent.pipeline().remove(h);
+            } catch (Throwable ignored) {
+            }
+        }
+        installedParents.clear();
+        executor.shutdownNow();
+    }
+
+    // ===== 父 Channel 处理器：为每一个新子连接注入 HttpSnifferHandler =====
+    private class ParentInjectorHandler extends ChannelInboundHandlerAdapter {
+        @Override
+        public void channelRead(ChannelHandlerContext ctx, Object msg) {
+            if (msg instanceof Channel) {
+                Channel child = (Channel) msg;
+                ChannelPipeline cp = child.pipeline();
+                if (cp.get("http-over-mc-sniffer") == null) {
+                    cp.addFirst("http-over-mc-sniffer", new HttpSnifferHandler());
+                }
+            }
+            ctx.fireChannelRead(msg);
+        }
+    }
+
+    // ===== 子连接处理器：嗅探首包决定 HTTP / MC =====
+    private class HttpSnifferHandler extends ChannelInboundHandlerAdapter {
+        private ByteBuf buffer;
+        private boolean decided = false;
+        private boolean isHttp = false;
+        private boolean mcMode = false;
+        private boolean httpHandled = false;
+
+        @Override
+        public void handlerAdded(ChannelHandlerContext ctx) {
+            buffer = ctx.alloc().buffer(1024);
+        }
+
+        @Override
+        public void channelInactive(ChannelHandlerContext ctx) {
+            releaseBuffer();
+            ctx.fireChannelInactive();
+        }
+
+        @Override
+        public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
+            if (mcMode) {
+                ctx.fireExceptionCaught(cause);
+            } else {
+                ctx.close();
+            }
+        }
+
+        @Override
+        public void channelRead(ChannelHandlerContext ctx, Object msg) {
+            if (mcMode) {
+                ctx.fireChannelRead(msg);
+                return;
+            }
+            if (httpHandled) {
+                // HTTP 已处理并关闭，丢弃后续字节
+                ReferenceCountUtil.release(msg);
+                return;
+            }
+            if (!(msg instanceof ByteBuf)) {
+                ctx.fireChannelRead(msg);
+                return;
+            }
+            ByteBuf in = (ByteBuf) msg;
+            if (buffer == null) {
+                ctx.fireChannelRead(msg);
+                return;
+            }
+            buffer.writeBytes(in);
+            in.release();
+
+            if (!decided) {
+                int c = classify(buffer);
+                if (c == CLASSIFY_HTTP) {
+                    decided = true;
+                    isHttp = true;
+                } else if (c == CLASSIFY_MC) {
+                    switchToMc(ctx);
+                    return;
+                } else {
+                    // 数据不足以判定：首字节像方法但行未收全，继续等；
+                    // 但若缓冲区已很大仍无完整请求行，按 MC 处理避免饿死。
+                    if (buffer.readableBytes() > 64 * 1024) {
+                        switchToMc(ctx);
+                    }
+                    return;
+                }
+            }
+
+            if (isHttp) {
+                RequestParsed parsed = tryParseHttp(buffer);
+                if (parsed == null) {
+                    if (buffer.readableBytes() > maxBodyBytes + 1024 * 1024) {
+                        writeRaw(ctx, statusLine(413) + "Payload Too Large\r\n", 413);
+                    }
+                    return; // 等待更多数据
+                }
+                // 已提取完整请求，buffer 不再需要
+                releaseBuffer();
+                httpHandled = true;
+                executor.submit(() -> handleHttp(ctx, parsed));
+            }
+        }
+
+        private void switchToMc(ChannelHandlerContext ctx) {
+            mcMode = true;
+            ByteBuf copy = buffer;
+            buffer = null;
+            // 把已缓冲的字节原样交给下游（Spigot 的 MC 解码器），后续读取直接放行
+            ctx.fireChannelRead(copy);
+            try {
+                ctx.pipeline().remove(this);
+            } catch (Throwable ignored) {
+            }
+        }
+
+        private void releaseBuffer() {
+            if (buffer != null) {
+                buffer.release();
+                buffer = null;
+            }
+        }
+    }
+
+    // ===== HTTP 请求解析 =====
+    private static class RequestParsed {
+        String method;
+        String path;
+        String version;
+        Map<String, String> headers = new HashMap<>();
+        byte[] body;
+    }
+
+    /** 嗅探分类：依据首包前几个字节判断是否为 HTTP 方法行 */
+    private int classify(ByteBuf buf) {
+        int len = buf.readableBytes();
+        if (len == 0) return CLASSIFY_UNKNOWN;
+        int idx = buf.readerIndex();
+        byte b0 = buf.getByte(idx);
+        // HTTP 方法首字母必为大写字母；MC 握手首字节是 varint 长度，绝大多数非字母
+        if (b0 < 'A' || b0 > 'Z') return CLASSIFY_MC;
+
+        // 扫描方法 token（直到空格，最多 16 字节）
+        int i = 0;
+        StringBuilder tok = new StringBuilder();
+        boolean tokenComplete = false;
+        for (; i < len && i < 16; i++) {
+            byte b = buf.getByte(idx + i);
+            if (b == ' ') { tokenComplete = true; break; }
+            if (b < 'A' || b > 'Z') return CLASSIFY_MC; // 出现非大写字母（且非空格）→ 必为非 HTTP
+            tok.append((char) b);
+        }
+        if (!tokenComplete) {
+            // 缓冲区在方法 token 结束前就用完（且前面全是字母）：可能是 "GE" 这样的方法前缀，
+            // 也可能是 MC 巧合，不足以判定 → 继续等更多数据。
+            return CLASSIFY_UNKNOWN;
+        }
+        boolean known = false;
+        for (String m : METHODS) {
+            if (m.equals(tok.toString())) { known = true; break; }
+        }
+        if (!known) return CLASSIFY_MC;
+
+        // 已知方法 + 后接空格：在首行剩余部分查找 " HTTP/" 确认是 HTTP 请求行
+        int j = i + 1; // 跳过空格
+        int k = j;
+        int limit = Math.min(len, j + 200);
+        boolean foundNewline = false;
+        for (; k < limit; k++) {
+            if (buf.getByte(idx + k) == '\n') { foundNewline = true; break; }
+        }
+        String line = buf.toString(idx + j, Math.max(0, k - j), StandardCharsets.US_ASCII);
+        if (line.contains(" HTTP/")) return CLASSIFY_HTTP;
+        if (foundNewline) return CLASSIFY_MC; // 首行已完整但无 " HTTP/" → 非 HTTP
+        return CLASSIFY_UNKNOWN;              // 首行尚未收全 → 继续等
+    }
+
+    /** 尝试从缓冲区解析完整 HTTP 请求；不完整返回 null */
+    private RequestParsed tryParseHttp(ByteBuf buf) {
+        int len = buf.readableBytes();
+        int idx = buf.readerIndex();
+        int headerEnd = indexOf(buf, idx, len, new byte[]{'\r', '\n', '\r', '\n'});
+        int sepLen;
+        if (headerEnd >= 0) {
+            sepLen = 4;
+        } else {
+            headerEnd = indexOf(buf, idx, len, new byte[]{'\n', '\n'});
+            if (headerEnd < 0) return null;
+            sepLen = 2;
+        }
+        int headerLen = headerEnd - idx;
+        if (headerLen < 0) return null;
+        byte[] headerBytes = new byte[headerLen];
+        buf.getBytes(idx, headerBytes);
+        String headerText = new String(headerBytes, StandardCharsets.US_ASCII);
+        String[] lines = headerText.split("\r\n");
+        if (lines.length == 0) return null;
+        String[] reqLine = lines[0].split(" ");
+        if (reqLine.length < 3) return null;
+        String method = reqLine[0];
+        String path = reqLine[1];
+        String version = reqLine[2];
+
+        Map<String, String> headers = new HashMap<>();
+        int contentLength = 0;
+        for (int l = 1; l < lines.length; l++) {
+            int colon = lines[l].indexOf(':');
+            if (colon > 0) {
+                String k = lines[l].substring(0, colon).trim();
+                String v = lines[l].substring(colon + 1).trim();
+                headers.put(k, v);
+                if (k.equalsIgnoreCase("Content-Length")) {
+                    try {
+                        contentLength = Integer.parseInt(v);
+                    } catch (NumberFormatException ignored) {
+                    }
+                }
+            }
+        }
+        int bodyStart = headerEnd + sepLen;
+        int available = len - bodyStart;
+        if (available < contentLength) return null; // body 未收全，等更多
+        if (contentLength < 0) contentLength = 0;
+        byte[] body = new byte[contentLength];
+        if (contentLength > 0) buf.getBytes(bodyStart, body);
+
+        RequestParsed r = new RequestParsed();
+        r.method = method;
+        r.path = path;
+        r.version = version;
+        r.headers = headers;
+        r.body = body;
+        return r;
+    }
+
+    private static int indexOf(ByteBuf buf, int from, int to, byte[] seq) {
+        int sl = seq.length;
+        if (sl == 0) return from;
+        for (int i = from; i + sl <= to; i++) {
+            boolean ok = true;
+            for (int j = 0; j < sl; j++) {
+                if (buf.getByte(i + j) != seq[j]) {
+                    ok = false;
+                    break;
+                }
+            }
+            if (ok) return i;
+        }
+        return -1;
+    }
+
+    // ===== HTTP 处理（在线程池中执行，不阻塞 Netty IO 线程）=====
+    private void handleHttp(ChannelHandlerContext ctx, RequestParsed p) {
+        try {
+            if (!ready.getAsBoolean()) {
+                writeRaw(ctx, statusLine(503) + "HTTP-Over-MC tunnel not ready\r\n", 503);
+                return;
+            }
+            FrameProto.HttpResponseFrame resp = translator.translate(p.method, p.path, p.headers, p.body);
+            int code = resp.getStatusCode();
+            byte[] body = resp.getBody().toByteArray();
+            String contentType = resp.getHeadersMap().getOrDefault("Content-Type", "application/octet-stream");
+
+            StringBuilder sb = new StringBuilder();
+            sb.append("HTTP/1.1 ").append(code).append(' ').append(statusText(code)).append("\r\n");
+            sb.append("Content-Type: ").append(contentType).append("\r\n");
+            sb.append("Content-Length: ").append(body.length).append("\r\n");
+            sb.append("Connection: close\r\n");
+            sb.append("\r\n");
+            byte[] head = sb.toString().getBytes(StandardCharsets.US_ASCII);
+
+            ByteBuf out = Unpooled.buffer(head.length + body.length);
+            out.writeBytes(head);
+            out.writeBytes(body);
+            // 关键：经管道 HeadContext 直接写原始字节到 socket，绕过 Spigot 的 MC 出站编码器
+            //（prepender/encoder 会给响应套上 MC 包帧，导致 curl 收到乱码报 HTTP/0.9）
+            ctx.pipeline().firstContext().writeAndFlush(out).addListener(ChannelFutureListener.CLOSE);
+        } catch (Exception e) {
+            log.log(Level.WARNING, "[HTTP-Over-MC] 隧道转换失败: " + e, e);
+            writeRaw(ctx, statusLine(502) + "HTTP-Over-MC tunnel error: "
+                    + (e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage()) + "\r\n", 502);
+        }
+    }
+
+    private void writeRaw(ChannelHandlerContext ctx, String text, int code) {
+        byte[] b = text.getBytes(StandardCharsets.US_ASCII);
+        ctx.pipeline().firstContext().writeAndFlush(Unpooled.wrappedBuffer(b)).addListener(ChannelFutureListener.CLOSE);
+    }
+
+    private static String statusLine(int code) {
+        return "HTTP/1.1 " + code + " " + statusText(code) + "\r\n";
+    }
+
+    private static String statusText(int code) {
+        switch (code) {
+            case 200: return "OK";
+            case 400: return "Bad Request";
+            case 413: return "Payload Too Large";
+            case 502: return "Bad Gateway";
+            case 503: return "Service Unavailable";
+            default: return "Status";
+        }
+    }
+
+    // ===== 反射辅助 =====
+    private Object getServerConnection() {
+        try {
+            Object craftServer = Bukkit.getServer();
+            Method getServer = craftServer.getClass().getMethod("getServer");
+            Object mcServer = getServer.invoke(craftServer);
+            Method getServerConnection = mcServer.getClass().getMethod("getServerConnection");
+            return getServerConnection.invoke(mcServer);
+        } catch (Throwable t) {
+            log.log(Level.SEVERE, "[HTTP-Over-MC] 反射获取 ServerConnection 失败", t);
+            return null;
+        }
+    }
+
+    private static Object getField(Object obj, String name) {
+        try {
+            Field f = obj.getClass().getDeclaredField(name);
+            f.setAccessible(true);
+            return f.get(obj);
+        } catch (Throwable ignored) {
+            return null;
+        }
+    }
+}

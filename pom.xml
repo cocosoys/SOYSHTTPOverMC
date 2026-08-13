@@ -1,0 +1,152 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>soys.soyshttpovermc</groupId>
+    <artifactId>SOYSHTTPOverMC</artifactId>
+    <version>1.0.0</version>
+    <packaging>jar</packaging>
+
+    <name>SOYSHTTPOverMC</name>
+
+    <properties>
+        <java.version>1.8</java.version>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <mcprotocollib.version>1.12.2-2</mcprotocollib.version>
+        <protobuf.version>3.25.3</protobuf.version>
+    </properties>
+
+    <build>
+        <finalName>SOYSHTTPOverMC</finalName>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.8.1</version>
+                <configuration>
+                    <source>${java.version}</source>
+                    <target>${java.version}</target>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-shade-plugin</artifactId>
+                <version>3.2.4</version>
+                <executions>
+                    <execution>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>shade</goal>
+                        </goals>
+                        <configuration>
+                            <transformers>
+                                <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
+                            </transformers>
+                            <!-- 注意：opennbt 必须用 GitHub "GeyserMC/OpenNBT" 的 1.0 tag 旧版
+                                 （含 com.github.steveice10.opennbt.tag.builtin.* 与 NBTIO），
+                                 已被本地 mvn install 覆盖到 .m2 的 opennbt:1.0。
+                                 Maven Central / JitPack 上同名 opennbt:1.0 是重构后的新版
+                                 （扁平 tag + NBTIOUtils），与 MCProtocolLib 1.12.2-2 不兼容，
+                                 会导致 Bot 登录时 ClassNotFoundException。无需 relocation。 -->
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+        <resources>
+            <resource>
+                <directory>src/main/resources</directory>
+                <filtering>true</filtering>
+            </resource>
+        </resources>
+    </build>
+
+    <repositories>
+        <repository>
+            <id>spigot-repo</id>
+            <url>https://hub.spigotmc.org/nexus/content/repositories/snapshots/</url>
+        </repository>
+        <repository>
+            <id>jitpack.io</id>
+            <url>https://jitpack.io</url>
+        </repository>
+        <!-- 直连 Maven Central(https)，绕过 alimaven 镜像缺失 protobuf-maven-plugin 的问题 -->
+        <repository>
+            <id>central-direct</id>
+            <name>Maven Central (direct)</name>
+            <url>https://repo1.maven.org/maven2/</url>
+        </repository>
+    </repositories>
+
+    <pluginRepositories>
+        <pluginRepository>
+            <id>central-direct</id>
+            <name>Maven Central (direct)</name>
+            <url>https://repo1.maven.org/maven2/</url>
+        </pluginRepository>
+    </pluginRepositories>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.spigotmc</groupId>
+            <artifactId>spigot-api</artifactId>
+            <version>1.12.2-R0.1-SNAPSHOT</version>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.github.steveice10</groupId>
+            <artifactId>MCProtocolLib</artifactId>
+            <version>${mcprotocollib.version}</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>io.netty</groupId>
+                    <artifactId>netty-all</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        <!-- MCProtocolLib 的传递依赖（本环境需显式声明以便从 jitpack.io / central 解析） -->
+        <dependency>
+            <groupId>com.github.steveice10</groupId>
+            <artifactId>packetlib</artifactId>
+            <version>1.2</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>io.netty</groupId>
+                    <artifactId>netty-all</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        <dependency>
+            <groupId>com.github.steveice10</groupId>
+            <artifactId>mcauthlib</artifactId>
+            <version>1.0</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>io.netty</groupId>
+                    <artifactId>netty-all</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        <dependency>
+            <groupId>com.github.steveice10</groupId>
+            <artifactId>opennbt</artifactId>
+            <version>1.0</version>
+        </dependency>
+        <!-- 关键：嗅探器要挂到 Spigot 自己的 Netty pipeline 上，必须复用 Spigot 运行时的 netty
+             （同一 Class 对象），否则 io.netty.buffer.ByteBuf 的 instanceof 会因类加载器不同而失败。
+             因此 netty 设为 provided（不打进 jar），运行时直接取 Spigot 自带的 4.1.24.Final。 -->
+        <dependency>
+            <groupId>io.netty</groupId>
+            <artifactId>netty-all</artifactId>
+            <version>4.1.24.Final</version>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.google.protobuf</groupId>
+            <artifactId>protobuf-java</artifactId>
+            <version>${protobuf.version}</version>
+        </dependency>
+    </dependencies>
+</project>
