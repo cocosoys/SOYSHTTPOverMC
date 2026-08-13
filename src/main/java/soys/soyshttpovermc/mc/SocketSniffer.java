@@ -14,6 +14,10 @@ import io.netty.util.ReferenceCountUtil;
 import org.bukkit.Bukkit;
 import org.bukkit.plugin.java.JavaPlugin;
 
+import soys.soyshttpovermc.api.annotations.RequestMethod;
+import soys.soyshttpovermc.api.event.GatewayAccessDeniedEvent;
+import soys.soyshttpovermc.api.event.GatewayRequestEvent;
+import soys.soyshttpovermc.api.event.GatewayRequestServedEvent;
 import soys.soyshttpovermc.gateway.GatewayContext;
 import soys.soyshttpovermc.gateway.GatewayFilter;
 import soys.soyshttpovermc.gateway.PolicyResult;
@@ -60,7 +64,7 @@ public class SocketSniffer {
         boolean isReady();
     }
 
-    private static final String[] METHODS = {"GET", "POST", "PUT", "HEAD", "DELETE", "OPTIONS", "TRACE", "CONNECT"};
+    private static final String[] METHODS = RequestMethod.toList();
     private static final int CLASSIFY_HTTP = 1;
     private static final int CLASSIFY_MC = 2;
     private static final int CLASSIFY_TLS = 3;
@@ -439,14 +443,19 @@ public class SocketSniffer {
     private void handleHttp(ChannelHandlerContext ctx, RequestParsed p, boolean tls) {
         long t0 = System.nanoTime();
         int code = 200;
+        final String ip = clientIp(ctx);
+        fire(new GatewayRequestEvent(p.method, p.path, ip, tls, p.headers));
         try {
             // 1) 网关安全策略链：任一策略拒绝即短路，直接写响应，不占隧道、无 30s 超时风险
             GatewayFilter gw = gateway;
             if (gw != null) {
-                GatewayContext gctx = new GatewayContext(p.method, p.path, p.headers, clientIp(ctx), tls);
-                PolicyResult res = gw.filter(gctx);
+                GatewayContext gctx = new GatewayContext(p.method, p.path, p.headers, ip, tls);
+                GatewayFilter.Outcome oc = gw.filterDetailed(gctx);
+                PolicyResult res = oc.result;
                 if (!res.isAllow()) {
                     code = res.getStatusCode();
+                    fire(new GatewayAccessDeniedEvent(p.method, p.path, ip, tls,
+                            oc.policy == null ? "unknown" : oc.policy.name(), code, res.getBody()));
                     writeDeny(ctx, res, tls);
                     return;
                 }
@@ -481,6 +490,15 @@ public class SocketSniffer {
         } finally {
             long dtUs = (System.nanoTime() - t0) / 1000;
             stats.recordRequest(p.method, p.path, code, dtUs);
+            fire(new GatewayRequestServedEvent(p.method, p.path, ip, tls, code, dtUs));
+        }
+    }
+
+    /** 触发网关事件（异步线程；监听器异常不影响请求处理） */
+    private static void fire(org.bukkit.event.Event e) {
+        try {
+            Bukkit.getPluginManager().callEvent(e);
+        } catch (Throwable ignored) {
         }
     }
 

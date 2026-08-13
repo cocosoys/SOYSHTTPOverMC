@@ -1,0 +1,31 @@
+package soys.soyshttpovermc.api.event;
+
+import org.bukkit.event.Event;
+
+/**
+ * 网关事件抽象基类。
+ * <ul>
+ *   <li>请求类事件（request/denied/served）为<b>异步事件</b>：在 HTTP 处理线程触发；</li>
+ *   <li>凭证下发事件（credential issued）为<b>同步事件</b>：在主线程（命令/登录流程）触发。</li>
+ * </ul>
+ * 其他插件用 Bukkit 标准方式监听：
+ * <pre>
+ *   getServer().getPluginManager().registerEvents(new Listener() {
+ *       &#64;EventHandler
+ *       public void onDenied(GatewayAccessDeniedEvent e) {
+ *           // ...
+ *       }
+ *   }, yourPlugin);
+ * </pre>
+ */
+public abstract class GatewayEvent extends Event {
+
+    /** 默认异步（HTTP 处理线程触发；兼容旧字节码/无参构造） */
+    protected GatewayEvent() {
+        super(true);
+    }
+
+    protected GatewayEvent(boolean async) {
+        super(async);
+    }
+}

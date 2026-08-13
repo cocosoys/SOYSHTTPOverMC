@@ -1,8 +1,8 @@
-package soys.soyshttpovermc.gateway;
+package soys.soyshttpovermc.gateway.policy.auth.issuer;
 
 import org.bukkit.configuration.ConfigurationSection;
+import soys.soyshttpovermc.gateway.policy.auth.AuthUtils;
 
-import java.security.SecureRandom;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -15,8 +15,6 @@ import java.util.concurrent.ConcurrentHashMap;
  * 服务重启后内存令牌全部失效（内存态实现）；未来登录插件可按同样的模式实现自己的持久化颁发器。
  */
 public class SessionTokenIssuer extends CredentialIssuer {
-
-    private static final SecureRandom RANDOM = new SecureRandom();
 
     private String cookieName = "soys_session";
     private long ttlMillis = 24L * 3600 * 1000;
@@ -38,7 +36,7 @@ public class SessionTokenIssuer extends CredentialIssuer {
 
     @Override
     public IssuedCredential issue(String subject) {
-        String token = newToken();
+        String token = AuthUtils.generateToken("st_", 24);
         sessions.put(token, new Session(subject, System.currentTimeMillis() + ttlMillis));
         return IssuedCredential.ofToken(token, cookieName);
     }
@@ -57,14 +55,6 @@ public class SessionTokenIssuer extends CredentialIssuer {
             return false;
         }
         return true;
-    }
-
-    private static String newToken() {
-        byte[] b = new byte[24];
-        RANDOM.nextBytes(b);
-        StringBuilder sb = new StringBuilder("st_");
-        for (byte x : b) sb.append(String.format("%02x", x & 0xFF));
-        return sb.toString();
     }
 
     private static final class Session {

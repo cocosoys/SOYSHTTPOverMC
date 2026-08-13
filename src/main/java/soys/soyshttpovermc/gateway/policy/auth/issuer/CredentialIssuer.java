@@ -1,6 +1,7 @@
-package soys.soyshttpovermc.gateway;
+package soys.soyshttpovermc.gateway.policy.auth.issuer;
 
 import org.bukkit.configuration.ConfigurationSection;
+import soys.soyshttpovermc.gateway.GatewayFilter;
 
 /**
  * 凭证颁发器抽象基类：用于"下发" X-API-KEY / Authorization / Cookie 三类凭证，并校验客户端回传的凭证。

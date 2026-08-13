@@ -3,5 +3,12 @@
 #   gateway/config.yml           总开关（本文件）
 #   gateway/https.yml            HTTPS 设置（25564 就地升级）
 #   gateway/policies/<name>.yml  每个安全策略一个文件，文件名即策略名
+#   gateway/issuers/<name>.yml   每个凭证颁发器一个文件（登录插件接入）
 # 修改后执行 /soyshttp reload 热重载，无需重启服务器。
 enabled: true
+# 注解式 API 全局前缀：auth 策略启用时，@GetMapping("/status") 自动映射为 /api/status
+#（注解内无需写前缀；已写前缀不重复；auth 关闭时前缀不生效，按注解原样路由）
+# 修改需重启服务器（/soyshttp reload 不重注册路由）。
+api-prefix: /api
+# 事件调试：true 时在控制台打印网关事件（请求进入/拒绝/完成/凭证下发），便于排查
+debug-events: false

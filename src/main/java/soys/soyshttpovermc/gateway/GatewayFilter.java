@@ -1,6 +1,11 @@
 package soys.soyshttpovermc.gateway;
 
 import org.bukkit.configuration.ConfigurationSection;
+import soys.soyshttpovermc.gateway.policy.*;
+import soys.soyshttpovermc.gateway.policy.auth.AuthPolicy;
+import soys.soyshttpovermc.gateway.policy.auth.issuer.CredentialIssuer;
+import soys.soyshttpovermc.gateway.policy.auth.issuer.SessionTokenIssuer;
+import soys.soyshttpovermc.gateway.policy.tls.TlsPolicy;
 
 import java.io.File;
 import java.util.ArrayList;
@@ -139,21 +144,45 @@ public class GatewayFilter {
 
     /** 遍历策略链；返回第一个 DENY 或 ALLOW。策略执行异常按拒绝处理（fail-closed）。 */
     public PolicyResult filter(GatewayContext ctx) {
+        return filterDetailed(ctx).result;
+    }
+
+    /** 与 {@link #filter} 相同，但额外返回拒绝该请求的策略（供事件/日志使用）。 */
+    public Outcome filterDetailed(GatewayContext ctx) {
         for (SecurityPolicy p : policies) {
             if (!p.isEnabled() || !p.appliesTo(ctx)) continue;
             try {
                 PolicyResult r = p.check(ctx);
-                if (r != null && !r.isAllow()) return r;
+                if (r != null && !r.isAllow()) return new Outcome(p, r);
             } catch (Exception e) {
                 log.log(Level.WARNING, "[HTTP-Over-MC] 策略 " + p.name() + " 执行异常，按拒绝处理: " + e, e);
-                return PolicyResult.deny(500, "Internal Server Error: policy " + p.name());
+                return new Outcome(p, PolicyResult.deny(500, "Internal Server Error: policy " + p.name()));
             }
         }
-        return PolicyResult.ALLOW;
+        return new Outcome(null, PolicyResult.ALLOW);
+    }
+
+    /** 判定结果 + 拒绝该请求的策略（null=放行） */
+    public static final class Outcome {
+        public final SecurityPolicy policy;
+        public final PolicyResult result;
+
+        Outcome(SecurityPolicy policy, PolicyResult result) {
+            this.policy = policy;
+            this.result = result;
+        }
     }
 
     public List<SecurityPolicy> getPolicies() {
         return policies;
+    }
+
+    /** auth 鉴权策略是否启用（决定注解式 API 是否自动加 /api 全局前缀） */
+    public boolean isAuthEnabled() {
+        for (SecurityPolicy p : policies) {
+            if (p instanceof AuthPolicy && p.isEnabled()) return true;
+        }
+        return false;
     }
 
     /** 已启用的凭证颁发器（供 /soyshttp key 下发命令使用） */

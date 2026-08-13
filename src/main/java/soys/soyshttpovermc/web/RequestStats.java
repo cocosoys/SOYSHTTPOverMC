@@ -81,7 +81,9 @@ public class RequestStats {
         return new ArrayList<>(recent);
     }
 
-    public static final class RecentReq {
+    public static final class RecentReq implements java.io.Serializable {
+        private static final long serialVersionUID = 1L;
+
         public final String method;
         public final String path;
         public final int code;

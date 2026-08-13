@@ -1,6 +1,9 @@
-package soys.soyshttpovermc.gateway;
+package soys.soyshttpovermc.gateway.policy.tls;
 
 import org.bukkit.configuration.ConfigurationSection;
+import soys.soyshttpovermc.gateway.GatewayContext;
+import soys.soyshttpovermc.gateway.PolicyResult;
+import soys.soyshttpovermc.gateway.SecurityPolicy;
 
 import java.util.HashMap;
 import java.util.Map;

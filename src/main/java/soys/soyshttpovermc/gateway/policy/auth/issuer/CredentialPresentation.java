@@ -1,13 +1,18 @@
-package soys.soyshttpovermc.gateway;
+package soys.soyshttpovermc.gateway.policy.auth.issuer;
 
+import java.io.Serializable;
 import java.util.Collections;
 import java.util.Map;
 
 /**
  * 客户端在请求中提交的凭证表示（从 X-API-Key / Authorization / Cookie 头解析而来）。
  * 供安全策略与凭证颁发器（{@link CredentialIssuer}）校验使用。
+ * 实现 Serializable，便于事件（如 {@link soys.soyshttpovermc.api.event.GatewayAccessDeniedEvent}）
+ * 携带/记录凭证快照。
  */
-public class CredentialPresentation {
+public class CredentialPresentation implements Serializable {
+
+    private static final long serialVersionUID = 1L;
 
     private final String apiKey;      // X-API-Key 头值（可能为 null）
     private final String bearer;      // Authorization: Bearer <token>

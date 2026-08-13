@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>状态看板 · SOYS HTTP-Over-MC</title>
+<style>
+  :root{
+    --bg:#070710; --panel:#0e0e1d; --line:#1b1b3a;
+    --neon:#00f0ff; --neon2:#ff2bd6; --ok:#39ff14; --warn:#ffcc00; --txt:#cfe9ff;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; min-height:100vh; background:
+      radial-gradient(1200px 600px at 80% -10%, rgba(255,43,214,.12), transparent),
+      radial-gradient(1000px 500px at 0% 110%, rgba(0,240,255,.12), transparent),
+      var(--bg);
+    color:var(--txt); font-family:"Segoe UI",Consolas,Menlo,monospace; padding:28px;
+  }
+  .topbar{display:flex; align-items:center; gap:16px; margin-bottom:14px; flex-wrap:wrap}
+  .back{
+    display:inline-flex; align-items:center; gap:6px; color:var(--neon); text-decoration:none;
+    font-size:13px; letter-spacing:1px; border:1px solid rgba(0,240,255,.35); border-radius:8px;
+    padding:6px 12px; background:rgba(0,240,255,.06);
+  }
+  .back:hover{background:rgba(0,240,255,.16)}
+  h1{font-size:26px; letter-spacing:3px; margin:0 0 4px;
+    color:#fff; text-shadow:0 0 8px var(--neon),0 0 18px var(--neon2);}
+  .sub{opacity:.7; font-size:13px; margin-bottom:22px}
+  .grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:14px}
+  .card{background:linear-gradient(180deg,var(--panel),#0a0a16);
+    border:1px solid var(--line); border-radius:12px; padding:16px;
+    box-shadow:inset 0 0 24px rgba(0,240,255,.05)}
+  .card .k{font-size:12px; opacity:.6; letter-spacing:1px; text-transform:uppercase}
+  .card .v{font-size:24px; margin-top:8px; color:var(--neon); text-shadow:0 0 10px rgba(0,240,255,.5)}
+  .card.pink .v{color:var(--neon2); text-shadow:0 0 10px rgba(255,43,214,.5)}
+  .card.green .v{color:var(--ok); text-shadow:0 0 10px rgba(57,255,20,.5)}
+  .status-dot{display:inline-block; width:10px; height:10px; border-radius:50%;
+    background:var(--ok); box-shadow:0 0 10px var(--ok); margin-right:8px; animation:pulse 1.6s infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+  section{margin-top:26px}
+  h2{font-size:15px; letter-spacing:2px; color:var(--neon2);
+    border-left:3px solid var(--neon2); padding-left:10px; margin:0 0 12px}
+  table{width:100%; border-collapse:collapse; font-size:13px}
+  th,td{text-align:left; padding:8px 10px; border-bottom:1px solid var(--line)}
+  th{opacity:.6; font-weight:600; letter-spacing:1px}
+  tr:hover td{background:rgba(0,240,255,.05)}
+  .code200{color:var(--ok)} .code404{color:#ff6b6b} .code5xx{color:var(--warn)}
+  .toolbar{display:flex; gap:10px; margin-top:12px; flex-wrap:wrap}
+  input,button{font-family:inherit; font-size:13px; padding:9px 12px; border-radius:8px;
+    border:1px solid var(--line); background:#0a0a18; color:var(--txt)}
+  input{flex:1; min-width:200px}
+  button{cursor:pointer; border-color:var(--neon); color:var(--neon);
+    background:rgba(0,240,255,.08); letter-spacing:1px}
+  button:hover{background:rgba(0,240,255,.18)}
+  #probe{margin-top:10px; font-size:13px; opacity:.85; white-space:pre-wrap}
+  footer{margin-top:30px; opacity:.45; font-size:12px; text-align:center}
+</style>
+</head>
+<body>
+  <div class="topbar">
+    <a class="back" href="/">◀ 返回首页</a>
+  </div>
+  <h1>SOYS · HTTP-OVER-MC 状态看板</h1>
+  <div class="sub">隧道状态面板 · 同端口嗅探（访问端口 == Spigot server-port） · 数据经无头 Bot 回环 + PluginMessage 通道</div>
+
+  <div class="grid">
+    <div class="card green"><div class="k">隧道状态</div><div class="v"><span class="status-dot"></span><span id="online">ONLINE</span></div></div>
+    <div class="card"><div class="k">监听端口</div><div class="v" id="port">—</div></div>
+    <div class="card pink"><div class="k">运行时长</div><div class="v" id="uptime">—</div></div>
+    <div class="card"><div class="k">累计请求</div><div class="v" id="total">0</div></div>
+    <div class="card"><div class="k">GET / POST</div><div class="v" id="getpost">0 / 0</div></div>
+    <div class="card pink"><div class="k">平均 / 最大延迟</div><div class="v" id="lat">—</div></div>
+  </div>
+
+  <section>
+    <h2>近期请求</h2>
+    <table>
+      <thead><tr><th>方法</th><th>路径</th><th>状态码</th><th>延迟</th></tr></thead>
+      <tbody id="recent"><tr><td colspan="4" style="opacity:.5">加载中…</td></tr></tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>手动隧道探测</h2>
+    <div class="toolbar">
+      <input id="path" value="/api/status" spellcheck="false">
+      <button id="go">请求</button>
+    </div>
+    <div id="probe">点击「请求」对同端口隧道发起一次 HTTP 往返。</div>
+  </section>
+
+  <footer>HTTP-Over-MC · 每次刷新都经 MC 连接隧道真实往返，证明静态页 + 动态接口都通</footer>
+
+<script>
+const $ = id => document.getElementById(id);
+function cls(code){ if(code>=500) return 'code5xx'; if(code===404) return 'code404'; return 'code200'; }
+async function load(){
+  try{
+    const r = await fetch('/api/status', {cache:'no-store'});
+    const j = await r.json();
+    const d = (j && j.data !== undefined) ? j.data : j;  // 兼容 AjaxResult {code,msg,data}
+    $('online').textContent = d.online ? 'ONLINE' : 'OFFLINE';
+    $('port').textContent = d.port;
+    $('uptime').textContent = d.uptime;
+    $('total').textContent = d.requests.total;
+    $('getpost').textContent = d.requests.get + ' / ' + d.requests.post;
+    const avg = d.latency.avgMs==null ? '—' : d.latency.avgMs.toFixed(2)+'ms';
+    const max = d.latency.maxMs==null ? '—' : d.latency.maxMs.toFixed(2)+'ms';
+    $('lat').textContent = avg + ' / ' + max;
+    const tb = $('recent');
+    if(!d.recent.length){ tb.innerHTML = '<tr><td colspan="4" style="opacity:.5">暂无请求</td></tr>'; }
+    else{
+      tb.innerHTML = d.recent.slice().reverse().map(x=>{
+        const ms = x.ms==null ? '—' : x.ms.toFixed(1)+'ms';
+        return '<tr><td>'+esc(x.method)+'</td><td>'+esc(x.path)+'</td><td class="'+cls(x.code)+'">'+x.code+'</td><td>'+ms+'</td></tr>';
+      }).join('');
+    }
+  }catch(e){
+    $('online').textContent = 'ERROR';
+    console.error(e);
+  }
+}
+function esc(s){ return (s||'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+$('go').onclick = async ()=>{
+  const p = $('path').value || '/';
+  const t0 = performance.now();
+  try{
+    const resp = await fetch(p, {cache:'no-store'});
+    const txt = await resp.text();
+    const dt = (performance.now()-t0).toFixed(1);
+    $('probe').textContent = resp.status+' '+resp.statusText+' · 浏览器侧 ' + dt + 'ms\n\n' + txt.slice(0,600);
+  }catch(e){ $('probe').textContent = '请求失败: ' + e; }
+};
+load(); setInterval(load, 2000);
+</script>
+</body>
+</html>

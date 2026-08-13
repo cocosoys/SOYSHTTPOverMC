@@ -1,4 +1,4 @@
-package soys.soyshttpovermc.gateway;
+package soys.soyshttpovermc.gateway.policy.tls;
 
 import org.bukkit.configuration.ConfigurationSection;
 

@@ -1,10 +1,15 @@
-package soys.soyshttpovermc.gateway;
+package soys.soyshttpovermc.gateway.policy.auth.issuer;
+
+import java.io.Serializable;
 
 /**
  * 下发（签发）的凭证：一次签发可同时承载 X-API-Key / Authorization Bearer / Cookie 三种形态。
  * 具体填充哪些字段由颁发器决定（如会话令牌三种形态都是同一个 token）。
+ * 实现 Serializable，便于事件/日志/跨进程传递时对凭证实体进行序列化控制。
  */
-public class IssuedCredential {
+public class IssuedCredential implements Serializable {
+
+    private static final long serialVersionUID = 1L;
 
     private final String apiKey;      // 可作为 X-API-Key 头
     private final String bearer;      // 可作为 Authorization: Bearer

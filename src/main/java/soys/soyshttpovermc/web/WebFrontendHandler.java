@@ -1,5 +1,7 @@
 package soys.soyshttpovermc.web;
 
+import soys.soyshttpovermc.api.util.AjaxResult;
+import soys.soyshttpovermc.api.ApiRegistry;
 import soys.soyshttpovermc.proto.FrameProto;
 
 import com.google.protobuf.ByteString;
@@ -13,29 +15,21 @@ import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
 /**
- * 服务端 HTTP 处理器：把一次经 Bot 隧道送达的 HTTP 请求，路由为静态资源或动态 JSON。
+ * 服务端 HTTP 处理器：把一次经 Bot 隧道送达的 HTTP 请求，路由为注解式 API 或静态资源。
  *
- * 资源查找优先级：
- *  1) 若 config 指定 web.root 且磁盘文件存在（含 .. 穿越防护）→ 磁盘文件；
- *  2) 否则回退到插件 jar 内置 /web/ 资源（默认赛博朋克状态面板）；
- *  3) 均不存在 → 404。
- *
- * 特殊路由：
- *  - GET /api/status → 实时统计 JSON（证明静态页 + 动态接口都通）；
- *  - GET /favicon.ico → 204 空响应。
+ * 路由优先级：
+ *  1) 注解式 API（@GetMapping 注册，如 /api/status、/api/ping）→ dispatch；
+ *  2) /favicon.ico → 204；
+ *  3) 静态资源：web.root 磁盘目录（含 .. 穿越防护）→ jar 内置 /web/ → 404。
  */
 public class WebFrontendHandler {
 
-    private final RequestStats stats;
     private final File webRoot;     // null 表示未配置磁盘 webroot
     private final String webRootCanonical;
-    private final int port;
-    private final String botName;
+    private final ApiRegistry apiRegistry; // 注解式 API 注册表（可为 null）
 
-    public WebFrontendHandler(RequestStats stats, String webRootPath, int port, String botName) {
-        this.stats = stats;
-        this.port = port;
-        this.botName = botName == null ? "" : botName;
+    public WebFrontendHandler(String webRootPath, ApiRegistry apiRegistry) {
+        this.apiRegistry = apiRegistry;
         File root = null;
         String canonical = null;
         if (webRootPath != null && !webRootPath.trim().isEmpty()) {
@@ -60,13 +54,22 @@ public class WebFrontendHandler {
      */
     public FrameProto.HttpResponseFrame handle(String method, String path, Map<String, String> headers, byte[] body) {
         String m = method == null ? "" : method.toUpperCase();
-        String cleanPath = stripQuery(decode(path));
+        String rawPath = decode(path);
+
+        // 0) 注解式 API 优先（@GetMapping 等注册的路由）
+        if (apiRegistry != null) {
+            Object apiResult = apiRegistry.dispatch(m, rawPath, headers, body);
+            if (apiResult != null) {
+                AjaxResult ar = apiResult instanceof AjaxResult
+                        ? (AjaxResult) apiResult : AjaxResult.success(apiResult);
+                return jsonResponse(200, ar.toJson());
+            }
+        }
+
+        String cleanPath = stripQuery(rawPath);
         if (cleanPath.isEmpty() || cleanPath.equals("/")) cleanPath = "/";
 
         // 动态接口
-        if (cleanPath.equals("/api/status") && (m.equals("GET") || m.equals("HEAD"))) {
-            return jsonResponse(200, buildStatusJson());
-        }
         if (cleanPath.equals("/favicon.ico")) {
             return FrameProto.HttpResponseFrame.newBuilder()
                     .setStatusCode(204)
@@ -78,9 +81,10 @@ public class WebFrontendHandler {
         }
 
         // 静态资源
-        // 目录/根路径实际服务 index.html，Content-Type 必须按实际文件名判定，否则浏览器会下载而非渲染
+        // 目录/根路径实际服务 index.html（/ 或 /status 或 /xxx/ 均回退 <dir>/index.html），
+        // Content-Type 必须按实际文件名判定，否则浏览器会下载而非渲染
         String servedName = cleanPath;
-        if (cleanPath.equals("/") || cleanPath.endsWith("/")) {
+        if (cleanPath.equals("/") || cleanPath.endsWith("/") || !hasExtension(cleanPath)) {
             servedName = "index.html";
         }
         byte[] content = resolveResource(cleanPath);
@@ -109,6 +113,10 @@ public class WebFrontendHandler {
     private byte[] resolveResource(String cleanPath) {
         String relative = cleanPath.startsWith("/") ? cleanPath.substring(1) : cleanPath;
         if (relative.isEmpty()) relative = "index.html";
+        // 无扩展名的路径视为目录：/status、/status/ → status/index.html
+        if (!relative.equals("index.html") && !hasExtension(relative)) {
+            relative = relative.endsWith("/") ? relative + "index.html" : relative + "/index.html";
+        }
 
         // 1) 磁盘 webroot
         if (webRoot != null) {
@@ -123,15 +131,15 @@ public class WebFrontendHandler {
         }
 
         // 2) jar 内置 /web/
-        String jarPath = "/web/" + relative;
-        byte[] fromJar = readResource(jarPath);
-        if (fromJar != null) return fromJar;
+        return readResource("/web/" + relative);
+    }
 
-        // 3) 目录默认首页
-        if (cleanPath.equals("/")) {
-            return readResource("/web/index.html");
-        }
-        return null;
+    /** 路径最后一段是否含扩展名（无扩展名视为目录 → 找 index.html） */
+    private static boolean hasExtension(String p) {
+        String last = p;
+        int slash = p.lastIndexOf('/');
+        if (slash >= 0) last = p.substring(slash + 1);
+        return last.indexOf('.') >= 0;
     }
 
     private byte[] readResource(String resource) {
@@ -157,42 +165,7 @@ public class WebFrontendHandler {
         return out.toByteArray();
     }
 
-    // ===== 动态 JSON =====
-    private String buildStatusJson() {
-        long up = System.currentTimeMillis() - stats.getStartTime();
-        StringBuilder sb = new StringBuilder();
-        sb.append("{");
-        sb.append("\"online\":true,");
-        sb.append("\"port\":").append(port).append(',');
-        sb.append("\"bot\":\"").append(escapeJson(botName)).append("\",");
-        sb.append("\"uptimeMillis\":").append(up).append(',');
-        sb.append("\"uptime\":\"").append(formatUptime(up)).append("\",");
-        sb.append("\"requests\":{");
-        sb.append("\"total\":").append(stats.getTotal()).append(',');
-        sb.append("\"get\":").append(stats.getGetCount()).append(',');
-        sb.append("\"post\":").append(stats.getPostCount()).append(',');
-        sb.append("\"other\":").append(stats.getOtherCount());
-        sb.append("},");
-        sb.append("\"latency\":{");
-        sb.append("\"avgMs\":").append(fmt(stats.getAvgLatencyMs())).append(',');
-        sb.append("\"maxMs\":").append(fmt(stats.getMaxLatencyMs()));
-        sb.append("},");
-        sb.append("\"recent\":[");
-        boolean first = true;
-        for (RequestStats.RecentReq r : stats.getRecent()) {
-            if (!first) sb.append(',');
-            first = false;
-            sb.append("{\"method\":\"").append(escapeJson(r.method)).append('"');
-            sb.append(",\"path\":\"").append(escapeJson(r.path)).append('"');
-            sb.append(",\"code\":").append(r.code);
-            sb.append(",\"ms\":").append(fmt(r.latencyMs()));
-            sb.append('}');
-        }
-        sb.append("]");
-        sb.append("}");
-        return sb.toString();
-    }
-
+    // ===== JSON 响应（注解式 API 序列化） =====
     private static FrameProto.HttpResponseFrame jsonResponse(int code, String json) {
         return FrameProto.HttpResponseFrame.newBuilder()
                 .setStatusCode(code)
@@ -218,27 +191,7 @@ public class WebFrontendHandler {
         }
     }
 
-    private static String formatUptime(long ms) {
-        long s = ms / 1000;
-        long h = s / 3600;
-        long m = (s % 3600) / 60;
-        long sec = s % 60;
-        if (h > 0) return h + "h" + m + "m";
-        if (m > 0) return m + "m" + sec + "s";
-        return sec + "s";
-    }
-
-    private static String fmt(double v) {
-        if (v < 0) return "null";
-        return String.format("%.2f", v);
-    }
-
     private static String escape(String s) {
         return s == null ? "" : s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
-    }
-
-    private static String escapeJson(String s) {
-        if (s == null) return "";
-        return s.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n").replace("\r", "\\r");
     }
 }
