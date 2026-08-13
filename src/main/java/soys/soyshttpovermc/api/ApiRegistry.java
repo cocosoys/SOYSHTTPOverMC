@@ -58,6 +58,10 @@ import java.util.logging.Logger;
  *   <li><b>类级前缀</b>：在控制器类上写 {@code @RequestMapping("/admin")}，其下所有方法自动获得
  *       {@code /admin} 段（位于全局前缀之后），无需每个方法重复写。最终路径 = 全局前缀 + 类前缀 + 方法路径
  *       （如 /api/admin/users）。仅取类级注解的 value/path，不约束 HTTP 方法（方法由方法级注解决定）；</li>
+ *   <li><b>插件命名空间</b>：非主插件（SOYSHTTPOverMC 本体以外）注册时自动补充 {@code /plugins/&lt;插件名&gt;}
+ *       前缀（位于全局前缀之后、类/方法路径之前），例如插件 Foo 的 {@code /users} 实际地址为
+ *       {@code /api/plugins/Foo/users}；主插件自身不加此前缀。调用 {@link #registerProxy(Object)} 可强制以
+ *       主插件代理注册（不加 /plugins 前缀，路径同主插件直接注册），ownerPlugin 仍标记为真实插件以便卸载；</li>
  *   <li>方法返回 {@link AjaxResult} 原样序列化；返回其他对象自动包 {@link AjaxResult#success(Object)}；</li>
  *   <li>{@link ApiPermission} 由 {@link PermissionService} 判定，未注册服务时注解不阻断；</li>
  *   <li>参数支持 {@link RequestParam}（query 绑定 + 类型转换）与 {@link RequestBody}（String body）。</li>
@@ -103,16 +107,39 @@ public class ApiRegistry {
 
     /**
      * 注册一个带映射注解的处理器实例（自动标记其所属插件 = 处理器实例的 ClassLoader 归属插件）。
+     * 非主插件注册时自动补充 {@code /plugins/<插件名>} 命名空间前缀（如 /api/plugins/Foo/users）。
      */
     public void register(Object instance) {
-        register(pluginOfInstance(instance), instance);
+        register(pluginOfInstance(instance), instance, false);
     }
 
     /**
      * 注册一个带映射注解的处理器实例，并显式指定所属插件（用于跨插件代理注册等场景）。
-     * 不传插件时由 {@link #register(Object)} 自动推断。
+     * 非主插件且非强制代理时自动补充 {@code /plugins/<插件名>} 前缀。
      */
     public void register(Plugin owner, Object instance) {
+        register(owner, instance, false);
+    }
+
+    /**
+     * 强制以主插件（SOYSHTTPOverMC）代理注册：不加 {@code /plugins/<插件名>} 前缀，
+     * 路由路径同主插件直接注册（如 /api/users）。ownerPlugin 仍标记为真实插件，
+     * 故该插件被禁用时其代理注册的 API 仍会被一并卸载。
+     */
+    public void registerProxy(Object instance) {
+        register(pluginOfInstance(instance), instance, true);
+    }
+
+    /** 强制代理注册并显式指定所属插件（见 {@link #registerProxy(Object)}）。 */
+    public void registerProxy(Plugin owner, Object instance) {
+        register(owner, instance, true);
+    }
+
+    /**
+     * 注册核心实现。
+     * @param proxy true=强制以主插件代理（无 /plugins 前缀）；false=非主插件自动加 /plugins/&lt;插件名&gt;。
+     */
+    private void register(Plugin owner, Object instance, boolean proxy) {
         if (instance == null) return;
         Class<?> cls = instance.getClass();
         String ownerName = owner == null ? null : owner.getName();
@@ -121,6 +148,11 @@ public class ApiRegistry {
         String clsPermission = classApiPermission(cls);
         // 类级 @RequestMapping 路径前缀（位于全局 api-prefix 之后），为该类下所有方法统一加前缀
         String classPrefix = classMappingPrefix(cls);
+        // 插件命名空间前缀：非主插件且非强制代理 → /plugins/<插件名>
+        String pluginsPrefix = "";
+        if (!proxy && ownerName != null && !ownerName.equals(hostPlugin.getName())) {
+            pluginsPrefix = "/plugins/" + ownerName;
+        }
         int n = 0;
         List<ApiInfo> registered = new ArrayList<>();
         for (Method m : cls.getDeclaredMethods()) {
@@ -132,8 +164,12 @@ public class ApiRegistry {
             List<ParamBinding> params = analyzeParams(m);
             for (String[] plan : plans) {
                 String method = plan[0];
-                // 路径 = 全局前缀 + 类级前缀 + 方法路径
-                String path = applyPrefix(joinPath(classPrefix, plan[1]));
+                // 路径 = 全局前缀 + 插件前缀 + 类级前缀 + 方法路径
+                // 例：api-prefix=/api + /plugins/Foo + /admin + /users → /api/plugins/Foo/admin/users
+                String subPath = joinPath(classPrefix, plan[1]);
+                String path = subPath;
+                if (!pluginsPrefix.isEmpty()) path = pluginsPrefix + path;
+                path = applyPrefix(path);
                 String key = method + " " + path;
                 EndpointMeta meta = new EndpointMeta(instance, m, apiName, permission, params, path, method, ownerName, cls.getName());
                 EndpointMeta old = routes.put(key, meta);
@@ -144,7 +180,8 @@ public class ApiRegistry {
                 n++;
                 registered.add(new ApiInfo(method, path, apiName, permission, cls.getName(), ownerName));
                 LogKit.info("[HTTP-Over-MC] 注册 API: " + key + " 名称=" + apiName
-                        + " 插件=" + ownerName + (permission.isEmpty() ? "" : " 权限=" + permission));
+                        + " 插件=" + ownerName + (proxy ? " (代理无前缀)" : "")
+                        + (permission.isEmpty() ? "" : " 权限=" + permission));
             }
         }
         if (n == 0) {

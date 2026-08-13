@@ -19,17 +19,21 @@ import java.util.Map;
  *
  * 路由优先级：
  *  1) 注解式 API（@GetMapping 注册，如 /api/status、/api/ping）→ dispatch；
- *  2) /favicon.ico → 优先 jar 内置 /web/favicon.ico（image/x-icon），缺失才 204；
- *  3) 静态资源：web.root 磁盘目录（含 .. 穿越防护）→ jar 内置 /web/ → 404。
+ *  2) /favicon.ico → 优先本地插件配置目录 web/favicon.ico（磁盘，可热替换），
+ *     再 jar 内置 /web/favicon.ico，仍缺失才 204 无内容；
+ *  3) 插件登记网页（WebRegistry：第三方插件注册，默认 /plugins/&lt;插件名&gt; 前缀）；
+ *  4) 静态资源：web.root 磁盘目录（含 .. 穿越防护）→ jar 内置 /web/ → 404。
  */
 public class WebFrontendHandler {
 
     private final File webRoot;     // null 表示未配置磁盘 webroot
     private final String webRootCanonical;
     private final ApiRegistry apiRegistry; // 注解式 API 注册表（可为 null）
+    private final WebRegistry webRegistry; // 插件登记网页（可为 null）
 
-    public WebFrontendHandler(String webRootPath, ApiRegistry apiRegistry) {
+    public WebFrontendHandler(String webRootPath, ApiRegistry apiRegistry, WebRegistry webRegistry) {
         this.apiRegistry = apiRegistry;
+        this.webRegistry = webRegistry;
         File root = null;
         String canonical = null;
         if (webRootPath != null && !webRootPath.trim().isEmpty()) {
@@ -69,9 +73,9 @@ public class WebFrontendHandler {
         String cleanPath = stripQuery(rawPath);
         if (cleanPath.isEmpty() || cleanPath.equals("/")) cleanPath = "/";
 
-        // favicon：优先实际图标（jar 内置 /web/favicon.ico），缺失才 204 无内容
+        // favicon：优先本地插件配置目录 web/favicon.ico（磁盘，可热替换），再 jar 内置 /web/favicon.ico，仍缺失才 204 无内容
         if (cleanPath.equals("/favicon.ico")) {
-            byte[] ico = readResource("/web/favicon.ico");
+            byte[] ico = resolveFavicon();
             if (ico != null) {
                 return FrameProto.HttpResponseFrame.newBuilder()
                         .setStatusCode(200)
@@ -88,6 +92,20 @@ public class WebFrontendHandler {
                     .setFragmentIndex(0)
                     .setTotalFragments(1)
                     .build();
+        }
+
+        // 插件登记网页（第三方插件注册；默认前缀 /plugins/<插件名>，强制代理无前缀）
+        if (webRegistry != null) {
+            WebRegistry.Entry page = webRegistry.resolve(m, cleanPath);
+            if (page != null) {
+                return FrameProto.HttpResponseFrame.newBuilder()
+                        .setStatusCode(200)
+                        .putHeaders("Content-Type", page.contentType)
+                        .setBody(ByteString.copyFrom(page.resolveBytes()))
+                        .setFragmentIndex(0)
+                        .setTotalFragments(1)
+                        .build();
+            }
         }
 
         // 静态资源
@@ -120,6 +138,21 @@ public class WebFrontendHandler {
     }
 
     // ===== 资源解析 =====
+    /** favicon 解析顺序：1) 本地插件配置目录 web/favicon.ico（磁盘，可热替换）→ 2) jar 内置 /web/favicon.ico */
+    private byte[] resolveFavicon() {
+        if (webRoot != null) {
+            File f = new File(webRoot, "favicon.ico");
+            try {
+                if (f.getCanonicalPath().startsWith(webRootCanonical)
+                        && f.isFile() && f.length() <= 16L * 1024 * 1024) {
+                    return readFile(f);
+                }
+            } catch (Exception ignored) {
+            }
+        }
+        return readResource("/web/favicon.ico");
+    }
+
     private byte[] resolveResource(String cleanPath) {
         String relative = cleanPath.startsWith("/") ? cleanPath.substring(1) : cleanPath;
         if (relative.isEmpty()) relative = "index.html";

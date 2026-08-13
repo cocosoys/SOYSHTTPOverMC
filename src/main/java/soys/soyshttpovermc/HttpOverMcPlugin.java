@@ -11,6 +11,7 @@ import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import soys.soyshttpovermc.api.ApiRegistry;
+import soys.soyshttpovermc.web.WebRegistry;
 import soys.soyshttpovermc.api.spring.controller.StatusController;
 import soys.soyshttpovermc.api.spring.controller.SystemController;
 import soys.soyshttpovermc.api.spring.impl.StatusServiceImpl;
@@ -43,6 +44,7 @@ public class HttpOverMcPlugin extends JavaPlugin {
     private GatewayFilter gateway;
     private TlsContextFactory tlsFactory;
     private ApiRegistry apiRegistry;
+    private WebRegistry webRegistry;
     private GatewayEventListener gatewayEventListener;
     private volatile boolean debugEventsEnabled = false;
     private String channel;
@@ -53,9 +55,14 @@ public class HttpOverMcPlugin extends JavaPlugin {
         return instance;
     }
 
-    /** 注解式 API 注册表：其他插件注册 @GetMapping 等注解处理器 */
+    /** 注解式 API 注册表：其他插件注册 @GetMapping 等注解处理器；非主插件自动加 /plugins/<插件名> 前缀，registerProxy 可强制无前缀 */
     public ApiRegistry getApiRegistry() {
         return apiRegistry;
+    }
+
+    /** 网页登记处：其他插件登记新网页（默认 /plugins/<插件名> 前缀，registerProxy* 可强制无前缀） */
+    public WebRegistry getWebRegistry() {
+        return webRegistry;
     }
 
     /** 网关策略链（含已启用的凭证颁发器） */
@@ -105,11 +112,13 @@ public class HttpOverMcPlugin extends JavaPlugin {
         String apiPrefix = gwCfg == null ? "/api" : gwCfg.getString("api-prefix", "/api");
         apiRegistry = new ApiRegistry(this, log);
         apiRegistry.setPathPrefix(apiPrefix);
-        // 事件监听器：网关事件调试日志 + 插件卸载自动卸载其名下全部注解式 API
+        // 网页登记处：第三方插件登记新网页（默认 /plugins/<插件名> 前缀）
+        webRegistry = new WebRegistry(this.getName());
+        // 事件监听器：网关事件调试日志 + 插件卸载自动卸载其名下全部注解式 API / 网页
         gatewayEventListener = new GatewayEventListener();
         gatewayEventListener.setDebugEnabled(debugEventsEnabled);
         getServer().getPluginManager().registerEvents(gatewayEventListener, this);
-        getServer().getPluginManager().registerEvents(new ApiLifecycleListener(apiRegistry, this), this);
+        getServer().getPluginManager().registerEvents(new ApiLifecycleListener(apiRegistry, webRegistry, this), this);
         // 系统 API：装配 SystemServiceImpl → SystemController
         ISystemService systemService = new SystemServiceImpl(mcPort);
         apiRegistry.register(new SystemController(systemService));
@@ -126,7 +135,7 @@ public class HttpOverMcPlugin extends JavaPlugin {
         IStatusService statusService = new StatusServiceImpl(stats, mcPort, botUsername); // /api/status 注解式重写
         apiRegistry.register(new StatusController(statusService));
         WebFrontendHandler web = new WebFrontendHandler(
-                webRoot == null ? null : webRoot.getAbsolutePath(), apiRegistry);
+                webRoot == null ? null : webRoot.getAbsolutePath(), apiRegistry, webRegistry);
         McMessageHandler handler = new McMessageHandler(this, botUsername, channel, web);
         getServer().getMessenger().registerOutgoingPluginChannel(this, channel);
         getServer().getMessenger().registerIncomingPluginChannel(this, channel, handler);
