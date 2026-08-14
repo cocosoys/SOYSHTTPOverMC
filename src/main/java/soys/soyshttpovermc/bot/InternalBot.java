@@ -1,5 +1,7 @@
 package soys.soyshttpovermc.bot;
 
+import lombok.Data;
+import lombok.Getter;
 import soys.soyshttpovermc.log.LogKit;
 
 import com.github.steveice10.mc.protocol.MinecraftProtocol;
@@ -38,15 +40,19 @@ public class InternalBot {
     private static final String REGISTER_CHANNEL = "minecraft:register";
 
     private final JavaPlugin plugin;
+    @Getter
     private final String username;
+    @Getter
     private final String channel;
+    @Getter
     private final String host;
+    @Getter
     private final int port;
 
     private Client client;
     private Session session;
     private RawMessageListener listener;
-    private final ExecutorService sender = Executors.newSingleThreadExecutor();
+    private ExecutorService sender = Executors.newSingleThreadExecutor();
 
     private volatile boolean registered = false;
     private volatile boolean inGame = false;
@@ -69,9 +75,9 @@ public class InternalBot {
     }
 
     public void connect() {
-        LogKit.info("[HTTP-Over-MC] Bot 正在连接 " + host + ":" + port + " user=" + username);
-        MinecraftProtocol protocol = new MinecraftProtocol(username);
-        client = new Client(host, port, protocol, new TcpSessionFactory());
+        LogKit.info("[HTTP-Over-MC] Bot 正在连接 " + getHost() + ":" + getPort() + " user=" + getUsername());
+        MinecraftProtocol protocol = new MinecraftProtocol(getUsername());
+        client = new Client(getHost(), getPort(), protocol, new TcpSessionFactory());
         session = client.getSession();
         session.addListener(new BotSessionListener());
         session.connect();
@@ -84,6 +90,26 @@ public class InternalBot {
         if (session != null && session.isConnected()) {
             session.disconnect("HTTP-Over-MC shutting down");
         }
+    }
+
+    /**
+     * 重新连接（被踢出游戏等特殊情况后恢复隧道）：不断销毁 sender 线程池（便于立即重连），
+     * 仅断开旧会话并在其已关闭时重建，再发起一次 connect()；主通道与 McLink 引用保持不变。
+     */
+    public void reconnect() {
+        LogKit.info("[HTTP-Over-MC] Bot 重新连接 user=" + getUsername());
+        registered = false;
+        inGame = false;
+        if (session != null && session.isConnected()) {
+            try {
+                session.disconnect("HTTP-Over-MC reconnect");
+            } catch (Throwable ignored) {
+            }
+        }
+        if (sender.isShutdown() || sender.isTerminated()) {
+            sender = Executors.newSingleThreadExecutor();
+        }
+        connect();
     }
 
     public void sendChannelMessage(String ch, byte[] data) {
@@ -116,8 +142,8 @@ public class InternalBot {
         registered = true;
         final Session s = session;
         sender.submit(() -> {
-            s.send(new ClientPluginMessagePacket(REGISTER_CHANNEL, channel.getBytes(StandardCharsets.UTF_8)));
-            LogKit.info("[HTTP-Over-MC] Bot 已发送通道注册 " + channel);
+            s.send(new ClientPluginMessagePacket(REGISTER_CHANNEL, getChannel().getBytes(StandardCharsets.UTF_8)));
+            LogKit.info("[HTTP-Over-MC] Bot 已发送通道注册 " + getChannel());
         });
     }
 

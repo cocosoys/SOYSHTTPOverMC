@@ -1,5 +1,6 @@
 package soys.soyshttpovermc.bot;
 
+import soys.soyshttpovermc.exception.BotException;
 import soys.soyshttpovermc.link.McLink;
 import soys.soyshttpovermc.log.LogKit;
 
@@ -97,9 +98,9 @@ public class BotManager {
     }
 
     /** 踢出并断开一个额外受管 Bot（主 Bot 不可踢）。 */
-    public void kickBot(String name) throws Exception {
+    public void kickBot(String name) throws BotException {
         if(name.equals(plugin.getConfig().getString("bot.username"))){
-            throw new Exception("禁止踢出主bot "+plugin.getConfig().getString("bot.username"));
+            throw new BotException("禁止踢出主bot "+plugin.getConfig().getString("bot.username"));
         }
         ManagedBot mb = bots.remove(name);
         if (mb != null) {
@@ -119,6 +120,12 @@ public class BotManager {
             try { mb.getBot().disconnect(); } catch (Throwable ignored) {}
         }
         bots.clear();
+    }
+
+    /** 触发主 Bot 重新连接（被踢出游戏等特殊情况后恢复隧道；主通道与 McLink 引用保持不变）。 */
+    public void reconnectMainBot() {
+        mainBot.reconnect();
+        LogKit.info("[HTTP-Over-MC] 主 Bot 重新连接已触发: " + mainBot.getUsername());
     }
 
     /** 受管 Bot 的不可变持有项（名称 / 通道 / Bot / McLink）。 */

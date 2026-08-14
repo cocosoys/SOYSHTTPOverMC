@@ -6,6 +6,9 @@ import org.bukkit.plugin.Plugin;
 
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -100,6 +103,16 @@ public class WebRegistry {
         if (removed > 0) {
             LogKit.info("[HTTP-Over-MC] 卸载网页（插件 " + pluginName + "）：共 " + removed + " 个");
         }
+    }
+
+    /** 列出全部已登记网页路径（含归属插件），按路径排序；供 /soyshttp pages 查看。 */
+    public List<String> listPaths() {
+        List<String> out = new ArrayList<>();
+        for (Entry e : pages.values()) {
+            out.add(e.path + " (owner=" + (e.ownerPlugin == null ? "?" : e.ownerPlugin) + ")");
+        }
+        Collections.sort(out);
+        return out;
     }
 
     // ===== 内部 =====

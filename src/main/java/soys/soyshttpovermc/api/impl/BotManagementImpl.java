@@ -28,7 +28,7 @@ public class BotManagementImpl implements BotManagementApi {
     }
 
     @Override
-    public void kickBot(String name) throws Exception {
+    public void kickBot(String name) {
         try {
             botManager.kickBot(name);
         } catch (Exception ex) {

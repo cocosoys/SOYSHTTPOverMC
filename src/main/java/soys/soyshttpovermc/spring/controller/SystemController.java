@@ -3,6 +3,7 @@ package soys.soyshttpovermc.spring.controller;
 import soys.soyshttpovermc.util.AjaxResult;
 import soys.soyshttpovermc.annotations.ApiName;
 import soys.soyshttpovermc.annotations.ApiPermission;
+import soys.soyshttpovermc.annotations.ApiPublic;
 import soys.soyshttpovermc.annotations.GetMapping;
 import soys.soyshttpovermc.spring.service.ISystemService;
 
@@ -28,6 +29,7 @@ public class SystemController {
     }
 
     @ApiName("网关版本")
+    @ApiPublic
     @GetMapping("/version")
     public AjaxResult version() {
         // 调用 service 获取版本信息实体（演示实体类用法）

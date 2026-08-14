@@ -242,6 +242,12 @@ public class ApiRegistry {
         if (meta == null) meta = routes.get(ANY_METHOD + " " + path); // @RequestMapping 不限定方法
         if (meta == null) return null;
 
+        // 默认拒绝：auth 框架已启用（PermissionService 注册）时，既无 @ApiPermission 又无 @ApiPublic 的端点
+        // 默认拒绝（安全优先）；未注册 PermissionService 时不强制（兼容关闭注解鉴权的旧部署）。
+        if (permissionService != null && meta.permission.isEmpty() && !isPublicEndpoint(meta)) {
+            return AjaxResult.error(403, "默认拒绝：端点未声明公开(@ApiPublic)或权限(@ApiPermission)");
+        }
+
         // 权限判定（未注册 PermissionService 时注解不阻断）
         PermissionService ps = permissionService;
         if (ps != null && !meta.permission.isEmpty()) {
@@ -286,11 +292,14 @@ public class ApiRegistry {
             return AjaxResult.success(ret);
         } catch (InvocationTargetException e) {
             Throwable cause = e.getCause() == null ? e : e.getCause();
-            LogKit.warn("[HTTP-Over-MC] API 处理异常 " + meta.method.getName() + ": " + cause, cause);
-            return AjaxResult.error("服务器内部错误: " + cause.getMessage());
+            String ref = AuthUtils.generateToken("err_", 6);
+            LogKit.warn("[HTTP-Over-MC] API 处理异常 " + meta.method.getName() + " (ref=" + ref + "): " + cause, cause);
+            // 脱敏：不向外暴露内部异常信息，仅返回关联 ref 便于服务端定位
+            return AjaxResult.error(500, "服务器内部错误 (ref=" + ref + ")");
         } catch (Exception e) {
-            LogKit.warn("[HTTP-Over-MC] API 调用异常 " + meta.method.getName() + ": " + e, e);
-            return AjaxResult.error("服务器内部错误: " + e.getMessage());
+            String ref = AuthUtils.generateToken("err_", 6);
+            LogKit.warn("[HTTP-Over-MC] API 调用异常 " + meta.method.getName() + " (ref=" + ref + "): " + e, e);
+            return AjaxResult.error(500, "服务器内部错误 (ref=" + ref + ")");
         }
     }
 
@@ -348,6 +357,13 @@ public class ApiRegistry {
 
     private static ApiInfo toInfo(EndpointMeta m) {
         return new ApiInfo(m.httpMethod, m.path, m.apiName, m.permission, m.handlerClass, m.ownerPlugin);
+    }
+
+    /** 端点是否显式公开（方法级或类级 @ApiPublic 任一存在即可）。 */
+    private boolean isPublicEndpoint(EndpointMeta meta) {
+        if (meta.method.getAnnotation(ApiPublic.class) != null) return true;
+        if (meta.instance.getClass().getAnnotation(ApiPublic.class) != null) return true;
+        return false;
     }
 
     // ===== 元数据 =====

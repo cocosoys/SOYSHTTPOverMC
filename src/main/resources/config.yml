@@ -32,7 +32,7 @@ sniffer:
 # - 指定路径：优先从该目录读取静态文件（相对数据目录或绝对路径）。
 # 支持路径：/、/index.html、/app.js、/styles.css、/api/status(动态JSON) 等。
 web:
-  root: ""
+  root: "/web"
 
 # ============ 日志管控 ============
 # 统一日志门面 LogKit 的打印级别（全插件日志经此过滤）：

@@ -21,12 +21,15 @@ import soys.soyshttpovermc.spring.impl.SystemServiceImpl;
 import soys.soyshttpovermc.spring.service.IStatusService;
 import soys.soyshttpovermc.spring.service.ISystemService;
 import soys.soyshttpovermc.bot.InternalBot;
+import soys.soyshttpovermc.bot.BotRuleController;
+import soys.soyshttpovermc.bot.ApiKeyBotRule;
 import soys.soyshttpovermc.gateway.GatewayConfig;
 import soys.soyshttpovermc.gateway.GatewayFilter;
 import soys.soyshttpovermc.gateway.policy.tls.TlsContextFactory;
 import soys.soyshttpovermc.http.HttpMcTranslator;
 import soys.soyshttpovermc.link.McLink;
 import soys.soyshttpovermc.mc.McMessageHandler;
+import soys.soyshttpovermc.mc.RequestScheduler;
 import soys.soyshttpovermc.mc.SocketSniffer;
 import soys.soyshttpovermc.web.RequestStats;
 import soys.soyshttpovermc.web.WebFrontendHandler;
@@ -50,6 +53,10 @@ public class HttpOverMcPlugin extends JavaPlugin {
     private WebRegistry webRegistry;
     private SoysHttpOverMcApi api;
     private GatewayEventListener gatewayEventListener;
+    /** 请求分配规则控制器：决定请求进入哪个逻辑队列（tier） */
+    private BotRuleController botRuleController;
+    /** 按 Bot 队列优先级处理 API 请求（单物理 Bot 隧道 + 多逻辑队列 + 背压） */
+    private RequestScheduler requestScheduler;
     private volatile boolean debugEventsEnabled = false;
     private String channel;
     private String botUsername;
@@ -165,6 +172,9 @@ public class HttpOverMcPlugin extends JavaPlugin {
         // 系统 API：装配 SystemServiceImpl → SystemController
         ISystemService systemService = new SystemServiceImpl(mcPort);
         apiRegistry.register(new SystemController(systemService));
+
+        // 请求分配规则控制器（默认按 X-API-Key 分流 admin/common 逻辑队列）
+        botRuleController = new ApiKeyBotRule();
     }
 
     /** 启动无头 Bot 回环连接本服（目标即 Spigot 监听端口），并装配 McLink 隧道。
@@ -191,7 +201,9 @@ public class HttpOverMcPlugin extends JavaPlugin {
 
         WebFrontendHandler web = new WebFrontendHandler(
                 webRoot == null ? null : webRoot.getAbsolutePath(), apiRegistry, webRegistry);
-        McMessageHandler handler = new McMessageHandler(this, botUsername, channel, web);
+        // 请求调度器：单物理 Bot + 多逻辑队列（common 512 / admin 128 容量，4 个 worker，admin 优先）
+        requestScheduler = new RequestScheduler(this, channel, web, 512, 128, 4);
+        McMessageHandler handler = new McMessageHandler(this, botUsername, channel, requestScheduler);
         getServer().getMessenger().registerOutgoingPluginChannel(this, channel);
         getServer().getMessenger().registerIncomingPluginChannel(this, channel, handler);
         return stats;
@@ -202,7 +214,7 @@ public class HttpOverMcPlugin extends JavaPlugin {
         if (!snifferEnabled) {
             return;
         }
-        sniffer = new SocketSniffer(this, new HttpMcTranslator(mcLink),
+        sniffer = new SocketSniffer(this, new HttpMcTranslator(mcLink, botRuleController),
                 () -> bot.isReady(), maxBody, stats, gateway, getTlsEngineSupplier());
         sniffer.install();
     }
@@ -212,10 +224,14 @@ public class HttpOverMcPlugin extends JavaPlugin {
         return tlsFactory == null ? null : tlsFactory::newServerEngine;
     }
 
-    /** 装配 /soyshttp reload | /soyshttp key 命令。 */
+    /** 装配 /soyshttp 与简写 /shttp 命令（同一执行器）。 */
     private void initCommand() {
+        SoysHttpCommand cmd = new SoysHttpCommand(this);
         if (getCommand("soyshttp") != null) {
-            getCommand("soyshttp").setExecutor(new SoysHttpCommand(this));
+            getCommand("soyshttp").setExecutor(cmd);
+        }
+        if (getCommand("shttp") != null) {
+            getCommand("shttp").setExecutor(cmd);
         }
     }
 
@@ -281,6 +297,9 @@ public class HttpOverMcPlugin extends JavaPlugin {
         }
         if (botManager != null) {
             botManager.disconnectAll();
+        }
+        if (requestScheduler != null) {
+            requestScheduler.shutdown();
         }
         if (bot != null) {
             bot.disconnect();

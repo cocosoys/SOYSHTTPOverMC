@@ -453,6 +453,11 @@ public class SocketSniffer {
             if (gw != null) {
                 // 预先解析凭证（权限控制抽象）：携带有效 X-API-Key 时允许明文 HTTP 旁路 HTTPS 强制升级
                 Credential cred = gw.resolveCredential(p.headers);
+                // ④ 鉴权端点强制/建议 TLS：带凭证却走明文 HTTP（且服务端支持 TLS）属明文泄露风险，
+                // 按确认仅日志告警、不拒绝（宽松兼容旧客户端）。
+                if (cred != null && !tls && tlsEngineSupplier != null) {
+                    LogKit.warn("[HTTP-Over-MC] 凭证经明文 HTTP 传输（建议启用 TLS）: " + ip);
+                }
                 GatewayContext gctx = new GatewayContext(p.method, p.path, p.headers, ip, tls, cred);
                 GatewayFilter.Outcome oc = gw.filterDetailed(gctx);
                 PolicyResult res = oc.result;
