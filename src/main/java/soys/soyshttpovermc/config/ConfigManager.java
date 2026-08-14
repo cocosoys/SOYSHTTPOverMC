@@ -5,10 +5,12 @@ import org.bukkit.plugin.java.JavaPlugin;
 import soys.soyshttpovermc.log.LogKit;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.Enumeration;
+import java.util.Properties;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 
@@ -107,6 +109,75 @@ public final class ConfigManager {
             }
         } catch (Exception e) {
             LogKit.warn("[HTTP-Over-MC] web 资源解压失败（回退 jar 内置）: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 解析本服对外地址的 host 部分：
+     * 若 config.yml 的 {@code mc.host} 未填写（空），则从服务器根目录的
+     * {@code server.properties} 读取 {@code server-ip}；若其仍为空，再回退到
+     * Bukkit 运行期 {@code getServer().getIp()}，最终回退 {@code 127.0.0.1}。
+     *
+     * @param plugin   本插件实例（用于定位服务器根目录与运行期端口）
+     * @param configured 已从 config.yml 读到的 host（可能为空）
+     * @return 非空 host
+     */
+    public static String resolveMcHost(JavaPlugin plugin, String configured) {
+        if (configured != null && !configured.trim().isEmpty()) {
+            return configured.trim();
+        }
+        String ip = readServerProperty(plugin, "server-ip");
+        if (ip != null && !ip.trim().isEmpty()) {
+            return ip.trim();
+        }
+        String apiIp = plugin.getServer().getIp();
+        if (apiIp != null && !apiIp.trim().isEmpty()) {
+            return apiIp.trim();
+        }
+        return "127.0.0.1";
+    }
+
+    /**
+     * 解析本服对外地址的 port 部分：
+     * 若 config.yml 的 {@code mc.port} 未填写（<=0），则从服务器根目录的
+     * {@code server.properties} 读取 {@code server-port}；解析失败再回退到
+     * Bukkit 运行期 {@code getServer().getPort()}（即 Spigot 实际监听端口）。
+     *
+     * @param plugin   本插件实例
+     * @param configured 已从 config.yml 读到的 port（可能为 0/负数表示未填）
+     * @return 正整端口
+     */
+    public static int resolveMcPort(JavaPlugin plugin, int configured) {
+        if (configured > 0) {
+            return configured;
+        }
+        String p = readServerProperty(plugin, "server-port");
+        if (p != null && !p.trim().isEmpty()) {
+            try {
+                int v = Integer.parseInt(p.trim());
+                if (v > 0) return v;
+            } catch (NumberFormatException ignored) {
+                // 回退运行期端口
+            }
+        }
+        return plugin.getServer().getPort();
+    }
+
+    /** 从服务器根目录的 server.properties 读取单个键（找不到返回 null）。 */
+    private static String readServerProperty(JavaPlugin plugin, String key) {
+        // 插件数据目录为 <server>/plugins/<pluginName>，上溯两级即 <server> 根目录
+        File root = plugin.getDataFolder().getParentFile();
+        if (root != null) root = root.getParentFile();
+        if (root == null) return null;
+        File props = new File(root, "server.properties");
+        if (!props.isFile()) return null;
+        try (InputStream in = new FileInputStream(props)) {
+            Properties properties = new Properties();
+            properties.load(in);
+            return properties.getProperty(key);
+        } catch (Exception e) {
+            LogKit.warn("[HTTP-Over-MC] 读取 server.properties 失败（键=" + key + "）: " + e.getMessage());
+            return null;
         }
     }
 }

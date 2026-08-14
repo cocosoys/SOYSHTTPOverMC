@@ -141,10 +141,21 @@ public class HttpOverMcPlugin extends JavaPlugin {
         botUsername = getConfig().getString("bot.username", "__http_proxy__");
         channel = getConfig().getString("channel", "httpproxy:main");
         // Bot 回连的本服地址 = Spigot 的 server-port（同端口方案核心：访问端口 == 服务器端口）
-        mcHost = getConfig().getString("mc.host", "127.0.0.1");
-        mcPort = getConfig().getInt("mc.port", 25564);
+        // mc.host / mc.port 留空时自动从 server.properties 取（见 getMcHost/getMcPort）
+        mcHost = getMcHost();
+        mcPort = getMcPort();
         snifferEnabled = getConfig().getBoolean("sniffer.enabled", true);
         maxBody = getConfig().getInt("sniffer.max-body-bytes", 8 * 1024 * 1024);
+    }
+
+    /** 本服对外 host：config.yml 的 {@code mc.host} 为空时自动取 server.properties 的 server-ip（再回退 127.0.0.1）。 */
+    public String getMcHost() {
+        return ConfigManager.resolveMcHost(this, getConfig().getString("mc.host", ""));
+    }
+
+    /** 本服对外 port：config.yml 的 {@code mc.port} 为空(<=0)时自动取 server.properties 的 server-port（再回退运行期端口）。 */
+    public int getMcPort() {
+        return ConfigManager.resolveMcPort(this, getConfig().getInt("mc.port", 0));
     }
 
     /**
