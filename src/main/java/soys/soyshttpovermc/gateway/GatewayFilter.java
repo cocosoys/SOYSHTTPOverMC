@@ -54,6 +54,16 @@ public class GatewayFilter {
         ISSUER_REGISTRY.put("session-token", SessionTokenIssuer::new);
     }
 
+    /**
+     * 注册一个凭证颁发器工厂（登录插件接入点，供 {@code SoysHttpOverMcApi.registerCredentialIssuer} 委托）。
+     * 注册名 = gateway/issuers/&lt;name&gt;.yml 的文件名；之后在对应 yml 写 {@code enabled: true} 即启用。
+     * 注意：仅注册工厂不自动启用，需配合 issuers 目录下的 yml。
+     */
+    public static void registerIssuer(String name, Supplier<CredentialIssuer> factory) {
+        if (name == null || name.isEmpty() || factory == null) return;
+        ISSUER_REGISTRY.put(name, factory);
+    }
+
     private final Logger log;
     private volatile List<SecurityPolicy> policies = new ArrayList<>();
     private volatile List<CredentialIssuer> issuers = new ArrayList<>();

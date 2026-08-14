@@ -10,14 +10,16 @@ import soys.soyshttpovermc.event.GatewayEventListener;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.plugin.java.JavaPlugin;
 
-import soys.soyshttpovermc.api.ApiRegistry;
+import soys.soyshttpovermc.api.SoysHttpOverMcApi;
+import soys.soyshttpovermc.api.impl.SoysHttpOverMcApiImpl;
+import soys.soyshttpovermc.bot.BotManager;
 import soys.soyshttpovermc.web.WebRegistry;
-import soys.soyshttpovermc.api.spring.controller.StatusController;
-import soys.soyshttpovermc.api.spring.controller.SystemController;
-import soys.soyshttpovermc.api.spring.impl.StatusServiceImpl;
-import soys.soyshttpovermc.api.spring.impl.SystemServiceImpl;
-import soys.soyshttpovermc.api.spring.service.IStatusService;
-import soys.soyshttpovermc.api.spring.service.ISystemService;
+import soys.soyshttpovermc.spring.controller.StatusController;
+import soys.soyshttpovermc.spring.controller.SystemController;
+import soys.soyshttpovermc.spring.impl.StatusServiceImpl;
+import soys.soyshttpovermc.spring.impl.SystemServiceImpl;
+import soys.soyshttpovermc.spring.service.IStatusService;
+import soys.soyshttpovermc.spring.service.ISystemService;
 import soys.soyshttpovermc.bot.InternalBot;
 import soys.soyshttpovermc.gateway.GatewayConfig;
 import soys.soyshttpovermc.gateway.GatewayFilter;
@@ -40,11 +42,13 @@ public class HttpOverMcPlugin extends JavaPlugin {
 
     private InternalBot bot;
     private McLink mcLink;
+    private BotManager botManager;
     private SocketSniffer sniffer;
     private GatewayFilter gateway;
     private TlsContextFactory tlsFactory;
     private ApiRegistry apiRegistry;
     private WebRegistry webRegistry;
+    private SoysHttpOverMcApi api;
     private GatewayEventListener gatewayEventListener;
     private volatile boolean debugEventsEnabled = false;
     private String channel;
@@ -72,6 +76,16 @@ public class HttpOverMcPlugin extends JavaPlugin {
     /** 网关策略链（含已启用的凭证颁发器） */
     public GatewayFilter getGateway() {
         return gateway;
+    }
+
+    /** 对外集成门面（Facade）：第三方插件接入 HTTP-Over-MC 的统一入口（注册 API / 登记网页 / 凭证 / Bot / HTTP 等） */
+    public SoysHttpOverMcApi getApi() {
+        return api;
+    }
+
+    /** Bot 生命周期与通道调度管理器（门面 Bot 组后端；主 Bot 也由其接管通道分发） */
+    public BotManager getBotManager() {
+        return botManager;
     }
 
     /** HTTPS（TLS 引擎）是否可用 */
@@ -103,6 +117,8 @@ public class HttpOverMcPlugin extends JavaPlugin {
         initApiFramework(gatewayDir, log);
         // 6) 无头 Bot 回环连接本服 + McLink 隧道
         initBot();
+        // 6.5) 对外集成门面（聚合 API 注册 / 网页登记 / 凭证 / 日志 / Bot / HTTP，供第三方插件接入）
+        initApiImpl();
         // 7) 统计 / 状态 API / 前端处理器 / 通道消息处理（返回统计实例供嗅探器复用）
         RequestStats stats = initFrontend(webRoot);
         // 8) 在 Spigot 自身监听端口安装三协议嗅探器（MC / 明文 HTTP / HTTPS）
@@ -151,12 +167,19 @@ public class HttpOverMcPlugin extends JavaPlugin {
         apiRegistry.register(new SystemController(systemService));
     }
 
-    /** 启动无头 Bot 回环连接本服（目标即 Spigot 监听端口），并装配 McLink 隧道。connect() 异步，不阻塞。 */
+    /** 启动无头 Bot 回环连接本服（目标即 Spigot 监听端口），并装配 McLink 隧道。
+     *  Bot 的通道分发交由 BotManager 接管（主通道→McLink，其余→自定义监听器）。 */
     private void initBot() {
         bot = new InternalBot(this, botUsername, channel, mcHost, mcPort);
         mcLink = new McLink(bot, channel);
-        bot.setRawMessageListener((ch, data) -> mcLink.onRawMessage(ch, data));
+        botManager = new BotManager(this, bot, mcLink, channel, mcHost, mcPort);
+        bot.setRawMessageListener(botManager::dispatch);
         bot.connect();
+    }
+
+    /** 构造对外集成门面（注入各 registry 与 BotManager），仅在 onEnable 调用一次。 */
+    private void initApiImpl() {
+        api = new SoysHttpOverMcApiImpl(this, apiRegistry, webRegistry, gateway, botManager);
     }
 
     /** 装配统计 / 状态 API / 前端处理器 / 通道消息处理；返回统计实例供嗅探器复用。 */
@@ -255,6 +278,9 @@ public class HttpOverMcPlugin extends JavaPlugin {
     public void onDisable() {
         if (sniffer != null) {
             sniffer.uninstall();
+        }
+        if (botManager != null) {
+            botManager.disconnectAll();
         }
         if (bot != null) {
             bot.disconnect();

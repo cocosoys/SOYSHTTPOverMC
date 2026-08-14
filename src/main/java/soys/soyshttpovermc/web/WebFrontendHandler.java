@@ -1,7 +1,7 @@
 package soys.soyshttpovermc.web;
 
-import soys.soyshttpovermc.api.util.AjaxResult;
-import soys.soyshttpovermc.api.ApiRegistry;
+import soys.soyshttpovermc.util.AjaxResult;
+import soys.soyshttpovermc.ApiRegistry;
 import soys.soyshttpovermc.proto.FrameProto;
 
 import com.google.protobuf.ByteString;

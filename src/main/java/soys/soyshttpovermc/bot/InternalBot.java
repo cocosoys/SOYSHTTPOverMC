@@ -121,6 +121,32 @@ public class InternalBot {
         });
     }
 
+    /**
+     * 向服务端注册额外 PluginMessage 通道（供门面 registerChannel 使用）。
+     * 主通道已在进入 GAME 时自动注册；此方法用于让同一 Bot 监听更多自定义通道，
+     * 服务端才会把对应通道消息投递给该 Bot。需在 Bot 就绪后调用。
+     */
+    public void registerExtraChannel(String ch) {
+        if (ch == null || ch.isEmpty() || !waitUntilRegistered()) {
+            return;
+        }
+        final Session s = session;
+        if (s != null && s.isConnected()) {
+            sender.submit(() -> s.send(new ClientPluginMessagePacket(REGISTER_CHANNEL, ch.getBytes(StandardCharsets.UTF_8))));
+            LogKit.info("[HTTP-Over-MC] Bot 已注册额外通道 " + ch);
+        }
+    }
+
+    /** 注销额外 PluginMessage 通道（发送 minecraft:unregister）。 */
+    public void unregisterExtraChannel(String ch) {
+        if (ch == null || ch.isEmpty() || session == null || !session.isConnected()) {
+            return;
+        }
+        final Session s = session;
+        sender.submit(() -> s.send(new ClientPluginMessagePacket("minecraft:unregister", ch.getBytes(StandardCharsets.UTF_8))));
+        LogKit.info("[HTTP-Over-MC] Bot 已注销通道 " + ch);
+    }
+
     private void asyncSend(Packet p, String label) {
         final Session s = session;
         if (s == null || !s.isConnected()) {

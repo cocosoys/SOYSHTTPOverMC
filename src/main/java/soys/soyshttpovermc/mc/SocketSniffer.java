@@ -16,7 +16,7 @@ import io.netty.util.ReferenceCountUtil;
 import org.bukkit.Bukkit;
 import org.bukkit.plugin.java.JavaPlugin;
 
-import soys.soyshttpovermc.api.annotations.RequestMethod;
+import soys.soyshttpovermc.annotations.RequestMethod;
 import soys.soyshttpovermc.api.event.GatewayAccessDeniedEvent;
 import soys.soyshttpovermc.api.event.GatewayRequestEvent;
 import soys.soyshttpovermc.api.event.GatewayRequestServedEvent;
