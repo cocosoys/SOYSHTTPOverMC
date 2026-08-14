@@ -60,4 +60,7 @@ public interface SoysHttpOverMcApi {
 
     /** 能力组 7：HTTP 请求 / 本地回环 */
     HttpClientApi getHttpClient();
+
+    /** 能力组 8：扩展接入（登录插件提供者 / /soyshttp 子指令） */
+    ExtensionApi getExtension();
 }

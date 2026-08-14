@@ -237,6 +237,8 @@ function setOnline(ok){
 }
 // 免凭证探活公开端点 /api/ping（auth.yml exempt 已豁免鉴权）
 async function probe(){
+  // 登录窗口已打开：暂停探活轮询（配合 patchFetch 防重复弹窗）
+  if (SoysAuth.isLoginOpen && SoysAuth.isLoginOpen()) return;
   try{
     const r = await fetch('/api/ping', {cache:'no-store'});
     const j = await r.json();

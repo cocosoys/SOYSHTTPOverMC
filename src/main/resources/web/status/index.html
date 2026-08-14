@@ -99,6 +99,8 @@
 const $ = id => document.getElementById(id);
 function cls(code){ if(code>=500) return 'code5xx'; if(code===404) return 'code404'; return 'code200'; }
 async function load(){
+  // 登录窗口已打开（用户正在输入账号密码）：暂停轮询，避免每 2s 请求受保护接口触发 401 无限弹窗
+  if (typeof SoysAuth !== 'undefined' && SoysAuth.isLoginOpen && SoysAuth.isLoginOpen()) return;
   try{
     const r = await fetch('/api/status', {cache:'no-store'});
     const j = await r.json();

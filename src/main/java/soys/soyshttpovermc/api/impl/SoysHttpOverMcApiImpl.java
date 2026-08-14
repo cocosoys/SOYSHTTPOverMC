@@ -6,6 +6,7 @@ import soys.soyshttpovermc.ApiRegistry;
 import soys.soyshttpovermc.api.ApiRegistrationApi;
 import soys.soyshttpovermc.api.AuthCredentialApi;
 import soys.soyshttpovermc.api.BotManagementApi;
+import soys.soyshttpovermc.api.ExtensionApi;
 import soys.soyshttpovermc.api.HttpClientApi;
 import soys.soyshttpovermc.api.PluginLoggerApi;
 import soys.soyshttpovermc.api.ApiToolkitApi;
@@ -30,6 +31,7 @@ public class SoysHttpOverMcApiImpl implements SoysHttpOverMcApi {
     private final PluginLoggerImpl logger;
     private final BotManagementImpl botManagement;
     private final HttpClientImpl httpClient;
+    private final ExtensionImpl extension;
 
     public SoysHttpOverMcApiImpl(Plugin hostPlugin, ApiRegistry apiRegistry,
                                  WebRegistry webRegistry, GatewayFilter gateway, BotManager botManager) {
@@ -40,6 +42,7 @@ public class SoysHttpOverMcApiImpl implements SoysHttpOverMcApi {
         this.logger = new PluginLoggerImpl(hostPlugin);
         this.botManagement = new BotManagementImpl(botManager);
         this.httpClient = new HttpClientImpl(apiRegistry);
+        this.extension = new ExtensionImpl((soys.soyshttpovermc.HttpOverMcPlugin) hostPlugin);
     }
 
     @Override public ApiRegistrationApi getApiRegistration() { return apiRegistration; }
@@ -55,4 +58,6 @@ public class SoysHttpOverMcApiImpl implements SoysHttpOverMcApi {
     @Override public BotManagementApi getBotManagement() { return botManagement; }
 
     @Override public HttpClientApi getHttpClient() { return httpClient; }
+
+    @Override public ExtensionApi getExtension() { return extension; }
 }

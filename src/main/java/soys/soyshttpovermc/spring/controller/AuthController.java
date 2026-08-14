@@ -1,10 +1,6 @@
 package soys.soyshttpovermc.spring.controller;
 
-import soys.soyshttpovermc.annotations.ApiName;
-import soys.soyshttpovermc.annotations.ApiPublic;
-import soys.soyshttpovermc.annotations.GetMapping;
-import soys.soyshttpovermc.annotations.PostMapping;
-import soys.soyshttpovermc.annotations.RequestBody;
+import soys.soyshttpovermc.annotations.*;
 import soys.soyshttpovermc.gateway.policy.auth.issuer.CredentialPresentation;
 import soys.soyshttpovermc.spring.service.IAuthService;
 import soys.soyshttpovermc.util.AjaxResult;
@@ -23,6 +19,7 @@ import soys.soyshttpovermc.util.AjaxResult;
  * logout / me 依赖网关自动注入的 {@link CredentialPresentation} 参数（ApiRegistry 凭证注入），
  * 无凭证请求会被 AuthPolicy 先以 401 拒绝；三者均标 {@link ApiPublic}（仅需登录、不做权限镜像）。
  */
+@RequestMapping("/auth")
 public class AuthController {
 
     private final IAuthService authService;
@@ -33,21 +30,21 @@ public class AuthController {
 
     @ApiName("登录")
     @ApiPublic
-    @PostMapping("/auth/login")
+    @PostMapping("/login")
     public AjaxResult login(@RequestBody String body) {
         return authService.login(body);
     }
 
     @ApiName("退出登录")
     @ApiPublic
-    @PostMapping("/auth/logout")
+    @PostMapping("/logout")
     public AjaxResult logout(CredentialPresentation credential) {
         return authService.logout(credential);
     }
 
     @ApiName("登录信息")
     @ApiPublic
-    @GetMapping("/auth/me")
+    @GetMapping("/me")
     public AjaxResult me(CredentialPresentation credential) {
         return authService.me(credential);
     }

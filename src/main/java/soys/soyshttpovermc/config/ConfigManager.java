@@ -183,4 +183,63 @@ public final class ConfigManager {
             return null;
         }
     }
+
+    /**
+     * 加载（或首次生成）JWT 签名密钥：持久化于 {@code <data>/token-secret.key}（32 字节随机 hex）。
+     * 重启 / /soyshttp reload 复用同一密钥 → 已签发的 JWT 令牌不失效（无状态）。
+     */
+    public static byte[] loadOrCreateTokenSecret(JavaPlugin plugin) {
+        File f = new File(plugin.getDataFolder(), "token-secret.key");
+        if (f.isFile() && f.length() > 0) {
+            String hex = readText(f).trim();
+            byte[] key = hexToBytes(hex);
+            if (key != null && key.length >= 16) return key;
+        }
+        byte[] key = new byte[32];
+        new java.security.SecureRandom().nextBytes(key);
+        try {
+            if (!plugin.getDataFolder().isDirectory()) plugin.getDataFolder().mkdirs();
+            writeText(f, bytesToHex(key));
+        } catch (Exception e) {
+            LogKit.warn("[HTTP-Over-MC] 写入 token-secret.key 失败（本次密钥仅内存有效）: " + e.getMessage());
+        }
+        return key;
+    }
+
+    private static String readText(File f) {
+        try {
+            byte[] b = new byte[(int) Math.min(f.length(), 1024 * 1024)];
+            try (InputStream in = new FileInputStream(f)) {
+                int n = in.read(b);
+                return n > 0 ? new String(b, 0, n, java.nio.charset.StandardCharsets.UTF_8) : "";
+            }
+        } catch (Exception e) {
+            return "";
+        }
+    }
+
+    private static void writeText(File f, String text) throws Exception {
+        try (java.io.FileOutputStream out = new java.io.FileOutputStream(f)) {
+            out.write(text.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        }
+    }
+
+    private static String bytesToHex(byte[] b) {
+        StringBuilder sb = new StringBuilder(b.length * 2);
+        for (byte x : b) sb.append(String.format("%02x", x & 0xFF));
+        return sb.toString();
+    }
+
+    private static byte[] hexToBytes(String hex) {
+        if (hex == null || hex.length() < 2 || (hex.length() & 1) != 0) return null;
+        try {
+            byte[] b = new byte[hex.length() / 2];
+            for (int i = 0; i < b.length; i++) {
+                b[i] = (byte) Integer.parseInt(hex.substring(i * 2, i * 2 + 2), 16);
+            }
+            return b;
+        } catch (Exception e) {
+            return null;
+        }
+    }
 }

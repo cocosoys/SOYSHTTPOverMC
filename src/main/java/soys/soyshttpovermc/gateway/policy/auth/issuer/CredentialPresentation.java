@@ -58,4 +58,12 @@ public class CredentialPresentation implements Serializable {
         }
         return null;
     }
+
+    /** 是否携带了任一凭证形态（X-API-Key / Bearer / Basic / Cookie）；无头解析出的空对象返回 false。 */
+    public boolean hasAnyCredential() {
+        return (apiKey != null && !apiKey.isEmpty())
+                || (bearer != null && !bearer.isEmpty())
+                || (basicUser != null && !basicUser.isEmpty())
+                || !cookies.isEmpty();
+    }
 }

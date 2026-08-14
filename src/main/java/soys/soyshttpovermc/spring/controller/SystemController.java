@@ -5,7 +5,11 @@ import soys.soyshttpovermc.annotations.ApiName;
 import soys.soyshttpovermc.annotations.ApiPermission;
 import soys.soyshttpovermc.annotations.ApiPublic;
 import soys.soyshttpovermc.annotations.GetMapping;
+import soys.soyshttpovermc.api.ApiRequestContext;
 import soys.soyshttpovermc.spring.service.ISystemService;
+
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * 内置系统 API（控制器层，仿 Spring MVC / MyBatis-Plus）：
@@ -34,5 +38,23 @@ public class SystemController {
     public AjaxResult version() {
         // 调用 service 获取版本信息实体（演示实体类用法）
         return AjaxResult.success(systemService.getVersion());
+    }
+
+    /**
+     * 请求上下文演示端点（公开）：展示 {@link ApiRequestContext} 参数注入——
+     * 开发者无需自行解析请求头/令牌，直接拿到客户端 IP / 玩家名 / 玩家实体 / 凭证等。
+     */
+    @ApiName("请求上下文")
+    @ApiPublic
+    @GetMapping("/whoami")
+    public AjaxResult whoami(ApiRequestContext ctx) {
+        Map<String, Object> data = new HashMap<>();
+        data.put("ip", ctx.getIp());
+        data.put("method", ctx.getHttpMethod());
+        data.put("path", ctx.getPath());
+        data.put("authenticated", ctx.isAuthenticated());
+        data.put("player", ctx.getPlayerName());
+        data.put("online", ctx.getPlayer() != null);
+        return AjaxResult.success(data);
     }
 }

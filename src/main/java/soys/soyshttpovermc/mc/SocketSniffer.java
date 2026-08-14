@@ -474,6 +474,10 @@ public class SocketSniffer {
                 writeRaw(ctx, "HTTP-Over-MC tunnel not ready", 503, tls);
                 return;
             }
+            // 注入内部客户端 IP 头（仅内部使用，供注解式 API 的 ApiRequestContext 读取；不对外转发）
+            if (p.headers != null) {
+                p.headers.put(soys.soyshttpovermc.api.ApiRequestContext.HEADER_REMOTE_IP, ip);
+            }
             FrameProto.HttpResponseFrame resp = translator.translate(p.method, p.path, p.headers, p.body);
             code = resp.getStatusCode();
             byte[] body = resp.getBody().toByteArray();

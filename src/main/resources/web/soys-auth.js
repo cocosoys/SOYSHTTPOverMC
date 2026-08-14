@@ -17,6 +17,7 @@
   var TOKEN_KEY = 'soys_token';
   var COOKIE_KEY = 'soys_session';
   var mask = null;           // 登录弹窗 DOM（懒创建）
+  var pendingOpen = null;    // 弹窗打开的 Promise（已打开时返回同一实例，防并发弹窗/轮询误触）
   var patched = false;       // patchFetch 是否已生效
   var retryActive = false;   // 401/403 重试中（防循环弹窗）
 
@@ -121,18 +122,33 @@
   }
 
   // ===== 弹窗控制 =====
+  /** 登录窗口是否已打开（页面轮询可在打开期间暂停自动请求）。 */
+  function isLoginOpen() {
+    return !!(mask && mask.classList.contains('show'));
+  }
+
+  /**
+   * 打开登录窗口，返回 Promise：登录成功 resolve(true)，取消 resolve(false)。
+   * 幂等：窗口已打开时返回同一 Promise（不重复弹窗、不覆盖 _resolve，
+   * 避免 status 等页面轮询每 2s 触发一次 401 时产生无限弹窗/悬挂 Promise）。
+   */
   function openLogin() {
     ensureDom();
     document.getElementById('soysLoginErr').textContent = '';
+    if (isLoginOpen() && pendingOpen) {
+      return pendingOpen;
+    }
     mask.classList.add('show');
     setTimeout(function () { document.getElementById('soysInUser').focus(); }, 50);
-    return new Promise(function (resolve) {
+    pendingOpen = new Promise(function (resolve) {
       SoysAuth._resolve = resolve; // submitLogin / closeLogin 使用
     });
+    return pendingOpen;
   }
   function closeLogin() {
     if (!mask || !mask.classList.contains('show')) return;
     mask.classList.remove('show');
+    pendingOpen = null;
     if (SoysAuth._resolve) { var r = SoysAuth._resolve; SoysAuth._resolve = null; r(false); }
   }
   function submitLogin() {
@@ -147,6 +163,7 @@
         setToken(r.data.token);
         document.getElementById('soysInPass').value = '';
         mask.classList.remove('show');
+        pendingOpen = null;
         var done = SoysAuth._resolve; SoysAuth._resolve = null;
         if (done) done(true);
         if (typeof SoysAuth.onLoginSuccess === 'function') {
@@ -178,6 +195,9 @@
             status: resp.status, statusText: resp.statusText, headers: resp.headers
           });
           if (!needLogin) return rebuilt;
+          // 登录窗口已打开（如 status 面板轮询在用户输入期间又触发 401）：
+          // 不再重复弹窗，直接把原始响应交给调用方（页面轮询已按 isLoginOpen 暂停）
+          if (isLoginOpen()) return rebuilt;
           return openLogin().then(function (ok) {
             if (!ok) return rebuilt; // 用户取消 → 返回原始 401/403 响应
             // 登录成功 → 带新令牌重试一次
@@ -212,6 +232,7 @@
     closeLogin: closeLogin,
     submitLogin: submitLogin,
     patchFetch: patchFetch,
+    isLoginOpen: isLoginOpen,
     onLoginSuccess: null, // 页面可挂载: function(player, mode){}
     _resolve: null
   };

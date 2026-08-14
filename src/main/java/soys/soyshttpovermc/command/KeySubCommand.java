@@ -7,9 +7,12 @@ import soys.soyshttpovermc.api.event.GatewayCredentialIssuedEvent;
 import soys.soyshttpovermc.gateway.GatewayFilter;
 import soys.soyshttpovermc.gateway.policy.auth.issuer.CredentialIssuer;
 import soys.soyshttpovermc.gateway.policy.auth.issuer.IssuedCredential;
+import soys.soyshttpovermc.gateway.policy.auth.issuer.SessionTokenIssuer;
 
 /**
- * /soyshttp key &lt;subject&gt; —— 调用启用的凭证颁发器为指定主体下发凭证。
+ * /soyshttp key &lt;subject&gt; —— <b>服主手动颁发的最高权限 key</b>：
+ * 对 session-token 颁发器签发带 adm 标记的 ak_ 令牌（权限层直接放行，免权限访问全部 API，供外部服务接入）；
+ * 其它颁发器按普通凭证签发（不具最高权限）。仅 op 可执行（SubCommand 默认 requireOp=true）。
  */
 public class KeySubCommand extends SubCommand {
 
@@ -24,7 +27,7 @@ public class KeySubCommand extends SubCommand {
 
     @Override
     public String usage() {
-        return "/soyshttp key <subject> —— 为指定主体下发凭证";
+        return "/soyshttp key <subject> —— 服主手动颁发最高权限 key（免权限访问全部 API，请谨慎）";
     }
 
     @Override
@@ -42,7 +45,11 @@ public class KeySubCommand extends SubCommand {
         int n = 0;
         for (CredentialIssuer issuer : gateway.getIssuers()) {
             if (!issuer.isEnabled()) continue;
-            IssuedCredential c = issuer.issue(subject);
+            // 会话令牌颁发器 → 签发服主最高权限 key（adm 标记，权限层直接放行）；
+            // 其它颁发器按普通凭证签发（不具最高权限）
+            IssuedCredential c = (issuer instanceof SessionTokenIssuer)
+                    ? ((SessionTokenIssuer) issuer).issueAdminKey(subject)
+                    : issuer.issue(subject);
             n++;
             StringBuilder sb = new StringBuilder();
             sb.append("已为 ").append(subject).append(" 下发凭证（").append(issuer.name()).append("）:");
@@ -51,6 +58,9 @@ public class KeySubCommand extends SubCommand {
             if (c.getCookieName() != null) sb.append("\n  Cookie: ").append(c.getCookieName()).append('=').append(c.getCookieValue());
             int port = plugin.getMcPort();
             sb.append("\n  curl -sk https://127.0.0.1:").append(port).append("/api/status -H \"X-API-Key: ").append(c.getApiKey()).append('"');
+            if (issuer instanceof SessionTokenIssuer) {
+                sb.append("\n  ⚠ 该 key 为最高权限（adm），可免权限访问全部 API，请仅用于可信外部服务");
+            }
             msg(sender, sb.toString());
             // 触发凭证下发事件（供其他插件联动；同步事件，命令路径在主线程）
             try {

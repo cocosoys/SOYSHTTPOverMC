@@ -3,6 +3,8 @@ package soys.soyshttpovermc;
 import soys.soyshttpovermc.log.LogKit;
 
 import soys.soyshttpovermc.annotations.*;
+import soys.soyshttpovermc.api.ApiRequestContext;
+import soys.soyshttpovermc.api.event.ApiAccessEvent;
 import soys.soyshttpovermc.api.event.ApiInfo;
 import soys.soyshttpovermc.api.event.ApiRegisteredEvent;
 import soys.soyshttpovermc.api.event.ApiUnregisteredEvent;
@@ -11,6 +13,7 @@ import soys.soyshttpovermc.gateway.policy.auth.util.AuthUtils;
 import soys.soyshttpovermc.gateway.policy.auth.issuer.CredentialPresentation;
 
 import org.bukkit.Bukkit;
+import org.bukkit.entity.Player;
 import org.bukkit.event.Event;
 import org.bukkit.plugin.Plugin;
 
@@ -24,6 +27,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Function;
 import java.util.logging.Logger;
 
 /**
@@ -76,6 +80,8 @@ public class ApiRegistry {
     private final Plugin hostPlugin;
     private final Map<String, EndpointMeta> routes = new ConcurrentHashMap<>();
     private volatile PermissionService permissionService;
+    /** 凭证 → 玩家名 解析器（由宿主注入 SessionTokenIssuer::subjectOf），供 ApiAccessEvent 携带玩家信息。 */
+    private volatile Function<CredentialPresentation, String> playerResolver;
     /** 全局路径前缀（网关配置 api-prefix，默认 /api；始终生效，与 auth 是否启用解耦） */
     private volatile String pathPrefix = "/api";
 
@@ -91,6 +97,18 @@ public class ApiRegistry {
 
     public PermissionService getPermissionService() {
         return permissionService;
+    }
+
+    /**
+     * 注入凭证 → 玩家名解析器（令牌/凭证 → 玩家），供 {@link ApiAccessEvent} 事件携带
+     * playerName/player（离线 player=null）。宿主注入 {@code PlayerPermissionService::subjectOf}。
+     */
+    public void setPlayerResolver(Function<CredentialPresentation, String> resolver) {
+        this.playerResolver = resolver;
+    }
+
+    public Function<CredentialPresentation, String> getPlayerResolver() {
+        return playerResolver;
     }
 
     /**
@@ -248,11 +266,13 @@ public class ApiRegistry {
             return AjaxResult.error(403, "默认拒绝：端点未声明公开(@ApiPublic)或权限(@ApiPermission)");
         }
 
+        // 统一解析请求凭证（权限判定 / 参数注入 / 访问事件共用，避免重复解析）
+        CredentialPresentation credential = AuthUtils.extractPresentation(headers, "X-API-Key",
+                true, true, true, true);
+
         // 权限判定（未注册 PermissionService 时注解不阻断）
         PermissionService ps = permissionService;
         if (ps != null && !meta.permission.isEmpty()) {
-            CredentialPresentation credential = AuthUtils.extractPresentation(headers, "X-API-Key",
-                    true, true, true, true);
             try {
                 if (!ps.hasPermission(credential, meta.permission)) {
                     return AjaxResult.forbidden("无权限访问: " + meta.apiName + "（需要 " + meta.permission + "）");
@@ -263,15 +283,30 @@ public class ApiRegistry {
             }
         }
 
+        // 请求上下文（IP/玩家/凭证）：供参数注入（ApiRequestContext）与访问事件共用
+        Function<CredentialPresentation, String> resolver = playerResolver;
+        String playerName = resolver == null ? null : resolver.apply(credential);
+        Player player = playerName == null ? null : Bukkit.getPlayerExact(playerName);
+        String clientIp = headers == null ? null : headers.get(ApiRequestContext.HEADER_REMOTE_IP);
+        boolean authenticated = credential != null && credential.hasAnyCredential();
+        ApiRequestContext requestContext = new ApiRequestContext(method, meta.path, clientIp,
+                headers, credential, playerName, player, authenticated);
+
         // 参数绑定 + 调用
         Map<String, String> query = parseQuery(rawPath);
         Object[] args = new Object[meta.params.size()];
         for (int i = 0; i < meta.params.size(); i++) {
             ParamBinding pb = meta.params.get(i);
+            if (pb.injectContext) {
+                // 请求上下文注入：handler 参数类型 = ApiRequestContext 时自动注入
+                // （含客户端 IP / 玩家名 / 玩家实体 / 凭证 / 请求头等，无需自行解析）
+                args[i] = requestContext;
+                continue;
+            }
             if (pb.injectCredential) {
                 // 凭证注入：解析当前请求携带的凭证（X-API-Key / Bearer / Basic / Cookie），
                 // 供 /api/auth/me、/api/auth/logout 等"当前登录者"端点直接使用
-                args[i] = AuthUtils.extractPresentation(headers, "X-API-Key", true, true, true, true);
+                args[i] = credential;
                 continue;
             }
             if (pb.requestBody) {
@@ -290,6 +325,15 @@ public class ApiRegistry {
             } catch (Exception e) {
                 return AjaxResult.error(400, "参数 " + pb.name + " 类型不合法: " + value);
             }
+        }
+
+        // API 访问监听事件（按请求类型细分 GET/POST/...）：命中路由且通过权限判定后、处理器调用前触发。
+        // 事件直接携带 token/cookie 解析出的玩家名与玩家实体（离线 player=null），
+        // 监听 ApiAccessEvent 收全部 / 监听 ApiGetEvent 等只收对应方法。
+        try {
+            fireApiEvent(ApiAccessEvent.forMethod(meta.httpMethod, meta.path, meta.apiName,
+                    meta.permission, meta.ownerPlugin, authenticated, playerName, player, credential));
+        } catch (Throwable ignored) {
         }
 
         try {
@@ -411,15 +455,18 @@ public class ApiRegistry {
         final boolean requestBody;
         /** true=参数由网关注入当前请求解析出的凭证（参数类型为 CredentialPresentation） */
         final boolean injectCredential;
+        /** true=参数由网关注入当前请求上下文（参数类型为 ApiRequestContext：IP/玩家/凭证等） */
+        final boolean injectContext;
 
         ParamBinding(String name, boolean required, String defaultValue, Class<?> type,
-                     boolean requestBody, boolean injectCredential) {
+                     boolean requestBody, boolean injectCredential, boolean injectContext) {
             this.name = name;
             this.required = required;
             this.defaultValue = defaultValue;
             this.type = type;
             this.requestBody = requestBody;
             this.injectCredential = injectCredential;
+            this.injectContext = injectContext;
         }
     }
 
@@ -428,22 +475,28 @@ public class ApiRegistry {
         Annotation[][] anns = m.getParameterAnnotations();
         Class<?>[] types = m.getParameterTypes();
         for (int i = 0; i < types.length; i++) {
+            // 请求上下文注入：参数类型为 ApiRequestContext 时自动注入
+            // （含客户端 IP / 玩家名 / 玩家实体 / 凭证 / 请求头等，供开发者获取"当前请求者"）
+            if (types[i] == soys.soyshttpovermc.api.ApiRequestContext.class) {
+                list.add(new ParamBinding(null, false, null, types[i], false, false, true));
+                continue;
+            }
             // 凭证注入：参数类型为 CredentialPresentation 时，网关自动注入当前请求解析出的凭证
             // （供 /api/auth/me、/api/auth/logout 等需要"当前登录者"的端点使用，无需手动解析请求头）
             if (types[i] == CredentialPresentation.class) {
-                list.add(new ParamBinding(null, false, null, types[i], false, true));
+                list.add(new ParamBinding(null, false, null, types[i], false, true, false));
                 continue;
             }
             RequestBody rb = find(anns[i], RequestBody.class);
             if (rb != null) {
-                list.add(new ParamBinding(null, false, null, types[i], true, false));
+                list.add(new ParamBinding(null, false, null, types[i], true, false, false));
                 continue;
             }
             RequestParam rp = find(anns[i], RequestParam.class);
             if (rp != null) {
-                list.add(new ParamBinding(rp.name(), rp.required(), rp.defaultValue(), types[i], false, false));
+                list.add(new ParamBinding(rp.name(), rp.required(), rp.defaultValue(), types[i], false, false, false));
             } else {
-                list.add(new ParamBinding("arg" + i, false, "", types[i], false, false));
+                list.add(new ParamBinding("arg" + i, false, "", types[i], false, false, false));
             }
         }
         return list;

@@ -46,6 +46,12 @@ public class SoysHttpCommand implements CommandExecutor {
         subs.put(sub.name().toLowerCase(), sub);
     }
 
+    /** 公开注册入口（第三方插件经门面 {@code getExtension().registerSubCommand(...)} 调用；name 重复时覆盖）。 */
+    public void registerSubCommand(SubCommand sub) {
+        if (sub == null) return;
+        register(sub);
+    }
+
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         // 仅响应 /soyshttp 与简写 /shttp

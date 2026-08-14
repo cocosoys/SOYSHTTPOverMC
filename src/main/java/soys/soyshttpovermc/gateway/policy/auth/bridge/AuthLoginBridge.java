@@ -2,7 +2,6 @@ package soys.soyshttpovermc.gateway.policy.auth.bridge;
 
 import soys.soyshttpovermc.gateway.policy.auth.util.AuthUtils;
 import soys.soyshttpovermc.gateway.policy.auth.issuer.CredentialPresentation;
-import soys.soyshttpovermc.gateway.policy.auth.issuer.IssuedCredential;
 import soys.soyshttpovermc.gateway.policy.auth.issuer.SessionTokenIssuer;
 import soys.soyshttpovermc.gateway.policy.login.DefaultLoginModePolicy;
 import soys.soyshttpovermc.gateway.policy.login.LoginMode;
@@ -101,16 +100,26 @@ public class AuthLoginBridge {
         return issueToken(player, LoginMode.ONLINE);
     }
 
-    /** 按指定登录模式签发并登记令牌。 */
+    /** 按指定登录模式签发并登记令牌（返回 JWT 令牌字符串，同 token 可作 Bearer / X-API-Key / Cookie）。 */
     public String issueToken(String player, LoginMode mode) {
-        IssuedCredential c = issuer.issue(player, mode);
-        playerTokens.put(player, c.getCookieValue());
-        return c.getCookieValue();
+        String token = issuer.issueToken(player, mode);
+        playerTokens.put(player, token);
+        return token;
     }
 
-    /** 玩家进游戏登录成功：把其名下现存会话令牌升级为在线模式（离线 cookie 自动补全为在线语义）。 */
+    /**
+     * 玩家进游戏登录成功：把其名下现存离线令牌升级为在线模式（JWT 无状态无法原地改 payload，
+     * 故黑名单旧离线令牌 + 签发新在线令牌，playerTokens 同步换新）。返回被换发的令牌数。
+     */
     public int upgradePlayerToOnline(String player) {
-        return issuer.upgradePlayerToOnline(player);
+        if (player == null) return 0;
+        String old = playerTokens.get(player);
+        if (old == null) return 0;
+        if (issuer.modeOfToken(old) == LoginMode.ONLINE) return 0;
+        issuer.revoke(old); // 旧离线令牌 jti 进黑名单
+        String token = issuer.issueToken(player, LoginMode.ONLINE);
+        playerTokens.put(player, token);
+        return 1;
     }
 
     /** 校验玩家登录插件密码（未接入提供者 → false）。纯账号密码校验，不要求玩家在线。 */
@@ -179,8 +188,7 @@ public class AuthLoginBridge {
         String token = playerTokens.get(player);
         if (token == null) {
             // 兜底：理论上 LoginEvent 已签发；此处重新签发以确保可用
-            IssuedCredential c = issuer.issue(player);
-            token = c.getCookieValue();
+            token = issuer.issueToken(player, LoginMode.ONLINE);
             playerTokens.put(player, token);
         }
         String cookie = issuer.getCookieName() + "=" + token

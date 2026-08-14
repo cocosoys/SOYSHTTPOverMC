@@ -7,7 +7,7 @@ enabled: true
 header: X-API-Key
 keys: []                 # 静态凭证（X-API-Key 头 或 Authorization: Bearer 均可匹配）
 paths: [/api/*]          # 空=保护所有路径；* 全匹配；/api/* 前缀匹配。
-exempt: [/ping, /auth/login]  # 豁免路径（公开端点）：命中则跳过鉴权直接放行。/ping 为存活检测；/auth/login 为登录窗口登录接口（登录前无凭证，仅豁免该端点；logout/me 仍需凭证）。
+exempt: [/ping, /whoami, /auth/login]  # 豁免路径（公开端点）：命中则跳过鉴权直接放行。/ping 为存活检测；/auth/login 为登录窗口登录接口（登录前无凭证，仅豁免该端点；logout/me 仍需凭证）。
 accept:
   header: true           # 接受 X-API-Key 头
   bearer: true           # 接受 Authorization: Bearer

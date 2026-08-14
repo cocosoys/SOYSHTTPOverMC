@@ -76,6 +76,8 @@ public class HttpOverMcPlugin extends JavaPlugin {
     private int maxBody;
     /** 网页登录桥（session-token 颁发器启用时创建；null=未启用） */
     private AuthLoginBridge authLoginBridge;
+    /** /soyshttp 命令执行器（第三方插件经门面注册子指令用；onEnable 完成前可能为 null）。 */
+    private SoysHttpCommand command;
     /** 当前激活的登录插件提供者（AuthMe 等，经 LoginProviderFactory 选取；null=未接入） */
     private volatile LoginProvider loginProvider;
     /** 前端处理器（/soyshttp reload 后向其热替换登录桥） */
@@ -202,7 +204,10 @@ public class HttpOverMcPlugin extends JavaPlugin {
         apiRegistry.setPathPrefix(apiPrefix);
         // 玩家权限映射服务：会话令牌 → 玩家 → 游戏内 Bukkit 权限（细粒度）；
         // 未启用会话颁发器时回退开放（见 PlayerPermissionService）。与 auth 开关解耦，始终生效。
-        apiRegistry.setPermissionService(new PlayerPermissionService(this.gateway));
+        PlayerPermissionService pps = new PlayerPermissionService(this.gateway);
+        apiRegistry.setPermissionService(pps);
+        // API 访问事件（ApiAccessEvent）的玩家解析器：token/cookie → 玩家名 → 玩家实体（离线 null）
+        apiRegistry.setPlayerResolver(pps::subjectOf);
 
         // 网页登记处：第三方插件登记新网页（默认 /plugins/<插件名> 前缀）
         webRegistry = new WebRegistry(this.getName());
@@ -253,13 +258,20 @@ public class HttpOverMcPlugin extends JavaPlugin {
                     + "（如需启用，请在 gateway/issuers/session-token.yml 设 enabled: true）");
             return;
         }
+        // JWT 签名密钥（持久化于 data/token-secret.key）：reload 复用同一密钥 → 已签发令牌不失效
+        issuer.setSecret(ConfigManager.loadOrCreateTokenSecret(this));
         authLoginBridge = new AuthLoginBridge(issuer);
 
-        // 登录插件抽象工厂：取当前可用的登录插件提供者（AuthMe 等；主线程调用，isAvailable 访问插件管理器）
-        loginProvider = LoginProviderFactory.active();
-        if (loginProvider == null) {
-            LogKit.info("[HTTP-Over-MC] 未检测到已接入的登录插件（AuthMe 等）：网页登录密码校验不可用；"
-                    + "session-token 仍可经 /soyshttp key <subject> 下发");
+        // 登录插件抽象工厂：优先用 config.yml 的 auth.login-provider 指定提供者（留空=自动取第一个可用）
+        String want = getConfig().getString("auth.login-provider", "");
+        loginProvider = (want == null || want.trim().isEmpty())
+                ? LoginProviderFactory.active()
+                : LoginProviderFactory.get(want.trim());
+        if (loginProvider == null || !loginProvider.isAvailable()) {
+            LogKit.info("[HTTP-Over-MC] 登录插件提供者不可用"
+                    + (want == null || want.trim().isEmpty() ? "" : "（配置 auth.login-provider=" + want + "）")
+                    + "：网页登录密码校验不可用；session-token 仍可经 /soyshttp key <subject> 下发");
+            loginProvider = null;
             return;
         }
         LoginProviderContext ctx = LoginProviderFactory.context();
@@ -323,12 +335,18 @@ public class HttpOverMcPlugin extends JavaPlugin {
     /** 装配 /soyshttp 与简写 /shttp 命令（同一执行器）。 */
     private void initCommand() {
         SoysHttpCommand cmd = new SoysHttpCommand(this);
+        this.command = cmd;
         if (getCommand("soyshttp") != null) {
             getCommand("soyshttp").setExecutor(cmd);
         }
         if (getCommand("shttp") != null) {
             getCommand("shttp").setExecutor(cmd);
         }
+    }
+
+    /** /soyshttp 命令执行器（第三方插件经门面注册子指令用；onEnable 完成前可能为 null）。 */
+    public SoysHttpCommand getCommandExecutor() {
+        return command;
     }
 
     /** 启动完成日志（汇总端口 / 通道 / 各模块状态）。 */
@@ -386,7 +404,9 @@ public class HttpOverMcPlugin extends JavaPlugin {
         rebuildGateway(gatewayDir, getLogger());
         // 网关重建后颁发器实例已换新，重新装配玩家权限映射服务（跟踪最新网关）
         if (apiRegistry != null) {
-            apiRegistry.setPermissionService(new PlayerPermissionService(gateway));
+            PlayerPermissionService pps = new PlayerPermissionService(gateway);
+            apiRegistry.setPermissionService(pps);
+            apiRegistry.setPlayerResolver(pps::subjectOf);
         }
         // AuthMe 登录桥重建（持有最新 session-token 颁发器），并热替换到前端处理器与登录窗口认证服务
         setupAuthIntegration();
