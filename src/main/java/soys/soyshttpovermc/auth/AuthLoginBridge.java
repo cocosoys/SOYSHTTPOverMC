@@ -169,7 +169,7 @@ public class AuthLoginBridge {
             ok = false;
         }
         if (!ok) {
-            return errorPage(401, "账号或密码错误（AuthMe 校验失败）");
+            return errorPage(401, "账号或密码错误（AuthMe 校验失败，或服务器未安装 AuthMe，或禁止离线登录）");
         }
         String token = playerTokens.get(player);
         if (token == null) {

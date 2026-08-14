@@ -253,6 +253,9 @@ public class HttpOverMcPlugin extends JavaPlugin {
                 // 仅首次创建（AuthMeAutoIssuer 内部动态取 plugin.getAuthLoginBridge()，reload 重建桥无需重建监听器）
                 authMeAutoIssuer = new AuthMeAutoIssuer(this);
             }
+            // 立即绑定密码校验器：离线网页登录不依赖真实玩家 LoginEvent，必须随 bridge 创建/重建即绑定，
+            // 否则服务器从未有真实玩家登录时校验器为 null，所有 /api/auth/login 误报"账号或密码错误"
+            authMeAutoIssuer.bindTo(authLoginBridge);
             if (authMeBotIntegrator == null) {
                 // 免登录热装填：受管 Bot 进服自动 forceLogin，不写 AuthMe 配置文件；仅创建一次
                 authMeBotIntegrator = new AuthMeBotIntegrator(this);
