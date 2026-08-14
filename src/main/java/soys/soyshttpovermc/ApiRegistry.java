@@ -82,6 +82,19 @@ public class ApiRegistry {
     private volatile PermissionService permissionService;
     /** 凭证 → 玩家名 解析器（由宿主注入 SessionTokenIssuer::subjectOf），供 ApiAccessEvent 携带玩家信息。 */
     private volatile Function<CredentialPresentation, String> playerResolver;
+    /**
+     * 离线 cookie 自动升级器（由宿主注入 AuthLoginBridge::upgradeHeadersIfOnline）：输入请求凭证，
+     * 若为离线令牌且玩家已在线则换发在线令牌并返回待附加响应头（Set-Cookie + X-Soys-New-Token），
+     * 否则返回 null。升级结果随当前响应下发给浏览器，避免玩家进游戏后回网页还需二次登录。
+     */
+    private volatile Function<CredentialPresentation, Map<String, String>> tokenUpgrader;
+    /** 本次请求待附加响应头（ThreadLocal：worker 线程并发安全；dispatch 后由 WebFrontendHandler drain）。 */
+    private final ThreadLocal<Map<String, String>> pendingHeaders = new ThreadLocal<Map<String, String>>() {
+        @Override
+        protected Map<String, String> initialValue() {
+            return new HashMap<>();
+        }
+    };
     /** 全局路径前缀（网关配置 api-prefix，默认 /api；始终生效，与 auth 是否启用解耦） */
     private volatile String pathPrefix = "/api";
 
@@ -109,6 +122,22 @@ public class ApiRegistry {
 
     public Function<CredentialPresentation, String> getPlayerResolver() {
         return playerResolver;
+    }
+
+    /**
+     * 注入离线 cookie 自动升级器（凭证 → 待附加响应头；宿主注入 {@code AuthLoginBridge::upgradeHeadersIfOnline}）。
+     * 玩家先用离线 cookie 登录网页、之后进游戏登录时，任意 API 请求响应会自动附带
+     * {@code Set-Cookie}（新在线令牌）+ {@code X-Soys-New-Token}，浏览器无需再输入密码。
+     */
+    public void setTokenUpgrader(Function<CredentialPresentation, Map<String, String>> upgrader) {
+        this.tokenUpgrader = upgrader;
+    }
+
+    /** 取出并清空本次请求待附加的响应头（升级 Set-Cookie 等）；无则空 map。 */
+    public Map<String, String> drainResponseHeaders() {
+        Map<String, String> m = pendingHeaders.get();
+        pendingHeaders.remove();
+        return m == null ? java.util.Collections.<String, String>emptyMap() : m;
     }
 
     /**
@@ -256,6 +285,7 @@ public class ApiRegistry {
     public Object dispatch(String httpMethod, String rawPath, Map<String, String> headers, byte[] body) {
         String path = stripQuery(rawPath);
         String method = httpMethod == null ? "" : httpMethod.toUpperCase();
+        pendingHeaders.get().clear(); // 每次请求清空待附加响应头（防跨请求残留）
         EndpointMeta meta = routes.get(method + " " + path);
         if (meta == null) meta = routes.get(ANY_METHOD + " " + path); // @RequestMapping 不限定方法
         if (meta == null) return null;
@@ -338,6 +368,20 @@ public class ApiRegistry {
 
         try {
             Object ret = meta.method.invoke(meta.instance, args);
+            // 离线 cookie 自动升级：玩家已在线时把离线令牌换发为在线令牌，
+            // 并把 Set-Cookie + X-Soys-New-Token 附加到本次响应（WebFrontendHandler 组装帧时 drain）
+            Function<CredentialPresentation, Map<String, String>> upgrader = tokenUpgrader;
+            if (upgrader != null) {
+                try {
+                    Map<String, String> upgradeHeaders = upgrader.apply(credential);
+                    if (upgradeHeaders != null && !upgradeHeaders.isEmpty()) {
+                        pendingHeaders.get().putAll(upgradeHeaders);
+                        LogKit.info("[HTTP-Over-MC] 离线令牌已自动升级为在线令牌（响应附带 Set-Cookie + X-Soys-New-Token）");
+                    }
+                } catch (Throwable t) {
+                    LogKit.warn("[HTTP-Over-MC] 离线令牌自动升级异常: " + t, t);
+                }
+            }
             if (ret instanceof AjaxResult) return ret;
             return AjaxResult.success(ret);
         } catch (InvocationTargetException e) {

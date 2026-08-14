@@ -177,46 +177,78 @@
     });
   }
 
-  // ===== 全局拦截：任意 fetch 返回 401/403 自动弹窗 =====
+  // ===== 全局拦截：任意 fetch 返回 401/403 自动弹窗；离线 cookie 自动升级 =====
   function patchFetch() {
     if (patched) return;
     patched = true;
     var orig = global.fetch;
+
+    /** 用当前最新令牌（getToken）重试一次原请求；retryActive 防循环。 */
+    function retryWithNewToken(input, init) {
+      retryActive = true;
+      var headers = new Headers((init && init.headers) || {});
+      var token = getToken();
+      if (token) headers.set('Authorization', 'Bearer ' + token);
+      var retryOpts = {
+        method: (init && init.method) || 'GET',
+        headers: headers,
+        body: init && init.body
+      };
+      return orig.call(global, input, retryOpts).then(function (r2) {
+        retryActive = false;
+        return r2;
+      }, function (e2) {
+        retryActive = false;
+        throw e2;
+      });
+    }
+
+    function rebuild(resp, text) {
+      return new Response(text, { status: resp.status, statusText: resp.statusText, headers: resp.headers });
+    }
+
     global.fetch = function (input, init) {
       return orig.call(global, input, init).then(function (resp) {
-        if (retryActive) return resp; // 重试中的响应不再触发弹窗（防循环）
+        if (retryActive) return resp; // 重试中的响应不再处理（防循环）
         return resp.text().then(function (text) {
           var body = null;
           try { body = JSON.parse(text); } catch (e) {}
           var code = body && typeof body.code === 'number' ? body.code : resp.status;
+
+          // 离线 cookie 自动升级：玩家已进游戏在线时，服务端把离线令牌换发为在线令牌并下发
+          // X-Soys-New-Token（Set-Cookie 由浏览器自动接管；此处同步 localStorage 供 Bearer 使用）
+          var newToken = resp.headers.get('X-Soys-New-Token');
+          if (newToken) {
+            setToken(newToken);
+            if (!isLoginOpen()) {
+              // 带新令牌重试一次，让本次响应基于在线令牌权限；若仍 401/403 → 弹窗登录
+              return retryWithNewToken(input, init).then(function (r2) {
+                return r2.text().then(function (t2) {
+                  var b2 = null;
+                  try { b2 = JSON.parse(t2); } catch (e) {}
+                  var c2 = b2 && typeof b2.code === 'number' ? b2.code : r2.status;
+                  if ((c2 === 401 || c2 === 403) && !isLoginOpen()) {
+                    return openLogin().then(function (ok) {
+                      if (!ok) return new Response(t2, { status: r2.status, statusText: r2.statusText, headers: r2.headers });
+                      return retryWithNewToken(input, init);
+                    });
+                  }
+                  return new Response(t2, { status: r2.status, statusText: r2.statusText, headers: r2.headers });
+                });
+              });
+            }
+            return rebuild(resp, text); // 弹窗已打开（轮询暂停中）→ 仅存新令牌，交给调用方
+          }
+
           var needLogin = resp.status === 401 || resp.status === 403 || code === 401 || code === 403;
           // 重建响应（text 已被消费，调用方仍能正常 .text()/.json()）
-          var rebuilt = new Response(text, {
-            status: resp.status, statusText: resp.statusText, headers: resp.headers
-          });
-          if (!needLogin) return rebuilt;
+          if (!needLogin) return rebuild(resp, text);
           // 登录窗口已打开（如 status 面板轮询在用户输入期间又触发 401）：
           // 不再重复弹窗，直接把原始响应交给调用方（页面轮询已按 isLoginOpen 暂停）
-          if (isLoginOpen()) return rebuilt;
+          if (isLoginOpen()) return rebuild(resp, text);
           return openLogin().then(function (ok) {
-            if (!ok) return rebuilt; // 用户取消 → 返回原始 401/403 响应
-            // 登录成功 → 带新令牌重试一次
-            retryActive = true;
-            var headers = new Headers((init && init.headers) || {});
-            var token = getToken();
-            if (token) headers.set('Authorization', 'Bearer ' + token);
-            var retryOpts = {
-              method: (init && init.method) || 'GET',
-              headers: headers,
-              body: init && init.body
-            };
-            return orig.call(global, input, retryOpts).then(function (r2) {
-              retryActive = false;
-              return r2;
-            }, function (e2) {
-              retryActive = false;
-              throw e2;
-            });
+            if (!ok) return rebuild(resp, text); // 用户取消 → 返回原始 401/403 响应
+            return retryWithNewToken(input, init); // 登录成功 → 带新令牌重试一次
           });
         });
       });

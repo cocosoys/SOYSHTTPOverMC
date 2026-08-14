@@ -208,6 +208,11 @@ public class HttpOverMcPlugin extends JavaPlugin {
         apiRegistry.setPermissionService(pps);
         // API 访问事件（ApiAccessEvent）的玩家解析器：token/cookie → 玩家名 → 玩家实体（离线 null）
         apiRegistry.setPlayerResolver(pps::subjectOf);
+        // 离线 cookie 自动升级（启动路径 setupAuthIntegration 先于本方法执行，bridge 已创建）：
+        // 玩家用离线 cookie 登录网页后进游戏，任意 API 请求响应自动附带新在线令牌，无需二次登录
+        if (authLoginBridge != null) {
+            apiRegistry.setTokenUpgrader(authLoginBridge::upgradeHeadersIfOnline);
+        }
 
         // 网页登记处：第三方插件登记新网页（默认 /plugins/<插件名> 前缀）
         webRegistry = new WebRegistry(this.getName());
@@ -245,6 +250,9 @@ public class HttpOverMcPlugin extends JavaPlugin {
      */
     private void setupAuthIntegration() {
         authLoginBridge = null;
+        if (apiRegistry != null) {
+            apiRegistry.setTokenUpgrader(null); // 先清空旧引用（bridge 可能重建/未启用）
+        }
         if (gateway == null) return;
         SessionTokenIssuer issuer = null;
         for (CredentialIssuer i : gateway.getIssuers()) {
@@ -261,6 +269,11 @@ public class HttpOverMcPlugin extends JavaPlugin {
         // JWT 签名密钥（持久化于 data/token-secret.key）：reload 复用同一密钥 → 已签发令牌不失效
         issuer.setSecret(ConfigManager.loadOrCreateTokenSecret(this));
         authLoginBridge = new AuthLoginBridge(issuer);
+        // 离线 cookie 自动升级：浏览器带离线令牌的任意 API 请求，若玩家已进游戏在线，
+        // 响应自动附带 Set-Cookie(新在线令牌)+X-Soys-New-Token，无需二次登录
+        if (apiRegistry != null) {
+            apiRegistry.setTokenUpgrader(authLoginBridge::upgradeHeadersIfOnline);
+        }
 
         // 登录插件抽象工厂：优先用 config.yml 的 auth.login-provider 指定提供者（留空=自动取第一个可用）
         String want = getConfig().getString("auth.login-provider", "");
@@ -332,15 +345,17 @@ public class HttpOverMcPlugin extends JavaPlugin {
         return tlsFactory == null ? null : tlsFactory::newServerEngine;
     }
 
-    /** 装配 /soyshttp 与简写 /shttp 命令（同一执行器）。 */
+    /** 装配 /soyshttp 与简写 /shttp 命令（同一执行器 + tab 补全）。 */
     private void initCommand() {
         SoysHttpCommand cmd = new SoysHttpCommand(this);
         this.command = cmd;
         if (getCommand("soyshttp") != null) {
             getCommand("soyshttp").setExecutor(cmd);
+            getCommand("soyshttp").setTabCompleter(cmd);
         }
         if (getCommand("shttp") != null) {
             getCommand("shttp").setExecutor(cmd);
+            getCommand("shttp").setTabCompleter(cmd);
         }
     }
 

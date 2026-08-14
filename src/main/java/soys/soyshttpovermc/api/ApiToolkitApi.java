@@ -17,8 +17,8 @@ public interface ApiToolkitApi {
     String guessContentType(String path);
 
     /**
-     * 向玩家发送一条可点击链接消息（url 应为完整 URL；display 支持 %url% 与 %url_[标签]%，
-     * {@code &} 代替 {@code §} 颜色码）。详见 {@code soys.soyshttpovermc.util.LinkMessageUtil}。
+     * 向玩家发送一条可点击链接消息（url 应为完整 URL；display 支持 %url% 与 %url_标签%（标签到下一个 % 结束，
+     * 旧写法 %url_[标签]% 仍兼容），{@code &} 代替 {@code §} 颜色码）。详见 {@code soys.soyshttpovermc.util.LinkMessageUtil}。
      */
     void sendLink(Player player, String url, String display);
 

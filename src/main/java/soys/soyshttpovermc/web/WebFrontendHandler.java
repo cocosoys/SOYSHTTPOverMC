@@ -86,7 +86,9 @@ public class WebFrontendHandler {
             if (apiResult != null) {
                 AjaxResult ar = apiResult instanceof AjaxResult
                         ? (AjaxResult) apiResult : AjaxResult.success(apiResult);
-                return jsonResponse(200, ar.toJson());
+                // 离线 cookie 自动升级：响应附加 Set-Cookie(新在线令牌) + X-Soys-New-Token
+                Map<String, String> extra = apiRegistry.drainResponseHeaders();
+                return jsonResponse(200, ar.toJson(), extra);
             }
         }
 
@@ -335,13 +337,23 @@ public class WebFrontendHandler {
 
     // ===== JSON 响应（注解式 API 序列化） =====
     private static FrameProto.HttpResponseFrame jsonResponse(int code, String json) {
-        return FrameProto.HttpResponseFrame.newBuilder()
+        return jsonResponse(code, json, null);
+    }
+
+    /** 带附加响应头（如离线 cookie 升级的 Set-Cookie / X-Soys-New-Token）。 */
+    private static FrameProto.HttpResponseFrame jsonResponse(int code, String json, Map<String, String> extra) {
+        FrameProto.HttpResponseFrame.Builder b = FrameProto.HttpResponseFrame.newBuilder()
                 .setStatusCode(code)
                 .putHeaders("Content-Type", "application/json; charset=utf-8")
                 .setBody(ByteString.copyFrom(json.getBytes(StandardCharsets.UTF_8)))
                 .setFragmentIndex(0)
-                .setTotalFragments(1)
-                .build();
+                .setTotalFragments(1);
+        if (extra != null) {
+            for (Map.Entry<String, String> e : extra.entrySet()) {
+                b.putHeaders(e.getKey(), e.getValue());
+            }
+        }
+        return b.build();
     }
 
     // ===== 路径/字符串工具 =====

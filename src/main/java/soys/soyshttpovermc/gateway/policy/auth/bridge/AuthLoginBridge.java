@@ -11,7 +11,11 @@ import soys.soyshttpovermc.proto.FrameProto;
 
 import com.google.protobuf.ByteString;
 
+import org.bukkit.Bukkit;
+import org.bukkit.entity.Player;
+
 import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -156,6 +160,41 @@ public class AuthLoginBridge {
     /** 退出登录：按请求携带的凭证撤销会话令牌。 */
     public boolean logout(CredentialPresentation p) {
         return p != null && issuer.revoke(p);
+    }
+
+    /**
+     * <b>离线 cookie 自动升级</b>：请求凭证为离线模式令牌（mode=OFFLINE）且其绑定玩家<b>此刻已在游戏内在线</b>时，
+     * 黑名单旧离线令牌 + 签发新的在线令牌（playerTokens 同步换新）并返回新令牌；
+     * 调用方应将新令牌以 {@code Set-Cookie} + {@code X-Soys-New-Token} 附加到当前响应，
+     * 使浏览器无需再次输入密码即可无缝升级为在线会话（在线令牌完整镜像玩家权限）。
+     * 非离线令牌 / 玩家不在线 / 无效凭证 → 返回 null（不升级）。
+     */
+    public String upgradeOfflineIfOnline(CredentialPresentation p) {
+        if (p == null || !p.hasAnyCredential()) return null;
+        String player = issuer.subjectOf(p);
+        if (player == null) return null;
+        if (issuer.modeOf(p) != LoginMode.OFFLINE) return null;
+        Player online = Bukkit.getPlayerExact(player);
+        if (online == null) return null;
+        // 玩家已在线：旧离线令牌进黑名单 + 签发在线令牌（无状态 JWT 只能换发）
+        issuer.revoke(p);
+        String fresh = issuer.issueToken(player, LoginMode.ONLINE);
+        playerTokens.put(player, fresh);
+        return fresh;
+    }
+
+    /**
+     * 供 ApiRegistry 注入的升级器适配方法：调用 {@link #upgradeOfflineIfOnline}，成功换发时返回
+     * 待附加到当前响应的头（{@code Set-Cookie} 新在线令牌 + {@code X-Soys-New-Token}），否则返回 null。
+     */
+    public Map<String, String> upgradeHeadersIfOnline(CredentialPresentation p) {
+        String fresh = upgradeOfflineIfOnline(p);
+        if (fresh == null) return null;
+        Map<String, String> h = new HashMap<>();
+        h.put("Set-Cookie", issuer.getCookieName() + "=" + fresh
+                + "; Path=/; Max-Age=" + issuer.getTtlSeconds() + "; HttpOnly; SameSite=Lax");
+        h.put("X-Soys-New-Token", fresh);
+        return h;
     }
 
     /** GET /auth/login?ticket=...：渲染 AuthMe 账号密码二次验证表单。 */

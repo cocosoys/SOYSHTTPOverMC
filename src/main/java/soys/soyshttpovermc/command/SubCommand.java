@@ -55,9 +55,17 @@ public abstract class SubCommand {
     /** 执行逻辑；args 为完整命令参数（args[0] 即子指令名本身）。 */
     public abstract void execute(CommandSender sender, String label, String[] args);
 
-    /** 统一前缀发送消息。 */
+    /**
+     * tab 补全（可选覆写）：返回本子指令下一级参数的候选列表（不含 args[0] 前的匹配过滤，
+     * 由调度器统一按当前输入前缀过滤）。默认无候选。
+     */
+    public List<String> tabComplete(CommandSender sender, String[] args) {
+        return java.util.Collections.emptyList();
+    }
+
+    /** 统一前缀发送消息（[SOYSHTTPOverMC] 前缀绿色）。 */
     protected void msg(CommandSender sender, String text) {
-        sender.sendMessage("[SOYSHTTPOverMC] " + text);
+        sender.sendMessage("§a[SOYSHTTPOverMC]§r " + text);
     }
 
     /** 该 token 是否像“目标玩家”（@ 选择器或在线玩家名）。 */

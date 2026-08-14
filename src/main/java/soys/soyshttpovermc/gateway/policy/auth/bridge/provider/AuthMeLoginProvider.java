@@ -179,7 +179,7 @@ public class AuthMeLoginProvider implements LoginProvider, Listener {
         String ticket = bridge.mintTicket(name);
         String url = LinkMessageUtil.resolveUrl("/auth/login?ticket=" + ticket,
                 context.getMcHost(), context.getMcPort());
-        LinkMessageUtil.send(player, url, "&a[HTTP-Over-MC] 点击此处完成网页登录验证，获取访问令牌");
+//        LinkMessageUtil.send(player, url, "&a[HTTP-Over-MC] 点击此处完成网页登录验证，获取访问令牌");
         if (upgraded > 0) {
             LogKit.info("[HTTP-Over-MC] 玩家 " + name + " 进游戏登录：已将 " + upgraded
                     + " 个离线令牌升级为在线模式");

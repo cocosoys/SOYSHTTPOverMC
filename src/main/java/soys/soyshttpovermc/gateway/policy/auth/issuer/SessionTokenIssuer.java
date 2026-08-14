@@ -4,8 +4,13 @@ import org.bukkit.configuration.ConfigurationSection;
 import soys.soyshttpovermc.gateway.policy.auth.util.AuthUtils;
 import soys.soyshttpovermc.gateway.policy.login.LoginMode;
 
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * 会话令牌颁发器（{@link CredentialIssuer} 参考实现）。
@@ -22,6 +27,10 @@ import java.util.concurrent.ConcurrentHashMap;
  * <p><b>无状态 + 黑名单</b>：校验/解析不查内存表（reload 后旧令牌仍有效）；
  * {@link #revoke}（退出登录）把 jti 加入内存黑名单。密钥由外部注入并持久化
  * （见 {@code ConfigManager.loadOrCreateTokenSecret}，reload 复用同一密钥）。
+ *
+ * <p><b>颁发登记（审计）</b>：每次签发（登录 / 服主 key / 离线升级换发）都会登记一条
+ * {@link IssuedRecord}（jti/mode/admin/签发时间/过期时间），供 {@code /soyshttp tokens}
+ * 查询与审计；JWT 本身仍无状态，登记表仅作展示，不参与校验。
  */
 public class SessionTokenIssuer extends CredentialIssuer {
 
@@ -31,6 +40,8 @@ public class SessionTokenIssuer extends CredentialIssuer {
     private volatile byte[] secret = new byte[0];
     /** 已注销令牌的 jti 黑名单（退出登录后即使 JWT 未过期也不可用；reload/重启清空）。 */
     private final Set<String> revoked = ConcurrentHashMap.newKeySet();
+    /** 颁发登记表（subject → 签发记录；仅审计展示用，惰性清理过期记录）。 */
+    private final Map<String, List<IssuedRecord>> issued = new ConcurrentHashMap<>();
 
     @Override
     public String name() {
@@ -44,6 +55,7 @@ public class SessionTokenIssuer extends CredentialIssuer {
         cookieName = cfg.getString("cookie-name", "soys_session");
         ttlMillis = Math.max(1000L, cfg.getLong("ttl-seconds", 86400) * 1000L);
         revoked.clear(); // JWT 无状态：reload 不清空有效令牌；黑名单随重建清空（可接受）
+        issued.clear(); // 颁发登记随重建清空（新颁发器实例从头登记）
     }
 
     /** 注入 JWT 签名密钥（由主类从持久化文件加载；reload 复用同一密钥 → 旧令牌不失效）。 */
@@ -64,9 +76,9 @@ public class SessionTokenIssuer extends CredentialIssuer {
     /** 签发并返回 JWT 令牌字符串（供登录桥登记/换发使用）。 */
     public String issueToken(String subject, LoginMode mode) {
         String jti = AuthUtils.generateToken("", 10);
-        return JwtCodec.create(secret, subject,
-                mode == null ? LoginMode.ONLINE.name() : mode.name(),
-                ttlMillis, jti, "st_");
+        String modeName = mode == null ? LoginMode.ONLINE.name() : mode.name();
+        record(subject, modeName, false, jti);
+        return JwtCodec.create(secret, subject, modeName, ttlMillis, jti, "st_");
     }
 
     /**
@@ -77,6 +89,7 @@ public class SessionTokenIssuer extends CredentialIssuer {
      */
     public IssuedCredential issueAdminKey(String subject) {
         String jti = AuthUtils.generateToken("", 10);
+        record(subject, LoginMode.ONLINE.name(), true, jti);
         String token = JwtCodec.create(secret, subject, LoginMode.ONLINE.name(),
                 ttlMillis, jti, "ak_", true);
         return IssuedCredential.ofToken(token, cookieName);
@@ -173,6 +186,7 @@ public class SessionTokenIssuer extends CredentialIssuer {
         JwtCodec.Payload payload = parseToken(token);
         if (payload == null || payload.jti == null) return false;
         revoked.add(payload.jti);
+        markRevoked(payload.jti);
         return true;
     }
 
@@ -185,5 +199,66 @@ public class SessionTokenIssuer extends CredentialIssuer {
     /** 查询令牌是否仍有效（供调试/门面展示）。 */
     public boolean isValidToken(String token) {
         return parseToken(token) != null;
+    }
+
+    // ===== 颁发登记（审计，供 /soyshttp tokens 查询） =====
+
+    /** 一次签发的登记记录（不含令牌本体，仅审计元数据；JWT 校验不依赖它）。 */
+    public static final class IssuedRecord {
+        public final String subject;
+        public final String mode;
+        public final boolean admin;
+        public final long issuedAt;
+        public final long expiresAt;
+        public final String jti;
+        public volatile boolean revoked;
+
+        IssuedRecord(String subject, String mode, boolean admin, long issuedAt, long expiresAt, String jti) {
+            this.subject = subject;
+            this.mode = mode;
+            this.admin = admin;
+            this.issuedAt = issuedAt;
+            this.expiresAt = expiresAt;
+            this.jti = jti;
+        }
+
+        /** 展示用状态：已注销 / 已过期 / 有效。 */
+        public String status() {
+            if (revoked) return "已注销";
+            if (System.currentTimeMillis() > expiresAt) return "已过期";
+            return "有效";
+        }
+    }
+
+    private void record(String subject, String mode, boolean admin, String jti) {
+        if (subject == null) subject = "?";
+        issued.computeIfAbsent(subject, k -> new CopyOnWriteArrayList<>())
+                .add(new IssuedRecord(subject, mode, admin, System.currentTimeMillis(),
+                        System.currentTimeMillis() + ttlMillis, jti));
+    }
+
+    private void markRevoked(String jti) {
+        if (jti == null) return;
+        for (List<IssuedRecord> list : issued.values()) {
+            for (IssuedRecord r : list) {
+                if (jti.equals(r.jti)) r.revoked = true;
+            }
+        }
+    }
+
+    /** 全部签发记录快照（按签发时间倒序；惰性清理过期记录）。 */
+    public List<IssuedRecord> listIssued() {
+        List<IssuedRecord> out = new ArrayList<>();
+        long now = System.currentTimeMillis();
+        Iterator<Map.Entry<String, List<IssuedRecord>>> it = issued.entrySet().iterator();
+        while (it.hasNext()) {
+            Map.Entry<String, List<IssuedRecord>> e = it.next();
+            List<IssuedRecord> list = e.getValue();
+            list.removeIf(r -> !r.revoked && r.expiresAt < now); // 惰性清理已过期未注销记录
+            out.addAll(list);
+            if (list.isEmpty()) it.remove();
+        }
+        out.sort((a, b) -> Long.compare(b.issuedAt, a.issuedAt));
+        return out;
     }
 }

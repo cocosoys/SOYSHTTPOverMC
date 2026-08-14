@@ -1,6 +1,7 @@
 package soys.soyshttpovermc.command;
 
 import org.bukkit.command.CommandSender;
+import org.bukkit.entity.Player;
 
 import soys.soyshttpovermc.HttpOverMcPlugin;
 import soys.soyshttpovermc.api.event.GatewayCredentialIssuedEvent;
@@ -8,6 +9,9 @@ import soys.soyshttpovermc.gateway.GatewayFilter;
 import soys.soyshttpovermc.gateway.policy.auth.issuer.CredentialIssuer;
 import soys.soyshttpovermc.gateway.policy.auth.issuer.IssuedCredential;
 import soys.soyshttpovermc.gateway.policy.auth.issuer.SessionTokenIssuer;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * /soyshttp key &lt;subject&gt; —— <b>服主手动颁发的最高权限 key</b>：
@@ -28,6 +32,16 @@ public class KeySubCommand extends SubCommand {
     @Override
     public String usage() {
         return "/soyshttp key <subject> —— 服主手动颁发最高权限 key（免权限访问全部 API，请谨慎）";
+    }
+
+    @Override
+    public List<String> tabComplete(CommandSender sender, String[] args) {
+        // 末位参数补全在线玩家名（subject 通常是玩家名）
+        List<String> out = new ArrayList<>();
+        for (Player p : plugin.getServer().getOnlinePlayers()) {
+            out.add(p.getName());
+        }
+        return out;
     }
 
     @Override
@@ -57,7 +71,7 @@ public class KeySubCommand extends SubCommand {
             if (c.getBearer() != null) sb.append("\n  Authorization: Bearer ").append(c.getBearer());
             if (c.getCookieName() != null) sb.append("\n  Cookie: ").append(c.getCookieName()).append('=').append(c.getCookieValue());
             int port = plugin.getMcPort();
-            sb.append("\n  curl -sk https://127.0.0.1:").append(port).append("/api/status -H \"X-API-Key: ").append(c.getApiKey()).append('"');
+            sb.append("\n  curl -sk https://").append(plugin.getMcHost()).append(":").append(port).append("/api/status -H \"X-API-Key: ").append(c.getApiKey()).append('"');
             if (issuer instanceof SessionTokenIssuer) {
                 sb.append("\n  ⚠ 该 key 为最高权限（adm），可免权限访问全部 API，请仅用于可信外部服务");
             }

@@ -17,7 +17,8 @@ import java.util.List;
  * /soyshttp send &lt;url|/page&gt; [显示文字] [玩家] —— 向玩家发送可点击链接消息。
  * <ul>
  *   <li>第一个参数 <b>url</b>：完整 URL，或以 {@code /} 开头的本服页面路径（拼 https://host:port）；</li>
- *   <li>[显示文字]：支持 {@code %url%} 与 {@code %url_[标签]%} 占位符，{@code &} 代替 {@code §} 颜色码；</li>
+ *   <li>[显示文字]：支持 {@code %url%} 与 {@code %url_标签%}（标签到下一个 % 结束；旧写法
+ *       {@code %url_[标签]%} 仍兼容）占位符，{@code &} 代替 {@code §} 颜色码；</li>
  *   <li>[玩家]：玩家名，或原生选择器 @a/@p/@r/@e/@s（1.12.2 忽略 [条件]）；省略则发给自己（命令者须为玩家）。</li>
  * </ul>
  */
@@ -35,6 +36,21 @@ public class SendSubCommand extends SubCommand {
     @Override
     public String usage() {
         return "/soyshttp send <url|/page> [显示文字] [玩家] —— 发送可点击链接";
+    }
+
+    @Override
+    public List<String> tabComplete(CommandSender sender, String[] args) {
+        // 末位参数补全：在线玩家名 + 原生选择器（@a/@p/@r/@e/@s）
+        List<String> out = new ArrayList<>();
+        out.add("@a");
+        out.add("@p");
+        out.add("@r");
+        out.add("@e");
+        out.add("@s");
+        for (Player p : plugin.getServer().getOnlinePlayers()) {
+            out.add(p.getName());
+        }
+        return out;
     }
 
     @Override

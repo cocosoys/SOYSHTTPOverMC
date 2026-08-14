@@ -23,8 +23,9 @@ import java.util.List;
  * <h3>显示文字语法（{@link #build}，{@code &} 代替 {@code §} 颜色码）</h3>
  * <ul>
  *   <li>{@code %url%} —— 替换为完整 URL（可点击打开）；</li>
- *   <li>{@code %url_[标签]%} —— 内联可点击链接，可见文字为 {@code [标签]}（保留方括号），点击打开 url；
- *       例：{@code 点击%url_[星云官网]%打开官网} → 聊天显示“点击[星云官网]打开官网”，其中[星云官网]可点击。</li>
+ *   <li>{@code %url_标签%} —— 内联可点击链接，可见文字为 {@code 标签}，点击打开 url（标签内容到下一个 {@code %}
+ *       结束；旧写法 {@code %url_[标签]%} 仍兼容，方括号会被原样显示为标签的一部分）；
+ *       例：{@code 点击%url_星云官网%打开官网} → 聊天显示“点击星云官网打开官网”，其中“星云官网”可点击。</li>
  * </ul>
  */
 public final class LinkMessageUtil {
@@ -54,14 +55,14 @@ public final class LinkMessageUtil {
         StringBuilder buf = new StringBuilder();
         int i = 0, n = text.length();
         while (i < n) {
-            // %url_[标签]%
-            if (text.startsWith("%url_[", i)) {
-                int endBr = text.indexOf(']', i + 6);
-                if (endBr > i + 6 && endBr + 1 < n && text.charAt(endBr + 1) == '%') {
+            // %url_标签% —— 标签到下一个 % 结束（旧写法 %url_[标签]% 的方括号被当作标签内容，天然兼容）
+            if (text.startsWith("%url_", i)) {
+                int endPct = text.indexOf('%', i + 5);
+                if (endPct > i + 5) {
                     flushPlain(out, buf);
-                    String label = text.substring(i + 6, endBr);
+                    String label = text.substring(i + 5, endPct);
                     add(out, makeLink(label, url));
-                    i = endBr + 2;
+                    i = endPct + 1;
                     continue;
                 }
             }
