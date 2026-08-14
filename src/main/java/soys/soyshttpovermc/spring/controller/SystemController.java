@@ -21,10 +21,10 @@ public class SystemController {
     }
 
     @ApiName("网关存活检测")
-    @ApiPermission("soyshttp:api:ping")
+    @ApiPublic
     @GetMapping("/ping")
     public AjaxResult ping() {
-        // 调用 service 获取存活数据（公开端点，auth 豁免）；供首页/探活脚本免凭证获取在线状态
+        // 公开端点（首页/探活脚本免凭证获取在线状态）；auth.yml 的 exempt 也一并豁免，双重保险
         return AjaxResult.success(systemService.ping());
     }
 

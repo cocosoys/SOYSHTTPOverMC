@@ -2,6 +2,7 @@ package soys.soyshttpovermc.web;
 
 import soys.soyshttpovermc.util.AjaxResult;
 import soys.soyshttpovermc.ApiRegistry;
+import soys.soyshttpovermc.auth.AuthLoginBridge;
 import soys.soyshttpovermc.proto.FrameProto;
 
 import com.google.protobuf.ByteString;
@@ -30,10 +31,13 @@ public class WebFrontendHandler {
     private final String webRootCanonical;
     private final ApiRegistry apiRegistry; // 注解式 API 注册表（可为 null）
     private final WebRegistry webRegistry; // 插件登记网页（可为 null）
+    private volatile AuthLoginBridge authBridge; // AuthMe 网页登录桥（null=未启用；/soyshttp reload 后热替换）
 
-    public WebFrontendHandler(String webRootPath, ApiRegistry apiRegistry, WebRegistry webRegistry) {
+    public WebFrontendHandler(String webRootPath, ApiRegistry apiRegistry, WebRegistry webRegistry,
+                              AuthLoginBridge authBridge) {
         this.apiRegistry = apiRegistry;
         this.webRegistry = webRegistry;
+        this.authBridge = authBridge;
         File root = null;
         String canonical = null;
         if (webRootPath != null && !webRootPath.trim().isEmpty()) {
@@ -52,6 +56,11 @@ public class WebFrontendHandler {
         this.webRootCanonical = canonical;
     }
 
+    /** 热替换 AuthMe 登录桥（/soyshttp reload 重建网关后调用，保持与最新 session-token 颁发器一致）。 */
+    public void setAuthBridge(AuthLoginBridge bridge) {
+        this.authBridge = bridge;
+    }
+
     /**
      * 处理一次请求，返回完整（单分片）HttpResponseFrame。
      * 调用方负责按 32000 字节上限分片发回客户端。
@@ -60,7 +69,15 @@ public class WebFrontendHandler {
         String m = method == null ? "" : method.toUpperCase();
         String rawPath = decode(path);
 
-        // 0) 注解式 API 优先（@GetMapping 等注册的路由）
+        // 0) AuthMe 网页登录流程（/auth/login 表单页 / /auth/issue 校验密码发 Cookie），先于 API 路由，且本身免鉴权
+        if (authBridge != null) {
+            String ap = stripQuery(rawPath);
+            if (ap.equals("/auth/login") || ap.equals("/auth/issue")) {
+                return handleAuth(m, rawPath, headers, body);
+            }
+        }
+
+        // 1) 注解式 API 优先（@GetMapping 等注册的路由）
         if (apiRegistry != null) {
             Object apiResult = apiRegistry.dispatch(m, rawPath, headers, body);
             if (apiResult != null) {
@@ -132,6 +149,73 @@ public class WebFrontendHandler {
                 .setStatusCode(200)
                 .putHeaders("Content-Type", MimeTypes.forPath(servedName))
                 .setBody(ByteString.copyFrom(content))
+                .setFragmentIndex(0)
+                .setTotalFragments(1)
+                .build();
+    }
+
+    // ===== AuthMe 网页登录流程路由 =====
+    private FrameProto.HttpResponseFrame handleAuth(String method, String rawPath,
+                                                    Map<String, String> headers, byte[] body) {
+        String cleanPath = stripQuery(rawPath);
+        if (cleanPath.equals("/auth/issue") && "POST".equals(method)) {
+            Map<String, String> form = parseForm(body);
+            return authBridge.issue(form.get("ticket"), form.get("password"));
+        }
+        if (cleanPath.equals("/auth/login")) {
+            return authBridge.serveLoginPage(queryParam(rawPath, "ticket"));
+        }
+        // 其它 /auth/* 方法不匹配 → 404
+        return notFound(rawPath);
+    }
+
+    /** 解析 application/x-www-form-urlencoded 请求体（POST /auth/issue）。 */
+    private static Map<String, String> parseForm(byte[] body) {
+        Map<String, String> map = new java.util.HashMap<>();
+        if (body == null || body.length == 0) return map;
+        String s = new String(body, StandardCharsets.UTF_8);
+        for (String pair : s.split("&")) {
+            int eq = pair.indexOf('=');
+            if (eq <= 0) continue;
+            String k = pair.substring(0, eq);
+            String v = pair.substring(eq + 1);
+            try {
+                map.put(java.net.URLDecoder.decode(k, "UTF-8"), java.net.URLDecoder.decode(v, "UTF-8"));
+            } catch (Exception ignored) {
+                map.put(k, v);
+            }
+        }
+        return map;
+    }
+
+    /** 从原始路径（含 ?query）提取单个查询参数值。 */
+    private static String queryParam(String rawPath, String name) {
+        int q = rawPath.indexOf('?');
+        if (q < 0 || q + 1 >= rawPath.length()) return null;
+        for (String pair : rawPath.substring(q + 1).split("&")) {
+            int eq = pair.indexOf('=');
+            String k = eq >= 0 ? pair.substring(0, eq) : pair;
+            if (k.equals(name)) {
+                String v = eq >= 0 ? pair.substring(eq + 1) : "";
+                try {
+                    return java.net.URLDecoder.decode(v, "UTF-8");
+                } catch (Exception e) {
+                    return v;
+                }
+            }
+        }
+        return null;
+    }
+
+    /** 404 响应帧（路径不存在）。 */
+    private static FrameProto.HttpResponseFrame notFound(String cleanPath) {
+        String html = "<!doctype html><html><head><meta charset=utf-8>"
+                + "<title>404</title></head><body style='font-family:monospace;background:#0a0a12;color:#0ff'>"
+                + "<h1>404 Not Found</h1><p>HTTP-Over-MC: " + escape(cleanPath) + " 不存在</p></body></html>";
+        return FrameProto.HttpResponseFrame.newBuilder()
+                .setStatusCode(404)
+                .putHeaders("Content-Type", "text/html; charset=utf-8")
+                .setBody(ByteString.copyFrom(html.getBytes(StandardCharsets.UTF_8)))
                 .setFragmentIndex(0)
                 .setTotalFragments(1)
                 .build();

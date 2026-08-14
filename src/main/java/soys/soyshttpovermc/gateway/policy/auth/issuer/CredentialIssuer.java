@@ -43,4 +43,13 @@ public abstract class CredentialIssuer {
 
     /** 校验请求中携带的凭证（X-API-Key / Bearer / Basic / Cookie）是否有效。 */
     public abstract boolean validate(CredentialPresentation presented);
+
+    /**
+     * 由凭证表示解析绑定的主体（如玩家名）；默认返回 null（不绑定主体）。
+     * 供 {@link PermissionService} 把请求凭证映射为"主体"以判定权限
+     * （如会话令牌绑定玩家，则令牌拥有该玩家在游戏内的 Bukkit 权限）。
+     */
+    public String subjectOf(CredentialPresentation presented) {
+        return null;
+    }
 }

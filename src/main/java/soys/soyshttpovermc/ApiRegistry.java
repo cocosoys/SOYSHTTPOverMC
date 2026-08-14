@@ -268,6 +268,12 @@ public class ApiRegistry {
         Object[] args = new Object[meta.params.size()];
         for (int i = 0; i < meta.params.size(); i++) {
             ParamBinding pb = meta.params.get(i);
+            if (pb.injectCredential) {
+                // 凭证注入：解析当前请求携带的凭证（X-API-Key / Bearer / Basic / Cookie），
+                // 供 /api/auth/me、/api/auth/logout 等"当前登录者"端点直接使用
+                args[i] = AuthUtils.extractPresentation(headers, "X-API-Key", true, true, true, true);
+                continue;
+            }
             if (pb.requestBody) {
                 args[i] = body == null ? "" : new String(body, java.nio.charset.StandardCharsets.UTF_8);
                 continue;
@@ -403,13 +409,17 @@ public class ApiRegistry {
         final String defaultValue;
         final Class<?> type;
         final boolean requestBody;
+        /** true=参数由网关注入当前请求解析出的凭证（参数类型为 CredentialPresentation） */
+        final boolean injectCredential;
 
-        ParamBinding(String name, boolean required, String defaultValue, Class<?> type, boolean requestBody) {
+        ParamBinding(String name, boolean required, String defaultValue, Class<?> type,
+                     boolean requestBody, boolean injectCredential) {
             this.name = name;
             this.required = required;
             this.defaultValue = defaultValue;
             this.type = type;
             this.requestBody = requestBody;
+            this.injectCredential = injectCredential;
         }
     }
 
@@ -418,16 +428,22 @@ public class ApiRegistry {
         Annotation[][] anns = m.getParameterAnnotations();
         Class<?>[] types = m.getParameterTypes();
         for (int i = 0; i < types.length; i++) {
+            // 凭证注入：参数类型为 CredentialPresentation 时，网关自动注入当前请求解析出的凭证
+            // （供 /api/auth/me、/api/auth/logout 等需要"当前登录者"的端点使用，无需手动解析请求头）
+            if (types[i] == CredentialPresentation.class) {
+                list.add(new ParamBinding(null, false, null, types[i], false, true));
+                continue;
+            }
             RequestBody rb = find(anns[i], RequestBody.class);
             if (rb != null) {
-                list.add(new ParamBinding(null, false, null, types[i], true));
+                list.add(new ParamBinding(null, false, null, types[i], true, false));
                 continue;
             }
             RequestParam rp = find(anns[i], RequestParam.class);
             if (rp != null) {
-                list.add(new ParamBinding(rp.name(), rp.required(), rp.defaultValue(), types[i], false));
+                list.add(new ParamBinding(rp.name(), rp.required(), rp.defaultValue(), types[i], false, false));
             } else {
-                list.add(new ParamBinding("arg" + i, false, "", types[i], false));
+                list.add(new ParamBinding("arg" + i, false, "", types[i], false, false));
             }
         }
         return list;

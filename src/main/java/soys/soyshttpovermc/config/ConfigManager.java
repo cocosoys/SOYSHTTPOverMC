@@ -50,26 +50,29 @@ public final class ConfigManager {
     }
 
     /**
-     * 解析 web.root：
+     * 解析 web.root 并保证目标目录包含缺省 web 资源：
      * <ul>
-     *   <li>留空（默认）：把 jar 内 {@code /web/*} 解压到数据目录的 web/（即配置文件夹中的 web 文件夹），
-     *       并返回该目录；用户可直接在磁盘编辑、刷新即生效；</li>
-     *   <li>非空：相对数据目录或绝对路径（原逻辑）。</li>
+     *   <li>留空（默认）：目标 = 数据目录的 web/（即配置文件夹中的 web 文件夹）；</li>
+     *   <li>非空：相对数据目录或绝对路径（原逻辑）；</li>
      * </ul>
+     * <b>两种情况都会调用 {@link #extractWebResources} 自动补缺省资源</b>：
+     * 目标目录不存在或为空时，把 jar 内置 {@code /web/*} 解压进去（已存在文件不覆盖，保留用户修改）；
+     * 非空目录中的缺失文件也会补回。修复"用户填写了 web.root 且目录为空/不存在时不会自动解压"的问题。
+     *
      * <p>{@code pluginJar} 由插件自身（同包子类）通过 {@code getFile()} 取得后传入，
      * 因为 {@code JavaPlugin.getFile()} 为 protected，跨包不可直接调用。</p>
      */
     public static File resolveWebRoot(JavaPlugin plugin, File pluginJar, String raw) {
+        File dir;
         if (raw == null || raw.trim().isEmpty()) {
-            File webDir = new File(plugin.getDataFolder(), "web");
-            extractWebResources(plugin, pluginJar, webDir);
-            return webDir.getAbsoluteFile();
+            dir = new File(plugin.getDataFolder(), "web");
+        } else {
+            File f = new File(raw);
+            dir = f.isAbsolute() ? f : new File(plugin.getDataFolder(), raw);
         }
-        File f = new File(raw);
-        if (!f.isAbsolute()) {
-            f = new File(plugin.getDataFolder(), raw);
-        }
-        return f.getAbsoluteFile();
+        // 目标目录不存在/为空/缺文件时自动补 jar 内置缺省 web 资源（已存在不覆盖）
+        extractWebResources(plugin, pluginJar, dir);
+        return dir.getAbsoluteFile();
     }
 
     /**

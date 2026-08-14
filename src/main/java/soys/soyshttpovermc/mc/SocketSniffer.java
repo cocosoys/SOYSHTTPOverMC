@@ -259,7 +259,7 @@ public class SocketSniffer {
                 RequestParsed parsed = tryParseHttp(buffer);
                 if (parsed == null) {
                     if (buffer.readableBytes() > maxBodyBytes + 1024 * 1024) {
-                        writeRaw(ctx, statusLine(413) + "Payload Too Large\r\n", 413, tlsMode);
+                        writeRaw(ctx, "Payload Too Large", 413, tlsMode);
                     }
                     return; // 等待更多数据
                 }
@@ -471,17 +471,21 @@ public class SocketSniffer {
             }
             if (!ready.getAsBoolean()) {
                 code = 503;
-                writeRaw(ctx, statusLine(503) + "HTTP-Over-MC tunnel not ready\r\n", 503, tls);
+                writeRaw(ctx, "HTTP-Over-MC tunnel not ready", 503, tls);
                 return;
             }
             FrameProto.HttpResponseFrame resp = translator.translate(p.method, p.path, p.headers, p.body);
             code = resp.getStatusCode();
             byte[] body = resp.getBody().toByteArray();
-            String contentType = resp.getHeadersMap().getOrDefault("Content-Type", "application/octet-stream");
 
+            // 转发响应头：原样写出颁发器/AuthLoginBridge 设置的全部头（含 Set-Cookie 等自定义头），
+            // Content-Length 统一按真实 body 长度计算（protobuf 帧本身不携带 Content-Length）。
             StringBuilder sb = new StringBuilder();
             sb.append("HTTP/1.1 ").append(code).append(' ').append(statusText(code)).append("\r\n");
-            sb.append("Content-Type: ").append(contentType).append("\r\n");
+            for (Map.Entry<String, String> h : resp.getHeadersMap().entrySet()) {
+                if ("Content-Length".equalsIgnoreCase(h.getKey())) continue; // 下方统一计算
+                sb.append(h.getKey()).append(": ").append(h.getValue()).append("\r\n");
+            }
             sb.append("Content-Length: ").append(body.length).append("\r\n");
             sb.append("Connection: close\r\n");
             sb.append("\r\n");
@@ -494,8 +498,8 @@ public class SocketSniffer {
         } catch (Exception e) {
             code = 502;
             LogKit.warn("[HTTP-Over-MC] 隧道转换失败: " + e, e);
-            writeRaw(ctx, statusLine(502) + "HTTP-Over-MC tunnel error: "
-                    + (e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage()) + "\r\n", 502, tls);
+            writeRaw(ctx, "HTTP-Over-MC tunnel error: "
+                    + (e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage()), 502, tls);
         } finally {
             long dtUs = (System.nanoTime() - t0) / 1000;
             stats.recordRequest(p.method, p.path, code, dtUs);
@@ -526,8 +530,21 @@ public class SocketSniffer {
         }
     }
 
-    private void writeRaw(ChannelHandlerContext ctx, String text, int code, boolean tls) {
-        writeResponse(ctx, Unpooled.wrappedBuffer(text.getBytes(StandardCharsets.US_ASCII)), tls);
+    private void writeRaw(ChannelHandlerContext ctx, String bodyText, int code, boolean tls) {
+        // 必须输出完整 HTTP 响应头（状态行 + Content-Length + 空行终止），否则浏览器/部分客户端
+        // 会报 ERR_RESPONSE_HEADERS_TRUNCATED（响应头被截断）。
+        byte[] body = bodyText.getBytes(StandardCharsets.UTF_8);
+        StringBuilder sb = new StringBuilder();
+        sb.append(statusLine(code));
+        sb.append("Content-Type: text/plain; charset=utf-8\r\n");
+        sb.append("Content-Length: ").append(body.length).append("\r\n");
+        sb.append("Connection: close\r\n");
+        sb.append("\r\n");
+        byte[] head = sb.toString().getBytes(StandardCharsets.US_ASCII);
+        ByteBuf out = Unpooled.buffer(head.length + body.length);
+        out.writeBytes(head);
+        out.writeBytes(body);
+        writeResponse(ctx, out, tls);
     }
 
     /** 写出网关策略拒绝响应（401/403/426/429/500），附带策略指定的响应头。 */

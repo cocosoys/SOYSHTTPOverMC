@@ -78,6 +78,12 @@
             <name>Maven Central (direct)</name>
             <url>https://repo1.maven.org/maven2/</url>
         </repository>
+        <!-- AuthMe 发布仓库（5.4.0 等版本托管于此，不在 Maven Central） -->
+        <repository>
+            <id>codemc</id>
+            <name>CodeMC</name>
+            <url>https://repo.codemc.io/repository/maven-public/</url>
+        </repository>
     </repositories>
 
     <pluginRepositories>
@@ -153,6 +159,14 @@
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
             <version>1.18.36</version>
+            <scope>provided</scope>
+        </dependency>
+        <!-- AuthMe 5.4.0：软依赖登录插件接入（provided：编译期校验 API，运行时由 AuthMe 插件自身提供类，
+             因此不打进 jar；无 AuthMe 时本插件仍可正常运行，仅在 onEnable 自判 AuthMe 是否加载） -->
+        <dependency>
+            <groupId>fr.xephi</groupId>
+            <artifactId>authme</artifactId>
+            <version>5.4.0</version>
             <scope>provided</scope>
         </dependency>
     </dependencies>

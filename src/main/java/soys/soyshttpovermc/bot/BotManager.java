@@ -128,6 +128,22 @@ public class BotManager {
         LogKit.info("[HTTP-Over-MC] 主 Bot 重新连接已触发: " + mainBot.getUsername());
     }
 
+    /** 该玩家名是否受本管理器托管的 Bot（主 Bot 或额外受管 Bot）——供登录插件集成器判断免登录对象。 */
+    public boolean isManagedBot(String playerName) {
+        if (playerName == null) return false;
+        String main = mainBot == null ? null : mainBot.getUsername();
+        if (playerName.equalsIgnoreCase(main)) return true;
+        return bots.containsKey(playerName);
+    }
+
+    /** 全部受管 Bot 名（主 Bot + 额外 Bot）。 */
+    public java.util.Set<String> getBotNames() {
+        java.util.Set<String> names = new java.util.LinkedHashSet<>();
+        if (mainBot != null && mainBot.getUsername() != null) names.add(mainBot.getUsername());
+        names.addAll(bots.keySet());
+        return names;
+    }
+
     /** 受管 Bot 的不可变持有项（名称 / 通道 / Bot / McLink）。 */
     public static final class ManagedBot {
         private final String name;

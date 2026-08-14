@@ -3,6 +3,7 @@ version: '${project.version}'
 main: soys.soyshttpovermc.HttpOverMcPlugin
 author: SOYS
 description: Mount HTTP over the MC join channel (HTTP-Over-MC tunnel)
+softdepend: [AuthMe]
 commands:
   soyshttp:
     description: SOYSHTTPOverMC 管理：reload 热重载 | key 下发凭证 | reconnect 重连主Bot | send 发链接 | pages 查页面

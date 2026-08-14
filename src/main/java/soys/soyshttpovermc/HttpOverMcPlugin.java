@@ -20,6 +20,8 @@ import soys.soyshttpovermc.spring.impl.StatusServiceImpl;
 import soys.soyshttpovermc.spring.impl.SystemServiceImpl;
 import soys.soyshttpovermc.spring.service.IStatusService;
 import soys.soyshttpovermc.spring.service.ISystemService;
+import soys.soyshttpovermc.spring.controller.AuthController;
+import soys.soyshttpovermc.spring.impl.AuthServiceImpl;
 import soys.soyshttpovermc.bot.InternalBot;
 import soys.soyshttpovermc.bot.BotRuleController;
 import soys.soyshttpovermc.bot.ApiKeyBotRule;
@@ -33,6 +35,12 @@ import soys.soyshttpovermc.mc.RequestScheduler;
 import soys.soyshttpovermc.mc.SocketSniffer;
 import soys.soyshttpovermc.web.RequestStats;
 import soys.soyshttpovermc.web.WebFrontendHandler;
+import soys.soyshttpovermc.auth.AuthLoginBridge;
+import soys.soyshttpovermc.auth.AuthMeAutoIssuer;
+import soys.soyshttpovermc.auth.AuthMeBotIntegrator;
+import soys.soyshttpovermc.auth.PlayerPermissionService;
+import soys.soyshttpovermc.gateway.policy.auth.issuer.CredentialIssuer;
+import soys.soyshttpovermc.gateway.policy.auth.issuer.SessionTokenIssuer;
 
 import javax.net.ssl.SSLEngine;
 import java.io.File;
@@ -64,6 +72,16 @@ public class HttpOverMcPlugin extends JavaPlugin {
     private int mcPort;
     private boolean snifferEnabled;
     private int maxBody;
+    /** AuthMe 网页登录桥（session-token 颁发器启用时创建；null=未启用） */
+    private AuthLoginBridge authLoginBridge;
+    /** AuthMe 软依赖接入器（AuthMe 已加载时创建；null=未安装 AuthMe） */
+    private AuthMeAutoIssuer authMeAutoIssuer;
+    /** AuthMe 免登录集成器（受管 Bot 进服自动 forceLogin，不写 AuthMe 配置） */
+    private AuthMeBotIntegrator authMeBotIntegrator;
+    /** 前端处理器（/soyshttp reload 后向其热替换登录桥） */
+    private WebFrontendHandler webFrontend;
+    /** 登录窗口认证服务（/soyshttp reload 后向其热替换登录桥） */
+    private AuthServiceImpl authService;
 
     /** 供其他插件获取本插件实例（接入注解式 API / 监听网关事件 / 下发凭证） */
     public static HttpOverMcPlugin getInstance() {
@@ -100,6 +118,11 @@ public class HttpOverMcPlugin extends JavaPlugin {
         return tlsFactory != null;
     }
 
+    /** 当前 AuthMe 网页登录桥（供 AuthMeAutoIssuer 动态获取，null=未启用 session-token）。 */
+    public AuthLoginBridge getAuthLoginBridge() {
+        return authLoginBridge;
+    }
+
     /** 网关事件调试日志是否开启（gateway/config.yml 的 debug-events） */
     public boolean isDebugEventsEnabled() {
         return debugEventsEnabled;
@@ -120,6 +143,8 @@ public class HttpOverMcPlugin extends JavaPlugin {
         LogKit.init(log, getConfig().getString("log.level", "INFO"));
         // 4) 安全网关（独立配置目录 gateway/）+ TLS 上下文（25564 就地升级，无独立端口）
         rebuildGateway(gatewayDir, log);
+        // 4.5) AuthMe 网页登录接入（软依赖）：session-token 启用时建桥，AuthMe 在则建监听
+        setupAuthIntegration();
         // 5) 注解式 API 框架 + 网页登记 + 事件监听 + 系统级 API
         initApiFramework(gatewayDir, log);
         // 6) 无头 Bot 回环连接本服 + McLink 隧道
@@ -170,6 +195,9 @@ public class HttpOverMcPlugin extends JavaPlugin {
 
         apiRegistry = new ApiRegistry(this, log);
         apiRegistry.setPathPrefix(apiPrefix);
+        // 玩家权限映射服务：会话令牌 → 玩家 → 游戏内 Bukkit 权限（细粒度）；
+        // 未启用会话颁发器时回退开放（见 PlayerPermissionService）。与 auth 开关解耦，始终生效。
+        apiRegistry.setPermissionService(new PlayerPermissionService(this.gateway));
 
         // 网页登记处：第三方插件登记新网页（默认 /plugins/<插件名> 前缀）
         webRegistry = new WebRegistry(this.getName());
@@ -184,8 +212,55 @@ public class HttpOverMcPlugin extends JavaPlugin {
         ISystemService systemService = new SystemServiceImpl(mcPort);
         apiRegistry.register(new SystemController(systemService));
 
+        // 登录窗口认证 API：登录 / 退出 / 登录信息（AuthServiceImpl 复用 AuthLoginBridge 的
+        // AuthMe 密码校验 + session-token 签发/撤销；bridge 为 null 时返回明确的"未启用"错误；
+        // 持引用以便 /soyshttp reload 后热替换 bridge）
+        authService = new AuthServiceImpl(authLoginBridge);
+        apiRegistry.register(new AuthController(authService));
+
         // 请求分配规则控制器（默认按 X-API-Key 分流 admin/common 逻辑队列）
         botRuleController = new ApiKeyBotRule();
+    }
+
+    /**
+     * 装配 AuthMe 网页登录接入（软依赖）：
+     * <ul>
+     *   <li>找到已启用的 session-token 颁发器；未启用则整条流程不启用（提示在 session-token.yml 开启）；</li>
+     *   <li>创建 {@link AuthLoginBridge}（AuthMe 无关的密码校验桥）；</li>
+     *   <li>若 AuthMe 插件已加载，则创建 {@link AuthMeAutoIssuer}（监听 LoginEvent 自动签发并发送链接）；
+     *       否则仅提示 AuthMe 未安装（session-token 仍可经 /soyshttp key 下发）。</li>
+     * </ul>
+     * 本方法必须在 {@link #rebuildGateway} 之后调用（颁发器列表来自网关）。
+     */
+    private void setupAuthIntegration() {
+        authLoginBridge = null;
+        if (gateway == null) return;
+        SessionTokenIssuer issuer = null;
+        for (CredentialIssuer i : gateway.getIssuers()) {
+            if (i instanceof SessionTokenIssuer) {
+                issuer = (SessionTokenIssuer) i;
+                break;
+            }
+        }
+        if (issuer == null) {
+            LogKit.info("[HTTP-Over-MC] 未启用 session-token 颁发器，AuthMe 网页登录流程未启用"
+                    + "（如需启用，请在 gateway/issuers/session-token.yml 设 enabled: true）");
+            return;
+        }
+        authLoginBridge = new AuthLoginBridge(issuer);
+        if (getServer().getPluginManager().getPlugin("AuthMe") != null) {
+            if (authMeAutoIssuer == null) {
+                // 仅首次创建（AuthMeAutoIssuer 内部动态取 plugin.getAuthLoginBridge()，reload 重建桥无需重建监听器）
+                authMeAutoIssuer = new AuthMeAutoIssuer(this);
+            }
+            if (authMeBotIntegrator == null) {
+                // 免登录热装填：受管 Bot 进服自动 forceLogin，不写 AuthMe 配置文件；仅创建一次
+                authMeBotIntegrator = new AuthMeBotIntegrator(this);
+            }
+        } else {
+            LogKit.info("[HTTP-Over-MC] 未检测到 AuthMe 插件（softdepend）：AuthMe 密码二次验证不可用；"
+                    + "session-token 仍可经 /soyshttp key <subject> 下发");
+        }
     }
 
     /** 启动无头 Bot 回环连接本服（目标即 Spigot 监听端口），并装配 McLink 隧道。
@@ -211,7 +286,8 @@ public class HttpOverMcPlugin extends JavaPlugin {
         apiRegistry.register(new StatusController(statusService));
 
         WebFrontendHandler web = new WebFrontendHandler(
-                webRoot == null ? null : webRoot.getAbsolutePath(), apiRegistry, webRegistry);
+                webRoot == null ? null : webRoot.getAbsolutePath(), apiRegistry, webRegistry, authLoginBridge);
+        webFrontend = web;
         // 请求调度器：单物理 Bot + 多逻辑队列（common 512 / admin 128 容量，4 个 worker，admin 优先）
         requestScheduler = new RequestScheduler(this, channel, web, 512, 128, 4);
         McMessageHandler handler = new McMessageHandler(this, botUsername, channel, requestScheduler);
@@ -299,10 +375,25 @@ public class HttpOverMcPlugin extends JavaPlugin {
         LogKit.setLevel(levelRaw); // 日志级别热重载
         File gatewayDir = ConfigManager.ensureGatewayFiles(this);
         rebuildGateway(gatewayDir, getLogger());
+        // 网关重建后颁发器实例已换新，重新装配玩家权限映射服务（跟踪最新网关）
+        if (apiRegistry != null) {
+            apiRegistry.setPermissionService(new PlayerPermissionService(gateway));
+        }
+        // AuthMe 登录桥重建（持有最新 session-token 颁发器），并热替换到前端处理器与登录窗口认证服务
+        setupAuthIntegration();
+        if (authService != null) {
+            authService.setBridge(authLoginBridge);
+        }
+        if (webFrontend != null) {
+            webFrontend.setAuthBridge(authLoginBridge);
+        }
     }
 
     @Override
     public void onDisable() {
+        if (authMeBotIntegrator != null) {
+            try { authMeBotIntegrator.unregisterAll(); } catch (Throwable ignored) {}
+        }
         if (sniffer != null) {
             sniffer.uninstall();
         }
