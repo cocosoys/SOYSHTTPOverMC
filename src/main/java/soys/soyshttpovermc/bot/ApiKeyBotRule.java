@@ -1,6 +1,6 @@
 package soys.soyshttpovermc.bot;
 
-import soys.soyshttpovermc.gateway.policy.auth.AuthUtils;
+import soys.soyshttpovermc.gateway.policy.auth.util.AuthUtils;
 
 import java.util.Map;
 

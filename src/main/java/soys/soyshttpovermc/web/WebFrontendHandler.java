@@ -2,7 +2,7 @@ package soys.soyshttpovermc.web;
 
 import soys.soyshttpovermc.util.AjaxResult;
 import soys.soyshttpovermc.ApiRegistry;
-import soys.soyshttpovermc.auth.AuthLoginBridge;
+import soys.soyshttpovermc.gateway.policy.auth.bridge.AuthLoginBridge;
 import soys.soyshttpovermc.proto.FrameProto;
 
 import com.google.protobuf.ByteString;
@@ -19,11 +19,14 @@ import java.util.Map;
  * 服务端 HTTP 处理器：把一次经 Bot 隧道送达的 HTTP 请求，路由为注解式 API 或静态资源。
  *
  * 路由优先级：
- *  1) 注解式 API（@GetMapping 注册，如 /api/status、/api/ping）→ dispatch；
- *  2) /favicon.ico → 优先本地插件配置目录 web/favicon.ico（磁盘，可热替换），
+ *  1) 网页登录流程（/auth/login、/auth/issue）→ 登录桥处理；
+ *  2) 注解式 API（@GetMapping 注册，如 /api/status、/api/ping）→ dispatch；
+ *  3) /favicon.ico → 优先本地插件配置目录 web/favicon.ico（磁盘，可热替换），
  *     再 jar 内置 /web/favicon.ico，仍缺失才 204 无内容；
- *  3) 插件登记网页（WebRegistry：第三方插件注册，默认 /plugins/&lt;插件名&gt; 前缀）；
- *  4) 静态资源：web.root 磁盘目录（含 .. 穿越防护）→ jar 内置 /web/ → 404。
+ *  4) 插件登记网页（WebRegistry：第三方插件注册，默认 /plugins/&lt;插件名&gt; 前缀；
+ *     支持强制代理、302/301 跳转与 .html 后缀智能匹配）；
+ *  5) 静态资源：web.root 磁盘目录（含 .. 穿越防护）→ jar 内置 /web/ → 404。
+ *     无扩展名路径同时支持带/不带 .html（/login 与 /login.html 等价）。
  */
 public class WebFrontendHandler {
 
@@ -111,10 +114,28 @@ public class WebFrontendHandler {
                     .build();
         }
 
-        // 插件登记网页（第三方插件注册；默认前缀 /plugins/<插件名>，强制代理无前缀）
+        // 插件登记网页（第三方插件注册；默认前缀 /plugins/<插件名>，强制代理无前缀；
+        // 支持跳转（302 Location）与 .html 后缀智能匹配：/login ↔ /login.html 均可命中）
         if (webRegistry != null) {
             WebRegistry.Entry page = webRegistry.resolve(m, cleanPath);
             if (page != null) {
+                if (page.redirectTo != null) {
+                    String loc = page.redirectTo;
+                    String html = "<!doctype html><html lang=zh><head><meta charset=utf-8>"
+                            + "<meta http-equiv=\"refresh\" content=\"0;url=" + escape(loc) + "\">"
+                            + "<title>Redirecting…</title></head>"
+                            + "<body style='font-family:monospace;background:#0a0a12;color:#0ff'>"
+                            + "<p>正在跳转到 <a href=\"" + escape(loc) + "\">" + escape(loc) + "</a>…</p>"
+                            + "</body></html>";
+                    return FrameProto.HttpResponseFrame.newBuilder()
+                            .setStatusCode(page.redirectCode > 0 ? page.redirectCode : 302)
+                            .putHeaders("Location", loc)
+                            .putHeaders("Content-Type", "text/html; charset=utf-8")
+                            .setBody(ByteString.copyFrom(html.getBytes(StandardCharsets.UTF_8)))
+                            .setFragmentIndex(0)
+                            .setTotalFragments(1)
+                            .build();
+                }
                 return FrameProto.HttpResponseFrame.newBuilder()
                         .setStatusCode(200)
                         .putHeaders("Content-Type", page.contentType)
@@ -126,14 +147,11 @@ public class WebFrontendHandler {
         }
 
         // 静态资源
-        // 目录/根路径实际服务 index.html（/ 或 /status 或 /xxx/ 均回退 <dir>/index.html），
-        // Content-Type 必须按实际文件名判定，否则浏览器会下载而非渲染
-        String servedName = cleanPath;
-        if (cleanPath.equals("/") || cleanPath.endsWith("/") || !hasExtension(cleanPath)) {
-            servedName = "index.html";
-        }
-        byte[] content = resolveResource(cleanPath);
-        if (content == null) {
+        // 根/目录回退 index.html；无扩展名路径同时支持 "/login" 与 "/login.html" 两种访问形式
+        // （先试 login.html，再试 login/index.html 目录语义）；Content-Type 按实际命中文件名判定，
+        // 否则浏览器会下载而非渲染
+        Hit hit = resolveResource(cleanPath);
+        if (hit == null) {
             String notFound = "<!doctype html><html><head><meta charset=utf-8>"
                     + "<title>404</title></head><body style='font-family:monospace;background:#0a0a12;color:#0ff'>"
                     + "<h1>404 Not Found</h1><p>HTTP-Over-MC: " + escape(cleanPath) + " 不存在</p></body></html>";
@@ -147,8 +165,8 @@ public class WebFrontendHandler {
         }
         return FrameProto.HttpResponseFrame.newBuilder()
                 .setStatusCode(200)
-                .putHeaders("Content-Type", MimeTypes.forPath(servedName))
-                .setBody(ByteString.copyFrom(content))
+                .putHeaders("Content-Type", MimeTypes.forPath(hit.name))
+                .setBody(ByteString.copyFrom(hit.bytes))
                 .setFragmentIndex(0)
                 .setTotalFragments(1)
                 .build();
@@ -237,28 +255,51 @@ public class WebFrontendHandler {
         return readResource("/web/favicon.ico");
     }
 
-    private byte[] resolveResource(String cleanPath) {
+    /**
+     * 静态资源解析（磁盘 webroot 优先，jar 内置 /web/ 兜底）。
+     * 路径无扩展名时支持两种形式：先试 {@code path.html}（/login → login.html），
+     * 再试 {@code path/index.html}（目录语义）；返回实际命中文件名（Content-Type 判定用）。
+     */
+    private Hit resolveResource(String cleanPath) {
         String relative = cleanPath.startsWith("/") ? cleanPath.substring(1) : cleanPath;
         if (relative.isEmpty()) relative = "index.html";
-        // 无扩展名的路径视为目录：/status、/status/ → status/index.html
-        if (!relative.equals("index.html") && !hasExtension(relative)) {
-            relative = relative.endsWith("/") ? relative + "index.html" : relative + "/index.html";
+        String[] candidates;
+        if (hasExtension(relative) || relative.equals("index.html")) {
+            candidates = new String[]{relative};
+        } else {
+            String base = relative.endsWith("/") ? relative.substring(0, relative.length() - 1) : relative;
+            candidates = new String[]{base + ".html", (base.isEmpty() ? "" : base + "/") + "index.html"};
         }
-
-        // 1) 磁盘 webroot
-        if (webRoot != null) {
-            File f = new File(webRoot, relative);
-            try {
-                if (f.getCanonicalPath().startsWith(webRootCanonical)
-                        && f.isFile() && f.length() <= 16L * 1024 * 1024) {
-                    return readFile(f);
+        for (String c : candidates) {
+            // 1) 磁盘 webroot
+            if (webRoot != null) {
+                File f = new File(webRoot, c);
+                try {
+                    if (f.getCanonicalPath().startsWith(webRootCanonical)
+                            && f.isFile() && f.length() <= 16L * 1024 * 1024) {
+                        return new Hit(c, readFile(f));
+                    }
+                } catch (Exception ignored) {
                 }
-            } catch (Exception ignored) {
+            }
+            // 2) jar 内置 /web/
+            byte[] rb = readResource("/web/" + c);
+            if (rb != null) {
+                return new Hit(c, rb);
             }
         }
+        return null;
+    }
 
-        // 2) jar 内置 /web/
-        return readResource("/web/" + relative);
+    /** 命中的静态资源（文件名 + 字节内容）。 */
+    private static final class Hit {
+        final String name;
+        final byte[] bytes;
+
+        Hit(String name, byte[] bytes) {
+            this.name = name;
+            this.bytes = bytes;
+        }
     }
 
     /** 路径最后一段是否含扩展名（无扩展名视为目录 → 找 index.html） */

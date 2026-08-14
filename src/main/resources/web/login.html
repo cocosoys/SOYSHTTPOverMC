@@ -31,22 +31,6 @@
   .badge { display: inline-block; padding: 1px 8px; margin-left: 6px; border-radius: 10px;
           font-size: 11px; color: #ffd; background: #b5641f; vertical-align: middle; }
   .badge.okb { background: #1f6f3b; color: #dfd; }
-
-  /* ===== 登录弹窗 ===== */
-  #loginMask { position: fixed; inset: 0; background: #000a; display: none;
-               align-items: center; justify-content: center; z-index: 999; }
-  #loginMask.show { display: flex; }
-  .login-card { background: #12121f; border: 1px solid var(--line); border-radius: 14px;
-                width: 340px; padding: 26px 28px; box-shadow: 0 0 32px #1f6feb44; }
-  .login-card h2 { margin: 0 0 4px; font-size: 18px; color: var(--cyan); }
-  .login-card p { margin: 0 0 14px; font-size: 12px; color: var(--dim); }
-  .login-card label { display: block; font-size: 12px; color: #9ab; margin: 10px 0 4px; }
-  .login-card input { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #2a2a40;
-                      background: #0a0a12; color: var(--text); font-size: 14px; }
-  .login-card input:focus { outline: none; border-color: var(--accent); }
-  .login-err { min-height: 18px; margin-top: 8px; font-size: 12px; color: var(--red); }
-  .login-actions { margin-top: 14px; display: flex; gap: 10px; }
-  .login-actions .btn { flex: 1; margin: 0; }
 </style>
 </head>
 <body>
@@ -74,135 +58,9 @@
   </div>
 </main>
 
-<!-- ===== 登录弹窗 ===== -->
-<div id="loginMask">
-  <div class="login-card">
-    <h2>登录</h2>
-    <p>输入玩家名与 AuthMe 密码完成验证，获取访问令牌。</p>
-    <label for="inUser">玩家名</label>
-    <input id="inUser" autocomplete="username" placeholder="游戏内玩家名">
-    <label for="inPass">AuthMe 密码</label>
-    <input id="inPass" type="password" autocomplete="current-password" placeholder="••••••••">
-    <div class="login-err" id="loginErr"></div>
-    <div class="login-actions">
-      <button class="btn ghost" onclick="SoysAuth.closeLogin()">取消</button>
-      <button class="btn" onclick="SoysAuth.submitLogin()">登录</button>
-    </div>
-  </div>
-</div>
-
+<script src="/soys-auth.js"></script>
 <script>
-(function () {
-  'use strict';
-
-  var TOKEN_KEY = 'soys_token';
-  var COOKIE_KEY = 'soys_session';
-
-  function getToken() {
-    try { return localStorage.getItem(TOKEN_KEY) || ''; } catch (e) { return ''; }
-  }
-  function setToken(t) {
-    try {
-      if (t) {
-        localStorage.setItem(TOKEN_KEY, t);
-        document.cookie = COOKIE_KEY + '=' + t + '; path=/';
-      } else {
-        localStorage.removeItem(TOKEN_KEY);
-        document.cookie = COOKIE_KEY + '=; path=/; max-age=0';
-      }
-    } catch (e) {}
-  }
-
-  /** 统一请求：自动带 Bearer 令牌；返回 {status, code, msg, data}。 */
-  function request(path, opts) {
-    opts = opts || {};
-    var headers = opts.headers || {};
-    var token = getToken();
-    if (token) headers['Authorization'] = 'Bearer ' + token;
-    if (opts.json) { headers['Content-Type'] = 'application/json'; }
-    return fetch(path, { method: opts.method || 'GET', headers: headers, body: opts.body || undefined })
-      .then(function (resp) {
-        return resp.text().then(function (text) {
-          var body = null;
-          try { body = JSON.parse(text); } catch (e) {}
-          var code = body && typeof body.code === 'number' ? body.code : resp.status;
-          var msg = (body && body.msg) || text || ('HTTP ' + resp.status);
-          var data = body ? body.data : null;
-          return { status: resp.status, code: code, msg: msg, data: data };
-        });
-      });
-  }
-
-  /** 遇 401/403 → 弹登录窗口 → 登录成功后重试一次（登录窗口的核心机制）。 */
-  function authFetch(path, opts) {
-    return request(path, opts).then(function (r) {
-      if (r.code === 401 || r.code === 403) {
-        return openLogin().then(function (ok) {
-          if (!ok) throw new Error('未登录或已取消登录: ' + r.msg);
-          return request(path, opts); // 登录成功后重试原请求
-        });
-      }
-      return r;
-    });
-  }
-
-  /** 打开登录窗口，返回 Promise：登录成功 resolve(true)，取消 resolve(false)。 */
-  function openLogin() {
-    document.getElementById('loginErr').textContent = '';
-    var mask = document.getElementById('loginMask');
-    mask.classList.add('show');
-    setTimeout(function () { document.getElementById('inUser').focus(); }, 50);
-    return new Promise(function (resolve) {
-      SoysAuth._resolve = resolve; // submitLogin / closeLogin 使用
-    });
-  }
-  function closeLogin() {
-    document.getElementById('loginMask').classList.remove('show');
-    if (SoysAuth._resolve) { var r = SoysAuth._resolve; SoysAuth._resolve = null; r(false); }
-  }
-  function submitLogin() {
-    var user = document.getElementById('inUser').value.trim();
-    var pass = document.getElementById('inPass').value;
-    var errEl = document.getElementById('loginErr');
-    if (!user || !pass) { errEl.textContent = '请输入玩家名和密码'; return; }
-    request('/api/auth/login', { method: 'POST', json: true,
-      body: JSON.stringify({ username: user, password: pass }) }).then(function (r) {
-      if (r.code === 200 && r.data && r.data.token) {
-        setToken(r.data.token);
-        document.getElementById('inPass').value = '';
-        document.getElementById('loginMask').classList.remove('show');
-        var done = SoysAuth._resolve; SoysAuth._resolve = null;
-        if (done) done(true);
-        var modeTag = r.data.mode === 'offline' ? '（离线模式登录，进游戏登录后自动升级为在线令牌）' : '（在线登录）';
-        showResult('登录成功：' + (r.data.player || user) + modeTag, true);
-        refreshMe();
-      } else {
-        errEl.textContent = r.msg || '登录失败';
-      }
-    }).catch(function (e) {
-      errEl.textContent = '登录失败: ' + (e && e.message ? e.message : e);
-    });
-  }
-
-  function showResult(text, ok) {
-    var el = document.getElementById('result');
-    el.className = ok ? 'ok' : 'err';
-    el.textContent = text;
-  }
-
-  window.SoysAuth = {
-    getToken: getToken,
-    setToken: setToken,
-    request: request,
-    authFetch: authFetch,
-    openLogin: openLogin,
-    closeLogin: closeLogin,
-    submitLogin: submitLogin,
-    _resolve: null
-  };
-})();
-
-function refreshMe() {
+  function refreshMe() {
   SoysAuth.request('/api/auth/me').then(function (r) {
     var info = document.getElementById('meInfo');
     if (r.code === 200 && r.data) {
@@ -238,17 +96,18 @@ function doLogout() {
   }).catch(function (e) { showResult('退出失败: ' + e, false); });
 }
 
+function showResult(text, ok) {
+  var el = document.getElementById('result');
+  el.className = ok ? 'ok' : 'err';
+  el.textContent = text;
+}
+
 function escapeHtml(s) {
   return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
-document.getElementById('loginMask').addEventListener('click', function (e) {
-  if (e.target === this) SoysAuth.closeLogin();
-});
-document.addEventListener('keydown', function (e) {
-  if (e.key === 'Escape') SoysAuth.closeLogin();
-  if (e.key === 'Enter' && document.getElementById('loginMask').classList.contains('show')) SoysAuth.submitLogin();
-});
+// 登录成功回调：刷新登录信息区
+SoysAuth.onLoginSuccess = function () { refreshMe(); };
 refreshMe();
 </script>
 </body>

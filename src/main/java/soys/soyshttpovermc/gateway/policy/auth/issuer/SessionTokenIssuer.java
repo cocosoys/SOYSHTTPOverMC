@@ -1,7 +1,7 @@
 package soys.soyshttpovermc.gateway.policy.auth.issuer;
 
 import org.bukkit.configuration.ConfigurationSection;
-import soys.soyshttpovermc.gateway.policy.auth.AuthUtils;
+import soys.soyshttpovermc.gateway.policy.auth.util.AuthUtils;
 
 import java.util.concurrent.ConcurrentHashMap;
 

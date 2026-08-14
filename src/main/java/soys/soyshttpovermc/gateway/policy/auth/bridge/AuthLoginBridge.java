@@ -1,12 +1,13 @@
-package soys.soyshttpovermc.auth;
+package soys.soyshttpovermc.gateway.policy.auth.bridge;
 
-import soys.soyshttpovermc.gateway.policy.auth.AuthUtils;
+import soys.soyshttpovermc.gateway.policy.auth.util.AuthUtils;
 import soys.soyshttpovermc.gateway.policy.auth.issuer.CredentialPresentation;
 import soys.soyshttpovermc.gateway.policy.auth.issuer.IssuedCredential;
 import soys.soyshttpovermc.gateway.policy.auth.issuer.SessionTokenIssuer;
 import soys.soyshttpovermc.gateway.policy.login.DefaultLoginModePolicy;
 import soys.soyshttpovermc.gateway.policy.login.LoginMode;
 import soys.soyshttpovermc.gateway.policy.login.LoginModePolicy;
+import soys.soyshttpovermc.gateway.policy.auth.bridge.spi.LoginProvider;
 import soys.soyshttpovermc.proto.FrameProto;
 
 import com.google.protobuf.ByteString;
@@ -14,18 +15,17 @@ import com.google.protobuf.ByteString;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.function.BiFunction;
 
 /**
- * AuthMe 网页登录桥（AuthMe 无关，密码校验器由外部注入）：
+ * 网页登录桥（登录插件无关，密码校验由 {@link LoginProvider} SPI 提供，如 AuthMe）：
  * <ul>
- *   <li>玩家游戏内登录成功时，{@link AuthMeAutoIssuer} 调用 {@link #storeToken} 登记 players→token，
- *       并 {@link #mintTicket} 生成一次性登录票据；</li>
- *   <li>浏览器访问 {@link #serveLoginPage}（/auth/login?ticket=...）渲染 AuthMe 账号密码表单；</li>
- *   <li>浏览器提交密码（POST /auth/issue），{@link #issue} 经注入的校验器验证 AuthMe 密码，
+ *   <li>玩家游戏内登录成功时，登录插件提供者（AuthMeLoginProvider 等）调用 {@link #storeToken}
+ *       登记 players→token，并 {@link #mintTicket} 生成一次性登录票据；</li>
+ *   <li>浏览器访问 {@link #serveLoginPage}（/auth/login?ticket=...）渲染账号密码表单；</li>
+ *   <li>浏览器提交密码（POST /auth/issue），{@link #issue} 经登录插件提供者验证密码，
  *       验证通过后将已登记的会话令牌以 {@code Set-Cookie} 交给浏览器（仅此一次暴露令牌）。</li>
  * </ul>
- * 设计：即使登录链接被截获，攻击者也必须知道该玩家的 AuthMe 密码才能换取 Cookie；令牌仅在密码
+ * 设计：即使登录链接被截获，攻击者也必须知道该玩家的登录密码才能换取 Cookie；令牌仅在密码
  * 验证通过后才下发。票据一次性（使用即销毁）。
  *
  * <p>登录模式（{@link LoginModePolicy}）：玩家在线 → 签发 ONLINE 令牌（完整镜像权限）；
@@ -34,8 +34,8 @@ import java.util.function.BiFunction;
 public class AuthLoginBridge {
 
     private final SessionTokenIssuer issuer;
-    /** 密码校验器（由 AuthMeAutoIssuer 注入 AuthMeApi.checkPassword）；null=AuthMe 未安装。 */
-    private volatile BiFunction<String, String, Boolean> passwordVerifier;
+    /** 登录插件提供者（AuthMe 等，负责纯账号密码校验）；null=未接入登录插件。 */
+    private volatile LoginProvider loginProvider;
     /** 登录模式策略（决定在线/离线签发）；默认允许离线登录。 */
     private volatile LoginModePolicy loginModePolicy = new DefaultLoginModePolicy();
 
@@ -48,9 +48,14 @@ public class AuthLoginBridge {
         this.issuer = issuer;
     }
 
-    /** 由 AuthMeAutoIssuer 注入密码校验器（AuthMeApi.checkPassword）。 */
-    public void setPasswordVerifier(BiFunction<String, String, Boolean> verifier) {
-        this.passwordVerifier = verifier;
+    /** 绑定登录插件提供者（bridge 创建/重建后由网关调用；幂等）。 */
+    public void setLoginProvider(LoginProvider provider) {
+        this.loginProvider = provider;
+    }
+
+    /** 当前登录插件提供者（null=未接入）。 */
+    public LoginProvider getLoginProvider() {
+        return loginProvider;
     }
 
     /** 替换登录模式策略（服务端可定制离线登录许可 / 模式判定）。 */
@@ -108,12 +113,12 @@ public class AuthLoginBridge {
         return issuer.upgradePlayerToOnline(player);
     }
 
-    /** 校验玩家 AuthMe 密码（注入的校验器为 null 即 AuthMe 未安装 → false）。 */
+    /** 校验玩家登录插件密码（未接入提供者 → false）。纯账号密码校验，不要求玩家在线。 */
     public boolean verifyPassword(String player, String password) {
-        BiFunction<String, String, Boolean> verifier = passwordVerifier;
-        if (verifier == null) return false;
+        LoginProvider provider = loginProvider;
+        if (provider == null) return false;
         try {
-            return Boolean.TRUE.equals(verifier.apply(player, password));
+            return provider.verifyPassword(player, password);
         } catch (Throwable t) {
             return false;
         }
@@ -159,12 +164,12 @@ public class AuthLoginBridge {
         if (player == null) {
             return errorPage(400, "登录票据无效或已使用，请重新登录游戏以获取新的网页登录链接");
         }
-        if (passwordVerifier == null) {
-            return errorPage(503, "AuthMe 未安装，无法验证密码（请确认服务器已加载 AuthMe 插件）");
+        if (loginProvider == null) {
+            return errorPage(503, "未接入登录插件，无法验证密码（请确认服务器已加载 AuthMe 等登录插件）");
         }
         boolean ok;
         try {
-            ok = Boolean.TRUE.equals(passwordVerifier.apply(player, password));
+            ok = loginProvider.verifyPassword(player, password);
         } catch (Throwable t) {
             ok = false;
         }

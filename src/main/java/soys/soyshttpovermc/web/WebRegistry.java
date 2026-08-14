@@ -24,9 +24,13 @@ import java.util.concurrent.ConcurrentHashMap;
  *       → 实际访问地址 {@code /plugins/Foo/dashboard}；</li>
  *   <li><b>强制代理（无前缀）</b>：调用 {@code registerProxyPage} / {@code registerProxyResource}，
  *       以主插件 SOYSHTTPOverMC 名义代理登记，不加 {@code /plugins/<插件名>} 前缀
- *       （例如 {@code /dashboard}）；ownerPlugin 仍标记为真实插件，故插件卸载时仍会一并清理；</li>
+ *       （例如 {@code /dashboard}）；ownerPlugin 仍标记为真实插件，故插件卸载时仍会一并清理；
+ *       {@code registerHome} 可强制覆盖内置首页 {@code /}；</li>
+ *   <li><b>跳转</b>：{@code registerRedirect} / {@code registerProxyRedirect} 登记 302/301 跳转，
+ *       访问 A 网址时浏览器自动跳转到 B 网址（可跳转站内路径或站外 URL）；</li>
  *   <li><b>内容来源</b>：{@code registerPage} 直接提供字节内容；{@code registerResource} 提供插件自有
- *       jar 内的资源路径（按需读取，省内存）；二者均按原始路径扩展名推断 Content-Type（可显式覆盖）；</li>
+ *       jar 内的资源路径（按需读取，省内存）；二者均按原始路径扩展名推断 Content-Type（可显式覆盖）；
+ *       <b>.html 后缀智能匹配</b>：注册 {@code /login} 后，{@code /login} 与 {@code /login.html} 均可访问；</li>
  *   <li><b>生命周期</b>：插件被禁用时（{@code PluginDisableEvent}）网关自动卸载其名下全部网页，
  *       亦可调用 {@link #unregisterPlugin(String)} 显式卸载。</li>
  * </ul>
@@ -86,12 +90,70 @@ public class WebRegistry {
         registerRes(owner, path, resourceClassLoader, resourcePath, contentType, true);
     }
 
+    /**
+     * 强制代理首页：以主插件名义覆盖内置门户首页 {@code /}（第三方自制首页）。
+     * 等价于 {@code registerProxyPage(owner, "/", content, contentType)}；WebRegistry 路由先于内置静态资源命中。
+     */
+    public void registerHome(Plugin owner, byte[] content) {
+        registerHome(owner, content, "text/html; charset=utf-8");
+    }
+
+    /** 强制代理首页（显式 Content-Type）。 */
+    public void registerHome(Plugin owner, byte[] content, String contentType) {
+        registerProxyPage(owner, "/", content, contentType);
+    }
+
+    // ===== 跳转登记（A 网址 → B 网址，302/301） =====
+
+    /** 登记跳转（默认 302，路径自动补 /plugins/<插件名> 前缀）。访问 A 时浏览器自动跳转到 B。 */
+    public void registerRedirect(Plugin owner, String fromPath, String toPath) {
+        registerRedirect(owner, fromPath, toPath, false, 302);
+    }
+
+    /** 登记跳转（显式状态码 301/302 等）。 */
+    public void registerRedirect(Plugin owner, String fromPath, String toPath, int statusCode) {
+        registerRedirect(owner, fromPath, toPath, false, statusCode);
+    }
+
+    /** 强制代理跳转（无 /plugins/<插件名> 前缀；默认 302）。 */
+    public void registerProxyRedirect(Plugin owner, String fromPath, String toPath) {
+        registerRedirect(owner, fromPath, toPath, true, 302);
+    }
+
+    /** 强制代理跳转（显式状态码）。 */
+    public void registerProxyRedirect(Plugin owner, String fromPath, String toPath, int statusCode) {
+        registerRedirect(owner, fromPath, toPath, true, statusCode);
+    }
+
+    /** 内部：登记跳转项。 */
+    private void registerRedirect(Plugin owner, String fromPath, String toPath, boolean proxy, int statusCode) {
+        if (fromPath == null || toPath == null) return;
+        String ownerName = owner == null ? null : owner.getName();
+        String full = resolvePath(ownerName, fromPath, proxy);
+        pages.put("GET " + full, new Entry(ownerName, full, null, null, null, null, toPath, statusCode));
+        LogKit.info("[HTTP-Over-MC] 登记跳转: GET " + full + " → " + toPath + " (" + statusCode + ")"
+                + " 插件=" + ownerName + (proxy ? " (代理无前缀)" : ""));
+    }
+
     // ===== 解析 / 卸载 =====
 
-    /** 按方法 + 路径解析已登记网页；未命中返回 null */
+    /**
+     * 按方法 + 路径解析已登记网页；未命中返回 null。
+     * 支持 .html 后缀智能匹配：注册 /login 后，访问 /login 与 /login.html 均可命中（反之亦然）。
+     */
     public Entry resolve(String httpMethod, String cleanPath) {
         String method = httpMethod == null ? "GET" : httpMethod.toUpperCase();
-        return pages.get(method + " " + cleanPath);
+        if (cleanPath == null) return null;
+        Entry e = pages.get(method + " " + cleanPath);
+        if (e != null) return e;
+        // .html 兼容：/login ↔ /login.html
+        if (cleanPath.indexOf('.') < 0) {
+            return pages.get(method + " " + cleanPath + ".html");
+        }
+        if (cleanPath.endsWith(".html") && cleanPath.length() > 5) {
+            return pages.get(method + " " + cleanPath.substring(0, cleanPath.length() - 5));
+        }
+        return null;
     }
 
     /** 卸载指定插件名登记的全部网页（监听 PluginDisableEvent 时调用） */
@@ -122,7 +184,7 @@ public class WebRegistry {
         String ownerName = owner == null ? null : owner.getName();
         String full = resolvePath(ownerName, path, proxy);
         String ct = (contentType == null || contentType.isEmpty()) ? MimeTypes.forPath(path) : contentType;
-        pages.put("GET " + full, new Entry(ownerName, full, ct, content, null, null));
+        pages.put("GET " + full, new Entry(ownerName, full, ct, content, null, null, null, 0));
         LogKit.info("[HTTP-Over-MC] 登记网页: GET " + full + " 插件=" + ownerName + (proxy ? " (代理无前缀)" : ""));
     }
 
@@ -131,7 +193,7 @@ public class WebRegistry {
         String ownerName = owner == null ? null : owner.getName();
         String full = resolvePath(ownerName, path, proxy);
         String ct = (contentType == null || contentType.isEmpty()) ? MimeTypes.forPath(path) : contentType;
-        pages.put("GET " + full, new Entry(ownerName, full, ct, null, cl, resource));
+        pages.put("GET " + full, new Entry(ownerName, full, ct, null, cl, resource, null, 0));
         LogKit.info("[HTTP-Over-MC] 登记网页(资源): GET " + full + " 插件=" + ownerName + (proxy ? " (代理无前缀)" : ""));
     }
 
@@ -144,22 +206,27 @@ public class WebRegistry {
         return p;
     }
 
-    /** 登记项：保存来源与元数据，按需解析字节内容 */
+    /** 登记项：保存来源与元数据，按需解析字节内容；redirectTo 非空时表示跳转。 */
     public static final class Entry {
         public final String ownerPlugin;
         public final String path;
         public final String contentType;
+        public final String redirectTo;    // 非空 = 跳转目标（Location）
+        public final int redirectCode;     // 302 / 301 ...
         private final byte[] content;       // 直接内容（优先）
         private final ClassLoader resCl;     // 资源类加载器（按需读 jar 内资源）
         private final String resource;
 
-        Entry(String ownerPlugin, String path, String contentType, byte[] content, ClassLoader resCl, String resource) {
+        Entry(String ownerPlugin, String path, String contentType, byte[] content,
+              ClassLoader resCl, String resource, String redirectTo, int redirectCode) {
             this.ownerPlugin = ownerPlugin;
             this.path = path;
             this.contentType = contentType;
             this.content = content;
             this.resCl = resCl;
             this.resource = resource;
+            this.redirectTo = redirectTo;
+            this.redirectCode = redirectCode;
         }
 
         public byte[] resolveBytes() {

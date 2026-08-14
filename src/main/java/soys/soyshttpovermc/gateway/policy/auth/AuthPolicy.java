@@ -1,9 +1,9 @@
 package soys.soyshttpovermc.gateway.policy.auth;
 
 import org.bukkit.configuration.ConfigurationSection;
-import soys.soyshttpovermc.log.LogKit;
 import soys.soyshttpovermc.gateway.*;
 import soys.soyshttpovermc.gateway.policy.auth.issuer.CredentialIssuer;
+import soys.soyshttpovermc.gateway.policy.auth.util.AuthUtils;
 
 import java.util.ArrayList;
 import java.util.HashSet;

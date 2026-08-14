@@ -35,10 +35,12 @@ import soys.soyshttpovermc.mc.RequestScheduler;
 import soys.soyshttpovermc.mc.SocketSniffer;
 import soys.soyshttpovermc.web.RequestStats;
 import soys.soyshttpovermc.web.WebFrontendHandler;
-import soys.soyshttpovermc.auth.AuthLoginBridge;
-import soys.soyshttpovermc.auth.AuthMeAutoIssuer;
-import soys.soyshttpovermc.auth.AuthMeBotIntegrator;
-import soys.soyshttpovermc.auth.PlayerPermissionService;
+import soys.soyshttpovermc.gateway.policy.auth.bridge.AuthLoginBridge;
+import soys.soyshttpovermc.gateway.policy.auth.bridge.provider.AuthMeLoginProvider;
+import soys.soyshttpovermc.permission.PlayerPermissionService;
+import soys.soyshttpovermc.gateway.policy.auth.bridge.spi.LoginProvider;
+import soys.soyshttpovermc.gateway.policy.auth.bridge.spi.LoginProviderContext;
+import soys.soyshttpovermc.gateway.policy.auth.bridge.spi.LoginProviderFactory;
 import soys.soyshttpovermc.gateway.policy.auth.issuer.CredentialIssuer;
 import soys.soyshttpovermc.gateway.policy.auth.issuer.SessionTokenIssuer;
 
@@ -72,12 +74,10 @@ public class HttpOverMcPlugin extends JavaPlugin {
     private int mcPort;
     private boolean snifferEnabled;
     private int maxBody;
-    /** AuthMe 网页登录桥（session-token 颁发器启用时创建；null=未启用） */
+    /** 网页登录桥（session-token 颁发器启用时创建；null=未启用） */
     private AuthLoginBridge authLoginBridge;
-    /** AuthMe 软依赖接入器（AuthMe 已加载时创建；null=未安装 AuthMe） */
-    private AuthMeAutoIssuer authMeAutoIssuer;
-    /** AuthMe 免登录集成器（受管 Bot 进服自动 forceLogin，不写 AuthMe 配置） */
-    private AuthMeBotIntegrator authMeBotIntegrator;
+    /** 当前激活的登录插件提供者（AuthMe 等，经 LoginProviderFactory 选取；null=未接入） */
+    private volatile LoginProvider loginProvider;
     /** 前端处理器（/soyshttp reload 后向其热替换登录桥） */
     private WebFrontendHandler webFrontend;
     /** 登录窗口认证服务（/soyshttp reload 后向其热替换登录桥） */
@@ -118,7 +118,7 @@ public class HttpOverMcPlugin extends JavaPlugin {
         return tlsFactory != null;
     }
 
-    /** 当前 AuthMe 网页登录桥（供 AuthMeAutoIssuer 动态获取，null=未启用 session-token）。 */
+    /** 当前网页登录桥（供登录插件提供者动态获取，null=未启用 session-token）。 */
     public AuthLoginBridge getAuthLoginBridge() {
         return authLoginBridge;
     }
@@ -139,6 +139,11 @@ public class HttpOverMcPlugin extends JavaPlugin {
         // 2) 生成 gateway/ 默认配置 + 解析前端资源目录（留空解压 jar 内置面板到配置目录 web/）
         File gatewayDir = ConfigManager.ensureGatewayFiles(this);
         File webRoot = ConfigManager.resolveWebRoot(this, getFile(), getConfig().getString("web.root", ""));
+        // 2.5) 登录插件抽象工厂：配置上下文 + 注册软依赖提供者（AuthMe 存在才加载其 SPI 类，防 NoClassDefFoundError）
+        LoginProviderFactory.configure(new LoginProviderContext(this));
+        if (getServer().getPluginManager().getPlugin("AuthMe") != null) {
+            LoginProviderFactory.register(new AuthMeLoginProvider());
+        }
         // 3) 日志门面 + 级别过滤（config.yml 的 log.level，/soyshttp reload 热重载）
         LogKit.init(log, getConfig().getString("log.level", "INFO"));
         // 4) 安全网关（独立配置目录 gateway/）+ TLS 上下文（25564 就地升级，无独立端口）
@@ -223,12 +228,13 @@ public class HttpOverMcPlugin extends JavaPlugin {
     }
 
     /**
-     * 装配 AuthMe 网页登录接入（软依赖）：
+     * 装配网页登录接入（登录插件 SPI）：
      * <ul>
      *   <li>找到已启用的 session-token 颁发器；未启用则整条流程不启用（提示在 session-token.yml 开启）；</li>
-     *   <li>创建 {@link AuthLoginBridge}（AuthMe 无关的密码校验桥）；</li>
-     *   <li>若 AuthMe 插件已加载，则创建 {@link AuthMeAutoIssuer}（监听 LoginEvent 自动签发并发送链接）；
-     *       否则仅提示 AuthMe 未安装（session-token 仍可经 /soyshttp key 下发）。</li>
+     *   <li>创建 {@link AuthLoginBridge}（登录插件无关的密码校验桥）；</li>
+     *   <li>经 {@link LoginProviderFactory#active()} 取当前可用的登录插件提供者（AuthMe 等），
+     *       init 注册事件监听/初始化底层句柄，并立即 bind 到 bridge（离线网页登录不依赖真实玩家登录事件）；
+     *       无提供者则仅提示（session-token 仍可经 /soyshttp key 下发）。</li>
      * </ul>
      * 本方法必须在 {@link #rebuildGateway} 之后调用（颁发器列表来自网关）。
      */
@@ -243,27 +249,27 @@ public class HttpOverMcPlugin extends JavaPlugin {
             }
         }
         if (issuer == null) {
-            LogKit.info("[HTTP-Over-MC] 未启用 session-token 颁发器，AuthMe 网页登录流程未启用"
+            LogKit.info("[HTTP-Over-MC] 未启用 session-token 颁发器，网页登录流程未启用"
                     + "（如需启用，请在 gateway/issuers/session-token.yml 设 enabled: true）");
             return;
         }
         authLoginBridge = new AuthLoginBridge(issuer);
-        if (getServer().getPluginManager().getPlugin("AuthMe") != null) {
-            if (authMeAutoIssuer == null) {
-                // 仅首次创建（AuthMeAutoIssuer 内部动态取 plugin.getAuthLoginBridge()，reload 重建桥无需重建监听器）
-                authMeAutoIssuer = new AuthMeAutoIssuer(this);
-            }
-            // 立即绑定密码校验器：离线网页登录不依赖真实玩家 LoginEvent，必须随 bridge 创建/重建即绑定，
-            // 否则服务器从未有真实玩家登录时校验器为 null，所有 /api/auth/login 误报"账号或密码错误"
-            authMeAutoIssuer.bindTo(authLoginBridge);
-            if (authMeBotIntegrator == null) {
-                // 免登录热装填：受管 Bot 进服自动 forceLogin，不写 AuthMe 配置文件；仅创建一次
-                authMeBotIntegrator = new AuthMeBotIntegrator(this);
-            }
-        } else {
-            LogKit.info("[HTTP-Over-MC] 未检测到 AuthMe 插件（softdepend）：AuthMe 密码二次验证不可用；"
+
+        // 登录插件抽象工厂：取当前可用的登录插件提供者（AuthMe 等；主线程调用，isAvailable 访问插件管理器）
+        loginProvider = LoginProviderFactory.active();
+        if (loginProvider == null) {
+            LogKit.info("[HTTP-Over-MC] 未检测到已接入的登录插件（AuthMe 等）：网页登录密码校验不可用；"
                     + "session-token 仍可经 /soyshttp key <subject> 下发");
+            return;
         }
+        LoginProviderContext ctx = LoginProviderFactory.context();
+        if (ctx != null) {
+            loginProvider.init(ctx); // 幂等：注册事件监听 + 主线程初始化底层句柄（仅首次执行）
+        }
+        // 立即绑定校验器：离线网页登录不依赖真实玩家登录事件，必须随 bridge 创建/重建即绑定
+        loginProvider.bind(authLoginBridge);
+        LogKit.info("[HTTP-Over-MC] 登录插件已接入: " + loginProvider.name()
+                + "（" + loginProvider.displayName() + "），网页登录密码校验可用");
     }
 
     /** 启动无头 Bot 回环连接本服（目标即 Spigot 监听端口），并装配 McLink 隧道。
@@ -394,9 +400,9 @@ public class HttpOverMcPlugin extends JavaPlugin {
 
     @Override
     public void onDisable() {
-        if (authMeBotIntegrator != null) {
-            try { authMeBotIntegrator.unregisterAll(); } catch (Throwable ignored) {}
-        }
+        // 关闭全部登录插件提供者（AuthMe 免登录名单内存清理等）
+        LoginProviderFactory.shutdownAll();
+        loginProvider = null;
         if (sniffer != null) {
             sniffer.uninstall();
         }

@@ -7,7 +7,7 @@ import soys.soyshttpovermc.api.event.ApiInfo;
 import soys.soyshttpovermc.api.event.ApiRegisteredEvent;
 import soys.soyshttpovermc.api.event.ApiUnregisteredEvent;
 import soys.soyshttpovermc.util.AjaxResult;
-import soys.soyshttpovermc.gateway.policy.auth.AuthUtils;
+import soys.soyshttpovermc.gateway.policy.auth.util.AuthUtils;
 import soys.soyshttpovermc.gateway.policy.auth.issuer.CredentialPresentation;
 
 import org.bukkit.Bukkit;

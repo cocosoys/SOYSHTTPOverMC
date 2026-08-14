@@ -1,4 +1,4 @@
-package soys.soyshttpovermc.auth;
+package soys.soyshttpovermc.permission;
 
 import soys.soyshttpovermc.annotations.PermissionService;
 import soys.soyshttpovermc.gateway.GatewayFilter;

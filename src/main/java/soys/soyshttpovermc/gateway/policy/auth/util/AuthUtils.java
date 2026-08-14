@@ -1,4 +1,4 @@
-package soys.soyshttpovermc.gateway.policy.auth;
+package soys.soyshttpovermc.gateway.policy.auth.util;
 
 import soys.soyshttpovermc.gateway.Credential;
 import soys.soyshttpovermc.gateway.policy.auth.issuer.CredentialIssuer;
@@ -10,7 +10,6 @@ import java.security.SecureRandom;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 

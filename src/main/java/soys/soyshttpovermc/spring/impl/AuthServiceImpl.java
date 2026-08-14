@@ -1,6 +1,6 @@
 package soys.soyshttpovermc.spring.impl;
 
-import soys.soyshttpovermc.auth.AuthLoginBridge;
+import soys.soyshttpovermc.gateway.policy.auth.bridge.AuthLoginBridge;
 import soys.soyshttpovermc.gateway.policy.auth.issuer.CredentialPresentation;
 import soys.soyshttpovermc.spring.service.IAuthService;
 import soys.soyshttpovermc.util.AjaxResult;

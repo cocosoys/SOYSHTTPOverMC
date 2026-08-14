@@ -77,6 +77,16 @@
   }
   .btn-ghost:hover{background:rgba(255,43,214,.16); transform:translateY(-2px)}
   .btn .kbd{font-family:Consolas,Menlo,monospace; font-size:12px; opacity:.9}
+  /* ===== 右上角登录按钮 ===== */
+  .btn-mini{
+    margin-left:8px; padding:7px 16px; font-size:13px; border-radius:8px; cursor:pointer;
+    color:#04121a; background:linear-gradient(135deg,var(--neon),#37d5ff);
+    border:1px solid var(--neon); font-family:inherit; font-weight:700; letter-spacing:1px;
+    transition:.2s; white-space:nowrap;
+  }
+  .btn-mini:hover{box-shadow:0 0 18px rgba(0,240,255,.6)}
+  .btn-mini.ghost{color:var(--neon); background:transparent; border-color:rgba(0,240,255,.4)}
+  .btn-mini.off{color:var(--dim); background:transparent; border-color:var(--line)}
   .toast{
     position:fixed; left:50%; bottom:34px; transform:translateX(-50%) translateY(80px);
     background:#0d1024; border:1px solid var(--neon); color:var(--neon); border-radius:8px;
@@ -148,6 +158,7 @@
         <a href="#features">特性</a>
         <a href="#server">服务器信息</a>
       </div>
+      <button class="btn-mini ghost" id="navLogin">登录</button>
     </nav>
   </div>
 </header>
@@ -213,6 +224,7 @@
 
 <div class="toast" id="toast"></div>
 
+<script src="/soys-auth.js"></script>
 <script>
 const $ = id => document.getElementById(id);
 function toast(msg){
@@ -253,6 +265,45 @@ $('copyIp').onclick = async ()=>{
     toast('复制失败，请手动输入: ' + ip);
   }
 };
+
+// ===== 右上角登录按钮（登录弹窗由 /soys-auth.js 公共组件提供）=====
+const navLogin = $('navLogin');
+function refreshLoginBtn(){
+  if(!SoysAuth.getToken()){
+    navLogin.textContent = '登录';
+    navLogin.className = 'btn-mini ghost';
+    return;
+  }
+  SoysAuth.request('/api/auth/me').then(r=>{
+    if(r.code === 200 && r.data && r.data.player){
+      const tag = r.data.mode === 'offline' ? '（离线）' : '';
+      navLogin.textContent = r.data.player + tag;
+      navLogin.className = 'btn-mini off';
+    }else{
+      SoysAuth.setToken(null);
+      navLogin.textContent = '登录';
+      navLogin.className = 'btn-mini ghost';
+    }
+  }).catch(()=>{
+    navLogin.textContent = '登录';
+    navLogin.className = 'btn-mini ghost';
+  });
+}
+navLogin.onclick = ()=>{
+  if(SoysAuth.getToken()){
+    if(!confirm('退出登录：' + navLogin.textContent.replace(/（离线）$/, '') + ' ？')) return;
+    SoysAuth.request('/api/auth/logout', {method:'POST'}).then(()=>{
+      SoysAuth.setToken(null);
+      refreshLoginBtn();
+      toast('已退出登录');
+    });
+  }else{
+    SoysAuth.openLogin(); // 弹出登录窗口
+  }
+};
+SoysAuth.onLoginSuccess = ()=>{ refreshLoginBtn(); toast('登录成功'); };
+SoysAuth.patchFetch(); // 全局：页面任何受保护请求返回 401/403 自动弹出登录窗并重试
+refreshLoginBtn();
 probe();
 setInterval(probe, 10000);
 </script>
