@@ -14,6 +14,7 @@ import org.bukkit.plugin.java.JavaPlugin;
 import soys.soyshttpovermc.api.SoysHttpOverMcApi;
 import soys.soyshttpovermc.api.impl.SoysHttpOverMcApiImpl;
 import soys.soyshttpovermc.bot.BotManager;
+import soys.soyshttpovermc.web.NavRegistry;
 import soys.soyshttpovermc.web.WebRegistry;
 import soys.soyshttpovermc.spring.controller.StatusController;
 import soys.soyshttpovermc.spring.controller.SystemController;
@@ -67,6 +68,7 @@ public class HttpOverMcPlugin extends JavaPlugin {
     private TlsContextFactory tlsFactory;
     private ApiRegistry apiRegistry;
     private WebRegistry webRegistry;
+    private NavRegistry navRegistry;
     private SoysHttpOverMcApi api;
     private GatewayEventListener gatewayEventListener;
     /** 请求分配规则控制器：决定请求进入哪个逻辑队列（tier） */
@@ -114,6 +116,11 @@ public class HttpOverMcPlugin extends JavaPlugin {
     /** 网页登记处：其他插件登记新网页（默认 /plugins/<插件名> 前缀，registerProxy* 可强制无前缀） */
     public WebRegistry getWebRegistry() {
         return webRegistry;
+    }
+
+    /** 门户导航登记处：其他插件登记导航项到门户首页 */
+    public NavRegistry getNavRegistry() {
+        return navRegistry;
     }
 
     /** 网关策略链（含已启用的凭证颁发器） */
@@ -169,7 +176,7 @@ public class HttpOverMcPlugin extends JavaPlugin {
         }
         // 3) 日志门面 + 级别过滤（config.yml 的 log.level，/soyshttp reload 热重载）
         LogKit.init(log, getConfig().getString("log.level", "INFO"));
-        // 4) 安全网关（独立配置目录 gateway/）+ TLS 上下文（25564 就地升级，无独立端口）
+        // 4) 安全网关（独立配置目录 gateway/）+ TLS 上下文（MC 端口就地升级，无独立端口）
         rebuildGateway(gatewayDir, log);
         // 4.5) AuthMe 网页登录接入（软依赖）：session-token 启用时建桥，AuthMe 在则建监听
         setupAuthIntegration();
@@ -292,12 +299,14 @@ public class HttpOverMcPlugin extends JavaPlugin {
 
         // 网页登记处：第三方插件登记新网页（默认 /plugins/<插件名> 前缀）
         webRegistry = new WebRegistry(this.getName());
+        // 门户导航登记处：第三方插件把自己的页面登记到门户首页导航条
+        navRegistry = new NavRegistry();
 
         // 事件监听器：网关事件调试日志 + 插件卸载自动卸载其名下全部注解式 API / 网页
         gatewayEventListener = new GatewayEventListener();
         gatewayEventListener.setDebugEnabled(debugEventsEnabled);
         getServer().getPluginManager().registerEvents(gatewayEventListener, this);
-        getServer().getPluginManager().registerEvents(new ApiLifecycleListener(apiRegistry, webRegistry, this), this);
+        getServer().getPluginManager().registerEvents(new ApiLifecycleListener(apiRegistry, webRegistry, navRegistry, this), this);
 
         // 系统 API：装配 SystemServiceImpl → SystemController
         ISystemService systemService = new SystemServiceImpl(mcPort);
@@ -457,7 +466,7 @@ public class HttpOverMcPlugin extends JavaPlugin {
         apiRegistry.register(new StatusController(statusService));
 
         WebFrontendHandler web = new WebFrontendHandler(
-                webRoot == null ? null : webRoot.getAbsolutePath(), apiRegistry, webRegistry, authLoginBridge);
+                webRoot == null ? null : webRoot.getAbsolutePath(), apiRegistry, webRegistry, navRegistry, authLoginBridge);
         webFrontend = web;
         // 请求调度器：单物理 Bot + 多逻辑队列（common 512 / admin 128 容量，4 个 worker，admin 优先）
         requestScheduler = new RequestScheduler(this, channel, web, 512, 128, 4);
@@ -471,7 +480,7 @@ public class HttpOverMcPlugin extends JavaPlugin {
             // 关键：BungeeCord 收到 Forward 后把内层载荷重包为 innerChannel+len+data，并经由目标服的
             // “BungeeCord” 通道投递；Spigot(bungeecord:true) 不自动解 Forward，仅把 BungeeCord 通道消息
             // 透传给已注册 listener。故跨服 listener 必须注册在 BungeeCord 通道上（而非 httpproxy:fwd-*），
-            // 早期注册在 fwd 通道导致 survival 侧零日志、跨服全部失效。
+            // 早期注册在 fwd 通道导致目标子服侧零日志、跨服全部失效。
             getServer().getMessenger().registerIncomingPluginChannel(this, CrossServerHub.BUNGEECORD_CHANNEL, crossHub.listener());
             // 让本服 Bot 监听 BungeeCord 通道（接收端）：BungeeCord 的 Forward 经此通道投递，
             // 不登记则消息被静默丢弃。bot 自身已在握手后 REGISTER BungeeCord，这里服务端兜底确保万无一失。
@@ -515,8 +524,11 @@ public class HttpOverMcPlugin extends JavaPlugin {
         }
         HttpMcTranslator translator = new HttpMcTranslator(mcLink, botRuleController);
         translator.setLocalServerName(serverName);
+        // 信任前置代理（本插件 BungeeCord 代理模块）注入的 X-Forwarded-For，恢复真实访客 IP
+        // （用于限流/白名单/审计；部署在可信代理之后时开启，避免客户端伪造）。
+        boolean trustProxy = getConfig().getBoolean("mc.trust-proxy", true);
         sniffer = new SocketSniffer(this, translator,
-                () -> bot.isReady(), maxBody, stats, gateway, getTlsEngineSupplier());
+                () -> bot.isReady(), maxBody, stats, gateway, getTlsEngineSupplier(), trustProxy);
         sniffer.install();
     }
 
@@ -552,7 +564,7 @@ public class HttpOverMcPlugin extends JavaPlugin {
                 + " HTTPS=" + (getTlsEngineSupplier() == null ? "关" : "开")
                 + " API注册数=" + (apiRegistry == null ? 0 : apiRegistry.getRoutes().size())
                 + " webroot=" + (webRoot == null ? "(jar 内置)" : webRoot.getAbsolutePath())
-                + " | 25564 三协议端口：MC / 明文 HTTP / HTTPS");
+                + " | " + mcPort + " 三协议端口：MC / 明文 HTTP / HTTPS");
     }
 
     /**

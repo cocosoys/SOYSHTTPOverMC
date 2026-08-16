@@ -65,7 +65,7 @@ public class GatewayContext {
         return socketIp;
     }
 
-    /** 连接是否已通过 TLS 解密（25564 就地升级后为 true） */
+    /** 连接是否已通过 TLS 解密（在 MC 端口就地升级后为 true） */
     public boolean isTls() {
         return tls;
     }

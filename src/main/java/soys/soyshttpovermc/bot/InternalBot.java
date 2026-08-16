@@ -49,7 +49,7 @@ public class InternalBot {
      * <b>注意</b>：Spigot 1.12.2 使用 legacy 通道名 {@code REGISTER}（服务端向 Bot 下发的注册包即为该名，
      * 见 Bot 日志 "channel=REGISTER"）；{@code minecraft:register} 是 1.13+ 的命名。若用错名字，
      * 1.12.2 会静默忽略客户端的注册，导致 Bot 不被加入监听集合——BungeeCord 的 {@code Forward}
-     * 因“无玩家监听目标通道”被丢弃（跨服请求/发现全部失效，survival 侧零 [CrossServer] 日志）。
+     * 因“无玩家监听目标通道”被丢弃（跨服请求/发现全部失效，目标子服侧零 [CrossServer] 日志）。
      * 主通道此前靠服务端侧 {@code Player.addChannel} 反射兜底才工作，这里一并纠正为 legacy 名。
      */
     private static final String REGISTER_CHANNEL = "REGISTER";
@@ -255,7 +255,7 @@ public class InternalBot {
                     s.send(new ClientPluginMessagePacket(REGISTER_CHANNEL, "BungeeCord".getBytes(StandardCharsets.UTF_8)));
                     // 注册 botctl 控制通道（用于向当前所在服请求“代发 BungeeCord Connect 切到本服”）。
                     s.send(new ClientPluginMessagePacket(REGISTER_CHANNEL, CHANNEL_BOT_CTL.getBytes(StandardCharsets.UTF_8)));
-                    // 经代理的 Bot 默认落在代理默认服（如 lobby）；而 BungeeCord 1.x 会丢弃客户端直发的
+                    // 经代理的 Bot 默认落在代理默认子服；而 BungeeCord 1.x 会丢弃客户端直发的
                     // BungeeCord 通道 Connect，因此改为向“当前服务端”发 botctl 控制消息，由服务端侧
                     // player.sendPluginMessage("BungeeCord", Connect) 可靠地切换到本服（详见 HttpOverMcPlugin）。
                     ByteArrayOutputStream cb = new ByteArrayOutputStream();
@@ -271,7 +271,7 @@ public class InternalBot {
             // 登记跨服枢纽所需的额外监听通道（fwd-req/fwd-resp/discovery）。
             // 关键：Spigot 1.12.2 仅当“玩家(Bot)正监听该通道”时才会把入站 PluginMessage 投递给
             // 服务端侧 PluginMessageListener；若 Bot 未监听 fwd-req，BungeeCord 的 Forward 会被静默丢弃，
-            // 导致跨服请求/响应/发现全部失效（survival 侧零 [CrossServer] 日志）。
+            // 导致跨服请求/响应/发现全部失效（目标子服侧零 [CrossServer] 日志）。
             synchronized (extraChannels) {
                 if (!extraChannels.isEmpty()) {
                     for (String ec : extraChannels) {

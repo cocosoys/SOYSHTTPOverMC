@@ -25,6 +25,13 @@ public class ReloadSubCommand extends SubCommand {
     }
 
     @Override
+    public String detail() {
+        return "/soyshttp reload —— 热重载日志级别 + 网关策略与 TLS 配置（gateway/ 目录），无需重启服务器。\n"
+                + "影响范围：gateway/config.yml、gateway/https.yml、gateway/policies/*.yml、gateway/issuers/*.yml、日志级别。\n"
+                + "注意：命令类与已加载的注解式控制器不随 reload 重载（需重启服务端生效）。";
+    }
+
+    @Override
     public void execute(CommandSender sender, String label, String[] args) {
         plugin.reloadHttpConfig();
         msg(sender, "网关策略已热重载："

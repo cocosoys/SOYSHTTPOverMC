@@ -47,6 +47,15 @@ public class ApiToolkitImpl implements ApiToolkitApi {
     }
 
     @Override
+    public void registerMimeType(String ext, String contentType) {
+        try {
+            MimeTypes.register(ext, contentType);
+        } catch (Exception ex) {
+            throw ExceptionBus.fire(new ToolkitException("E_MIME_REGISTER", "注册 Content-Type 失败(ext=" + ext + "): " + ex.getMessage(), ex));
+        }
+    }
+
+    @Override
     public void sendLink(Player player, String url, String display) {
         if (player == null || url == null) return;
         sendOnMain(java.util.Collections.singletonList(player), url, display);

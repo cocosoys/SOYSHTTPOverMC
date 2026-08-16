@@ -259,7 +259,7 @@ async function probe(){
 $('copyIp').onclick = async ()=>{
   const host = location.hostname || '127.0.0.1';
   const port = $('srvPort').textContent;
-  const ip = host + ':' + (port || '25564');
+  const ip = host + ':' + (port || location.port || (location.protocol === 'https:' ? '443' : '80'));
   try{
     await navigator.clipboard.writeText(ip);
     toast('已复制 ' + ip + '，到 MC 多人游戏直接连接');

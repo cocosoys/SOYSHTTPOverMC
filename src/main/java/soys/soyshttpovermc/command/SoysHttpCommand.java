@@ -23,8 +23,10 @@ import java.util.Map;
  *   <li>{@code key <subject>} —— 为指定主体下发最高权限凭证；</li>
  *   <li>{@code reconnect} —— 主 Bot 重新连接；</li>
  *   <li>{@code send <url|/page> [显示文字] [玩家]} —— 向玩家发送可点击链接；</li>
- *   <li>{@code pages} —— 查看当前已注册的全部网页（含内置）；</li>
+ *   <li>{@code pages} —— 查看已注册的界面（默认仅 .html 页 + 跳转；{@code pages all} 含全部资源/脚本）；</li>
+ *   <li>{@code api} —— 查看已注册的注解式 API 端点（方法/路径/owner/权限）；</li>
  *   <li>{@code tokens} —— 查询所有已颁发的会话令牌；</li>
+ *   <li>{@code help [子指令]} —— 查看全部子指令，或某子指令的详细用法（参数/示例/注意）。</li>
  * </ul>
  * 另支持简写 {@code /shttp}（plugin.yml 注册别名命令，共用本执行器）。
  *
@@ -44,6 +46,7 @@ public class SoysHttpCommand implements CommandExecutor, TabCompleter {
         register(new ReconnectSubCommand(plugin));
         register(new SendSubCommand(plugin));
         register(new PagesSubCommand(plugin));
+        register(new ApiSubCommand(plugin));
         register(new TokensSubCommand(plugin));
     }
 
@@ -73,6 +76,28 @@ public class SoysHttpCommand implements CommandExecutor, TabCompleter {
             sendUsage(sender);
             return true;
         }
+        // /soyshttp help [子指令] —— 帮助：无参数列总览；带子指令名展示该子指令详细用法
+        if (args[0].equalsIgnoreCase("help")) {
+            if (args.length > 1) {
+                SubCommand target = subs.get(args[1].toLowerCase());
+                if (target == null) {
+                    msg(sender, "§c未知子指令: " + args[1]);
+                    sendUsage(sender);
+                    return true;
+                }
+                if (target.requireOp() && !sender.isOp()) {
+                    msg(sender, "§c无权限（需 op）");
+                    return true;
+                }
+                sender.sendMessage("§a§l[SOYSHTTPOverMC] §e/soyshttp " + target.name() + " §f详细用法：");
+                for (String line : target.detail().split("\n")) {
+                    sender.sendMessage("  §7" + line);
+                }
+                return true;
+            }
+            sendUsage(sender);
+            return true;
+        }
         SubCommand sub = subs.get(args[0].toLowerCase());
         if (sub == null) {
             msg(sender, "§c未知子指令: " + args[0]);
@@ -91,7 +116,18 @@ public class SoysHttpCommand implements CommandExecutor, TabCompleter {
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
         String prefix = args.length == 0 ? "" : args[args.length - 1].toLowerCase();
         if (args.length <= 1) {
-            // 一级：子指令名（过滤 op 权限 + 前缀）
+            // 一级：子指令名 + help（过滤 op 权限 + 前缀）
+            List<String> out = new ArrayList<>();
+            for (Map.Entry<String, SubCommand> e : subs.entrySet()) {
+                SubCommand sub = e.getValue();
+                if (sub.requireOp() && !sender.isOp()) continue;
+                if (e.getKey().startsWith(prefix)) out.add(e.getKey());
+            }
+            if ("help".startsWith(prefix)) out.add("help");
+            return out;
+        }
+        // help 的二级参数：补全子指令名
+        if (args[0].equalsIgnoreCase("help") && args.length == 2) {
             List<String> out = new ArrayList<>();
             for (Map.Entry<String, SubCommand> e : subs.entrySet()) {
                 SubCommand sub = e.getValue();
@@ -123,6 +159,7 @@ public class SoysHttpCommand implements CommandExecutor, TabCompleter {
             }
             sender.sendMessage("  §e" + cmd + " §7" + desc);
         }
+        sender.sendMessage("  §e/soyshttp help <子指令> §7查看子指令详细用法");
         sender.sendMessage("  §7（shttp 为简写命令）");
     }
 

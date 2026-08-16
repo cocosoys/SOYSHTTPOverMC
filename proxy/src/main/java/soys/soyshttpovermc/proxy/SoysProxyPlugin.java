@@ -12,7 +12,7 @@ import java.lang.reflect.Field;
 import java.util.Collection;
 
 /**
- * BungeeCord 端代理插件。在 25577 监听器上做首包分类：
+ * BungeeCord 端代理插件。在 BungeeCord 监听器（config.yml 中配置的端口）上做首包分类：
  * <ul>
  *   <li>MC 握手 → 交还 BungeeCord 正常代理玩家；</li>
  *   <li>HTTP / HTTPS → 按路由决策透传到目标后端 MC 端口（由后端既有 HTTP 栈处理并回写），

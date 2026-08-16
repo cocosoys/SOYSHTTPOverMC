@@ -25,7 +25,7 @@ import java.util.List;
 import java.util.logging.Logger;
 
 /**
- * TLS 上下文工厂：为 25564 就地 TLS 升级提供服务端 SSLEngine（每个连接一个，线程安全）。
+ * TLS 上下文工厂：为 MC 端口就地 TLS 升级提供服务端 SSLEngine（每个连接一个，线程安全）。
  *
  * <p>证书来源优先级（config gateway.https.*）：
  * <ol>

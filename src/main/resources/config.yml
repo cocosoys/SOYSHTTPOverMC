@@ -12,10 +12,10 @@ channel: httpproxy:main
 
 # 无头 Bot 回连本服的地址与端口。
 # 必须 == Spigot 的 server-port 所监听的端口（即"服务器端口"）。
-# server.properties 保持 server-port=25564（或你自定义的值），无需改端口、无需挪窝。
+# server.properties 的 server-port 即对外端口（如 25564，可按需自定义），无需另配端口、无需挪窝。
 # host 留空（默认）则自动取 server.properties 的 server-ip（为空再回退 127.0.0.1）；
 # port 留 0（默认）则自动取 server.properties 的 server-port（再回退运行期端口）。
-# 已显式填写的值优先；旧配置（host:127.0.0.1 / port:25564）不受影响。
+# 已显式填写的值优先；未填写则自动解析（host→server-ip→127.0.0.1；port→server-port→运行期端口）。
 mc:
   host: ""
   port: 0
@@ -27,6 +27,10 @@ mc:
   # 不改变无头 Bot 回连本服的地址（Bot 始终回连后端 server-port）。
   public-host: ""
   public-port: 0
+  # 是否信任前置代理（SOYSHTTPOverMC 的 BungeeCord 代理模块）注入的 X-Forwarded-For，
+  # 以恢复真实访客 IP（用于限流/白名单/审计）。本插件代理模块在反向代理时会注入该头；
+  # 仅当后端确在可信代理之后时保持 true。若后端可被客户端直连（未经代理），建议设 false 防伪造。
+  trust-proxy: true
 
 # 群组服（BungeeCord / Waterfall / Velocity）配置：
 # server-name 为该子服在代理中的唯一名称（对应 BungeeCord config.yml servers.<name>）。

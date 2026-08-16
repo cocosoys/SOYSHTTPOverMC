@@ -52,6 +52,14 @@ public abstract class SubCommand {
     /** 单行用法提示（展示在 /soyshttp 无参 help 中）。 */
     public abstract String usage();
 
+    /**
+     * 详细用法（多行，经 /soyshttp help &lt;子指令&gt; 展示）：参数说明、示例、注意事项。
+     * 默认等于 {@link #usage()}；子指令可按需覆写为多行文本（用 \n 分行）。
+     */
+    public String detail() {
+        return usage();
+    }
+
     /** 执行逻辑；args 为完整命令参数（args[0] 即子指令名本身）。 */
     public abstract void execute(CommandSender sender, String label, String[] args);
 

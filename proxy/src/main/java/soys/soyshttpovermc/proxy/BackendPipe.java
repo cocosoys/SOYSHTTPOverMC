@@ -19,7 +19,7 @@ import java.security.cert.X509Certificate;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * 客户端(25577) ↔ 目标后端 MC 端口 的 TCP 桥（反向代理 legs）。
+ * 客户端（代理监听端口）↔ 目标后端 MC 端口 的 TCP 桥（反向代理 legs）。
  *
  * <p><b>设计：每条客户端 TLS 连接对应一条全新的后端 TLS 连接（一对一，secure=true）。</b>
  * 代理自身终止客户端 TLS（{@link HttpClassifier} + SslHandler），明文 HTTP 由
@@ -124,6 +124,22 @@ public class BackendPipe {
                 try { onCloseOrig.run(); } catch (Throwable ignore) {}
             }
             if (clientCtx != null) clientCtx.close();
+        }
+    }
+
+    /**
+     * 仅关闭后端连接，保留客户端连接（keep-alive 切换目标子服时用）：
+     * 浏览器同一条持久连接可继续服务，仅换一条后端管道。pump 线程随后因后端 socket 关闭而退出，
+     * 但 {@code closed} 已置位，{@link #close()} 不会二次关闭客户端。
+     */
+    public void closeBackendOnly() {
+        if (closed.compareAndSet(false, true)) {
+            try { out.close(); } catch (Exception ignore) {}
+            try { in.close(); } catch (Exception ignore) {}
+            try { backend.close(); } catch (Exception ignore) {}
+            if (onCloseOrig != null) {
+                try { onCloseOrig.run(); } catch (Throwable ignore) {}
+            }
         }
     }
 

@@ -39,6 +39,18 @@ public class SendSubCommand extends SubCommand {
     }
 
     @Override
+    public String detail() {
+        return "/soyshttp send <url|/page> [显示文字] [玩家] —— 向玩家发送可点击链接消息。\n"
+                + "  <url|/page>   完整 URL；或以 / 开头的本服页面路径（自动拼 https://<对外地址>/...）。\n"
+                + "  [显示文字]     支持 %url%（整条链接）与 %url_标签%（仅标签部分着色）；& 代替 § 颜色码。\n"
+                + "  [玩家]         玩家名，或选择器 @a/@p/@r/@e/@s；省略则发给自己（命令者须为玩家）。\n"
+                + "示例：\n"
+                + "  /soyshttp send /status\n"
+                + "  /soyshttp send /status \"状态面板：%url%\"\n"
+                + "  /soyshttp send https://example.com \"点&b这里&f进去\" @a";
+    }
+
+    @Override
     public List<String> tabComplete(CommandSender sender, String[] args) {
         // 末位参数补全：在线玩家名 + 原生选择器（@a/@p/@r/@e/@s）
         List<String> out = new ArrayList<>();

@@ -4,6 +4,7 @@ import soys.soyshttpovermc.util.AjaxResult;
 import soys.soyshttpovermc.ApiRegistry;
 import soys.soyshttpovermc.gateway.policy.auth.bridge.AuthLoginBridge;
 import soys.soyshttpovermc.proto.FrameProto;
+import soys.soyshttpovermc.web.NavRegistry;
 
 import com.google.protobuf.ByteString;
 
@@ -34,12 +35,14 @@ public class WebFrontendHandler {
     private final String webRootCanonical;
     private final ApiRegistry apiRegistry; // 注解式 API 注册表（可为 null）
     private final WebRegistry webRegistry; // 插件登记网页（可为 null）
+    private final NavRegistry navRegistry; // 门户导航登记处（可为 null）
     private volatile AuthLoginBridge authBridge; // AuthMe 网页登录桥（null=未启用；/soyshttp reload 后热替换）
 
     public WebFrontendHandler(String webRootPath, ApiRegistry apiRegistry, WebRegistry webRegistry,
-                              AuthLoginBridge authBridge) {
+                              NavRegistry navRegistry, AuthLoginBridge authBridge) {
         this.apiRegistry = apiRegistry;
         this.webRegistry = webRegistry;
+        this.navRegistry = navRegistry;
         this.authBridge = authBridge;
         File root = null;
         String canonical = null;
@@ -140,8 +143,8 @@ public class WebFrontendHandler {
                 }
                 return FrameProto.HttpResponseFrame.newBuilder()
                         .setStatusCode(200)
-                        .putHeaders("Content-Type", page.contentType)
-                        .setBody(ByteString.copyFrom(page.resolveBytes()))
+                        .putHeaders("Content-Type", page.effectiveContentType())
+                        .setBody(ByteString.copyFrom(injectNav(cleanPath, page.resolveBytes(), page.effectiveContentType())))
                         .setFragmentIndex(0)
                         .setTotalFragments(1)
                         .build();
@@ -168,7 +171,7 @@ public class WebFrontendHandler {
         return FrameProto.HttpResponseFrame.newBuilder()
                 .setStatusCode(200)
                 .putHeaders("Content-Type", MimeTypes.forPath(hit.name))
-                .setBody(ByteString.copyFrom(hit.bytes))
+                .setBody(ByteString.copyFrom(injectNav(cleanPath, hit.bytes, MimeTypes.forPath(hit.name))))
                 .setFragmentIndex(0)
                 .setTotalFragments(1)
                 .build();
@@ -357,6 +360,24 @@ public class WebFrontendHandler {
     }
 
     // ===== 路径/字符串工具 =====
+    /** 门户首页（/）注入第三方插件导航条：在 &lt;body&gt; 起始处插入导航 HTML（无项则不注入）。 */
+    private byte[] injectNav(String cleanPath, byte[] body, String contentType) {
+        if (navRegistry == null || !"/".equals(cleanPath)) return body;
+        if (contentType == null || !contentType.startsWith("text/html")) return body;
+        String nav = navRegistry.renderHtml();
+        if (nav.isEmpty()) return body;
+        String html = new String(body, StandardCharsets.UTF_8);
+        int bi = html.indexOf("<body");
+        if (bi >= 0) {
+            int gt = html.indexOf('>', bi);
+            if (gt >= 0) {
+                html = html.substring(0, gt + 1) + nav + html.substring(gt + 1);
+                return html.getBytes(StandardCharsets.UTF_8);
+            }
+        }
+        return (nav + html).getBytes(StandardCharsets.UTF_8);
+    }
+
     private static String stripQuery(String p) {
         int q = p.indexOf('?');
         return q >= 0 ? p.substring(0, q) : p;

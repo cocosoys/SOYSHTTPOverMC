@@ -10,7 +10,7 @@ import java.util.Map;
 
 /**
  * TLS 强制策略：明文 HTTP 请求 → 426 Upgrade Required，Location 指向同端口 https
- * （25564 三协议端口上，TLS 在嗅探器内就地升级，无需独立端口）。
+ * （在 MC 端口上，TLS 在嗅探器内就地升级，无需独立端口）。
  */
 public class TlsPolicy extends SecurityPolicy {
 

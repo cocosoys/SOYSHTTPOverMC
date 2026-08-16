@@ -34,6 +34,13 @@ public class TokensSubCommand extends SubCommand {
     }
 
     @Override
+    public String detail() {
+        return "/soyshttp tokens —— 查询所有已颁发的会话令牌（签发审计）。\n"
+                + "展示：主体 / 模式 / 是否 admin / 状态（有效 | 已注销）/ 签发时间 / 过期时间。\n"
+                + "令牌本体不回显（避免泄露有效凭据）；注销后记录标记为“已注销”；仅 op 可执行。";
+    }
+
+    @Override
     public void execute(CommandSender sender, String label, String[] args) {
         GatewayFilter gateway = plugin.getGateway();
         if (gateway == null) {

@@ -9,6 +9,7 @@ import net.md_5.bungee.api.config.ServerInfo;
 import net.md_5.bungee.api.plugin.Plugin;
 
 import java.io.ByteArrayOutputStream;
+import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 
 /**
@@ -19,6 +20,13 @@ import java.nio.charset.StandardCharsets;
  *       MC 端口，后端既有 HTTP 栈处理；响应明文回写，出站再由 SslHandler 加密给客户端；</li>
  *   <li>其余路径 → 由 {@link SelfServer} 用代理数据目录下的 web-root 托管。</li>
  * </ul>
+ *
+ * <p><b>keep-alive</b>：逐请求解析请求头边界（{@code \r\n\r\n}），对同一条客户端连接复用同一条后端
+ * 管道（HTTP/1.1 持久连接），仅在目标子服变化时才关闭旧后端连接并新建；后端响应含
+ * {@code Connection: keep-alive} 时浏览器无需为每资源重跑 TLS 握手。</p>
+ *
+ * <p><b>真实客户端 IP</b>：代理在转发每个请求前注入 {@code X-Forwarded-For}/{@code X-Real-IP}/
+ * {@code X-Forwarded-Proto: https}，后端据此恢复访客真实 IP（限流/白名单/审计）。</p>
  */
 public class PlainHttpHandler extends ChannelInboundHandlerAdapter {
 
@@ -32,10 +40,14 @@ public class PlainHttpHandler extends ChannelInboundHandlerAdapter {
     private final java.util.Map<String, Object> lockMap = new java.util.concurrent.ConcurrentHashMap<>();
     private final java.util.Map<String, Long> lastMap = new java.util.concurrent.ConcurrentHashMap<>();
 
-    private final ByteArrayOutputStream buf = new ByteArrayOutputStream();
-    private boolean routed = false;
+    /** 当前请求头块累积（含已到齐的请求行+头+分隔符，可能带部分 body）。 */
+    private final ByteArrayOutputStream headerBuf = new ByteArrayOutputStream();
+    /** 当前请求 body 剩余待转发字节数（>0 时收到的字节直接透传后端，不再解析）。 */
+    private int bodyRemaining = 0;
+    private ServerInfo currentTarget;
     private BackendPipe pipe;
     private SelfServer selfServer;
+    private boolean selfMode = false;
 
     /** @param homeServer 配置的主页服务器：具体子服名 → "/" 路由到它；"self" → "/" 自托管静态页。 */
     public PlainHttpHandler(Plugin plugin, ProxyConfig config, String homeServer) {
@@ -56,59 +68,147 @@ public class PlainHttpHandler extends ChannelInboundHandlerAdapter {
         bb.getBytes(bb.readerIndex(), chunk);
         bb.release();
         try {
-            if (!routed) {
-                buf.write(chunk);
-                byte[] data = buf.toByteArray();
-                int nl = indexOf(data, (byte) '\n');
-                if (nl < 0) {
-                    if (data.length > 8192) ctx.close();      // 首行异常长 → 丢弃
-                    return;                                    // 等首行到齐
-                }
-                String line = new String(data, 0, nl, StandardCharsets.US_ASCII).trim();
-                int sp1 = line.indexOf(' ');
-                int sp2 = line.indexOf(' ', sp1 + 1);
-                String path = (sp1 > 0 && sp2 > sp1) ? line.substring(sp1 + 1, sp2) : "/";
-                routed = true;
-                route(ctx, path);
-                byte[] all = buf.toByteArray();
-                buf.reset();
-                dispatch(all, ctx);
+            if (selfServer != null) {
+                selfServer.feed(chunk, ctx);
                 return;
             }
-            dispatch(chunk, ctx);
+            if (bodyRemaining > 0) {
+                // 当前请求 body 透传阶段
+                int n = Math.min(chunk.length, bodyRemaining);
+                if (pipe != null) pipe.writeClient(copyOf(chunk, 0, n));
+                bodyRemaining -= n;
+                if (n < chunk.length) {
+                    // 余下字节是下一个请求的头块
+                    headerBuf.reset();
+                    headerBuf.write(chunk, n, chunk.length - n);
+                    tryRoute(ctx);
+                }
+                return;
+            }
+            headerBuf.write(chunk);
+            tryRoute(ctx);
         } catch (Throwable t) {
             plugin.getLogger().warning("[SOYS-Proxy] self-TLS 明文路由异常: " + t);
             ctx.close();
         }
     }
 
-    private void dispatch(byte[] data, ChannelHandlerContext ctx) {
-        if (pipe != null) pipe.writeClient(data);
-        else if (selfServer != null) selfServer.feed(data, ctx);
-    }
+    /** 头块已收齐（含 \r\n\r\n）时解析目标并路由/转发；否则继续累积。 */
+    private void tryRoute(ChannelHandlerContext ctx) {
+        byte[] raw = headerBuf.toByteArray();
+        int sep = headerEnd(raw);
+        if (sep < 0) {
+            if (raw.length > 8192) {
+                // 异常超长头块 → 丢弃
+                headerBuf.reset();
+                ctx.close();
+            }
+            return; // 等待头块收齐
+        }
+        int headerLen = sep;            // 头块长度（到分隔符前）
+        int sepLen = (sep > 0 && raw[sep - 1] == '\r') ? 4 : 2;
+        String firstLine;
+        String path;
+        int contentLength = 0;
+        try {
+            String headerText = new String(raw, 0, headerLen, StandardCharsets.US_ASCII);
+            String[] lines = headerText.split("\r\n");
+            if (lines.length == 0) return;
+            String[] rl = lines[0].split(" ");
+            if (rl.length < 2) return;
+            firstLine = lines[0];
+            path = rl[1];
+            for (int l = 1; l < lines.length; l++) {
+                int c = lines[l].indexOf(':');
+                if (c > 0 && lines[l].substring(0, c).trim().equalsIgnoreCase("Content-Length")) {
+                    try { contentLength = Integer.parseInt(lines[l].substring(c + 1).trim()); } catch (Exception ignored) {}
+                }
+            }
+        } catch (Exception e) {
+            headerBuf.reset();
+            ctx.close();
+            return;
+        }
 
-    private void route(ChannelHandlerContext ctx, String path) {
         ServerInfo target = resolveServer(path);
-        if (target != null) {
+        if (target == null) {
+            if (!selfMode) {
+                selfMode = true;
+                selfServer = new SelfServer(plugin, config);
+            }
+            // self 模式直接喂入（含头块，SelfServer 自行解析首行）
+            selfServer.feed(headerBuf.toByteArray(), ctx);
+            resetRequest();
+            return;
+        }
+
+        // 目标变化（或尚未建连）→ 关闭旧后端连接（仅后端，保留客户端）并新建
+        if (pipe != null && (currentTarget == null || !currentTarget.equals(target))) {
+            pipe.closeBackendOnly();
+            pipe = null;
+        }
+        if (pipe == null) {
             try {
                 pipe = openNew(target, ctx);
+                currentTarget = target;
             } catch (Exception e) {
                 plugin.getLogger().warning("[SOYS-Proxy] 后端 " + target.getName() + " 连接失败: " + e);
                 writeError(ctx, 502, "Backend " + target.getName() + " unreachable");
+                resetRequest();
                 return;
             }
-            plugin.getLogger().info("[SOYS-Proxy] HTTPS 路由 -> 后端 " + target.getName() + " path=" + path);
-            return;
         }
-        selfServer = new SelfServer(plugin, config);
+
+        // 注入 X-Forwarded-For / X-Real-IP / X-Forwarded-Proto，再转发（头块 + 已到 body 部分）
+        byte[] outBytes = buildForwardBytes(raw, headerLen, sepLen, clientIp(ctx));
+        pipe.writeClient(outBytes);
+        int bodyInBuf = raw.length - (headerLen + sepLen);
+        bodyRemaining = contentLength - bodyInBuf;
+        if (bodyRemaining < 0) bodyRemaining = 0;
+        resetRequest();
+    }
+
+    /** 清空当前请求累积缓冲（保留已建连的 pipe / selfServer）。 */
+    private void resetRequest() {
+        headerBuf.reset();
+    }
+
+    /** 构造转发字节：在请求行后插入 XFF 头，原样保留其余头与已到 body。 */
+    private static byte[] buildForwardBytes(byte[] raw, int headerLen, int sepLen, String ip) {
+        // 在请求行（第一个 \r\n）之后插入
+        int fl = indexOf(raw, 0, headerLen, (byte) '\n');
+        if (fl < 0) fl = headerLen;
+        ByteArrayOutputStream out = new ByteArrayOutputStream(raw.length + 80);
+        out.write(raw, 0, fl);                       // 请求行（含末尾 \r\n 的一部分）
+        // 确保请求行以 \r\n 结束
+        if (fl < raw.length && raw[fl] == '\n') {
+            if (fl == 0 || raw[fl - 1] != '\r') out.write('\r');
+            out.write('\n');
+        }
+        String xff = "X-Forwarded-For: " + ip + "\r\n"
+                + "X-Real-IP: " + ip + "\r\n"
+                + "X-Forwarded-Proto: https\r\n";
+        byte[] xffBytes = xff.getBytes(StandardCharsets.US_ASCII);
+        out.write(xffBytes, 0, xffBytes.length);
+        out.write(raw, fl + (raw[fl] == '\n' ? 1 : 0), raw.length - (fl + (raw[fl] == '\n' ? 1 : 0)));
+        return out.toByteArray();
+    }
+
+    private static String clientIp(ChannelHandlerContext ctx) {
+        try {
+            java.net.SocketAddress sa = ctx.channel().remoteAddress();
+            if (sa instanceof InetSocketAddress) {
+                return ((InetSocketAddress) sa).getAddress().getHostAddress();
+            }
+        } catch (Exception ignored) {
+        }
+        return "127.0.0.1";
     }
 
     /**
      * 建一条到后端的 TLS 客户端连接（secure=true，后端强制 HTTPS）。
-     * <p><b>为何不复用池化连接</b>：后端 HTTPS 栈对每个 TLS 连接的服务端会话有空闲超时（实测 ~10-15s），
-     * 池化的常驻连接被借出服务第二条客户端时，其 SSL 会话可能已失效 → 后端返回空响应(size=0)。
-     * 故采用“每条客户端连接一条新后端 TLS 连接（一对一，TLS 会话始终新鲜）”+ 并发建连<b>串行+最小间隔</b>，
-     * 既避开 TLS 会话复用冲突，又消除微秒级密集建连触发的 spike-drop(ERR_CONNECTION_ABORTED)。
+     * 每条客户端连接对应一条后端 TLS 连接，并以串行最小间隔建连消除 spike-drop。
+     * keep-alive 下该后端连接被同一条客户端连接复用（目标不变时）。
      */
     private BackendPipe openNew(ServerInfo target, ChannelHandlerContext ctx) throws Exception {
         long spacing = config.getConnectionSpacingMs();
@@ -178,8 +278,33 @@ public class PlainHttpHandler extends ChannelInboundHandlerAdapter {
         ctx.close();
     }
 
-    private static int indexOf(byte[] a, byte v) {
-        for (int i = 0; i < a.length; i++) if (a[i] == v) return i;
+    // ===== 字节工具 =====
+
+    private static int headerEnd(byte[] a) {
+        int i = indexOfSeq(a, 0, a.length, new byte[]{'\r', '\n', '\r', '\n'});
+        if (i >= 0) return i;
+        return indexOfSeq(a, 0, a.length, new byte[]{'\n', '\n'});
+    }
+
+    private static int indexOf(byte[] a, int from, int to, byte v) {
+        for (int i = from; i < to; i++) if (a[i] == v) return i;
         return -1;
+    }
+
+    private static int indexOfSeq(byte[] a, int from, int to, byte[] seq) {
+        int sl = seq.length;
+        if (sl == 0) return from;
+        for (int i = from; i + sl <= to; i++) {
+            boolean ok = true;
+            for (int j = 0; j < sl; j++) if (a[i + j] != seq[j]) { ok = false; break; }
+            if (ok) return i;
+        }
+        return -1;
+    }
+
+    private static byte[] copyOf(byte[] a, int from, int len) {
+        byte[] b = new byte[len];
+        System.arraycopy(a, from, b, 0, len);
+        return b;
     }
 }

@@ -35,6 +35,15 @@ public class KeySubCommand extends SubCommand {
     }
 
     @Override
+    public String detail() {
+        return "/soyshttp key <subject> —— 为指定主体下发最高权限凭证（admin key，ak_ 前缀）。\n"
+                + "  <subject>   主体标识（通常为玩家名或外部服务名）。\n"
+                + "会话令牌颁发器启用时，签发的 ak_ key 带 adm 标记，权限层直接放行，可免权限访问全部 API\n"
+                + "（仅用于可信外部服务，请勿外泄）；其它颁发器按普通凭证签发（不具最高权限）。\n"
+                + "Tab 补全在线玩家名；仅 op 可执行。";
+    }
+
+    @Override
     public List<String> tabComplete(CommandSender sender, String[] args) {
         // 末位参数补全在线玩家名（subject 通常是玩家名）
         List<String> out = new ArrayList<>();

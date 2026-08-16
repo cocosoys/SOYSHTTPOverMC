@@ -5,12 +5,18 @@ import soys.soyshttpovermc.log.LogKit;
 import org.bukkit.plugin.Plugin;
 
 import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Enumeration;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.jar.JarEntry;
+import java.util.jar.JarFile;
 
 /**
  * 插件网页登记处（第三方插件接入点）。
@@ -130,9 +136,73 @@ public class WebRegistry {
         if (fromPath == null || toPath == null) return;
         String ownerName = owner == null ? null : owner.getName();
         String full = resolvePath(ownerName, fromPath, proxy);
-        pages.put("GET " + full, new Entry(ownerName, full, null, null, null, null, toPath, statusCode));
+        pages.put("GET " + full, new Entry(ownerName, full, null, null, null, null, toPath, statusCode, null));
         LogKit.info("[HTTP-Over-MC] 登记跳转: GET " + full + " → " + toPath + " (" + statusCode + ")"
                 + " 插件=" + ownerName + (proxy ? " (代理无前缀)" : ""));
+    }
+
+    // ===== 目录批量登记（一行托管整个前端文件夹） =====
+
+    /**
+     * 批量登记磁盘目录（如插件自带的前端 dist/ 文件夹）：递归扫描 {@code dir} 下全部文件，
+     * 按相对路径挂到 {@code basePath} 下（非主插件自动补 /plugins/&lt;插件名&gt; 前缀）。
+     * 每个文件以磁盘 File 形式惰性登记（请求时再读，支持磁盘热替换），不入内存。
+     *
+     * <p>示例：{@code registerDirectory(owner, "/", distDir)} → 访问 /plugins/Foo/index.html 等；
+     * 配合 {@code registerProxyDirectory(owner, "/app", distDir)} 可挂到无前缀的 /app。</p>
+     */
+    public void registerDirectory(Plugin owner, String basePath, File dir) {
+        registerDirectory(owner, basePath, dir, false);
+    }
+
+    /** 目录批量登记（显式是否强制代理无前缀）。 */
+    public void registerDirectory(Plugin owner, String basePath, File dir, boolean proxy) {
+        if (owner == null || basePath == null || dir == null || !dir.isDirectory()) return;
+        walkDirectory(owner.getName(), basePath, dir, proxy);
+    }
+
+    /** 强制代理目录批量登记（无 /plugins/&lt;插件名&gt; 前缀）。 */
+    public void registerProxyDirectory(Plugin owner, String basePath, File dir) {
+        registerDirectory(owner, basePath, dir, true);
+    }
+
+    /**
+     * 批量登记插件 jar 内资源目录（如 resources/web/ 下的前端产物）：扫描插件 jar 中
+     * {@code resourceRoot} 前缀下的全部条目，挂到 {@code basePath} 下。
+     */
+    public void registerResourceDirectory(Plugin owner, String basePath, ClassLoader resourceClassLoader, String resourceRoot) {
+        registerResourceDirectory(owner, basePath, resourceClassLoader, resourceRoot, false);
+    }
+
+    /** jar 资源目录批量登记（显式是否强制代理无前缀）。 */
+    public void registerResourceDirectory(Plugin owner, String basePath, ClassLoader resourceClassLoader, String resourceRoot, boolean proxy) {
+        if (owner == null || basePath == null || resourceClassLoader == null || resourceRoot == null) return;
+        File jar = pluginJar(owner);
+        if (jar == null) return;
+        String root = resourceRoot.startsWith("/") ? resourceRoot.substring(1) : resourceRoot;
+        if (!root.isEmpty() && !root.endsWith("/")) root += "/";
+        try (JarFile jf = new JarFile(jar)) {
+            Enumeration<JarEntry> en = jf.entries();
+            while (en.hasMoreElements()) {
+                JarEntry je = en.nextElement();
+                if (je.isDirectory()) continue;
+                String name = je.getName();
+                String rel = root.isEmpty() ? name : (name.startsWith(root) ? name.substring(root.length()) : null);
+                if (rel == null || rel.isEmpty()) continue;
+                String full = resolvePath(owner.getName(), joinWeb(basePath, rel), proxy);
+                // contentType 置 null → 服务端按扩展名实时推断（配合 registerMimeType）
+                pages.put("GET " + full, new Entry(owner.getName(), full, null,
+                        null, resourceClassLoader, "/" + name, null, 0, null));
+            }
+            LogKit.info("[HTTP-Over-MC] 批量登记 jar 目录: " + owner.getName() + " root=" + resourceRoot + " base=" + basePath);
+        } catch (Exception ex) {
+            LogKit.warn("[HTTP-Over-MC] 批量登记 jar 目录失败: " + owner.getName() + " -> " + ex.getMessage());
+        }
+    }
+
+    /** 强制代理 jar 资源目录批量登记。 */
+    public void registerProxyResourceDirectory(Plugin owner, String basePath, ClassLoader resourceClassLoader, String resourceRoot) {
+        registerResourceDirectory(owner, basePath, resourceClassLoader, resourceRoot, true);
     }
 
     // ===== 解析 / 卸载 =====
@@ -177,14 +247,22 @@ public class WebRegistry {
         return out;
     }
 
+    /** 列出全部已登记项（Entry 原对象），按路径排序；供 /soyshttp pages 分类展示（区分页/资源/跳转）。 */
+    public List<Entry> listEntries() {
+        List<Entry> out = new ArrayList<>(pages.values());
+        out.sort((a, b) -> a.path.compareTo(b.path));
+        return out;
+    }
+
     // ===== 内部 =====
 
     private void register(Plugin owner, String path, byte[] content, String contentType, boolean proxy) {
         if (path == null || content == null) return;
         String ownerName = owner == null ? null : owner.getName();
         String full = resolvePath(ownerName, path, proxy);
-        String ct = (contentType == null || contentType.isEmpty()) ? MimeTypes.forPath(path) : contentType;
-        pages.put("GET " + full, new Entry(ownerName, full, ct, content, null, null, null, 0));
+        // contentType 为空 → 置 null，服务端按 MimeTypes 请求时实时推断（支持后续 registerMimeType）
+        String ct = (contentType == null || contentType.isEmpty()) ? null : contentType;
+        pages.put("GET " + full, new Entry(ownerName, full, ct, content, null, null, null, 0, null));
         LogKit.info("[HTTP-Over-MC] 登记网页: GET " + full + " 插件=" + ownerName + (proxy ? " (代理无前缀)" : ""));
     }
 
@@ -192,8 +270,8 @@ public class WebRegistry {
         if (path == null || cl == null || resource == null) return;
         String ownerName = owner == null ? null : owner.getName();
         String full = resolvePath(ownerName, path, proxy);
-        String ct = (contentType == null || contentType.isEmpty()) ? MimeTypes.forPath(path) : contentType;
-        pages.put("GET " + full, new Entry(ownerName, full, ct, null, cl, resource, null, 0));
+        String ct = (contentType == null || contentType.isEmpty()) ? null : contentType;
+        pages.put("GET " + full, new Entry(ownerName, full, ct, null, cl, resource, null, 0, null));
         LogKit.info("[HTTP-Over-MC] 登记网页(资源): GET " + full + " 插件=" + ownerName + (proxy ? " (代理无前缀)" : ""));
     }
 
@@ -206,6 +284,55 @@ public class WebRegistry {
         return p;
     }
 
+    /** 递归扫描磁盘目录并逐项登记为磁盘惰性资源（请求时再读文件，支持热替换）。 */
+    private void walkDirectory(String ownerName, String basePath, File dir, boolean proxy) {
+        File[] files = dir.listFiles();
+        if (files == null) return;
+        for (File f : files) {
+            if (f.isDirectory()) {
+                walkDirectory(ownerName, joinWeb(basePath, f.getName()), f, proxy);
+            } else if (f.isFile()) {
+                String full = resolvePath(ownerName, joinWeb(basePath, f.getName()), proxy);
+                // contentType 置 null → 服务端按扩展名实时推断（支持热替换 MimeTypes）
+                pages.put("GET " + full, new Entry(ownerName, full, null, null, null, null, null, 0, f));
+            }
+        }
+        LogKit.info("[HTTP-Over-MC] 批量登记磁盘目录: " + ownerName + " base=" + basePath + " dir=" + dir.getAbsolutePath());
+    }
+
+    /** 拼接 web 路径片段（保证单层斜杠，根前缀 / 不产生双斜杠）。 */
+    private static String joinWeb(String a, String b) {
+        String x = a.endsWith("/") ? a.substring(0, a.length() - 1) : a;
+        String y = b.startsWith("/") ? b : "/" + b;
+        return x + y;
+    }
+
+    /** 取插件 jar 文件（用于扫描 jar 内资源目录）；取不到返回 null。 */
+    private static File pluginJar(Plugin p) {
+        try {
+            java.security.CodeSource cs = p.getClass().getProtectionDomain().getCodeSource();
+            if (cs != null && cs.getLocation() != null) {
+                java.net.URL loc = cs.getLocation();
+                if ("file".equals(loc.getProtocol())) {
+                    return new File(loc.toURI());
+                }
+            }
+        } catch (Exception ignored) {
+        }
+        return null;
+    }
+
+    /** 读取磁盘文件为字节（登记目录用的惰性资源）。 */
+    private static byte[] readFile(File f) throws IOException {
+        try (FileInputStream in = new FileInputStream(f)) {
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            byte[] b = new byte[8192];
+            int n;
+            while ((n = in.read(b)) > 0) out.write(b, 0, n);
+            return out.toByteArray();
+        }
+    }
+
     /** 登记项：保存来源与元数据，按需解析字节内容；redirectTo 非空时表示跳转。 */
     public static final class Entry {
         public final String ownerPlugin;
@@ -216,9 +343,10 @@ public class WebRegistry {
         private final byte[] content;       // 直接内容（优先）
         private final ClassLoader resCl;     // 资源类加载器（按需读 jar 内资源）
         private final String resource;
+        private final File diskFile;         // 磁盘文件（登记目录用，惰性读取，支持热替换）
 
         Entry(String ownerPlugin, String path, String contentType, byte[] content,
-              ClassLoader resCl, String resource, String redirectTo, int redirectCode) {
+              ClassLoader resCl, String resource, String redirectTo, int redirectCode, File diskFile) {
             this.ownerPlugin = ownerPlugin;
             this.path = path;
             this.contentType = contentType;
@@ -227,18 +355,58 @@ public class WebRegistry {
             this.resource = resource;
             this.redirectTo = redirectTo;
             this.redirectCode = redirectCode;
+            this.diskFile = diskFile;
         }
 
         public byte[] resolveBytes() {
             if (content != null) return content;
+            if (diskFile != null) {
+                try {
+                    return readFile(diskFile);
+                } catch (Exception ignored) {
+                }
+            }
             if (resCl != null && resource != null) {
-                String res = resource.startsWith("/") ? resource : "/" + resource;
+                // ClassLoader.getResourceAsStream 不接受前导 '/'（Spigot PluginClassLoader 会解析失败），须剥掉
+                String res = resource.startsWith("/") ? resource.substring(1) : resource;
                 try (InputStream in = resCl.getResourceAsStream(res)) {
                     if (in != null) return toBytes(in);
                 } catch (Exception ignored) {
                 }
             }
             return new byte[0];
+        }
+
+        /**
+         * 生效的 Content-Type：显式指定则原样返回；否则<b>请求时</b>按当前 {@link MimeTypes} 实时推断
+         * （这样第三方插件先 registerDirectory 再 registerMimeType 也能让新扩展名立即生效）。
+         */
+        public String effectiveContentType() {
+            if (contentType != null && !contentType.isEmpty()) return contentType;
+            return MimeTypes.forPath(path);
+        }
+
+        /** 是否为跳转入口（302/301 等）。 */
+        public boolean isRedirect() {
+            return redirectTo != null;
+        }
+
+        /** 是否为可在浏览器直接打开的 HTML 页（.html 后缀或 text/html 类型或站点首页 /）。 */
+        public boolean isHtmlPage() {
+            if (path.equals("/") || path.endsWith(".html")) return true;
+            return effectiveContentType().startsWith("text/html");
+        }
+
+        /** 是否归类为“可打开界面”：HTML 页或跳转入口（点击即可到达某 UI）。脚本/图片/字体等纯资源返回 false。 */
+        public boolean isNavigable() {
+            return isRedirect() || isHtmlPage();
+        }
+
+        /** 简要种类标签：用于 /soyshttp pages 展示（页 / 资源 / 跳转→目标）。 */
+        public String kindLabel() {
+            if (isRedirect()) return "跳转→" + redirectTo;
+            if (isHtmlPage()) return "页";
+            return "资源";
         }
     }
 
