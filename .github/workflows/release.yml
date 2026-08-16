@@ -4,6 +4,7 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch: # 手动触发：仅构建并上传 artifacts（不创建 Release）
 
 jobs:
   build-release:
@@ -23,22 +24,49 @@ jobs:
           distribution: 'temurin'
           cache: maven
 
-      - name: Maven build package
-        run: mvn clean package -DskipTests
+      # 本地魔改 / 已下线的依赖（lib/ 内 vendored jar）：公共仓库无法解析，CI 先装入本地 Maven 仓库
+      # （MCProtocolLib/packetlib/opennbt 为本地魔改版；bungeecord-api 1.12.x 公共仓库已无，
+      #  用从 fat jar 提取的瘦身版，netty 由 Central 的 netty-all provided 提供）
+      - name: Install vendored deps
+        run: |
+          mvn -B -q install:install-file -Dfile=lib/packetlib-1.2.jar \
+            -DgroupId=com.github.steveice10 -DartifactId=packetlib -Dversion=1.2 -Dpackaging=jar
+          mvn -B -q install:install-file -Dfile=lib/opennbt-1.0.jar \
+            -DgroupId=com.github.steveice10 -DartifactId=opennbt -Dversion=1.0 -Dpackaging=jar
+          mvn -B -q install:install-file -Dfile=lib/bungeecord-api-1.12.2-build1867-slim.jar \
+            -DgroupId=net.md_5 -DartifactId=bungeecord-api -Dversion=1.12.2-build1867 -Dpackaging=jar
+
+      - name: Build main plugin (Spigot)
+        run: mvn -B clean package -DskipTests
+
+      - name: Build proxy plugin (BungeeCord)
+        run: mvn -B -f proxy/pom.xml clean package -DskipTests
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: soyshttpovermc-jars
+          path: |
+            target/SOYSHTTPOverMC.jar
+            proxy/target/SOYSHTTPOverMC-Proxy.jar
+          if-no-files-found: error
 
       - name: Get tag version
         id: get_version
+        if: startsWith(github.ref, 'refs/tags/')
         run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
 
-      - name: Get tag‑commit short message
+      - name: Get tag-commit short message
         id: get_commit
+        if: startsWith(github.ref, 'refs/tags/')
         run: |
           COMMIT_MSG=$(git log -1 --pretty=%s "${GITHUB_REF}")
           echo "COMMIT_MSG<<EOF" >> $GITHUB_OUTPUT
           echo "$COMMIT_MSG" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
 
-      - name: Create GitHub Release & upload jar
+      - name: Create GitHub Release & upload jars
+        if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
@@ -48,7 +76,11 @@ jobs:
             ## ✨更新说明
             ${{ steps.get_commit.outputs.COMMIT_MSG }}
 
+            ### 📦 下载
+            - `SOYSHTTPOverMC.jar` —— Bukkit/Spigot 后端插件（单服或群组服子服，放各子服 plugins/）
+            - `SOYSHTTPOverMC-Proxy.jar` —— BungeeCord 端代理插件（群组服可选，放代理 plugins/）
           files: |
-            target/*.jar
+            target/SOYSHTTPOverMC.jar
+            proxy/target/SOYSHTTPOverMC-Proxy.jar
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

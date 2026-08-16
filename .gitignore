@@ -11,3 +11,4 @@ build*.log
 *.sh
 *.class
 /packetlib-patch/
+/lib/MCProtocolLib-1.12.2-2.jar

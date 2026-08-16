@@ -39,12 +39,24 @@
     </build>
 
     <dependencies>
-        <!-- BungeeCord API：本地仓库已 install 该 build 的 fat jar（含 net.md_5.bungee.* 与 io.netty.*）。
+        <!-- BungeeCord API：
+             - 本地环境：<dataDir> 已 install 该 build 的 fat jar（含 net.md_5.bungee.* 与 io.netty.*）；
+             - CI（GitHub Actions）：公共仓库无 bungeecord-api 1.12.x，仓库 lib/ 提供了
+               从 fat jar 提取的 bungee.api + bungee.config 瘦身 jar（bungeecord-api-1.12.2-build1867-slim.jar），
+               CI 先 mvn install:install-file 装入即可按相同坐标解析。
              provided：编译期需要，运行期由 BungeeCord 自身 classpath 提供（不打包进 jar，避免类冲突）。 -->
         <dependency>
             <groupId>net.md_5</groupId>
             <artifactId>bungeecord-api</artifactId>
             <version>1.12.2-build1867</version>
+            <scope>provided</scope>
+        </dependency>
+        <!-- io.netty：fat jar 自带、瘦身 jar 不含；统一显式声明 provided（编译期需要，
+             运行期由 BungeeCord 自身 classpath 提供，不打进 jar）。与主插件复用同一版本。 -->
+        <dependency>
+            <groupId>io.netty</groupId>
+            <artifactId>netty-all</artifactId>
+            <version>4.1.24.Final</version>
             <scope>provided</scope>
         </dependency>
     </dependencies>
