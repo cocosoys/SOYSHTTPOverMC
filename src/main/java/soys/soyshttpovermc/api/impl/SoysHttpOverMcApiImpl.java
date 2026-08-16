@@ -6,6 +6,7 @@ import soys.soyshttpovermc.ApiRegistry;
 import soys.soyshttpovermc.api.ApiRegistrationApi;
 import soys.soyshttpovermc.api.AuthCredentialApi;
 import soys.soyshttpovermc.api.BotManagementApi;
+import soys.soyshttpovermc.api.CrossServerHttpClient;
 import soys.soyshttpovermc.api.ExtensionApi;
 import soys.soyshttpovermc.api.HttpClientApi;
 import soys.soyshttpovermc.api.PluginLoggerApi;
@@ -32,6 +33,7 @@ public class SoysHttpOverMcApiImpl implements SoysHttpOverMcApi {
     private final BotManagementImpl botManagement;
     private final HttpClientImpl httpClient;
     private final ExtensionImpl extension;
+    private final CrossServerHttpClientImpl crossServer;
 
     public SoysHttpOverMcApiImpl(Plugin hostPlugin, ApiRegistry apiRegistry,
                                  WebRegistry webRegistry, GatewayFilter gateway, BotManager botManager) {
@@ -43,6 +45,8 @@ public class SoysHttpOverMcApiImpl implements SoysHttpOverMcApi {
         this.botManagement = new BotManagementImpl(botManager);
         this.httpClient = new HttpClientImpl(apiRegistry);
         this.extension = new ExtensionImpl((soys.soyshttpovermc.HttpOverMcPlugin) hostPlugin);
+        this.crossServer = new CrossServerHttpClientImpl((soys.soyshttpovermc.HttpOverMcPlugin) hostPlugin,
+                ((soys.soyshttpovermc.HttpOverMcPlugin) hostPlugin).getMcLink());
     }
 
     @Override public ApiRegistrationApi getApiRegistration() { return apiRegistration; }
@@ -60,4 +64,6 @@ public class SoysHttpOverMcApiImpl implements SoysHttpOverMcApi {
     @Override public HttpClientApi getHttpClient() { return httpClient; }
 
     @Override public ExtensionApi getExtension() { return extension; }
+
+    @Override public CrossServerHttpClient getCrossServer() { return crossServer; }
 }

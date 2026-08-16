@@ -11,6 +11,7 @@ public class GatewayContext {
 
     private final String method;
     private final String path;
+    private final String rawPath;
     private final Map<String, String> headers;
     private final String socketIp;
     private final boolean tls;
@@ -22,8 +23,19 @@ public class GatewayContext {
 
     public GatewayContext(String method, String path, Map<String, String> headers,
                           String socketIp, boolean tls, Credential credential) {
+        this(method, path, headers, socketIp, tls, credential, path);
+    }
+
+    /**
+     * @param path    <b>策略匹配用</b>路径：群组服下已剥掉跨服前缀（{@code /server/<name>/} 或 {@code /srv/<name>/}），
+     *                否则 {@code /server/x/api/**} 会绕过 {@code paths: [/api/*]} 这类保护规则。
+     * @param rawPath 客户端原始请求路径（用于重定向 Location、日志溯源等需保持原样的场合）。
+     */
+    public GatewayContext(String method, String path, Map<String, String> headers,
+                          String socketIp, boolean tls, Credential credential, String rawPath) {
         this.method = method == null ? "" : method;
         this.path = path == null ? "/" : path;
+        this.rawPath = rawPath == null ? this.path : rawPath;
         this.headers = headers == null ? Collections.<String, String>emptyMap() : headers;
         this.socketIp = socketIp == null ? "0.0.0.0" : socketIp;
         this.tls = tls;
@@ -34,8 +46,14 @@ public class GatewayContext {
         return method;
     }
 
+    /** 策略匹配用路径（群组服下已剥掉 /server/&lt;name&gt;/ 前缀）。 */
     public String getPath() {
         return path;
+    }
+
+    /** 客户端原始请求路径（含跨服前缀），用于重定向 Location 等需原样回显的场景。 */
+    public String getRawPath() {
+        return rawPath;
     }
 
     public Map<String, String> getHeaders() {

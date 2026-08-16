@@ -166,6 +166,38 @@ public final class ConfigManager {
         return plugin.getServer().getPort();
     }
 
+    /**
+     * 解析对外公布的公网 host：若 config.yml 的 {@code mc.public-host} 已填写则直接采用（群组服下覆盖内部地址），
+     * 否则回退到 {@link #resolveMcHost}（server.properties server-ip → Bukkit 运行期 IP → 127.0.0.1）。
+     *
+     * @param plugin       本插件实例
+     * @param configured   已从 config.yml 读到的 mc.host（可能为空）
+     * @param publicHost   已从 config.yml 读到的 mc.public-host（可能为空，群组服公网覆盖）
+     * @return 非空 host
+     */
+    public static String resolveMcPublicHost(JavaPlugin plugin, String configured, String publicHost) {
+        if (publicHost != null && !publicHost.trim().isEmpty()) {
+            return publicHost.trim();
+        }
+        return resolveMcHost(plugin, configured);
+    }
+
+    /**
+     * 解析对外公布的公网 port：若 config.yml 的 {@code mc.public-port} 已填写(>0)则直接采用（群组服下覆盖内部端口），
+     * 否则回退到 {@link #resolveMcPort}（server.properties server-port → Bukkit 运行期端口）。
+     *
+     * @param plugin      本插件实例
+     * @param configured  已从 config.yml 读到的 mc.port（可能为 0/负数表示未填）
+     * @param publicPort  已从 config.yml 读到的 mc.public-port（可能为 0/负数表示未填）
+     * @return 正整端口
+     */
+    public static int resolveMcPublicPort(JavaPlugin plugin, int configured, int publicPort) {
+        if (publicPort > 0) {
+            return publicPort;
+        }
+        return resolveMcPort(plugin, configured);
+    }
+
     /** 从服务器根目录的 server.properties 读取单个键（找不到返回 null）。 */
     private static String readServerProperty(JavaPlugin plugin, String key) {
         // 插件数据目录为 <server>/plugins/<pluginName>，上溯两级即 <server> 根目录

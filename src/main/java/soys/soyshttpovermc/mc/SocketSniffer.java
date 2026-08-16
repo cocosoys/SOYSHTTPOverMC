@@ -458,7 +458,10 @@ public class SocketSniffer {
                 if (cred != null && !tls && tlsEngineSupplier != null) {
                     LogKit.warn("[HTTP-Over-MC] 凭证经明文 HTTP 传输（建议启用 TLS）: " + ip);
                 }
-                GatewayContext gctx = new GatewayContext(p.method, p.path, p.headers, ip, tls, cred);
+                // 策略匹配用剥掉跨服前缀后的路径（否则 /server/<name>/api/** 会绕过 paths:[/api/*]）；
+                // 原始路径另行传入，供 TLS 升级重定向等需要原样回显的策略使用。
+                GatewayContext gctx = new GatewayContext(p.method, translator.policyPath(p.path),
+                        p.headers, ip, tls, cred, p.path);
                 GatewayFilter.Outcome oc = gw.filterDetailed(gctx);
                 PolicyResult res = oc.result;
                 if (!res.isAllow()) {

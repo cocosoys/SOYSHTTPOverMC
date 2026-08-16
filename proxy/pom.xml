@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <!-- 独立模块：BungeeCord 端代理插件（与 Bukkit 端 SOYSHTTPOverMC 是两套平台，分开构建、分开打包） -->
+    <groupId>soys.soyshttpovermc</groupId>
+    <artifactId>SOYSHTTPOverMC-Proxy</artifactId>
+    <version>1.0.0</version>
+    <packaging>jar</packaging>
+
+    <name>SOYSHTTPOverMC-Proxy</name>
+
+    <properties>
+        <java.version>1.8</java.version>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    </properties>
+
+    <build>
+        <finalName>SOYSHTTPOverMC-Proxy</finalName>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.8.1</version>
+                <configuration>
+                    <source>${java.version}</source>
+                    <target>${java.version}</target>
+                </configuration>
+            </plugin>
+        </plugins>
+        <resources>
+            <resource>
+                <directory>src/main/resources</directory>
+                <filtering>false</filtering>
+            </resource>
+        </resources>
+    </build>
+
+    <dependencies>
+        <!-- BungeeCord API：本地仓库已 install 该 build 的 fat jar（含 net.md_5.bungee.* 与 io.netty.*）。
+             provided：编译期需要，运行期由 BungeeCord 自身 classpath 提供（不打包进 jar，避免类冲突）。 -->
+        <dependency>
+            <groupId>net.md_5</groupId>
+            <artifactId>bungeecord-api</artifactId>
+            <version>1.12.2-build1867</version>
+            <scope>provided</scope>
+        </dependency>
+    </dependencies>
+</project>

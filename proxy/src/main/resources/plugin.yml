@@ -1,0 +1,5 @@
+name: SOYSHTTPOverMC-Proxy
+main: soys.soyshttpovermc.proxy.SoysProxyPlugin
+version: 1.0.0
+author: soys
+description: SOYSHTTPOverMC BungeeCord 出网端口(25577) web 代理——首包分类，HTTP/HTTPS 经后端 MC 端口透传或代理自身托管

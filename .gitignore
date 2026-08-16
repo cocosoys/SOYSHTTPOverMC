@@ -6,3 +6,8 @@ server*/
 build*.log
 /dependency-reduced-pom.xml
 /mcpl-patch
+*.log
+*.py
+*.sh
+*.class
+/packetlib-patch/

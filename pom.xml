@@ -84,6 +84,13 @@
             <name>CodeMC</name>
             <url>https://repo.codemc.io/repository/maven-public/</url>
         </repository>
+        <!-- Velocity API 发布仓库（com.velocitypowered:velocity-api 不在 Maven Central，
+             由 PaperMC 代为托管；群组服伴随插件模块亦依赖此仓库） -->
+        <repository>
+            <id>papermc</id>
+            <name>PaperMC</name>
+            <url>https://repo.papermc.io/repository/maven-public/</url>
+        </repository>
     </repositories>
 
     <pluginRepositories>
@@ -167,6 +174,18 @@
             <groupId>fr.xephi</groupId>
             <artifactId>authme</artifactId>
             <version>5.4.0</version>
+            <scope>provided</scope>
+        </dependency>
+        <!-- 群组服（BungeeCord / Waterfall / Velocity）支持：
+             仅编译期签名，provided 不打进 jar，后端 Spigot 独立运行不受影响；
+             运行期经反射探测代理类，不在 classpath 时自动降级为独立服。
+             后端侧探测纯反射 + Bukkit 配置 API，无需直接引用代理类型；
+             BungeeCord 类型（及其传递依赖 brigadier SNAPSHOT）留待后续可选的
+             「代理侧伴随插件」模块单独声明，避免污染主插件构建图。 -->
+        <dependency>
+            <groupId>com.velocitypowered</groupId>
+            <artifactId>velocity-api</artifactId>
+            <version>3.0.0</version>
             <scope>provided</scope>
         </dependency>
     </dependencies>

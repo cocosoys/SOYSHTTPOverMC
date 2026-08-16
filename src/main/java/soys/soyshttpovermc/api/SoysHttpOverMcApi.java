@@ -63,4 +63,7 @@ public interface SoysHttpOverMcApi {
 
     /** 能力组 8：扩展接入（登录插件提供者 / /soyshttp 子指令） */
     ExtensionApi getExtension();
+
+    /** 能力组 9：跨服调用（群组服下插件间经隧道调用另一子服 API） */
+    CrossServerHttpClient getCrossServer();
 }

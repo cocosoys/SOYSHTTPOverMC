@@ -19,6 +19,26 @@ channel: httpproxy:main
 mc:
   host: ""
   port: 0
+  # 群组服（BungeeCord / Waterfall / Velocity）下对外公布的「公网地址」覆盖：
+  # 留空则沿用上面的 host/port（解析 server.properties）。
+  # 当后端端口需经代理对外、或后端绑定内网而客户端应连代理公网地址时，
+  # 在此填客户端实际可达的 host/port（例如代理公网 IP 与后端端口，或后端自身公网 IP 与 server-port）。
+  # 仅影响对外连接信息（/soyshttp send 链接、状态页显示的地址），
+  # 不改变无头 Bot 回连本服的地址（Bot 始终回连后端 server-port）。
+  public-host: ""
+  public-port: 0
+
+# 群组服（BungeeCord / Waterfall / Velocity）配置：
+# server-name 为该子服在代理中的唯一名称（对应 BungeeCord config.yml servers.<name>）。
+# 仅在群组服下填写；独立服留空。用于：①跨服请求路由（/server/<server-name>/...，兼容旧写法 /srv/<server-name>/...）；
+# ②Bot 携带服务器标签（名称/host/port）经 discovery 广播，便于网关与其他插件定位并与 Bot 通讯。
+# 注意：群组服下每台子服的 server-name 必须唯一且与该服在代理里注册的名字一致。
+# proxy-address 为 Bot 经代理连接的地址（host:port，即 BungeeCord / Velocity 监听端口）。
+# 群组服下必须填写：Bot 只有“经代理连接的玩家”身份，其 BungeeCord 频道 Forward 才会被代理跨服中继；
+# 留空则 Bot 直连后端，Forward 被静默丢弃 → 跨服请求/发现全部失效。通常填 127.0.0.1:<代理端口>。
+proxy:
+  server-name: ""
+  proxy-address: ""
 
 # 同端口 HTTP 嗅探器
 sniffer:

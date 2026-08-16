@@ -1,6 +1,7 @@
 package soys.soyshttpovermc.mc;
 
 import soys.soyshttpovermc.bot.BotTier;
+import soys.soyshttpovermc.cross.CrossServerHub;
 import soys.soyshttpovermc.log.LogKit;
 
 import org.bukkit.Bukkit;
@@ -30,6 +31,8 @@ public class McMessageHandler implements PluginMessageListener {
     private final String botUsername;
     private final String channel;
     private final RequestScheduler scheduler;
+    /** 跨服枢纽（独立服为 null；群组服下用于把指向其他服的请求中继出去） */
+    private final CrossServerHub hub;
 
     private final Map<Long, PendingReq> pending = new ConcurrentHashMap<>();
     /** 单次请求最大分片数（防 pending.buffers 超大分配），超过则丢弃 */
@@ -37,11 +40,12 @@ public class McMessageHandler implements PluginMessageListener {
     /** 分片重组超时（毫秒）：超过未补齐即淘汰，防内存堆积 */
     private static final long FRAGMENT_TTL_MS = 30_000;
 
-    public McMessageHandler(JavaPlugin plugin, String botUsername, String channel, RequestScheduler scheduler) {
+    public McMessageHandler(JavaPlugin plugin, String botUsername, String channel, RequestScheduler scheduler, CrossServerHub hub) {
         this.plugin = plugin;
         this.botUsername = botUsername;
         this.channel = channel;
         this.scheduler = scheduler;
+        this.hub = hub;
         // 分片 pending 表 TTL 淘汰（异步调度，不占主线程）
         Bukkit.getScheduler().runTaskTimerAsynchronously(plugin, this::sweepFragments, 200L, 200L);
     }
@@ -63,6 +67,15 @@ public class McMessageHandler implements PluginMessageListener {
                 ensureListening(player, channel);
                 LogKit.info("[HTTP-Over-MC] 已为 Bot 强制登记监听通道 " + channel
                         + " -> listening=" + player.getListeningPluginChannels());
+            }
+
+            // 跨服中继：若本请求指向其他服（请求头携带 X-Soys-Target-Server 且非本服），逐分片转发到目标服。
+            if (hub != null && hub.isCrossServer(chunk)) {
+                LogKit.info("[CrossServer] 网关侧命中跨服路由 target="
+                        + chunk.getHeadersMap().get(CrossServerHub.HEADER_TARGET)
+                        + " id=" + chunk.getRequestId());
+                hub.relayRequestFragment(message, chunk.getHeadersMap().get(CrossServerHub.HEADER_TARGET));
+                return;
             }
 
             long id = chunk.getRequestId();

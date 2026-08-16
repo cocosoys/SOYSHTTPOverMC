@@ -319,8 +319,11 @@ public class ApiRegistry {
         Player player = playerName == null ? null : Bukkit.getPlayerExact(playerName);
         String clientIp = headers == null ? null : headers.get(ApiRequestContext.HEADER_REMOTE_IP);
         boolean authenticated = credential != null && credential.hasAnyCredential();
+        // 群组服跨服关联：从内部头取来源服名与链路追踪 ID（独立服请求无此头则 null）
+        String sourceServer = headers == null ? null : headers.get("X-Soys-Source-Server");
+        String traceId = headers == null ? null : headers.get("X-Soys-Trace-Id");
         ApiRequestContext requestContext = new ApiRequestContext(method, meta.path, clientIp,
-                headers, credential, playerName, player, authenticated);
+                headers, credential, playerName, player, authenticated, sourceServer, traceId);
 
         // 参数绑定 + 调用
         Map<String, String> query = parseQuery(rawPath);

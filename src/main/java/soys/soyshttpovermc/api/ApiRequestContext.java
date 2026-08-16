@@ -28,7 +28,9 @@ import java.util.Map;
  *   <li>{@link #getPlayerName()} / {@link #getPlayer()} —— 经请求凭证（token/cookie）解析出的玩家；
  *       未登录/非玩家令牌为 null，玩家离线时实体为 null；</li>
  *   <li>{@link #getCredential()} —— 请求解析出的凭证（可为 null）；</li>
- *   <li>{@link #getHeaders()} / {@link #getHttpMethod()} / {@link #getPath()} —— 请求原信息。</li>
+ *   <li>{@link #getHeaders()} / {@link #getHttpMethod()} / {@link #getPath()} —— 请求原信息；</li>
+ *   <li>{@link #getSourceServer()} / {@link #getTraceId()} —— 群组服跨服关联：请求来源服名与链路追踪 ID
+ *       （经 X-Soys-Source-Server / X-Soys-Trace-Id 头传递；独立服为 null）。</li>
  * </ul>
  */
 public final class ApiRequestContext {
@@ -44,10 +46,20 @@ public final class ApiRequestContext {
     private final String playerName;
     private final Player player;
     private final boolean authenticated;
+    /** 跨服请求来源服名（独立服 / 本服直连为 null） */
+    private final String sourceServer;
+    /** 跨服链路追踪 ID（无关联为 null） */
+    private final String traceId;
 
     public ApiRequestContext(String httpMethod, String path, String ip, Map<String, String> headers,
                              CredentialPresentation credential, String playerName, Player player,
                              boolean authenticated) {
+        this(httpMethod, path, ip, headers, credential, playerName, player, authenticated, null, null);
+    }
+
+    public ApiRequestContext(String httpMethod, String path, String ip, Map<String, String> headers,
+                             CredentialPresentation credential, String playerName, Player player,
+                             boolean authenticated, String sourceServer, String traceId) {
         this.httpMethod = httpMethod == null ? "" : httpMethod;
         this.path = path == null ? "/" : path;
         this.ip = ip == null ? "0.0.0.0" : ip;
@@ -56,6 +68,8 @@ public final class ApiRequestContext {
         this.playerName = playerName;
         this.player = player;
         this.authenticated = authenticated;
+        this.sourceServer = sourceServer;
+        this.traceId = traceId;
     }
 
     /** 实际请求方法（GET/POST/...）。 */
@@ -96,5 +110,15 @@ public final class ApiRequestContext {
     /** 请求是否携带有效凭证。 */
     public boolean isAuthenticated() {
         return authenticated;
+    }
+
+    /** 跨服请求来源服名（独立服 / 本服直连为 null）。 */
+    public String getSourceServer() {
+        return sourceServer;
+    }
+
+    /** 跨服链路追踪 ID（无关联为 null）。 */
+    public String getTraceId() {
+        return traceId;
     }
 }

@@ -1,0 +1,42 @@
+# SOYSHTTPOverMC BungeeCord 端代理配置
+# 该配置仅存在于群组服（BungeeCord）端；单服（Spigot 直连）场景不涉及本插件。
+# 默认 enabled=false，即“单服模式该特性关闭”。在群组服中把 enabled 设为 true 才启用 25577 出网 web。
+
+# 是否启用 25577 出网端口 web 代理（false=关闭，仅做 MC 正常代理）
+enabled: false
+
+# 唯一主页服务器：
+#   - 填某个后端子服的 BungeeCord 服务器名（如 lobby / hub）→ “/” 与无前缀的 /api/... 都路由到它；
+#   - 填 "self" → 由本代理模块自身托管 web-root 下的静态页面（不经后端）。
+# /server/<子服名>/... 与 /server/<子服名>/api/... 始终路由到对应子服（无论 home-server 设什么）。
+home-server: self
+
+# self 模式下静态页面根目录（相对插件数据目录）
+web-root: web
+
+# 代理→后端 MC 端口 TCP 透传超时(ms)
+pipe-timeout-ms: 30000
+
+# self 模式 HTTPS 终止用的证书(PEM)与私钥(PEM)路径（相对插件数据目录）。
+# 留空则首次收到 HTTPS 时自动生成自签证书并持久化为 self-cert.pem / self-key.pem（重启复用）。
+# self 模式下 /server/<子服名>/... 的请求，代理会以 TLS 客户端再连该子服后端并回传响应。
+# 后端模式（home-server=某子服）下 HTTPS 直接原样透传到该子服，由子服终止 TLS，无需此处证书。
+tls-cert: ""
+tls-key: ""
+
+# ===== 方案2：后端常驻连接池（消除浏览器并行连接触发的后端 connect 突发 / ERR_CONNECTION_ABORTED）=====
+# 每目标(子服名 + secure维度)预建并维护的常驻后端连接数。浏览器对单域通常开 4~6 条并行连接，
+# 设 >=6（默认 8）即可被池吸收，浏览器突发不再触发后端 connect。池空(并发超此值)时按需新建(带重试)。
+pool-size: 16
+# 预热建连间隔(ms)：启动时带间隔预建常驻连接，避免密集建连被后端 MC 端口静默丢弃(spike-drop)。
+pool-warmup-interval-ms: 200
+# 从池获取/新建后端连接的超时(ms)：池空新建时单次 connect 超时上限；新建失败会带 60ms 间隔重试 3 次。
+pool-acquire-ms: 5000
+# 池中连接最大存活(ms)：必须 < 后端 keep-alive 空闲超时(实测 ~10-15s)，超龄强制轮换，避免 stale 连接被复用。
+pool-max-age-ms: 8000
+# 新建连接串行间隔(ms)：池空/淘汰时的新建按每目标串行带间隔，从根上消除并发 connect 突发(spike-drop)。
+connection-spacing-ms: 50
+
+# （以下为旧版并发配额旋钮，方案2连接池已取代其作用，保留仅作兼容，建议置 0 或忽略）
+# pipe-concurrency: 4
+# pipe-release-delay-ms: 0

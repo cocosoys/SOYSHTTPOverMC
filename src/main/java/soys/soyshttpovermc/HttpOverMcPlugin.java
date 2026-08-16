@@ -8,6 +8,7 @@ import soys.soyshttpovermc.event.ApiLifecycleListener;
 import soys.soyshttpovermc.event.GatewayEventListener;
 
 import org.bukkit.configuration.ConfigurationSection;
+import org.bukkit.Bukkit;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import soys.soyshttpovermc.api.SoysHttpOverMcApi;
@@ -33,6 +34,11 @@ import soys.soyshttpovermc.link.McLink;
 import soys.soyshttpovermc.mc.McMessageHandler;
 import soys.soyshttpovermc.mc.RequestScheduler;
 import soys.soyshttpovermc.mc.SocketSniffer;
+import soys.soyshttpovermc.proxy.ProxyDetector;
+import soys.soyshttpovermc.proxy.ProxyPlatform;
+import soys.soyshttpovermc.proxy.ServerRegistry;
+import soys.soyshttpovermc.proxy.ServerTag;
+import soys.soyshttpovermc.cross.CrossServerHub;
 import soys.soyshttpovermc.web.RequestStats;
 import soys.soyshttpovermc.web.WebFrontendHandler;
 import soys.soyshttpovermc.gateway.policy.auth.bridge.AuthLoginBridge;
@@ -84,6 +90,16 @@ public class HttpOverMcPlugin extends JavaPlugin {
     private WebFrontendHandler webFrontend;
     /** 登录窗口认证服务（/soyshttp reload 后向其热替换登录桥） */
     private AuthServiceImpl authService;
+    /** 当前运行拓扑：独立服 / BungeeCord(Waterfall) / Velocity（群组服探测结果，影响 Bot 握手转发兼容与对外地址） */
+    private ProxyPlatform proxyPlatform = ProxyPlatform.STANDALONE;
+    /** 群组服服务器名（config.yml proxy.server-name；独立服为空） */
+    private String serverName = "";
+    /** 群组服下 Bot 经代理连接的地址（config.yml proxy.proxy-address，host:port；独立服为空） */
+    private String proxyAddress = "";
+    /** 群组服服务器标签注册表（本服自注册 + 经 discovery 收集其他子服） */
+    private final ServerRegistry serverRegistry = new ServerRegistry();
+    /** 跨服枢纽（独立服为 null；群组服下承载中继/服务/响应关联/发现） */
+    private CrossServerHub crossHub = null;
 
     /** 供其他插件获取本插件实例（接入注解式 API / 监听网关事件 / 下发凭证） */
     public static HttpOverMcPlugin getInstance() {
@@ -113,6 +129,11 @@ public class HttpOverMcPlugin extends JavaPlugin {
     /** Bot 生命周期与通道调度管理器（门面 Bot 组后端；主 Bot 也由其接管通道分发） */
     public BotManager getBotManager() {
         return botManager;
+    }
+
+    /** 主 Bot 隧道（跨服 API 调用经其回环到本服 McMessageHandler 触发中继） */
+    public McLink getMcLink() {
+        return mcLink;
     }
 
     /** HTTPS（TLS 引擎）是否可用 */
@@ -172,6 +193,27 @@ public class HttpOverMcPlugin extends JavaPlugin {
     private void loadCoreConfig() {
         botUsername = getConfig().getString("bot.username", "__http_proxy__");
         channel = getConfig().getString("channel", "httpproxy:main");
+        // 群组服探测：经反射读 spigot.yml/paper.yml 判断是否位于 BungeeCord / Waterfall / Velocity 之后。
+        // 影响无头 Bot 的握手转发兼容（后端 bungee:true / Velocity legacy 转发下需附加 host\0ip\0uuid 转发数据）与对外地址选择。
+        this.proxyPlatform = ProxyDetector.detect(this);
+        LogKit.info("[HTTP-Over-MC] 运行拓扑探测: " + proxyPlatform
+                + (proxyPlatform == ProxyPlatform.STANDALONE ? "（独立服，Bot 直连）" : "（群组服，Bot 握手将附加转发兼容）"));
+        // 群组服服务器名（config.yml proxy.server-name；仅群组服下用于跨服路由/发现，独立服留空）
+        this.serverName = getConfig().getString("proxy.server-name", "");
+        // 群组服下 Bot 用户名须全局唯一（BungeeCord 共享单一玩家命名空间，且限制 ≤16 字符、仅 [a-zA-Z0-9_]），
+        // 否则多服共用默认 __http_proxy__ 会撞名 → Bot 登录被拒 / 隧道错乱。追加本服名区分（前缀 hpb_ = http-proxy-bot）。
+        if (proxyPlatform != ProxyPlatform.STANDALONE && serverName != null && !serverName.isEmpty()) {
+            String sName = sanitizeName(serverName);
+            String candidate = "hpb_" + sName;
+            if (candidate.length() > 16) {
+                candidate = candidate.substring(0, 16);
+            }
+            botUsername = candidate;
+            LogKit.info("[HTTP-Over-MC] 群组服模式：Bot 采用全局唯一名 " + botUsername + "（本服=" + serverName + "）");
+        }
+        // 群组服下 Bot 须经代理(BungeeCord / Velocity)连接，其 BungeeCord 频道 Forward 才能被代理跨服中继；
+        // 直连后端的 Bot 不在代理玩家命名空间内，Forward 会被静默丢弃，导致跨服请求/发现全部失效。
+        this.proxyAddress = getConfig().getString("proxy.proxy-address", "");
         // Bot 回连的本服地址 = Spigot 的 server-port（同端口方案核心：访问端口 == 服务器端口）
         // mc.host / mc.port 留空时自动从 server.properties 取（见 getMcHost/getMcPort）
         mcHost = getMcHost();
@@ -180,14 +222,48 @@ public class HttpOverMcPlugin extends JavaPlugin {
         maxBody = getConfig().getInt("sniffer.max-body-bytes", 8 * 1024 * 1024);
     }
 
-    /** 本服对外 host：config.yml 的 {@code mc.host} 为空时自动取 server.properties 的 server-ip（再回退 127.0.0.1）。 */
-    public String getMcHost() {
-        return ConfigManager.resolveMcHost(this, getConfig().getString("mc.host", ""));
+    /** 把任意字符串洗成 MC 合法用户名片段：仅保留 [a-zA-Z0-9_]，其余替换为 _（避免 @ / - / . 等非法字符）。 */
+    private static String sanitizeName(String s) {
+        if (s == null) return "";
+        StringBuilder sb = new StringBuilder(s.length());
+        for (char c : s.toCharArray()) {
+            sb.append((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_' ? c : '_');
+        }
+        return sb.toString();
     }
 
-    /** 本服对外 port：config.yml 的 {@code mc.port} 为空(<=0)时自动取 server.properties 的 server-port（再回退运行期端口）。 */
+    /** 本服对外 host：优先 config.yml 的 {@code mc.public-host}（群组服公网覆盖），
+     *  否则 {@code mc.host}，再回退 server.properties 的 server-ip → 127.0.0.1。 */
+    public String getMcHost() {
+        return ConfigManager.resolveMcPublicHost(this,
+                getConfig().getString("mc.host", ""), getConfig().getString("mc.public-host", ""));
+    }
+
+    /** 本服对外 port：优先 config.yml 的 {@code mc.public-port}（群组服公网覆盖），
+     *  否则 {@code mc.port}，再回退 server.properties 的 server-port → 运行期端口。 */
     public int getMcPort() {
-        return ConfigManager.resolveMcPort(this, getConfig().getInt("mc.port", 0));
+        return ConfigManager.resolveMcPublicPort(this,
+                getConfig().getInt("mc.port", 0), getConfig().getInt("mc.public-port", 0));
+    }
+
+    /** 当前运行拓扑（供其他模块/调试使用）。 */
+    public ProxyPlatform getProxyPlatform() {
+        return proxyPlatform;
+    }
+
+    /** 本服在群组服中的服务器名（独立服为空）。 */
+    public String getServerName() {
+        return serverName;
+    }
+
+    /** 群组服服务器标签注册表（供跨服调用/发现查询）。 */
+    public ServerRegistry getServerRegistry() {
+        return serverRegistry;
+    }
+
+    /** 跨服枢纽（独立服为 null）。 */
+    public CrossServerHub getCrossServerHub() {
+        return crossHub;
     }
 
     /**
@@ -302,9 +378,70 @@ public class HttpOverMcPlugin extends JavaPlugin {
     private void initBot() {
         bot = new InternalBot(this, botUsername, channel, mcHost, mcPort);
         mcLink = new McLink(bot, channel);
-        botManager = new BotManager(this, bot, mcLink, channel, mcHost, mcPort);
+        // 群组服下 Bot 握手附加转发兼容（bungee:true / Velocity 转发）：让 Bot 能正常进服并注册隧道通道
+        bot.setProxyForwarding(proxyPlatform != ProxyPlatform.STANDALONE);
+        // 群组服下 Bot 携带所属服务器名（于 ServerTag 中向其他子服广播）
+        bot.setServerName(serverName);
+        // 群组服下 Bot 经代理连接（hostname\0 转发由代理自行附加），使其 Forward 能被正确跨服中继
+        if (proxyPlatform != ProxyPlatform.STANDALONE) {
+            bot.setProxyAddress(proxyAddress);
+            // 注册 Bot 控制通道：Bot 经代理落在默认服后，由当前服务端代发 BungeeCord Connect 切到本服
+            // （BungeeCord 1.x 丢弃客户端直发 Connect，服务端侧 player.sendPluginMessage 可靠）。
+            getServer().getMessenger().registerIncomingPluginChannel(this, InternalBot.CHANNEL_BOT_CTL,
+                    (ch, player, message) -> handleBotConnectRequest(player, message));
+        }
+        botManager = new BotManager(this, bot, mcLink, channel, mcHost, mcPort, proxyPlatform != ProxyPlatform.STANDALONE);
         bot.setRawMessageListener(botManager::dispatch);
         bot.connect();
+    }
+
+    /**
+     * 收到 Bot 经代理落在当前服后发来的 botctl 请求：代其向 BungeeCord 发 Connect 切到目标服。
+     * <p>BungeeCord 1.x 会丢弃<b>客户端直发</b>的 BungeeCord 通道 Connect，因此由“当前服务端”侧
+     * {@code player.sendPluginMessage(plugin, "BungeeCord", Connect)} 代发（服务端→BungeeCord 透传可靠）。
+     * 授权：仅处理本插件 Bot（名称以 {@code hpb_} 开头），避免任意玩家滥用 Connect 切服。</p>
+     */
+    private void handleBotConnectRequest(org.bukkit.entity.Player player, byte[] message) {
+        try {
+            if (!player.getName().startsWith("hpb_")) {
+                LogKit.warn("[HTTP-Over-MC] 忽略非 Bot 的 botctl 请求: " + player.getName());
+                return;
+            }
+            java.io.DataInputStream in = new java.io.DataInputStream(new java.io.ByteArrayInputStream(message));
+            String target = in.readUTF();
+            if (target == null || target.isEmpty()) return;
+            java.io.ByteArrayOutputStream bos = new java.io.ByteArrayOutputStream();
+            java.io.DataOutputStream out = new java.io.DataOutputStream(bos);
+            out.writeUTF("Connect");
+            out.writeUTF(target);
+            out.flush();
+            final byte[] pkt = bos.toByteArray();
+            Bukkit.getScheduler().runTask(this, () -> player.sendPluginMessage(this, "BungeeCord", pkt));
+            LogKit.info("[HTTP-Over-MC] 已代 Bot(" + player.getName() + ") 发 Connect 切到: " + target);
+            // 服务端侧兜底登记跨服监听通道（Connect 切服后本服即目标服，立即生效）
+            forceBotListen(player, CrossServerHub.CHANNEL_FWD_REQ);
+            forceBotListen(player, CrossServerHub.CHANNEL_FWD_RESP);
+            forceBotListen(player, CrossServerHub.CHANNEL_DISCOVERY);
+        } catch (Throwable t) {
+            LogKit.warn("[HTTP-Over-MC] 处理 botctl 失败: " + t);
+        }
+    }
+
+    /** 服务端侧强制把 Bot 加入某通道监听（1.12.2 仅 CraftPlayer 提供 addChannel，反射兼容）。
+     *  等同 McMessageHandler.ensureListening，但覆盖 fwd/发现通道，确保 BungeeCord 的 Forward 可达本服。 */
+    private void forceBotListen(org.bukkit.entity.Player player, String ch) {
+        try {
+            java.lang.reflect.Method m;
+            try {
+                m = org.bukkit.entity.Player.class.getMethod("addListeningPluginChannel", String.class);
+            } catch (NoSuchMethodException e) {
+                m = player.getClass().getMethod("addChannel", String.class);
+            }
+            m.invoke(player, ch);
+            LogKit.info("[HTTP-Over-MC] 已为 Bot 强制登记监听通道 " + ch + " -> " + player.getListeningPluginChannels());
+        } catch (Throwable t) {
+            LogKit.warn("[HTTP-Over-MC] 无法为 Bot 强制登记通道 " + ch + ": " + t);
+        }
     }
 
     /** 构造对外集成门面（注入各 registry 与 BotManager），仅在 onEnable 调用一次。 */
@@ -324,10 +461,51 @@ public class HttpOverMcPlugin extends JavaPlugin {
         webFrontend = web;
         // 请求调度器：单物理 Bot + 多逻辑队列（common 512 / admin 128 容量，4 个 worker，admin 优先）
         requestScheduler = new RequestScheduler(this, channel, web, 512, 128, 4);
-        McMessageHandler handler = new McMessageHandler(this, botUsername, channel, requestScheduler);
+        // 群组服下创建跨服枢纽（中继/服务/响应关联/发现），并注册转发与发现通道
+        if (proxyPlatform != ProxyPlatform.STANDALONE && serverName != null && !serverName.isEmpty()) {
+            crossHub = new CrossServerHub(this, mcLink, web, botUsername, serverRegistry);
+            crossHub.setLocalServerName(serverName);
+            // 自注册本服标签（单服即可验证）
+            serverRegistry.register(new ServerTag(serverName, mcHost, mcPort, botUsername));
+            getServer().getMessenger().registerOutgoingPluginChannel(this, CrossServerHub.BUNGEECORD_CHANNEL);
+            // 关键：BungeeCord 收到 Forward 后把内层载荷重包为 innerChannel+len+data，并经由目标服的
+            // “BungeeCord” 通道投递；Spigot(bungeecord:true) 不自动解 Forward，仅把 BungeeCord 通道消息
+            // 透传给已注册 listener。故跨服 listener 必须注册在 BungeeCord 通道上（而非 httpproxy:fwd-*），
+            // 早期注册在 fwd 通道导致 survival 侧零日志、跨服全部失效。
+            getServer().getMessenger().registerIncomingPluginChannel(this, CrossServerHub.BUNGEECORD_CHANNEL, crossHub.listener());
+            // 让本服 Bot 监听 BungeeCord 通道（接收端）：BungeeCord 的 Forward 经此通道投递，
+            // 不登记则消息被静默丢弃。bot 自身已在握手后 REGISTER BungeeCord，这里服务端兜底确保万无一失。
+            bot.addExtraChannel(CrossServerHub.BUNGEECORD_CHANNEL);
+            final String botName = botUsername;
+            getServer().getPluginManager().registerEvents(new org.bukkit.event.Listener() {
+                @org.bukkit.event.EventHandler
+                public void onJoin(org.bukkit.event.player.PlayerJoinEvent e) {
+                    if (botName.equals(e.getPlayer().getName())) {
+                        forceBotListen(e.getPlayer(), CrossServerHub.BUNGEECORD_CHANNEL);
+                        LogKit.info("[HTTP-Over-MC] 已为 Bot 强制登记 BungeeCord 监听通道(服务端兜底): " + botName);
+                    }
+                }
+            }, this);
+            LogKit.info("[HTTP-Over-MC] 跨服枢纽已启用: 本服=" + serverName + " host=" + mcHost + ":" + mcPort
+                    + " bot=" + botUsername);
+            startCrossServerDiscovery();
+        }
+        McMessageHandler handler = new McMessageHandler(this, botUsername, channel, requestScheduler, crossHub);
         getServer().getMessenger().registerOutgoingPluginChannel(this, channel);
         getServer().getMessenger().registerIncomingPluginChannel(this, channel, handler);
         return stats;
+    }
+
+    /** 启动群组服发现：自注册 + 经 BungeeCord Forward(ALL) 广播本服标签，并周期性清理过期标签。 */
+    private void startCrossServerDiscovery() {
+        // 5s 后首发，之后每 30s 续播（覆盖后端陆续上线）
+        getServer().getScheduler().runTaskTimer(this, () -> {
+            if (crossHub == null) return;
+            ServerTag self = new ServerTag(serverName, mcHost, mcPort, botUsername);
+            serverRegistry.register(self);
+            crossHub.broadcastDiscovery(self);
+            serverRegistry.sweep();
+        }, 100L, 600L);
     }
 
     /** 在 Spigot 自身监听端口安装三协议嗅探器（MC / 明文 HTTP / HTTPS）；未启用则跳过。 */
@@ -335,7 +513,9 @@ public class HttpOverMcPlugin extends JavaPlugin {
         if (!snifferEnabled) {
             return;
         }
-        sniffer = new SocketSniffer(this, new HttpMcTranslator(mcLink, botRuleController),
+        HttpMcTranslator translator = new HttpMcTranslator(mcLink, botRuleController);
+        translator.setLocalServerName(serverName);
+        sniffer = new SocketSniffer(this, translator,
                 () -> bot.isReady(), maxBody, stats, gateway, getTlsEngineSupplier());
         sniffer.install();
     }

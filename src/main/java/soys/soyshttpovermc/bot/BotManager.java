@@ -28,6 +28,8 @@ public class BotManager {
     private final String mainChannel;
     private final String host;
     private final int port;
+    /** 群组服转发兼容：额外受管 Bot 创建时透传，使其握手附加 !<uuid> 以通过 bungee:true / Velocity 转发校验 */
+    private final boolean proxyForwarding;
 
     /** 自定义通道监听器：channel -> 监听器（主 Bot 收到该通道下行消息时回调） */
     private final Map<String, InternalBot.RawMessageListener> customListeners = new ConcurrentHashMap<>();
@@ -35,13 +37,14 @@ public class BotManager {
     private final Map<String, ManagedBot> bots = new ConcurrentHashMap<>();
 
     public BotManager(JavaPlugin plugin, InternalBot mainBot, McLink mainLink,
-                      String mainChannel, String host, int port) {
+                      String mainChannel, String host, int port, boolean proxyForwarding) {
         this.plugin = plugin;
         this.mainBot = mainBot;
         this.mainLink = mainLink;
         this.mainChannel = mainChannel;
         this.host = host;
         this.port = port;
+        this.proxyForwarding = proxyForwarding;
     }
 
     /**
@@ -81,6 +84,7 @@ public class BotManager {
         ManagedBot existing = bots.get(name);
         if (existing != null) return existing;
         InternalBot bot = new InternalBot(plugin, name, channel, host, port);
+        bot.setProxyForwarding(proxyForwarding);
         McLink link = new McLink(bot, channel);
         bot.setRawMessageListener((ch, data) -> {
             if (channel.equals(ch)) {

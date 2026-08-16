@@ -55,11 +55,10 @@ public class McLink {
         return future;
     }
 
-    /** 由 InternalBot 在收到服务端 PluginMessage 时回调 */
+    /** 由 InternalBot（主通道 httpproxy:main）或跨服枢纽（httpproxy:fwd-resp）在收到服务端 PluginMessage 时回调。
+     *  按 request_id 多路复用，故不限定通道——同源同服响应与跨服回程响应共用同一 pending 表。 */
     public void onRawMessage(String ch, byte[] data) {
-        if (!channel.equals(ch)) {
-            return;
-        }
+        if (data == null) return;
         try {
             FrameProto.HttpResponseFrame f = FrameProto.HttpResponseFrame.parseFrom(data);
             long id = f.getRequestId();

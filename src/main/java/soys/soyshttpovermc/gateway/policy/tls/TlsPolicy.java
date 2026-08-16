@@ -46,7 +46,8 @@ public class TlsPolicy extends SecurityPolicy {
         // 携带有效 X-API-Key（或任一有效凭证）的请求：允许明文 HTTP 直接访问，旁路 HTTPS 强制升级。
         // 权限控制抽象：当前有效凭证 = 拥有全部权限；未来可在此加 hasPermission 细粒度条件。
         if (ctx.isAuthenticated()) return PolicyResult.ALLOW;
-        String loc = "https://" + host + ctx.getPath();
+        // Location 用原始路径（含 /server/<name>/ 跨服前缀），否则升级到 HTTPS 后会丢失目标子服
+        String loc = "https://" + host + ctx.getRawPath();
         Map<String, String> h = new HashMap<>();
         h.put("Location", loc);
         return PolicyResult.deny(426, "Upgrade Required: please use HTTPS (" + loc + ")", h);
