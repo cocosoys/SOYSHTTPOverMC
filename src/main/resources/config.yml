@@ -120,25 +120,58 @@ web:
 log:
   level: INFO
 
-# ============ 网页登录（登录插件 SPI）============
-# 使用的登录插件提供者（LoginProvider 的 name，如 authme；留空=自动选用第一个已加载的可用登录插件）
-# 已迁移至 gateway/policies/auth.yml 的 login-provider 键（与鉴权策略同文件，见该文件注释）。
-# 若未接入任何登录插件，网页登录自动切换为「免密码」模式：仅需输入用户名即可签发会话令牌。
+# ============================================================================
+#  数据存储（多后端，照抄 SOYSOceanBox 架构）
+# ----------------------------------------------------------------------------
+#  【多后端】
+#  三种后端可同时开启。优先级固定为: MYSQL > SQLITE > YAML
+#  已启用的后端中优先级最高者为「主存储」，负责所有读操作；
+#  其余启用的后端作为「辅助存储」，写入时被镜像同步，充当热备份。
+#  例: 同时开启 mysql 与 yaml -> MySQL 为主库，yaml 自动保持一份可读的本地副本。
+#
+#  【互转与覆盖】
+#  使用 /soyshttp migrate <来源> <目标> 在任意两个后端之间转换数据，
+#  使用 /soyshttp sync 将主存储的全量数据覆盖写入所有辅助存储。
+# ============================================================================
+storage:
 
-# ============ 跨服同步数据存储（多数据库抽象）============
-# 默认禁用（内存模式运行）。启用后自动成为跨服共享数据的存储后端（抽象通道，未来可扩展
-# SQLite/PostgreSQL 等实现，参考 SOYSMyLoot 的多数据库架构）。同步数据：
-#   - 令牌注销黑名单（token_blacklist）：任意子服退出登录 → 全服令牌立即失效（跨服登出同步）；
-#   - 令牌签发审计（token_audit）：全服审计聚合（/soyshttp tokens 跨服查看）；
-#   - 实例心跳（instances）：各子服注册/心跳，跨服拓扑可见。
-# ⚠️ 各子服必须连接【同一个】数据库实例；表自动创建（table-prefix 前缀）。
-# ⚠️ 限流桶 / 请求统计保持本地内存（高频读改写，不建议落库），跨服统一限流需 Redis 等另行方案。
-mysql:
-  enabled: false
-  # URL 直连方式
-  url: 'jdbc:mysql://localhost:3306/minecraft?useUnicode=true&characterEncoding=utf8&autoReconnect=true&useSSL=false&serverTimezone=Asia/Shanghai'
-  username: root
-  password: '123456'
-  table-prefix: 'mc_shttp_'
-  # 保活探测间隔（秒）：防 MySQL wait_timeout 断连（默认 1800s）
-  keepalive-interval: 1800
+  backends:
+
+    # ---------- YAML（默认启用，零依赖） ----------
+    yaml:
+      enabled: true
+      file: data/records.yml
+      backup-on-save: false
+
+    # ---------- SQLite（默认禁用） ----------
+    sqlite:
+      enabled: false
+      file: data/records.db
+      table-prefix: 'mc_shttp_'
+
+    # ---------- MySQL（默认禁用，启用后自动成为主存储） ----------
+    mysql:
+      enabled: false
+      url: 'jdbc:mysql://localhost:3306/minecraft?useUnicode=true&characterEncoding=utf8&autoReconnect=true&useSSL=false&serverTimezone=Asia/Shanghai'
+      username: root
+      password: ''
+      table-prefix: 'mc_shttp_'
+      keepalive-interval: 1800
+
+  # --------------------------------------------------------------
+  #  跨服数据同步
+  # --------------------------------------------------------------
+  #  开启后，多个服务端实例共享同一份跨服同步数据（令牌黑名单/审计/心跳/全局密钥）。
+  #  前提：所有实例的 storage.backends.mysql.enabled 必须设为 true 且指向同一数据库，
+  #  此时 MySQL 自动成为「主存储」，数据跨服可见。
+  #  注意：实例各自仍可将本地 yaml/sqlite 作为热备份（辅助存储），但请勿在
+  #  多实例间互相同步（sync 命令 / sync-on-startup），以免覆盖共享数据。
+  cross-server: false
+
+  # --------------------------------------------------------------
+  #  辅助存储镜像写入
+  # --------------------------------------------------------------
+  mirror:
+    enabled: true
+    async: true
+    sync-on-startup: false

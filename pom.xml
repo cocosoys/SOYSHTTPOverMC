@@ -19,7 +19,7 @@
     </properties>
 
     <build>
-        <finalName>SOYSHTTPOverMC</finalName>
+        <finalName>SOYSHTTPOverMC-tmp</finalName>
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
@@ -190,6 +190,14 @@
                     <artifactId>protobuf-java</artifactId>
                 </exclusion>
             </exclusions>
+        </dependency>
+        <!-- SQLite JDBC：多后端存储的 SQLite 后端（storage.backends.sqlite 启用时使用）。
+             provided：Spigot 1.12.2 服务端已内置 org.sqlite.JDBC，不打进 jar。 -->
+        <dependency>
+            <groupId>org.xerial</groupId>
+            <artifactId>sqlite-jdbc</artifactId>
+            <version>3.36.0.3</version>
+            <scope>provided</scope>
         </dependency>
         <!-- 群组服（BungeeCord / Waterfall / Velocity）支持：
              仅编译期签名，provided 不打进 jar，后端 Spigot 独立运行不受影响；

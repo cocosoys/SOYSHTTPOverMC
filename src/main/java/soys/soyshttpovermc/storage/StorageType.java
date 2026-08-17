@@ -1,30 +1,45 @@
 package soys.soyshttpovermc.storage;
 
 /**
- * 数据存储后端类型（多数据库抽象，参考 SOYSMyLoot 的 StorageType）。
+ * 存储后端类型（照抄 SOYSOceanBox）：
+ * priority 决定主存储选取——所有已启用后端中 priority 最高者作为主存储（承担全部读操作），
+ * 其余作为辅助存储被镜像写入（热备份）。固定优先级 MYSQL > SQLITE > YAML。
  */
 public enum StorageType {
 
-    /** 未启用任何后端（内存运行） */
-    NONE("none"),
-    /** MySQL（URL 直连） */
-    MYSQL("mysql");
+    YAML("yaml", 10, "YAML 文件"),
+    SQLITE("sqlite", 20, "SQLite 数据库"),
+    MYSQL("mysql", 30, "MySQL 数据库");
 
     private final String id;
+    private final int priority;
+    private final String displayName;
 
-    StorageType(String id) {
+    StorageType(String id, int priority, String displayName) {
         this.id = id;
+        this.priority = priority;
+        this.displayName = displayName;
     }
 
     public String getId() {
         return id;
     }
 
-    public static StorageType fromId(String id) {
-        if (id == null) return NONE;
-        for (StorageType t : values()) {
-            if (t.id.equalsIgnoreCase(id)) return t;
+    public int getPriority() {
+        return priority;
+    }
+
+    public String getDisplayName() {
+        return displayName;
+    }
+
+    /** 按 id 解析（忽略大小写）；未匹配返回 null。 */
+    public static StorageType fromId(String input) {
+        if (input == null) return null;
+        String normalized = input.trim().toLowerCase();
+        for (StorageType type : values()) {
+            if (type.id.equals(normalized)) return type;
         }
-        return NONE;
+        return null;
     }
 }

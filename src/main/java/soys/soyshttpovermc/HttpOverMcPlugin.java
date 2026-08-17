@@ -121,6 +121,8 @@ public class HttpOverMcPlugin extends JavaPlugin {
     private soys.soyshttpovermc.web.CorsRegistry corsRegistry = null;
     /** 跨服同步存储（MySQL 等；null=内存模式）。 */
     private soys.soyshttpovermc.storage.SyncStorage syncStorage = null;
+    /** 多后端存储协调器（YAML/SQLite/MySQL 主辅+镜像；null=内存模式）。 */
+    private soys.soyshttpovermc.storage.StorageManager storageManager = null;
 
     /** 供其他插件获取本插件实例（接入注解式 API / 监听网关事件 / 下发凭证） */
     public static HttpOverMcPlugin getInstance() {
@@ -257,28 +259,43 @@ public class HttpOverMcPlugin extends JavaPlugin {
         }
     }
 
-    /** 装配跨服同步存储（config.yml mysql 段）：启用则初始化 + 保活定时 + 心跳定时。 */
+    /**
+     * 装配多后端数据存储（照抄 SOYSOceanBox：storage.backends.{yaml,sqlite,mysql} + 主辅 + 镜像）：
+     * 初始化全部启用的后端并选出主存储；语义层（RecordSyncStorage）桥接跨服同步数据
+     * （黑名单/审计/心跳/密钥）到主辅存储；keepAlive 由 StorageManager 内部定时；
+     * 实例心跳在此定时。无任何可用后端 → 降级内存模式（不影响插件运行）。
+     */
     private void initStorage() {
-        syncStorage = soys.soyshttpovermc.storage.StorageManager.build(getConfig().getConfigurationSection("mysql"));
-        if (syncStorage == null) {
-            return;
+        soys.soyshttpovermc.storage.StorageManager manager = null;
+        try {
+            manager = new soys.soyshttpovermc.storage.StorageManager(this);
+            manager.initialize();
+        } catch (Throwable t) {
+            LogKit.warn("[HTTP-Over-MC] 存储后端初始化失败，降级为内存模式: " + t.getMessage());
+            manager = null;
         }
-        // 保活探测（防 MySQL wait_timeout 断连）与实例心跳（跨服拓扑）
-        long keepaliveSeconds = Math.max(30, getConfig().getLong("mysql.keepalive-interval", 1800));
-        getServer().getScheduler().runTaskTimerAsynchronously(this, () -> {
-            try {
-                syncStorage.keepAlive();
-            } catch (Throwable ignored) {
-            }
-        }, keepaliveSeconds * 20L, keepaliveSeconds * 20L);
-        getServer().getScheduler().runTaskTimerAsynchronously(this, () -> {
-            try {
-                syncStorage.heartbeat(storageServerId(), serverName == null || serverName.isEmpty() ? getName() : serverName,
-                        mcHost, mcPort);
-            } catch (Throwable ignored) {
-            }
-        }, 0L, 30L * 20L);
-        LogKit.info("[HTTP-Over-MC] 跨服同步存储已装配: serverId=" + storageServerId());
+        this.storageManager = manager;
+        this.syncStorage = manager == null ? null : new soys.soyshttpovermc.storage.RecordSyncStorage(manager);
+
+        // 实例心跳（跨服拓扑可见性；SQL 后端保活由 StorageManager 内部定时）
+        if (syncStorage != null) {
+            getServer().getScheduler().runTaskTimerAsynchronously(this, () -> {
+                try {
+                    syncStorage.heartbeat(storageServerId(),
+                            serverName == null || serverName.isEmpty() ? getName() : serverName, mcHost, mcPort);
+                } catch (Throwable ignored) {
+                }
+            }, 0L, 30L * 20L);
+            LogKit.info("[HTTP-Over-MC] 跨服同步存储已装配: serverId=" + storageServerId()
+                    + " 主=" + (manager == null ? "-" : manager.getPrimary().getType().getDisplayName()));
+        } else {
+            LogKit.info("[HTTP-Over-MC] 数据存储未启用（内存模式）");
+        }
+    }
+
+    /** 多后端存储协调器（null=内存模式）。 */
+    public soys.soyshttpovermc.storage.StorageManager getStorageManager() {
+        return storageManager;
     }
 
     /** 本服存储标识（群组服=server-name；独立服=standalone-&lt;host&gt;:&lt;port&gt;）。 */
@@ -747,11 +764,13 @@ public class HttpOverMcPlugin extends JavaPlugin {
         }
     }
 
-    /** /soyshttp reload：热重载日志级别 + 网关策略与 TLS 配置（gateway/ 目录），无需重启服务器 */
+    /** /soyshttp reload：热重载日志级别 + 网关策略与 TLS 配置（gateway/ 目录）+ 存储后端，无需重启服务器 */
     public void reloadHttpConfig() {
         reloadConfig();
         String levelRaw = getConfig().getString("log.level", "INFO");
         LogKit.setLevel(levelRaw); // 日志级别热重载
+        // 重建多后端存储（主辅/镜像配置可能变更；StorageManager.initialize 内部先关闭旧的）
+        initStorage();
         File gatewayDir = ConfigManager.ensureGatewayFiles(this);
         rebuildGateway(gatewayDir, getLogger());
         // 网关重建后颁发器实例已换新，重新装配玩家权限映射服务（跟踪最新网关）
@@ -793,6 +812,13 @@ public class HttpOverMcPlugin extends JavaPlugin {
             } catch (Throwable ignored) {
             }
             syncStorage = null;
+        }
+        if (storageManager != null) {
+            try {
+                storageManager.shutdown(); // 排空写队列 + 关闭全部后端
+            } catch (Throwable ignored) {
+            }
+            storageManager = null;
         }
         instance = null;
         LogKit.info("HTTP-Over-MC 已关闭");

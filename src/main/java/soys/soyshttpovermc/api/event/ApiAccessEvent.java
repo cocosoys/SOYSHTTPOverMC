@@ -132,4 +132,112 @@ public class ApiAccessEvent extends Event {
     public HandlerList getHandlers() {
         return HANDLERS;
     }
+
+    /** API 访问监听事件：DELETE 请求类型（监听本类只收到 DELETE 访问；监听基类收全部）。 */
+    public static class ApiDeleteEvent extends ApiAccessEvent {
+
+        public ApiDeleteEvent(String path, String apiName, String permission, String ownerPlugin,
+                      boolean authenticated, String playerName, Player player, CredentialPresentation credential) {
+            super("DELETE", path, apiName, permission, ownerPlugin, authenticated, playerName, player, credential);
+        }
+
+        public static HandlerList getHandlerList() {
+            return ApiAccessEvent.getHandlerList();
+        }
+
+        @Override
+        public HandlerList getHandlers() {
+            return ApiAccessEvent.getHandlerList();
+        }
+    }
+
+    /** API 访问监听事件：PUT 请求类型（监听本类只收到 PUT 访问；监听基类收全部）。 */
+    public static class ApiPutEvent extends ApiAccessEvent {
+
+        public ApiPutEvent(String path, String apiName, String permission, String ownerPlugin,
+                      boolean authenticated, String playerName, Player player, CredentialPresentation credential) {
+            super("PUT", path, apiName, permission, ownerPlugin, authenticated, playerName, player, credential);
+        }
+
+        public static HandlerList getHandlerList() {
+            return ApiAccessEvent.getHandlerList();
+        }
+
+        @Override
+        public HandlerList getHandlers() {
+            return ApiAccessEvent.getHandlerList();
+        }
+    }
+
+    /** API 访问监听事件：POST 请求类型（监听本类只收到 POST 访问；监听基类收全部）。 */
+    public static class ApiPostEvent extends ApiAccessEvent {
+
+        public ApiPostEvent(String path, String apiName, String permission, String ownerPlugin,
+                      boolean authenticated, String playerName, Player player, CredentialPresentation credential) {
+            super("POST", path, apiName, permission, ownerPlugin, authenticated, playerName, player, credential);
+        }
+
+        public static HandlerList getHandlerList() {
+            return ApiAccessEvent.getHandlerList();
+        }
+
+        @Override
+        public HandlerList getHandlers() {
+            return ApiAccessEvent.getHandlerList();
+        }
+    }
+
+    /** API 访问监听事件：PATCH 请求类型（监听本类只收到 PATCH 访问；监听基类收全部）。 */
+    public static class ApiPatchEvent extends ApiAccessEvent {
+
+        public ApiPatchEvent(String path, String apiName, String permission, String ownerPlugin,
+                      boolean authenticated, String playerName, Player player, CredentialPresentation credential) {
+            super("PATCH", path, apiName, permission, ownerPlugin, authenticated, playerName, player, credential);
+        }
+
+        public static HandlerList getHandlerList() {
+            return ApiAccessEvent.getHandlerList();
+        }
+
+        @Override
+        public HandlerList getHandlers() {
+            return ApiAccessEvent.getHandlerList();
+        }
+    }
+
+    /** API 访问监听事件：OTHER(未识别) 请求类型（监听本类只收到 OTHER(未识别) 访问；监听基类收全部）。 */
+    public static class ApiOtherEvent extends ApiAccessEvent {
+
+        public ApiOtherEvent(String httpMethod, String path, String apiName, String permission, String ownerPlugin,
+                      boolean authenticated, String playerName, Player player, CredentialPresentation credential) {
+            super(httpMethod, path, apiName, permission, ownerPlugin, authenticated, playerName, player, credential);
+        }
+
+        public static HandlerList getHandlerList() {
+            return ApiAccessEvent.getHandlerList();
+        }
+
+        @Override
+        public HandlerList getHandlers() {
+            return ApiAccessEvent.getHandlerList();
+        }
+    }
+
+    /** API 访问监听事件：GET 请求类型（监听本类只收到 GET 访问；监听基类收全部）。 */
+    public static class ApiGetEvent extends ApiAccessEvent {
+
+        public ApiGetEvent(String path, String apiName, String permission, String ownerPlugin,
+                      boolean authenticated, String playerName, Player player, CredentialPresentation credential) {
+            super("GET", path, apiName, permission, ownerPlugin, authenticated, playerName, player, credential);
+        }
+
+        public static HandlerList getHandlerList() {
+            return ApiAccessEvent.getHandlerList();
+        }
+
+        @Override
+        public HandlerList getHandlers() {
+            return ApiAccessEvent.getHandlerList();
+        }
+    }
 }
