@@ -43,12 +43,24 @@ public class AuthServiceImpl implements IAuthService {
         Map<String, String> form = parseBody(body);
         String username = form.get("username");
         String password = form.get("password");
-        if (username == null || username.isEmpty() || password == null || password.isEmpty()) {
-            return AjaxResult.error(400, "缺少必填参数: username / password");
-        }
-        String token = bridge.login(username.trim(), password);
-        if (token == null) {
-            return AjaxResult.unauthorized("账号或密码错误（AuthMe 校验失败，或服务器未安装 AuthMe，或禁止离线登录）");
+        // 无登录插件 → 免密码登录（仅凭用户名直登）；有登录插件 → 用户名 + 密码校验
+        String token;
+        if (!bridge.loginRequiresPassword()) {
+            if (username == null || username.isEmpty()) {
+                return AjaxResult.error(400, "缺少必填参数: username");
+            }
+            token = bridge.loginByUsername(username.trim());
+            if (token == null) {
+                return AjaxResult.error(400, "用户名不合法（仅字母/数字/下划线，≤16 字符）或离线登录被策略禁止");
+            }
+        } else {
+            if (username == null || username.isEmpty() || password == null || password.isEmpty()) {
+                return AjaxResult.error(400, "缺少必填参数: username / password");
+            }
+            token = bridge.login(username.trim(), password);
+            if (token == null) {
+                return AjaxResult.unauthorized("账号或密码错误（AuthMe 校验失败，或服务器未安装 AuthMe，或禁止离线登录）");
+            }
         }
         // 登录模式（与 bridge.login 内部同一策略）：玩家在线→online；不在线→offline（离线专属 cookie）
         soys.soyshttpovermc.gateway.policy.login.LoginMode mode =

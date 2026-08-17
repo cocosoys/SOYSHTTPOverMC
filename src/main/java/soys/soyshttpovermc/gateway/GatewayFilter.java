@@ -263,4 +263,14 @@ public class GatewayFilter {
     public List<SecurityPolicy> getPluginPolicies() {
         return java.util.Collections.unmodifiableList(pluginPolicies);
     }
+
+    /** 网页登录使用的登录插件提供者名（gateway/policies/auth.yml login-provider；空=自动选第一个可用）。 */
+    public String getLoginProviderName() {
+        for (SecurityPolicy p : policies) {
+            if (p instanceof AuthPolicy) {
+                return ((AuthPolicy) p).getLoginProviderName();
+            }
+        }
+        return "";
+    }
 }

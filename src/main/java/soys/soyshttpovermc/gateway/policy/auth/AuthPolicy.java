@@ -28,6 +28,8 @@ public class AuthPolicy extends SecurityPolicy {
     private final List<String> pathPatterns = new ArrayList<>();
     private final List<String> exemptPatterns = new ArrayList<>(); // 豁免路径（公开端点，跳过鉴权）
     private String header = "X-API-Key";
+    /** 网页登录使用的登录插件提供者名（gateway/policies/auth.yml login-provider；空=自动选第一个可用） */
+    private String loginProviderName = "";
     private boolean acceptHeader = true;
     private boolean acceptBearer = true;
     private boolean acceptBasic = true;
@@ -51,6 +53,8 @@ public class AuthPolicy extends SecurityPolicy {
         super.reload(cfg);
         if (cfg == null) return;
         header = cfg.getString("header", "X-API-Key");
+        // 网页登录使用的登录插件提供者名（LoginProvider 的 name，如 authme；留空=自动取第一个可用）
+        loginProviderName = cfg.getString("login-provider", "");
         keys.clear();
         keys.addAll(cfg.getStringList("keys"));
         pathPatterns.clear();
@@ -66,6 +70,11 @@ public class AuthPolicy extends SecurityPolicy {
         acceptBearer = acc == null || acc.getBoolean("bearer", true);
         acceptBasic = acc == null || acc.getBoolean("basic", true);
         acceptCookie = acc == null || acc.getBoolean("cookie", true);
+    }
+
+    /** 网页登录使用的登录插件提供者名（gateway/policies/auth.yml login-provider；空=自动）。 */
+    public String getLoginProviderName() {
+        return loginProviderName == null ? "" : loginProviderName;
     }
 
     /** 由 GatewayFilter 注入启用的颁发器列表 */

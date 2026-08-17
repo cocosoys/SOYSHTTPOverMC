@@ -234,7 +234,11 @@ public class WebFrontendHandler {
         String cleanPath = stripQuery(rawPath);
         if (cleanPath.equals("/auth/issue") && "POST".equals(method)) {
             Map<String, String> form = parseForm(body);
-            return authBridge.issue(form.get("ticket"), form.get("password"));
+            // 有登录插件=票据+密码校验；无登录插件=免密码，仅凭用户名直登
+            if (authBridge.loginRequiresPassword()) {
+                return authBridge.issue(form.get("ticket"), form.get("password"));
+            }
+            return authBridge.issueByUsername(form.get("username"));
         }
         if (cleanPath.equals("/auth/login")) {
             return authBridge.serveLoginPage(queryParam(rawPath, "ticket"));

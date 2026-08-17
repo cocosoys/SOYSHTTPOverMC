@@ -121,7 +121,6 @@ log:
   level: INFO
 
 # ============ 网页登录（登录插件 SPI）============
-# 指定使用的登录插件提供者（LoginProvider 的 name，如 authme）。
-# 留空 = 自动选用第一个已加载的可用登录插件。
-auth:
-  login-provider: ""
+# 使用的登录插件提供者（LoginProvider 的 name，如 authme；留空=自动选用第一个已加载的可用登录插件）
+# 已迁移至 gateway/policies/auth.yml 的 login-provider 键（与鉴权策略同文件，见该文件注释）。
+# 若未接入任何登录插件，网页登录自动切换为「免密码」模式：仅需输入用户名即可签发会话令牌。

@@ -433,15 +433,17 @@ public class HttpOverMcPlugin extends JavaPlugin {
             apiRegistry.setTokenUpgrader(authLoginBridge::upgradeHeadersIfOnline);
         }
 
-        // 登录插件抽象工厂：优先用 config.yml 的 auth.login-provider 指定提供者（留空=自动取第一个可用）
-        String want = getConfig().getString("auth.login-provider", "");
+        // 登录插件抽象工厂：优先用 gateway/policies/auth.yml 的 login-provider 指定提供者（留空=自动取第一个可用）
+        String want = gateway == null ? "" : gateway.getLoginProviderName();
         loginProvider = (want == null || want.trim().isEmpty())
                 ? LoginProviderFactory.active()
                 : LoginProviderFactory.get(want.trim());
         if (loginProvider == null || !loginProvider.isAvailable()) {
-            LogKit.info("[HTTP-Over-MC] 登录插件提供者不可用"
-                    + (want == null || want.trim().isEmpty() ? "" : "（配置 auth.login-provider=" + want + "）")
-                    + "：网页登录密码校验不可用；session-token 仍可经 /soyshttp key <subject> 下发");
+            // 无登录插件：不阻断网页登录——切换为「免密码」模式（仅凭用户名签发令牌，见 AuthLoginBridge）
+            LogKit.warn("[HTTP-Over-MC] 登录插件提供者不可用"
+                    + (want == null || want.trim().isEmpty() ? "" : "（配置 login-provider=" + want + "）")
+                    + "：网页登录将进入【免密码模式】（仅输入用户名即可签发令牌，"
+                    + "令牌权限受 PlayerPermissionService 约束；建议接入 AuthMe 等登录插件）");
             loginProvider = null;
             return;
         }

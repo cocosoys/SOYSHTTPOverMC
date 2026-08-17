@@ -91,12 +91,33 @@ public class AuthLoginBridge {
      */
     public String login(String username, String password) {
         if (!verifyPassword(username, password)) return null;
+        return issueByUsername0(username);
+    }
+
+    /** 网页登录是否需要密码（有登录插件=需要；无登录插件=免密码，仅凭用户名）。 */
+    public boolean loginRequiresPassword() {
+        return loginProvider != null;
+    }
+
+    /**
+     * 免密码登录：未接入登录插件（loginProvider==null）时，仅凭用户名签发会话令牌。
+     * 校验用户名合法性 → 按 {@link LoginModePolicy} 决定模式 → 签发并登记 → 返回令牌；失败返回 null。
+     */
+    public String loginByUsername(String username) {
+        if (username == null || username.trim().isEmpty()) return null;
+        String name = username.trim();
+        if (!name.matches("[A-Za-z0-9_]{1,16}")) return null;
+        return issueByUsername0(name);
+    }
+
+    /** 内部：按登录模式策略签发令牌（校验通过后调用）。 */
+    private String issueByUsername0(String name) {
         LoginModePolicy policy = loginModePolicy;
-        LoginMode mode = policy.decideLogin(username);
-        if (mode == LoginMode.OFFLINE && !policy.allowOfflineLogin(username)) {
+        LoginMode mode = policy.decideLogin(name);
+        if (mode == LoginMode.OFFLINE && !policy.allowOfflineLogin(name)) {
             return null; // 策略禁止离线登录
         }
-        return issueToken(username, mode);
+        return issueToken(name, mode);
     }
 
     /** 纯签发（在线默认）：为玩家签发新会话令牌并登记（LoginEvent / 密码已校验时调用），返回令牌。 */
@@ -197,13 +218,36 @@ public class AuthLoginBridge {
         return h;
     }
 
-    /** GET /auth/login?ticket=...：渲染 AuthMe 账号密码二次验证表单。 */
+    /** GET /auth/login?ticket=...：渲染登录表单（有登录插件=票据+密码二次验证；无登录插件=免密码用户名直登）。 */
     public FrameProto.HttpResponseFrame serveLoginPage(String ticket) {
+        if (loginProvider == null) {
+            // 免密码模式：无需票据，直接渲染「输入用户名」表单
+            return htmlFrame(200, noPasswordLoginFormHtml());
+        }
         String player = (ticket == null) ? null : loginTickets.get(ticket);
         if (player == null) {
             return errorPage(400, "登录票据无效或已失效，请重新登录游戏以获取新的网页登录链接");
         }
         return htmlFrame(200, loginFormHtml(ticket, player));
+    }
+
+    /** POST /auth/issue（免密码模式）：仅凭用户名直接签发会话 Cookie。 */
+    public FrameProto.HttpResponseFrame issueByUsername(String username) {
+        String token = loginByUsername(username);
+        if (token == null) {
+            return errorPage(400, "用户名不合法（仅字母/数字/下划线，≤16 字符）或离线登录被策略禁止");
+        }
+        String cookie = issuer.getCookieName() + "=" + token
+                + "; Path=/; Max-Age=" + issuer.getTtlSeconds()
+                + "; HttpOnly; SameSite=Lax";
+        return FrameProto.HttpResponseFrame.newBuilder()
+                .setStatusCode(200)
+                .putHeaders("Content-Type", "text/html; charset=utf-8")
+                .putHeaders("Set-Cookie", cookie)
+                .setBody(ByteString.copyFrom(successHtml(username.trim()).getBytes(StandardCharsets.UTF_8)))
+                .setFragmentIndex(0)
+                .setTotalFragments(1)
+                .build();
     }
 
     /** POST /auth/issue：校验 AuthMe 密码，验证通过下发会话 Cookie。 */
@@ -244,6 +288,31 @@ public class AuthLoginBridge {
     }
 
     // ===== HTML 页面 =====
+
+    /** 免密码登录表单（未接入登录插件时使用）：仅输入用户名，无需密码。 */
+    private static String noPasswordLoginFormHtml() {
+        StringBuilder sb = new StringBuilder();
+        sb.append("<!doctype html><html lang=zh><head><meta charset=utf-8>");
+        sb.append("<meta name=viewport content=\"width=device-width,initial-scale=1\">");
+        sb.append("<title>HTTP-Over-MC 网页登录</title>");
+        sb.append("<style>body{margin:0;background:#0a0a12;color:#cfe;font-family:system-ui,Segoe UI,Arial,sans-serif;");
+        sb.append("display:flex;align-items:center;justify-content:center;min-height:100vh}");
+        sb.append(".card{background:#12121f;border:1px solid #1f6feb55;border-radius:12px;padding:28px 32px;width:340px;box-shadow:0 0 24px #1f6feb33}");
+        sb.append("h1{margin:0 0 4px;font-size:18px;color:#5cf}small{color:#789}p{color:#9ab}");
+        sb.append("input{width:100%;box-sizing:border-box;padding:10px;margin:10px 0;border-radius:8px;border:1px solid #2a2a40;");
+        sb.append("background:#0a0a12;color:#cfe;font-size:14px}");
+        sb.append("button{width:100%;padding:11px;border:0;border-radius:8px;background:#1f6feb;color:#fff;font-size:15px;cursor:pointer}");
+        sb.append("button:hover{background:#3b82f6}.warn{color:#f96;font-size:12px;line-height:1.6}</style></head>");
+        sb.append("<body><div class=card><h1>HTTP-Over-MC 网页登录</h1>");
+        sb.append("<small>本服未接入登录插件，启用<b>免密码登录</b></small>");
+        sb.append("<form method=POST action=/auth/issue>");
+        sb.append("<input type=text name=username placeholder=\"玩家名\" autofocus required>");
+        sb.append("<button type=submit>登录</button></form>");
+        sb.append("<p class=warn>⚠️ 免密码模式仅凭用户名签发令牌，请确认本服未接公网/无敏感数据，");
+        sb.append("或尽快接入 AuthMe 等登录插件后自动切换为密码验证。</p>");
+        sb.append("</div></body></html>");
+        return sb.toString();
+    }
 
     private static String loginFormHtml(String ticket, String player) {
         StringBuilder sb = new StringBuilder();
