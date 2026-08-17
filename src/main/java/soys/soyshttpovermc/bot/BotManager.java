@@ -101,6 +101,15 @@ public class BotManager {
         return mb;
     }
 
+    /**
+     * 创建一个额外受管无头 Bot，复用主通道（与主 Bot 同通道，多 Bot 分摊或双隧道冗余）。
+     * 名称完全自定义（任意 ≤16 字符的合法离线名）；若以 bot.name-prefix 前缀开头，
+     * 将自动受 bot 专属账号保护（登录 IP 白名单 + 进服隐藏）。
+     */
+    public ManagedBot addBot(String name) {
+        return addBot(name, mainChannel);
+    }
+
     /** 踢出并断开一个额外受管 Bot（主 Bot 不可踢）。 */
     public void kickBot(String name) throws BotException {
         if(name.equals(plugin.getConfig().getString("bot.username"))){

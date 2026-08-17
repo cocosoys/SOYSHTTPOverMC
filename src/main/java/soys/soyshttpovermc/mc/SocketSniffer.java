@@ -40,8 +40,8 @@ import java.security.MessageDigest;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.Executors;
@@ -105,15 +105,15 @@ public class SocketSniffer {
     /** 是否信任前置代理注入的 X-Forwarded-For（仅当本服确在可信代理之后时开启，避免客户端伪造）。 */
     private final boolean trustProxy;
 
-    /** 有界线程池：避免无缓存线程池在高并发下无限创建线程（E 整洁度）。 */
-    private final ExecutorService executor = new ThreadPoolExecutor(
-            8, 128, 60L, TimeUnit.SECONDS,
-            new LinkedBlockingQueue<Runnable>(),
-            r -> {
-                Thread t = new Thread(r, "HTTP-Over-MC-Sniffer");
-                t.setDaemon(true);
-                return t;
-            });
+    /**
+     * 有界线程池（秒杀防护）：并发数 = {@code sniffer.http-concurrency}（默认 4），
+     * 每个任务阻塞在隧道 future.get(30s) 上；工作队列 = {@code sniffer.http-queue-size}（默认 8）。
+     * 队列满且全部 worker 忙 → 新任务被拒绝 → 立即 503 快速失败（不再接收，直到有空位），
+     * 避免高并发下任务无限堆积打爆内存。
+     */
+    private final ExecutorService executor;
+    /** 并发上限（构造注入；用于拒绝策略提示） */
+    private final int httpConcurrency;
     /** keep-alive 空闲关闭调度（单线程，守护）。 */
     private static final ScheduledExecutorService idleExecutor = Executors.newSingleThreadScheduledExecutor(r -> {
         Thread t = new Thread(r, "HTTP-Over-MC-KeepAlive-Idle");
@@ -126,11 +126,30 @@ public class SocketSniffer {
                          int maxBodyBytes, RequestStats stats,
                          GatewayFilter gateway, Supplier<SSLEngine> tlsEngineSupplier,
                          boolean trustProxy) {
+        this(plugin, translator, ready, maxBodyBytes, stats, gateway, tlsEngineSupplier, trustProxy, 1, 8);
+    }
+
+    public SocketSniffer(JavaPlugin plugin, HttpMcTranslator translator, BooleanSupplier ready,
+                         int maxBodyBytes, RequestStats stats,
+                         GatewayFilter gateway, Supplier<SSLEngine> tlsEngineSupplier,
+                         boolean trustProxy, int concurrency, int queueSize) {
         this.plugin = plugin;
         this.log = plugin.getLogger();
         this.translator = translator;
         this.ready = ready;
         this.maxBodyBytes = maxBodyBytes;
+        this.httpConcurrency = Math.max(1, concurrency);
+        int queue = Math.max(1, queueSize);
+        this.executor = new ThreadPoolExecutor(
+                this.httpConcurrency, this.httpConcurrency, 60L, TimeUnit.SECONDS,
+                new ArrayBlockingQueue<Runnable>(queue),
+                r -> {
+                    Thread t = new Thread(r, "HTTP-Over-MC-Sniffer");
+                    t.setDaemon(true);
+                    return t;
+                },
+                new ThreadPoolExecutor.AbortPolicy()); // 拒绝：提交处捕获并直接 503
+        LogKit.info("[HTTP-Over-MC] 嗅探器线程池: concurrency=" + this.httpConcurrency + " queue=" + queue);
         this.stats = stats;
         this.gateway = gateway;
         this.tlsEngineSupplier = tlsEngineSupplier;
@@ -307,7 +326,18 @@ public class SocketSniffer {
                 // keep-alive：暂停读取，待响应写完再恢复（避免并发解析同一条连接的下一条请求）
                 ctx.channel().config().setAutoRead(false);
                 final boolean tls = tlsMode;
-                executor.submit(() -> handleHttp(ctx, parsed, tls));
+                try {
+                    executor.submit(() -> handleHttp(ctx, parsed, tls));
+                } catch (java.util.concurrent.RejectedExecutionException e) {
+                    // 秒杀防护：线程池与队列已满（并发上限 sniffer.http-concurrency）→ 不再接收，
+                    // 立即 503 快速失败，直到有空位（避免任务无限堆积打爆内存）
+                    LogKit.warn("[HTTP-Over-MC] HTTP 并发已达上限(" + httpConcurrency + ")，拒绝新请求: "
+                            + parsed.method + " " + parsed.path);
+                    writeRaw(ctx, "Service Unavailable (HTTP concurrency limit)", 503, tls);
+                    releaseBuffer();
+                    httpHandled = false;
+                    ctx.channel().config().setAutoRead(true);
+                }
             }
         }
 

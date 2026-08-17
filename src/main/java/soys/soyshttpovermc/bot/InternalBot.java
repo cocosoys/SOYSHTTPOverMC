@@ -81,16 +81,30 @@ public class InternalBot {
     private Client client;
     private Session session;
     private RawMessageListener listener;
-    private ScheduledExecutorService sender = Executors.newSingleThreadScheduledExecutor();
+    /** Bot 发包/心跳线程（daemon：不阻止 JVM/服务器卸载退出） */
+    private ScheduledExecutorService sender = newSender();
     /** 关闭标志：onDisable 后不再自动重连（避免僵尸重连） */
     private volatile boolean closed = false;
     /** 周期重注册任务句柄（避免重复调度） */
     private ScheduledFuture<?> reRegTask = null;
     /** 额外需登记的监听通道（群组服跨服 fwd-req/fwd-resp/discovery），供服务端侧把对应通道消息投递给本 Bot。 */
     private final Set<String> extraChannels = new LinkedHashSet<>();
+    /** 自动重连次数上限（0=不自动重连；默认 3）。达到上限仍未连上/被踢则放弃，不再调度重连。 */
+    private volatile int maxReconnectAttempts = 3;
+    /** 已连续失败（连接失败 / 断开 / 被踢）次数 */
+    private volatile int reconnectAttempts = 0;
 
     private volatile boolean registered = false;
     private volatile boolean inGame = false;
+
+    /** daemon 单线程调度器（发包串行 + 周期重注册）。 */
+    private static ScheduledExecutorService newSender() {
+        return Executors.newSingleThreadScheduledExecutor(r -> {
+            Thread t = new Thread(r, "HTTP-Over-MC-Bot-Sender");
+            t.setDaemon(true);
+            return t;
+        });
+    }
 
     public InternalBot(JavaPlugin plugin, String username, String channel, String host, int port) {
         this.plugin = plugin;
@@ -212,8 +226,9 @@ public class InternalBot {
             }
         }
         if (sender.isShutdown() || sender.isTerminated()) {
-            sender = Executors.newSingleThreadScheduledExecutor();
+            sender = newSender();
         }
+        reconnectAttempts = 0; // 人工 /soyshttp reconnect 视为新周期
         connect();
     }
 
@@ -297,9 +312,22 @@ public class InternalBot {
         });
     }
 
-    /** 延迟自动重连（网络抖动 / 代理未就绪 / 被踢），保证隧道自愈；插件关闭后不再重连。 */
+    /** 设置自动重连次数上限（0=禁用自动重连；达到上限仍未连上/被踢则放弃）。 */
+    public void setMaxReconnectAttempts(int maxAttempts) {
+        this.maxReconnectAttempts = Math.max(0, maxAttempts);
+    }
+
+    /** 延迟自动重连（网络抖动 / 代理未就绪 / 被踢），保证隧道自愈；插件关闭后不再重连。
+     *  连续失败（连不上或被踢）累计超过 {@code bot.reconnect-attempts} 则放弃，等待人工 /soyshttp reconnect。 */
     private void scheduleReconnect(long delayTicks) {
         if (closed) return;
+        if (maxReconnectAttempts > 0 && ++reconnectAttempts > maxReconnectAttempts) {
+            LogKit.warn("[HTTP-Over-MC] Bot 自动重连已达上限(" + maxReconnectAttempts + " 次)，放弃重连 user="
+                    + getUsername() + "（可执行 /soyshttp reconnect 手动恢复）");
+            return;
+        }
+        LogKit.info("[HTTP-Over-MC] Bot 将在 " + delayTicks + " tick 后重连（第 " + reconnectAttempts
+                + "/" + (maxReconnectAttempts <= 0 ? "∞" : String.valueOf(maxReconnectAttempts)) + " 次）");
         try {
             plugin.getServer().getScheduler().runTaskLater(plugin, this::reconnect, delayTicks);
         } catch (Throwable t) {

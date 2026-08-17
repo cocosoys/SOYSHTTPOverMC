@@ -6,6 +6,25 @@
 # 虚拟 Bot 身份（服务端与 Bot 必须一致，用于识别隧道消息来源）
 bot:
   username: __http_proxy__
+  # Bot 专属账号名称前缀（默认为 "__bot__"）。
+  # ⚠️ 不建议修改：所有以该前缀开头的账号一律视为 bot 专属账号，受以下保护：
+  #    ① 登录 IP 白名单限制（见 allowed-login-ips），非白名单 IP 使用此类账号登录将被拒绝并提示；
+  #    ② 进服后自动对真实玩家隐藏（见 hide-mode）。
+  # 仅在确与现有账号冲突等极端情况下才可修改，且需保证 bot.username / API 注册的 bot 名与之匹配。
+  name-prefix: "__bot__"
+  # Bot 允许登录的 IP 白名单（Bot 回环登录本服时来源为 127.0.0.1 / ::1）。
+  # 其余 IP 使用 bot 专属账号（前缀或受管 bot 名）登录将被强制拒绝，提示"该账号为 bot 专属账号"，
+  # 用于防止 Bot 被特殊方式强制踢出后，有人抢注其名称登录。
+  # 支持多个 IP；回环地址（127.0.0.1 / ::1 / localhost）等价匹配。
+  allowed-login-ips:
+    - "127.0.0.1"
+  # Bot 对真实玩家的隐藏方式：
+  #   hideplayer          = 在 PlayerJoinEvent 中对每个真实玩家调用 hidePlayer(botPlayer)，新进服玩家同样隐藏（当前实现）
+  #   playerinfo-remove   = 向所有客户端发送 PacketPlayOutPlayerInfo(REMOVE_PLAYER)（预留：当前为占位空实现，切换后不生效）
+  hide-mode: "hideplayer"
+  # 自动重连次数：Bot 连不上或被踢出后自动重连的尝试次数（0=禁用自动重连；默认 3）。
+  # 达到上限仍未成功则放弃，需人工执行 /soyshttp reconnect 恢复。
+  reconnect-attempts: 3
 
 # 插件消息通道（服务端与 Bot 必须一致）
 channel: httpproxy:main
@@ -50,6 +69,13 @@ sniffer:
   enabled: true
   # HTTP 请求体上限（字节），超过返回 413
   max-body-bytes: 8388608
+  # 秒杀/高并发防护：
+  # 同时阻塞在隧道等待（future.get）的请求数上限（默认 4）。每个请求在经 Bot 隧道往返期间
+  # 占用一个 worker；达到该值且队列满后，新请求直接 503 快速失败，直到有空位（不再堆积）。
+  # 日常负载可适当调大（如 4~8），需权衡单 Bot 隧道吞吐。
+  http-concurrency: 4
+  # 等待中的请求队列容量（满后新请求直接 503）
+  http-queue-size: 8
 
 # 前端资源目录（可选）
 # - 留空（默认）：插件首次运行会把 jar 内置的 /web/* 解压到插件数据目录的 web/ 文件夹
@@ -60,6 +86,27 @@ sniffer:
 # 支持路径：/、/index.html、/app.js、/styles.css、/api/status(动态JSON) 等。
 web:
   root: "/web"
+  # ===== Web 内容存活缓存（缓解大量 web 资源长期驻留内存）=====
+  # 仅对「惰性来源」生效（磁盘文件 / jar 资源，请求时读取）；registerPage 直接给定的字节不受控。
+  cache:
+    # LRU 缓存字节上限（默认 16MB）。仅约束「非常驻」文件；常驻（pinned）不计入此配额。
+    max-bytes: 16777216
+    # LRU 缓存条目数上限
+    max-entries: 1024
+    # 条目存活时间（秒）：超过后若无人再次访问即失效释放（下次访问重新加载）
+    ttl-seconds: 60
+    # 常驻内存清单：路径精确匹配或目录前缀（以 / 结尾）匹配。命中项直接进常驻内存，
+    # 不参与淘汰、不占用 max-bytes（用于必须高频/快速响应的资源，如门户首页）。
+    # 例：["/", "/assets/"]（"/" 精确匹配门户首页；"/assets/" 前缀匹配整个目录）
+    pinned: [
+      "/", 
+      "/assets/"
+    ]
+  # 大文件判定阈值（字节）：超过该大小的磁盘文件视为大文件——不写入缓存，
+  # 交由「大文件加载抽象」处理（默认内置流式分块加载器；默认阈值 = cache.max-bytes）。
+  large-file-threshold: 16777216
+  # 大文件安全上限（字节）：超过直接拒绝加载（防单文件打爆内存，默认 128MB）
+  large-file-max-bytes: 134217728
 
 # ============ 日志管控 ============
 # 统一日志门面 LogKit 的打印级别（全插件日志经此过滤）：
@@ -72,11 +119,6 @@ web:
 # 修改后 /soyshttp reload 热重载，无需重启服务器。
 log:
   level: INFO
-
-# ============ 安全网关 ============
-# 网关配置已独立到 gateway/ 目录（总开关 gateway/config.yml、HTTPS gateway/https.yml、
-# 各安全策略 gateway/policies/<name>.yml，每个策略一个文件，便于未来扩展更多策略）。
-# 修改后 /soyshttp reload 热重载，无需重启服务器。
 
 # ============ 网页登录（登录插件 SPI）============
 # 指定使用的登录插件提供者（LoginProvider 的 name，如 authme）。

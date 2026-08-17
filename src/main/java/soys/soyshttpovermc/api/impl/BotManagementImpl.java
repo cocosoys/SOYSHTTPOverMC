@@ -28,6 +28,15 @@ public class BotManagementImpl implements BotManagementApi {
     }
 
     @Override
+    public BotManager.ManagedBot addBot(String name) {
+        try {
+            return botManager.addBot(name);
+        } catch (Exception ex) {
+            throw ExceptionBus.fire(new BotException("E_ADD_BOT", "创建受管 Bot 失败(name=" + name + "): " + ex.getMessage(), ex));
+        }
+    }
+
+    @Override
     public void kickBot(String name) {
         try {
             botManager.kickBot(name);

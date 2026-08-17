@@ -46,8 +46,18 @@ public class McMessageHandler implements PluginMessageListener {
         this.channel = channel;
         this.scheduler = scheduler;
         this.hub = hub;
-        // 分片 pending 表 TTL 淘汰（异步调度，不占主线程）
-        Bukkit.getScheduler().runTaskTimerAsynchronously(plugin, this::sweepFragments, 200L, 200L);
+        // 分片 pending 表 TTL 淘汰（自调度：仅在存在 pending 时周期性运行，空闲不驻留定时任务）
+        ensureSweepScheduled();
+    }
+
+    /** 自调度标志：避免空闲时重复挂定时任务。 */
+    private final java.util.concurrent.atomic.AtomicBoolean sweepScheduled = new java.util.concurrent.atomic.AtomicBoolean(false);
+
+    /** 确保分片淘汰任务已挂起（CAS 防重复；空闲即停）。 */
+    private void ensureSweepScheduled() {
+        if (sweepScheduled.compareAndSet(false, true)) {
+            Bukkit.getScheduler().runTaskLaterAsynchronously(plugin, this::sweepFragments, 200L);
+        }
     }
 
     @Override
@@ -90,6 +100,7 @@ public class McMessageHandler implements PluginMessageListener {
             pr.buffers[idx] = chunk.getBody().toByteArray();
             pr.lastTouch = System.currentTimeMillis();
             if (++pr.received < total) {
+                ensureSweepScheduled(); // 存在未完成分片：确保淘汰任务在跑
                 return; // 等待更多分片
             }
             pending.remove(id);
@@ -118,12 +129,26 @@ public class McMessageHandler implements PluginMessageListener {
         }
     }
 
-    /** 分片 pending 表定时淘汰：超过 TTL 未补齐的请求直接丢弃（客户端侧会 30s 超时回 502）。 */
+    /** 分片 pending 表定时淘汰：超过 TTL 未补齐的请求直接丢弃（客户端侧会 30s 超时回 502）。
+     *  自调度：有 pending 才续排下一次，空闲时不定驻定时任务（避免常驻线程空转）。 */
     private void sweepFragments() {
-        long now = System.currentTimeMillis();
-        for (Map.Entry<Long, PendingReq> en : pending.entrySet()) {
-            if (now - en.getValue().lastTouch > FRAGMENT_TTL_MS) {
-                pending.remove(en.getKey());
+        try {
+            long now = System.currentTimeMillis();
+            boolean removed = false;
+            for (Map.Entry<Long, PendingReq> en : pending.entrySet()) {
+                if (now - en.getValue().lastTouch > FRAGMENT_TTL_MS) {
+                    pending.remove(en.getKey());
+                    removed = true;
+                }
+            }
+            if (removed) {
+                LogKit.info("[HTTP-Over-MC] 分片 pending 表已清理过期条目（剩余 " + pending.size() + "）");
+            }
+        } finally {
+            // 仅当仍有未完成分片时才续排下一次；空闲即停止调度（不驻留定时任务）
+            sweepScheduled.set(false);
+            if (!pending.isEmpty()) {
+                ensureSweepScheduled();
             }
         }
     }

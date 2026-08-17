@@ -5,10 +5,14 @@ import org.bukkit.plugin.Plugin;
 import soys.soyshttpovermc.api.WebPageApi;
 import soys.soyshttpovermc.exception.ExceptionBus;
 import soys.soyshttpovermc.exception.WebPageException;
+import soys.soyshttpovermc.web.CorsRegistry;
+import soys.soyshttpovermc.web.LargeFileLoader;
+import soys.soyshttpovermc.web.LargeFileLoaderRegistry;
 import soys.soyshttpovermc.web.NavRegistry;
 import soys.soyshttpovermc.web.WebRegistry;
 
 import java.io.File;
+import java.nio.charset.StandardCharsets;
 
 /**
  * 能力组 2：网页登记（委托 {@link WebRegistry}）。
@@ -18,10 +22,15 @@ public class WebPageImpl implements WebPageApi {
 
     private final WebRegistry webRegistry;
     private final NavRegistry navRegistry;
+    private final LargeFileLoaderRegistry largeLoaderRegistry;
+    private final CorsRegistry corsRegistry;
 
-    public WebPageImpl(WebRegistry webRegistry, NavRegistry navRegistry) {
+    public WebPageImpl(WebRegistry webRegistry, NavRegistry navRegistry,
+                       LargeFileLoaderRegistry largeLoaderRegistry, CorsRegistry corsRegistry) {
         this.webRegistry = webRegistry;
         this.navRegistry = navRegistry;
+        this.largeLoaderRegistry = largeLoaderRegistry;
+        this.corsRegistry = corsRegistry;
     }
 
     @Override
@@ -154,5 +163,45 @@ public class WebPageImpl implements WebPageApi {
         } catch (Exception ex) {
             throw ExceptionBus.fire(new WebPageException("E_NAV", "登记导航项失败(label=" + label + "): " + ex.getMessage(), ex));
         }
+    }
+
+    // ===== 大文件加载抽象（LargeFileLoader）=====
+
+    @Override
+    public void registerLargeFileLoader(LargeFileLoader loader) {
+        if (largeLoaderRegistry == null || loader == null) return;
+        largeLoaderRegistry.register(loader);
+    }
+
+    @Override
+    public boolean setDefaultLargeFileLoader(String loaderName) {
+        return largeLoaderRegistry != null && largeLoaderRegistry.setDefault(loaderName);
+    }
+
+    @Override
+    public void setLargeFileLoader(String pathPrefix, String loaderName) {
+        if (largeLoaderRegistry == null) return;
+        largeLoaderRegistry.setPathLoader(pathPrefix, loaderName);
+    }
+
+    @Override
+    public void registerErrorPage(Plugin owner, int status, byte[] content) {
+        try {
+            webRegistry.registerErrorPage(owner == null ? null : owner.getName(), status, content);
+        } catch (Exception ex) {
+            throw ExceptionBus.fire(new WebPageException("E_ERR_PAGE", "登记错误页失败(status=" + status + "): " + ex.getMessage(), ex));
+        }
+    }
+
+    @Override
+    public void registerErrorPage(Plugin owner, int status, String html) {
+        registerErrorPage(owner, status, html == null ? new byte[0] : html.getBytes(StandardCharsets.UTF_8));
+    }
+
+    @Override
+    public void registerCors(Plugin owner, String pathPrefix, String origin, String methods,
+                             String headers, boolean credentials) {
+        if (corsRegistry == null) return;
+        corsRegistry.register(owner == null ? null : owner.getName(), pathPrefix, origin, methods, headers, credentials);
     }
 }

@@ -73,12 +73,26 @@ public class SessionTokenIssuer extends CredentialIssuer {
         return IssuedCredential.ofToken(issueToken(subject, mode), cookieName);
     }
 
+    /**
+     * 签发携带自定义 claims 的会话令牌（权限范围/标签等业务声明，写入 JWT payload）。
+     * 键限 [a-zA-Z0-9_-]{1,32}，值限 256 字符；保留键 sub/mode/exp/iat/jti/adm 不可用。
+     * claims 供业务层经 {@code JwtCodec.Payload#claims} 读取，不参与权限判定。
+     */
+    public IssuedCredential issue(String subject, LoginMode mode, java.util.Map<String, String> claims) {
+        return IssuedCredential.ofToken(issueToken(subject, mode, claims), cookieName);
+    }
+
     /** 签发并返回 JWT 令牌字符串（供登录桥登记/换发使用）。 */
     public String issueToken(String subject, LoginMode mode) {
+        return issueToken(subject, mode, null);
+    }
+
+    /** 签发并返回 JWT 令牌字符串（支持自定义 claims）。 */
+    public String issueToken(String subject, LoginMode mode, java.util.Map<String, String> claims) {
         String jti = AuthUtils.generateToken("", 10);
         String modeName = mode == null ? LoginMode.ONLINE.name() : mode.name();
         record(subject, modeName, false, jti);
-        return JwtCodec.create(secret, subject, modeName, ttlMillis, jti, "st_");
+        return JwtCodec.create(secret, subject, modeName, ttlMillis, jti, "st_", false, claims);
     }
 
     /**

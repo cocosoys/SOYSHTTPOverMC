@@ -3,6 +3,7 @@ package soys.soyshttpovermc.web;
 import soys.soyshttpovermc.util.AjaxResult;
 import soys.soyshttpovermc.ApiRegistry;
 import soys.soyshttpovermc.gateway.policy.auth.bridge.AuthLoginBridge;
+import soys.soyshttpovermc.log.LogKit;
 import soys.soyshttpovermc.proto.FrameProto;
 import soys.soyshttpovermc.web.NavRegistry;
 
@@ -37,13 +38,27 @@ public class WebFrontendHandler {
     private final WebRegistry webRegistry; // 插件登记网页（可为 null）
     private final NavRegistry navRegistry; // 门户导航登记处（可为 null）
     private volatile AuthLoginBridge authBridge; // AuthMe 网页登录桥（null=未启用；/soyshttp reload 后热替换）
+    /** Web 内容存活缓存（常驻 pinned + LRU + 大文件加载器），null=禁用缓存 */
+    private final WebContentCache webContent;
+    /** 大文件安全上限（超过直接 413；防单文件把内存打爆，默认 128MB） */
+    private final long largeFileMaxBytes;
+    /** CORS 声明注册中心（null=禁用） */
+    private final CorsRegistry corsRegistry;
+    /** 请求级拦截器注册中心（null=禁用） */
+    private final WebInterceptorRegistry interceptorRegistry;
 
     public WebFrontendHandler(String webRootPath, ApiRegistry apiRegistry, WebRegistry webRegistry,
-                              NavRegistry navRegistry, AuthLoginBridge authBridge) {
+                              NavRegistry navRegistry, AuthLoginBridge authBridge,
+                              WebContentCache webContent, long largeFileMaxBytes,
+                              CorsRegistry corsRegistry, WebInterceptorRegistry interceptorRegistry) {
         this.apiRegistry = apiRegistry;
         this.webRegistry = webRegistry;
         this.navRegistry = navRegistry;
         this.authBridge = authBridge;
+        this.webContent = webContent;
+        this.largeFileMaxBytes = Math.max(0, largeFileMaxBytes);
+        this.corsRegistry = corsRegistry;
+        this.interceptorRegistry = interceptorRegistry;
         File root = null;
         String canonical = null;
         if (webRootPath != null && !webRootPath.trim().isEmpty()) {
@@ -70,10 +85,53 @@ public class WebFrontendHandler {
     /**
      * 处理一次请求，返回完整（单分片）HttpResponseFrame。
      * 调用方负责按 32000 字节上限分片发回客户端。
+     * <p>外层包装：CORS 预检/附加 + 请求级拦截器（可改写 path/headers 或短路）；
+     * 实际路由在 {@link #handleInner}。</p>
      */
     public FrameProto.HttpResponseFrame handle(String method, String path, Map<String, String> headers, byte[] body) {
         String m = method == null ? "" : method.toUpperCase();
         String rawPath = decode(path);
+
+        // CORS：预检请求短路（204 + CORS 头），普通命中请求响应附加 CORS 头
+        CorsRegistry.CorsEntry cors = corsRegistry == null ? null : corsRegistry.match(stripQuery(rawPath));
+        if (cors != null && "OPTIONS".equals(m)) {
+            return corsRegistry.preflight(cors);
+        }
+
+        // 请求级拦截器（网关之后、业务之前）：可改写 path/headers，或按自定义规则短路返回
+        if (interceptorRegistry != null && !interceptorRegistry.isEmpty()) {
+            WebInterceptor.WebInterceptContext ctx =
+                    new WebInterceptor.WebInterceptContext(m, rawPath, headers, body, null, false);
+            for (WebInterceptor in : interceptorRegistry.all()) {
+                try {
+                    WebInterceptor.Outcome oc = in.intercept(ctx);
+                    if (oc != null && oc.isStop()) {
+                        FrameProto.HttpResponseFrame stop = FrameProto.HttpResponseFrame.newBuilder()
+                                .setStatusCode(oc.status())
+                                .putHeaders("Content-Type",
+                                        oc.contentType() == null ? "text/plain; charset=utf-8" : oc.contentType())
+                                .putAllHeaders(oc.headers())
+                                .setBody(ByteString.copyFrom(oc.body() == null ? new byte[0] : oc.body()))
+                                .setFragmentIndex(0)
+                                .setTotalFragments(1)
+                                .build();
+                        return cors == null ? stop : corsRegistry.attach(cors, stop);
+                    }
+                } catch (Throwable t) {
+                    LogKit.warn("[HTTP-Over-MC] 拦截器 " + in.name() + " 异常，放行继续: " + t);
+                }
+            }
+            m = ctx.method();
+            rawPath = ctx.path();
+            headers = ctx.headers();
+        }
+
+        FrameProto.HttpResponseFrame resp = handleInner(m, rawPath, headers, body);
+        return cors == null ? resp : corsRegistry.attach(cors, resp);
+    }
+
+    /** 实际路由：登录流程 → 注解式 API → favicon → 插件登记网页 → 静态资源。 */
+    private FrameProto.HttpResponseFrame handleInner(String m, String rawPath, Map<String, String> headers, byte[] body) {
 
         // 0) AuthMe 网页登录流程（/auth/login 表单页 / /auth/issue 校验密码发 Cookie），先于 API 路由，且本身免鉴权
         if (authBridge != null) {
@@ -144,7 +202,9 @@ public class WebFrontendHandler {
                 return FrameProto.HttpResponseFrame.newBuilder()
                         .setStatusCode(200)
                         .putHeaders("Content-Type", page.effectiveContentType())
-                        .setBody(ByteString.copyFrom(injectNav(cleanPath, page.resolveBytes(), page.effectiveContentType())))
+                        .setBody(ByteString.copyFrom(injectNav(cleanPath,
+                                loadBytes(page.path, page.getDiskFile(), page::resolveBytes),
+                                page.effectiveContentType())))
                         .setFragmentIndex(0)
                         .setTotalFragments(1)
                         .build();
@@ -157,16 +217,7 @@ public class WebFrontendHandler {
         // 否则浏览器会下载而非渲染
         Hit hit = resolveResource(cleanPath);
         if (hit == null) {
-            String notFound = "<!doctype html><html><head><meta charset=utf-8>"
-                    + "<title>404</title></head><body style='font-family:monospace;background:#0a0a12;color:#0ff'>"
-                    + "<h1>404 Not Found</h1><p>HTTP-Over-MC: " + escape(cleanPath) + " 不存在</p></body></html>";
-            return FrameProto.HttpResponseFrame.newBuilder()
-                    .setStatusCode(404)
-                    .putHeaders("Content-Type", "text/html; charset=utf-8")
-                    .setBody(ByteString.copyFrom(notFound.getBytes(StandardCharsets.UTF_8)))
-                    .setFragmentIndex(0)
-                    .setTotalFragments(1)
-                    .build();
+            return notFound(cleanPath);
         }
         return FrameProto.HttpResponseFrame.newBuilder()
                 .setStatusCode(200)
@@ -230,8 +281,18 @@ public class WebFrontendHandler {
         return null;
     }
 
-    /** 404 响应帧（路径不存在）。 */
-    private static FrameProto.HttpResponseFrame notFound(String cleanPath) {
+    /** 404 响应帧（路径不存在）；支持自定义错误页（registerErrorPage(404)）。 */
+    private FrameProto.HttpResponseFrame notFound(String cleanPath) {
+        byte[] custom = webRegistry == null ? null : webRegistry.errorPage(404);
+        if (custom != null) {
+            return FrameProto.HttpResponseFrame.newBuilder()
+                    .setStatusCode(404)
+                    .putHeaders("Content-Type", "text/html; charset=utf-8")
+                    .setBody(ByteString.copyFrom(custom))
+                    .setFragmentIndex(0)
+                    .setTotalFragments(1)
+                    .build();
+        }
         String html = "<!doctype html><html><head><meta charset=utf-8>"
                 + "<title>404</title></head><body style='font-family:monospace;background:#0a0a12;color:#0ff'>"
                 + "<h1>404 Not Found</h1><p>HTTP-Over-MC: " + escape(cleanPath) + " 不存在</p></body></html>";
@@ -239,6 +300,27 @@ public class WebFrontendHandler {
                 .setStatusCode(404)
                 .putHeaders("Content-Type", "text/html; charset=utf-8")
                 .setBody(ByteString.copyFrom(html.getBytes(StandardCharsets.UTF_8)))
+                .setFragmentIndex(0)
+                .setTotalFragments(1)
+                .build();
+    }
+
+    /** 500 响应帧（支持自定义错误页 registerErrorPage(500)）。 */
+    private FrameProto.HttpResponseFrame internalError(String path) {
+        byte[] custom = webRegistry == null ? null : webRegistry.errorPage(500);
+        if (custom != null) {
+            return FrameProto.HttpResponseFrame.newBuilder()
+                    .setStatusCode(500)
+                    .putHeaders("Content-Type", "text/html; charset=utf-8")
+                    .setBody(ByteString.copyFrom(custom))
+                    .setFragmentIndex(0)
+                    .setTotalFragments(1)
+                    .build();
+        }
+        return FrameProto.HttpResponseFrame.newBuilder()
+                .setStatusCode(500)
+                .putHeaders("Content-Type", "text/plain; charset=utf-8")
+                .setBody(ByteString.copyFrom("Internal Server Error".getBytes(StandardCharsets.UTF_8)))
                 .setFragmentIndex(0)
                 .setTotalFragments(1)
                 .build();
@@ -276,24 +358,55 @@ public class WebFrontendHandler {
             candidates = new String[]{base + ".html", (base.isEmpty() ? "" : base + "/") + "index.html"};
         }
         for (String c : candidates) {
-            // 1) 磁盘 webroot
+            // 1) 磁盘 webroot（经 Web 内容缓存：pinned 常驻 / LRU 存活 / 大文件走加载器）
             if (webRoot != null) {
                 File f = new File(webRoot, c);
                 try {
-                    if (f.getCanonicalPath().startsWith(webRootCanonical)
-                            && f.isFile() && f.length() <= 16L * 1024 * 1024) {
-                        return new Hit(c, readFile(f));
+                    if (f.getCanonicalPath().startsWith(webRootCanonical) && f.isFile()) {
+                        if (largeFileMaxBytes > 0 && f.length() > largeFileMaxBytes) {
+                            LogKit.warn("[HTTP-Over-MC] 静态资源超过大文件上限，拒绝加载: /" + c
+                                    + " size=" + f.length() + " limit=" + largeFileMaxBytes);
+                            continue;
+                        }
+                        byte[] body = loadBytes("/" + c, f, () -> {
+                            try {
+                                return readFile(f);
+                            } catch (IOException e) {
+                                return null;
+                            }
+                        });
+                        if (body != null) {
+                            return new Hit(c, body);
+                        }
                     }
                 } catch (Exception ignored) {
                 }
             }
-            // 2) jar 内置 /web/
-            byte[] rb = readResource("/web/" + c);
+            // 2) jar 内置 /web/（经缓存；null 表示未命中）
+            byte[] rb = loadBytes("/web/" + c, () -> readResource("/web/" + c));
             if (rb != null) {
                 return new Hit(c, rb);
             }
         }
         return null;
+    }
+
+    /** 经 Web 内容缓存取字节（无磁盘文件来源：注册页 / jar 资源）。 */
+    private byte[] loadBytes(String path, java.util.function.Supplier<byte[]> loader) {
+        return webContent == null ? safeGet(loader) : webContent.bytes(path, loader);
+    }
+
+    /** 经 Web 内容缓存取字节（磁盘静态资源：支持 pinned / 大文件加载器 / LRU / 热替换失效）。 */
+    private byte[] loadBytes(String path, File file, java.util.function.Supplier<byte[]> loader) {
+        return webContent == null ? safeGet(loader) : webContent.bytes(path, file, loader);
+    }
+
+    private static byte[] safeGet(java.util.function.Supplier<byte[]> loader) {
+        try {
+            return loader == null ? null : loader.get();
+        } catch (Throwable t) {
+            return null;
+        }
     }
 
     /** 命中的静态资源（文件名 + 字节内容）。 */

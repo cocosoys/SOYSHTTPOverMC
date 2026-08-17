@@ -13,6 +13,7 @@ import org.bukkit.plugin.java.JavaPlugin;
 
 import soys.soyshttpovermc.api.SoysHttpOverMcApi;
 import soys.soyshttpovermc.api.impl.SoysHttpOverMcApiImpl;
+import soys.soyshttpovermc.bot.BotGuardian;
 import soys.soyshttpovermc.bot.BotManager;
 import soys.soyshttpovermc.web.NavRegistry;
 import soys.soyshttpovermc.web.WebRegistry;
@@ -78,6 +79,12 @@ public class HttpOverMcPlugin extends JavaPlugin {
     private volatile boolean debugEventsEnabled = false;
     private String channel;
     private String botUsername;
+    /** bot 专属账号名称前缀（config.yml bot.name-prefix，默认 "__bot__"，不建议修改） */
+    private String botNamePrefix = "__bot__";
+    /** bot 专属账号允许登录的 IP 白名单（config.yml bot.allowed-login-ips，默认 127.0.0.1） */
+    private java.util.Set<String> allowedLoginIps = java.util.Collections.singleton("127.0.0.1");
+    /** Bot 隐藏方式（config.yml bot.hide-mode：hideplayer | playerinfo-remove[预留]） */
+    private String botHideMode = "hideplayer";
     private String mcHost;
     private int mcPort;
     private boolean snifferEnabled;
@@ -102,6 +109,16 @@ public class HttpOverMcPlugin extends JavaPlugin {
     private final ServerRegistry serverRegistry = new ServerRegistry();
     /** 跨服枢纽（独立服为 null；群组服下承载中继/服务/响应关联/发现） */
     private CrossServerHub crossHub = null;
+    /** Web 内容存活缓存（pinned 常驻 + LRU + TTL + 大文件加载器）；onEnable 装配，reload 不重建（配置改动重启生效） */
+    private soys.soyshttpovermc.web.WebContentCache webContentCache = null;
+    /** 大文件加载器注册中心（默认流式加载器 + 开发者自定义） */
+    private soys.soyshttpovermc.web.LargeFileLoaderRegistry largeFileLoaderRegistry = null;
+    /** 大文件安全上限（超过直接 413，防单文件打爆内存；默认 128MB） */
+    private long largeFileMaxBytes = 128L * 1024 * 1024;
+    /** 请求级拦截器注册中心（WebInterceptor SPI；onEnable 装配） */
+    private soys.soyshttpovermc.web.WebInterceptorRegistry webInterceptorRegistry = null;
+    /** CORS 声明注册中心（onEnable 装配） */
+    private soys.soyshttpovermc.web.CorsRegistry corsRegistry = null;
 
     /** 供其他插件获取本插件实例（接入注解式 API / 监听网关事件 / 下发凭证） */
     public static HttpOverMcPlugin getInstance() {
@@ -126,6 +143,11 @@ public class HttpOverMcPlugin extends JavaPlugin {
     /** 网关策略链（含已启用的凭证颁发器） */
     public GatewayFilter getGateway() {
         return gateway;
+    }
+
+    /** 请求级拦截器注册中心（WebInterceptor SPI；第三方经 ExtensionApi 注册）。 */
+    public soys.soyshttpovermc.web.WebInterceptorRegistry getWebInterceptorRegistry() {
+        return webInterceptorRegistry;
     }
 
     /** 对外集成门面（Facade）：第三方插件接入 HTTP-Over-MC 的统一入口（注册 API / 登记网页 / 凭证 / Bot / HTTP 等） */
@@ -176,6 +198,11 @@ public class HttpOverMcPlugin extends JavaPlugin {
         }
         // 3) 日志门面 + 级别过滤（config.yml 的 log.level，/soyshttp reload 热重载）
         LogKit.init(log, getConfig().getString("log.level", "INFO"));
+        // 3.5) Web 内容缓存（常驻 pinned + LRU 存活释放 + 大文件加载抽象；须在日志就绪后装配）
+        initWebCache();
+        // 3.6) 请求级拦截器 / CORS 声明注册中心（供第三方 SPI 与 WebFrontendHandler 使用）
+        webInterceptorRegistry = new soys.soyshttpovermc.web.WebInterceptorRegistry();
+        corsRegistry = new soys.soyshttpovermc.web.CorsRegistry();
         // 4) 安全网关（独立配置目录 gateway/）+ TLS 上下文（MC 端口就地升级，无独立端口）
         rebuildGateway(gatewayDir, log);
         // 4.5) AuthMe 网页登录接入（软依赖）：session-token 启用时建桥，AuthMe 在则建监听
@@ -192,13 +219,56 @@ public class HttpOverMcPlugin extends JavaPlugin {
         initSniffer(stats);
         // 9) 命令：/soyshttp reload | /soyshttp key <subject>
         initCommand();
+        // 10) 就绪事件：第三方插件若先于本插件加载，可监听 SoysReadyEvent 做延迟注册
+        try {
+            getServer().getPluginManager().callEvent(new soys.soyshttpovermc.api.event.SoysReadyEvent(api));
+        } catch (Throwable ignored) {
+        }
 
         logStartup(webRoot);
+    }
+
+    /** 装配 Web 内容缓存（config.yml web.cache.* / web.large-file-*）。 */
+    private void initWebCache() {
+        try {
+            long cacheMaxBytes = getConfig().getLong("web.cache.max-bytes", 16L * 1024 * 1024);
+            int cacheMaxEntries = Math.max(1, getConfig().getInt("web.cache.max-entries", 1024));
+            long cacheTtlSeconds = getConfig().getLong("web.cache.ttl-seconds", 60);
+            java.util.Set<String> pinned = new java.util.LinkedHashSet<>(
+                    getConfig().getStringList("web.cache.pinned"));
+            // 大文件阈值默认 = max-bytes（即超过缓存上限大小的文件视为大文件，走加载器、不缓存）
+            long largeThreshold = getConfig().getLong("web.large-file-threshold", cacheMaxBytes);
+            largeFileMaxBytes = getConfig().getLong("web.large-file-max-bytes", 128L * 1024 * 1024);
+            largeFileLoaderRegistry = new soys.soyshttpovermc.web.LargeFileLoaderRegistry(largeThreshold);
+            webContentCache = new soys.soyshttpovermc.web.WebContentCache(
+                    cacheMaxEntries, cacheMaxBytes, cacheTtlSeconds, pinned, largeFileLoaderRegistry);
+            LogKit.info("[HTTP-Over-MC] Web 内容缓存已装配: maxBytes=" + cacheMaxBytes
+                    + " maxEntries=" + cacheMaxEntries + " ttl=" + cacheTtlSeconds + "s"
+                    + " pinned=" + pinned + " largeThreshold=" + largeThreshold
+                    + " largeMax=" + largeFileMaxBytes);
+        } catch (Throwable t) {
+            LogKit.warn("[HTTP-Over-MC] Web 内容缓存装配失败（将按无缓存运行）: " + t);
+            webContentCache = null;
+            largeFileLoaderRegistry = null;
+        }
     }
 
     /** 从 config.yml 读取核心运行参数（Bot 用户名 / 通道 / 本服地址 / 嗅探开关与上限）。 */
     private void loadCoreConfig() {
         botUsername = getConfig().getString("bot.username", "__http_proxy__");
+        // bot 专属账号机制（IP 白名单 / 隐藏 / 群组服自动命名）统一以前缀为基准
+        botNamePrefix = getConfig().getString("bot.name-prefix", "__bot__");
+        java.util.List<String> ips = getConfig().getStringList("bot.allowed-login-ips");
+        allowedLoginIps = (ips == null || ips.isEmpty())
+                ? java.util.Collections.singleton("127.0.0.1")
+                : new java.util.LinkedHashSet<>(ips);
+        botHideMode = getConfig().getString("bot.hide-mode", "hideplayer");
+        if (!botUsername.startsWith(botNamePrefix)) {
+            // 兼容旧默认名 __http_proxy__：允许但不建议；bot 专属保护按「受管 bot 名集合 + 前缀名」生效
+            LogKit.warn("[HTTP-Over-MC] bot.username 不以 bot.name-prefix(" + botNamePrefix
+                    + ") 开头：" + botUsername + "（建议使用前缀命名 bot 专属账号；"
+                    + "当前名称仍受 IP 白名单保护，但新账号请使用前缀）");
+        }
         channel = getConfig().getString("channel", "httpproxy:main");
         // 群组服探测：经反射读 spigot.yml/paper.yml 判断是否位于 BungeeCord / Waterfall / Velocity 之后。
         // 影响无头 Bot 的握手转发兼容（后端 bungee:true / Velocity legacy 转发下需附加 host\0ip\0uuid 转发数据）与对外地址选择。
@@ -208,14 +278,17 @@ public class HttpOverMcPlugin extends JavaPlugin {
         // 群组服服务器名（config.yml proxy.server-name；仅群组服下用于跨服路由/发现，独立服留空）
         this.serverName = getConfig().getString("proxy.server-name", "");
         // 群组服下 Bot 用户名须全局唯一（BungeeCord 共享单一玩家命名空间，且限制 ≤16 字符、仅 [a-zA-Z0-9_]），
-        // 否则多服共用默认 __http_proxy__ 会撞名 → Bot 登录被拒 / 隧道错乱。追加本服名区分（前缀 hpb_ = http-proxy-bot）。
+        // 否则多服共用默认名会撞名 → Bot 登录被拒 / 隧道错乱。以 bot.name-prefix 为前缀 + 本服名区分
+        // （如 "__bot__" + "_" + "lobby" = "__bot___lobby"，长度 ≤16）。
         if (proxyPlatform != ProxyPlatform.STANDALONE && serverName != null && !serverName.isEmpty()) {
             String sName = sanitizeName(serverName);
-            String candidate = "hpb_" + sName;
-            if (candidate.length() > 16) {
-                candidate = candidate.substring(0, 16);
+            int budget = 16 - botNamePrefix.length() - 1; // 前缀 + "_" 之后的剩余字符数
+            if (budget < 1) {
+                botUsername = botNamePrefix;
+            } else {
+                if (sName.length() > budget) sName = sName.substring(0, budget);
+                botUsername = botNamePrefix + "_" + sName;
             }
-            botUsername = candidate;
             LogKit.info("[HTTP-Over-MC] 群组服模式：Bot 采用全局唯一名 " + botUsername + "（本服=" + serverName + "）");
         }
         // 群组服下 Bot 须经代理(BungeeCord / Velocity)连接，其 BungeeCord 频道 Forward 才能被代理跨服中继；
@@ -401,6 +474,11 @@ public class HttpOverMcPlugin extends JavaPlugin {
         }
         botManager = new BotManager(this, bot, mcLink, channel, mcHost, mcPort, proxyPlatform != ProxyPlatform.STANDALONE);
         bot.setRawMessageListener(botManager::dispatch);
+        // Bot 专属账号守卫：登录 IP 白名单（防抢注 bot 名）+ 进服对真实玩家隐藏
+        getServer().getPluginManager().registerEvents(
+                new BotGuardian(botManager, botNamePrefix, allowedLoginIps, botHideMode), this);
+        // 自动重连次数（0=不自动重连；默认尝试 3 次，连不上或被踢出则放弃）
+        bot.setMaxReconnectAttempts(getConfig().getInt("bot.reconnect-attempts", 3));
         bot.connect();
     }
 
@@ -408,11 +486,12 @@ public class HttpOverMcPlugin extends JavaPlugin {
      * 收到 Bot 经代理落在当前服后发来的 botctl 请求：代其向 BungeeCord 发 Connect 切到目标服。
      * <p>BungeeCord 1.x 会丢弃<b>客户端直发</b>的 BungeeCord 通道 Connect，因此由“当前服务端”侧
      * {@code player.sendPluginMessage(plugin, "BungeeCord", Connect)} 代发（服务端→BungeeCord 透传可靠）。
-     * 授权：仅处理本插件 Bot（名称以 {@code hpb_} 开头），避免任意玩家滥用 Connect 切服。</p>
+     * 授权：仅处理 bot 专属账号（受管 Bot 名或以 bot.name-prefix 开头的名称），避免任意玩家滥用 Connect 切服。</p>
      */
     private void handleBotConnectRequest(org.bukkit.entity.Player player, byte[] message) {
         try {
-            if (!player.getName().startsWith("hpb_")) {
+            boolean botDedicated = botManager != null && botManager.isManagedBot(player.getName());
+            if (!botDedicated && !player.getName().startsWith(botNamePrefix)) {
                 LogKit.warn("[HTTP-Over-MC] 忽略非 Bot 的 botctl 请求: " + player.getName());
                 return;
             }
@@ -455,7 +534,8 @@ public class HttpOverMcPlugin extends JavaPlugin {
 
     /** 构造对外集成门面（注入各 registry 与 BotManager），仅在 onEnable 调用一次。 */
     private void initApiImpl() {
-        api = new SoysHttpOverMcApiImpl(this, apiRegistry, webRegistry, gateway, botManager);
+        api = new SoysHttpOverMcApiImpl(this, apiRegistry, webRegistry, gateway, botManager,
+                largeFileLoaderRegistry, corsRegistry);
     }
 
     /** 装配统计 / 状态 API / 前端处理器 / 通道消息处理；返回统计实例供嗅探器复用。 */
@@ -466,7 +546,8 @@ public class HttpOverMcPlugin extends JavaPlugin {
         apiRegistry.register(new StatusController(statusService));
 
         WebFrontendHandler web = new WebFrontendHandler(
-                webRoot == null ? null : webRoot.getAbsolutePath(), apiRegistry, webRegistry, navRegistry, authLoginBridge);
+                webRoot == null ? null : webRoot.getAbsolutePath(), apiRegistry, webRegistry, navRegistry, authLoginBridge,
+                webContentCache, largeFileMaxBytes, corsRegistry, webInterceptorRegistry);
         webFrontend = web;
         // 请求调度器：单物理 Bot + 多逻辑队列（common 512 / admin 128 容量，4 个 worker，admin 优先）
         requestScheduler = new RequestScheduler(this, channel, web, 512, 128, 4);
@@ -527,8 +608,12 @@ public class HttpOverMcPlugin extends JavaPlugin {
         // 信任前置代理（本插件 BungeeCord 代理模块）注入的 X-Forwarded-For，恢复真实访客 IP
         // （用于限流/白名单/审计；部署在可信代理之后时开启，避免客户端伪造）。
         boolean trustProxy = getConfig().getBoolean("mc.trust-proxy", true);
+        // 秒杀防护：有界并发 + 有界队列（默认并发 4、队列 8），队列满直接 503 快速失败，不堆积
+        int httpConcurrency = Math.max(1, getConfig().getInt("sniffer.http-concurrency", 4));
+        int httpQueue = Math.max(1, getConfig().getInt("sniffer.http-queue-size", 8));
         sniffer = new SocketSniffer(this, translator,
-                () -> bot.isReady(), maxBody, stats, gateway, getTlsEngineSupplier(), trustProxy);
+                () -> bot.isReady(), maxBody, stats, gateway, getTlsEngineSupplier(), trustProxy,
+                httpConcurrency, httpQueue);
         sniffer.install();
     }
 

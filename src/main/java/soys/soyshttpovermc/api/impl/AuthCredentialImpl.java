@@ -6,6 +6,7 @@ import soys.soyshttpovermc.exception.ExceptionBus;
 import soys.soyshttpovermc.gateway.GatewayFilter;
 import soys.soyshttpovermc.gateway.policy.auth.issuer.CredentialIssuer;
 import soys.soyshttpovermc.gateway.policy.auth.issuer.IssuedCredential;
+import soys.soyshttpovermc.gateway.policy.auth.issuer.SessionTokenIssuer;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -51,11 +52,24 @@ public class AuthCredentialImpl implements AuthCredentialApi {
 
     @Override
     public IssuedCredential issueCredential(String issuerName, String subject) {
+        return issueCredential(issuerName, subject, null);
+    }
+
+    @Override
+    public IssuedCredential issueCredential(String subject, java.util.Map<String, String> claims) {
+        return issueCredential(null, subject, claims);
+    }
+
+    @Override
+    public IssuedCredential issueCredential(String issuerName, String subject, java.util.Map<String, String> claims) {
         if (gateway == null || subject == null) return null;
         for (CredentialIssuer i : gateway.getIssuers()) {
             if (!i.isEnabled()) continue;
             if (issuerName != null && !issuerName.equals(i.name())) continue;
             try {
+                if (claims != null && !claims.isEmpty() && i instanceof SessionTokenIssuer) {
+                    return ((SessionTokenIssuer) i).issue(subject, null, claims);
+                }
                 return i.issue(subject);
             } catch (Exception ex) {
                 throw ExceptionBus.fire(new AuthException("E_ISSUE", "签发凭证失败(issuer=" + i.name() + ", subject=" + subject + "): " + ex.getMessage(), ex));

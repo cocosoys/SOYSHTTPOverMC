@@ -67,6 +67,8 @@ public class GatewayFilter {
     private final Logger log;
     private volatile List<SecurityPolicy> policies = new ArrayList<>();
     private volatile List<CredentialIssuer> issuers = new ArrayList<>();
+    /** 插件注入的附加策略（gateway/policies/ 之外由第三方贡献；reload 后保留） */
+    private final List<SecurityPolicy> pluginPolicies = new java.util.concurrent.CopyOnWriteArrayList<>();
     /** 网关统一的 API 前缀（gateway/config.yml api-prefix，默认 /api；始终生效） */
     private volatile String apiPrefix = "/api";
 
@@ -119,8 +121,13 @@ public class GatewayFilter {
             }
         }
         list.sort(Comparator.comparingInt(SecurityPolicy::order));
-        policies = list;
+        // 合并插件注入的策略（保留，reload 不丢失；仍按 order 排序）
+        List<SecurityPolicy> merged = new ArrayList<>(list);
+        merged.addAll(pluginPolicies);
+        merged.sort(Comparator.comparingInt(SecurityPolicy::order));
+        policies = merged;
         LogKit.info("[HTTP-Over-MC] 网关策略链已加载：" + (list.isEmpty() ? "无启用策略" : describe(list))
+                + (pluginPolicies.isEmpty() ? "" : " | 插件策略: " + describe(pluginPolicies))
                 + (issuerList.isEmpty() ? "" : " | 颁发器: " + describeIssuers(issuerList))
                 + " | api-prefix=" + apiPrefix);
         if (LogKit.isDebugEnabled()) {
@@ -234,5 +241,26 @@ public class GatewayFilter {
     /** 已启用的凭证颁发器（供 /soyshttp key 下发命令使用） */
     public List<CredentialIssuer> getIssuers() {
         return issuers;
+    }
+
+    /**
+     * 插件贡献自定义策略（gateway/policies/ 之外）：注入到策略链，按 order 参与排序，
+     * /soyshttp reload 后保留。安全语义与文件策略一致（DENY 短路、异常 fail-closed）。
+     */
+    public void addPluginPolicy(SecurityPolicy policy) {
+        if (policy == null) return;
+        pluginPolicies.removeIf(p -> p.name() != null && p.name().equals(policy.name()));
+        pluginPolicies.add(policy);
+        // 立即并入当前链
+        List<SecurityPolicy> merged = new ArrayList<>(policies);
+        merged.add(policy);
+        merged.sort(Comparator.comparingInt(SecurityPolicy::order));
+        policies = merged;
+        LogKit.info("[HTTP-Over-MC] 插件策略已注入: " + policy.name() + "(order=" + policy.order() + ")");
+    }
+
+    /** 插件注入的策略列表（只读）。 */
+    public List<SecurityPolicy> getPluginPolicies() {
+        return java.util.Collections.unmodifiableList(pluginPolicies);
     }
 }

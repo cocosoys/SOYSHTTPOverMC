@@ -235,6 +235,37 @@ public class WebRegistry {
         if (removed > 0) {
             LogKit.info("[HTTP-Over-MC] 卸载网页（插件 " + pluginName + "）：共 " + removed + " 个");
         }
+        // 一并清理该插件的自定义错误页
+        errorPages.entrySet().removeIf(e -> pluginName.equals(e.getValue().ownerPlugin));
+    }
+
+    // ===== 自定义错误页（registerErrorPage） =====
+
+    /** 自定义错误页：status -> (owner, content) */
+    private final Map<Integer, ErrorPage> errorPages = new ConcurrentHashMap<>();
+
+    /** 注册自定义错误页（替换通用 404/500 等错误响应；content 为完整 HTML/文本字节）。 */
+    public void registerErrorPage(String ownerPlugin, int status, byte[] content) {
+        if (content == null || content.length == 0 || status <= 0) return;
+        errorPages.put(status, new ErrorPage(ownerPlugin, content));
+        LogKit.info("[HTTP-Over-MC] 已登记自定义错误页 status=" + status + " owner=" + ownerPlugin);
+    }
+
+    /** 查询自定义错误页（未注册返回 null）。 */
+    public byte[] errorPage(int status) {
+        ErrorPage e = errorPages.get(status);
+        return e == null ? null : e.content;
+    }
+
+    /** 错误页条目。 */
+    private static final class ErrorPage {
+        final String ownerPlugin;
+        final byte[] content;
+
+        ErrorPage(String ownerPlugin, byte[] content) {
+            this.ownerPlugin = ownerPlugin;
+            this.content = content;
+        }
     }
 
     /** 列出全部已登记网页路径（含归属插件），按路径排序；供 /soyshttp pages 查看。 */
@@ -344,6 +375,11 @@ public class WebRegistry {
         private final ClassLoader resCl;     // 资源类加载器（按需读 jar 内资源）
         private final String resource;
         private final File diskFile;         // 磁盘文件（登记目录用，惰性读取，支持热替换）
+
+        /** 磁盘文件（null=非磁盘来源）；供内容缓存做热替换失效（lastModified）与大文件加载器判定。 */
+        public File getDiskFile() {
+            return diskFile;
+        }
 
         Entry(String ownerPlugin, String path, String contentType, byte[] content,
               ClassLoader resCl, String resource, String redirectTo, int redirectCode, File diskFile) {

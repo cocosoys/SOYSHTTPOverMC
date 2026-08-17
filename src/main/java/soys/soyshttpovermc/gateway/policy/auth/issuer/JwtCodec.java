@@ -50,13 +50,38 @@ public final class JwtCodec {
      */
     public static String create(byte[] secret, String subject, String mode,
                                 long ttlMillis, String jti, String prefix, boolean admin) {
+        return create(secret, subject, mode, ttlMillis, jti, prefix, admin, null);
+    }
+
+    /**
+     * 签发 JWT（支持自定义 claims）。
+     * @param claims 附加到 payload 的自定义键值（键限 [a-zA-Z0-9_-]，值限长度 256；可空）。
+     *               保留键 sub/mode/exp/iat/jti/adm 不可用。供业务方携带自定义声明（权限范围/标签等）。
+     */
+    public static String create(byte[] secret, String subject, String mode,
+                                long ttlMillis, String jti, String prefix, boolean admin,
+                                java.util.Map<String, String> claims) {
         long now = System.currentTimeMillis();
+        StringBuilder payload = new StringBuilder();
+        payload.append("{\"sub\":\"").append(esc(subject)).append("\",\"mode\":\"").append(esc(mode))
+                .append("\",\"exp\":").append(now + ttlMillis).append(",\"iat\":").append(now)
+                .append(",\"jti\":\"").append(esc(jti)).append('"')
+                .append(admin ? ",\"adm\":1" : "");
+        if (claims != null) {
+            for (java.util.Map.Entry<String, String> e : claims.entrySet()) {
+                String k = e.getKey();
+                if (k == null || !k.matches("[A-Za-z0-9_-]{1,32}")) continue;
+                if ("sub".equals(k) || "mode".equals(k) || "jti".equals(k)
+                        || "exp".equals(k) || "iat".equals(k) || "adm".equals(k)) continue;
+                String v = e.getValue();
+                if (v == null || v.length() > 256) continue;
+                payload.append(",\"").append(k).append("\":\"").append(esc(v)).append('"');
+            }
+        }
+        payload.append('}');
         String header = b64("{\"alg\":\"HS256\",\"typ\":\"JWT\"}");
-        String payload = b64("{\"sub\":\"" + esc(subject) + "\",\"mode\":\"" + esc(mode)
-                + "\",\"exp\":" + (now + ttlMillis) + ",\"iat\":" + now
-                + ",\"jti\":\"" + esc(jti) + "\""
-                + (admin ? ",\"adm\":1" : "") + "}");
-        String signing = header + "." + payload;
+        String p = b64(payload.toString());
+        String signing = header + "." + p;
         String sig = b64(hmac(secret, signing));
         return (prefix == null ? "" : prefix) + signing + "." + sig;
     }
@@ -121,9 +146,18 @@ public final class JwtCodec {
         public String jti;
         /** 服主最高权限 key（/soyshttp key 命令颁发，adm=1）。 */
         public boolean adm;
+        /** 自定义 claims（签发时附加的非保留键值，字符串形式）。 */
+        public final java.util.Map<String, String> claims = new java.util.HashMap<>();
     }
 
     // ===== 内部 =====
+
+    /** payload 保留键（不视为自定义 claims）。 */
+    private static final java.util.Set<String> RESERVED = new java.util.HashSet<>(
+            java.util.Arrays.asList("sub", "mode", "exp", "iat", "jti", "adm"));
+    /** 提取自定义 claims 用的顶层键值对匹配（字符串值）。 */
+    private static final java.util.regex.Pattern CLAIM_PATTERN =
+            java.util.regex.Pattern.compile("\"([A-Za-z0-9_\\-]+)\":\"((?:[^\"\\\\]|\\\\.)*)\"");
 
     private static Payload parsePayload(String json) {
         if (json == null) return null;
@@ -134,7 +168,16 @@ public final class JwtCodec {
         p.exp = lng(json, "exp");
         p.iat = lng(json, "iat");
         p.adm = lng(json, "adm") == 1;
-        return (p.subject == null || p.exp <= 0) ? null : p;
+        if (p.subject == null || p.exp <= 0) return null;
+        // 提取自定义 claims（跳过保留键）
+        java.util.regex.Matcher m = CLAIM_PATTERN.matcher(json);
+        while (m.find()) {
+            String k = m.group(1);
+            if (RESERVED.contains(k)) continue;
+            String v = m.group(2).replace("\\\"", "\"").replace("\\\\", "\\");
+            p.claims.put(k, v);
+        }
+        return p;
     }
 
     private static String str(String json, String key) {

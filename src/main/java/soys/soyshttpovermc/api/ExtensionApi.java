@@ -26,4 +26,18 @@ public interface ExtensionApi {
 
     /** 注册 /soyshttp 子指令（需在宿主 onEnable 完成后调用，否则命令未初始化会抛异常）。 */
     void registerSubCommand(SubCommand subCommand);
+
+    /**
+     * 注册请求级拦截器（{@link soys.soyshttpovermc.web.WebInterceptor} SPI）：
+     * 在网关策略之后、业务路由之前执行，可<b>改写 path/请求头、或按自定义规则短路返回</b>
+     * （SSO 校验、维护页、灰度分流等）。多个拦截器按注册顺序执行。
+     */
+    void registerWebInterceptor(soys.soyshttpovermc.web.WebInterceptor interceptor);
+
+    /**
+     * 插件贡献自定义安全策略（{@link soys.soyshttpovermc.gateway.SecurityPolicy}）：
+     * 注入网关策略链（gateway/policies/ 之外），按 order 参与排序，DENY 短路、异常 fail-closed，
+     * /soyshttp reload 后保留。用于插件自带限流/权限段。
+     */
+    void registerPolicy(soys.soyshttpovermc.gateway.SecurityPolicy policy);
 }

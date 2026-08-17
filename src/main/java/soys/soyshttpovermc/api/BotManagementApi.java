@@ -9,8 +9,18 @@ import soys.soyshttpovermc.bot.InternalBot;
  */
 public interface BotManagementApi {
 
-    /** 创建一个额外受管无头 Bot（独立通道 + 隧道）并回连本服 */
+    /**
+     * 创建一个额外受管无头 Bot（独立通道 + 隧道）并回连本服。
+     * 名称<b>完全自定义</b>（任意 ≤16 字符的合法离线名）；若名称以 {@code bot.name-prefix}（默认 "__bot__"）开头，
+     * 将自动受 bot 专属账号保护（登录 IP 白名单 + 进服对真实玩家隐藏，见 {@code BotGuardian}）。
+     */
     BotManager.ManagedBot addBot(String name, String channel);
+
+    /**
+     * 创建一个额外受管无头 Bot，复用主通道（多 Bot 分摊 / 双隧道冗余）。名称完全自定义，
+     * 带 bot 前缀名称同样自动受专属保护。若同名已存在则返回既有项。
+     */
+    BotManager.ManagedBot addBot(String name);
 
     /** 踢出并断开一个额外受管 Bot（主 Bot 不可踢） */
     void kickBot(String name) throws Exception;

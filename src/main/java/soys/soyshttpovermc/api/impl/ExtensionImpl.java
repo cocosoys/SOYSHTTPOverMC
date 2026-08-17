@@ -40,4 +40,32 @@ public class ExtensionImpl implements ExtensionApi {
         }
         cmd.registerSubCommand(subCommand);
     }
+
+    @Override
+    public void registerWebInterceptor(soys.soyshttpovermc.web.WebInterceptor interceptor) {
+        try {
+            soys.soyshttpovermc.web.WebInterceptorRegistry reg = plugin.getWebInterceptorRegistry();
+            if (reg == null) {
+                throw new IllegalStateException("请求拦截器注册中心尚未初始化（宿主未就绪）");
+            }
+            reg.register(interceptor);
+        } catch (Exception ex) {
+            throw ExceptionBus.fire(new ApiException("E_REGISTER_INTERCEPTOR",
+                    "注册请求拦截器失败: " + ex.getMessage(), ex));
+        }
+    }
+
+    @Override
+    public void registerPolicy(soys.soyshttpovermc.gateway.SecurityPolicy policy) {
+        try {
+            soys.soyshttpovermc.gateway.GatewayFilter gw = plugin.getGateway();
+            if (gw == null) {
+                throw new IllegalStateException("网关未启用，无法注入策略");
+            }
+            gw.addPluginPolicy(policy);
+        } catch (Exception ex) {
+            throw ExceptionBus.fire(new ApiException("E_REGISTER_POLICY",
+                    "注入插件策略失败: " + ex.getMessage(), ex));
+        }
+    }
 }

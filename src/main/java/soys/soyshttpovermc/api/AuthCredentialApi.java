@@ -26,4 +26,14 @@ public interface AuthCredentialApi {
 
     /** 用指定颁发器签发；issuerName 为 null 时取首个启用的 */
     IssuedCredential issueCredential(String issuerName, String subject);
+
+    /**
+     * 用首个启用的颁发器签发携带自定义 claims 的凭证（会话令牌颁发器将 claims 写入 JWT payload）。
+     * 键限 [a-zA-Z0-9_-]{1,32}，值限 256 字符；保留键 sub/mode/exp/iat/jti/adm 不可用。
+     * 非会话令牌颁发器忽略 claims。用于权限范围/标签等业务声明（不参与权限判定）。
+     */
+    IssuedCredential issueCredential(String subject, java.util.Map<String, String> claims);
+
+    /** 用指定颁发器签发携带自定义 claims 的凭证；issuerName 为 null 时取首个启用的 */
+    IssuedCredential issueCredential(String issuerName, String subject, java.util.Map<String, String> claims);
 }
