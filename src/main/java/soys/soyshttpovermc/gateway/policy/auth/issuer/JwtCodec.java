@@ -92,7 +92,7 @@ public final class JwtCodec {
      * @param token  完整令牌（可带前缀，如 st_eyJ...）
      */
     public static Payload parse(byte[] secret, String token) {
-        return parse(secret, token, null);
+        return parse(secret, token, null, 0);
     }
 
     /**
@@ -100,6 +100,17 @@ public final class JwtCodec {
      * @param prefix 签发时使用的前缀（如 "st_"）；token 以该前缀开头时先剥离再验签。可空。
      */
     public static Payload parse(byte[] secret, String token, String prefix) {
+        return parse(secret, token, prefix, 0);
+    }
+
+    /**
+     * 解析并验签 JWT（含过期检查与时钟容差）；无效返回 null。
+     * @param prefix          签发时使用的前缀（如 "st_"）；token 以该前缀开头时先剥离再验签。可空。
+     * @param clockSkewMillis 时钟容差（毫秒）：跨服校验时容忍各服时钟偏移，过期判定为
+     *                        {@code exp + skew < now}（防误拒）；签发时间在 {@code iat > now + skew}
+     *                        视为无效（防时钟严重回拨的伪造/错乱）。
+     */
+    public static Payload parse(byte[] secret, String token, String prefix, long clockSkewMillis) {
         if (token == null || secret == null || secret.length == 0) return null;
         if (prefix != null && !prefix.isEmpty() && token.startsWith(prefix)) {
             token = token.substring(prefix.length());
@@ -133,7 +144,10 @@ public final class JwtCodec {
         String json = new String(pj, StandardCharsets.UTF_8);
         Payload p = parsePayload(json);
         if (p == null) return null;
-        if (p.exp < System.currentTimeMillis()) return null; // 过期
+        long skew = Math.max(0, clockSkewMillis);
+        long now = System.currentTimeMillis();
+        if (p.exp + skew < now) return null;               // 过期（含容差）
+        if (p.iat > 0 && p.iat > now + skew) return null;  // 签发时间在未来（超容差=时钟严重回拨/伪造）
         return p;
     }
 

@@ -42,6 +42,22 @@ public class SessionTokenIssuer extends CredentialIssuer {
     private final Set<String> revoked = ConcurrentHashMap.newKeySet();
     /** 颁发登记表（subject → 签发记录；仅审计展示用，惰性清理过期记录）。 */
     private final Map<String, List<IssuedRecord>> issued = new ConcurrentHashMap<>();
+    /** 跨服同步存储（MySQL 等；null=纯内存模式）：黑名单/审计双写+查询。 */
+    private volatile soys.soyshttpovermc.storage.SyncStorage syncStorage = null;
+    /** 本服标识（写库记录来源服，防双服冲突；由宿主注入）。 */
+    private volatile String serverId = "";
+    /** 时钟容差（毫秒）：跨服校验容忍各服时钟偏移（gateway/issuers/session-token.yml clock-skew-seconds，默认 30s）。 */
+    private volatile long clockSkewMillis = 30_000;
+
+    /** 注入跨服同步存储（宿主装配；null=内存模式）。 */
+    public void setSyncStorage(soys.soyshttpovermc.storage.SyncStorage storage) {
+        this.syncStorage = storage;
+    }
+
+    /** 注入本服标识（群组服=server-name，独立服=standalone-&lt;host&gt;:&lt;port&gt;）。 */
+    public void setServerId(String id) {
+        this.serverId = id == null ? "" : id;
+    }
 
     @Override
     public String name() {
@@ -54,6 +70,7 @@ public class SessionTokenIssuer extends CredentialIssuer {
         if (cfg == null) return;
         cookieName = cfg.getString("cookie-name", "soys_session");
         ttlMillis = Math.max(1000L, cfg.getLong("ttl-seconds", 86400) * 1000L);
+        clockSkewMillis = Math.max(0, cfg.getLong("clock-skew-seconds", 30) * 1000L);
         revoked.clear(); // JWT 无状态：reload 不清空有效令牌；黑名单随重建清空（可接受）
         issued.clear(); // 颁发登记随重建清空（新颁发器实例从头登记）
     }
@@ -120,15 +137,22 @@ public class SessionTokenIssuer extends CredentialIssuer {
         return token == null ? null : parseToken(token);
     }
 
-    /** 解析令牌字符串（验签 + 过期 + 黑名单）；无效返回 null。支持 st_（玩家）与 ak_（服主 admin）前缀。 */
+    /** 解析令牌字符串（验签 + 过期[含时钟容差] + 黑名单）；无效返回 null。支持 st_（玩家）与 ak_（服主 admin）前缀。 */
     private JwtCodec.Payload parseToken(String token) {
         if (token == null) return null;
         JwtCodec.Payload payload = token.startsWith("ak_")
-                ? JwtCodec.parse(secret, token, "ak_")
-                : JwtCodec.parse(secret, token, "st_");
+                ? JwtCodec.parse(secret, token, "ak_", clockSkewMillis)
+                : JwtCodec.parse(secret, token, "st_", clockSkewMillis);
         if (payload == null) return null;
-        if (payload.jti != null && revoked.contains(payload.jti)) return null;
+        if (payload.jti != null && isRevoked(payload.jti)) return null;
         return payload;
+    }
+
+    /** 本服内存黑名单 + 跨服共享黑名单（存储后端）联合判定；存储查询带命中缓存。 */
+    private boolean isRevoked(String jti) {
+        if (revoked.contains(jti)) return true;
+        soys.soyshttpovermc.storage.SyncStorage s = syncStorage;
+        return s != null && s.isAvailable() && s.isTokenRevoked(jti);
     }
 
     /** 是否为服主最高权限 key（adm 标记；无效/过期/已注销返回 false）。 */
@@ -195,12 +219,20 @@ public class SessionTokenIssuer extends CredentialIssuer {
         return cookieName;
     }
 
-    /** 按令牌字符串撤销会话（退出登录用）：jti 加入黑名单；撤销成功返回 true。 */
+    /** 按令牌字符串撤销会话（退出登录用）：jti 加入黑名单（本地 + 跨服存储）；撤销成功返回 true。 */
     public boolean revoke(String token) {
         JwtCodec.Payload payload = parseToken(token);
         if (payload == null || payload.jti == null) return false;
         revoked.add(payload.jti);
         markRevoked(payload.jti);
+        soys.soyshttpovermc.storage.SyncStorage s = syncStorage;
+        if (s != null && s.isAvailable()) {
+            try {
+                s.revokeToken(payload.jti, serverId);
+            } catch (Throwable ignored) {
+                // 存储失败降级：本地黑名单仍生效（本服拒绝），跨服同步延迟
+            }
+        }
         return true;
     }
 
@@ -246,9 +278,17 @@ public class SessionTokenIssuer extends CredentialIssuer {
 
     private void record(String subject, String mode, boolean admin, String jti) {
         if (subject == null) subject = "?";
+        long now = System.currentTimeMillis();
         issued.computeIfAbsent(subject, k -> new CopyOnWriteArrayList<>())
-                .add(new IssuedRecord(subject, mode, admin, System.currentTimeMillis(),
-                        System.currentTimeMillis() + ttlMillis, jti));
+                .add(new IssuedRecord(subject, mode, admin, now, now + ttlMillis, jti));
+        // 跨服审计：同步写库（append-only；失败降级不影响签发）
+        soys.soyshttpovermc.storage.SyncStorage s = syncStorage;
+        if (s != null && s.isAvailable()) {
+            try {
+                s.recordIssued(serverId, subject, mode, admin, jti, now, now + ttlMillis);
+            } catch (Throwable ignored) {
+            }
+        }
     }
 
     private void markRevoked(String jti) {

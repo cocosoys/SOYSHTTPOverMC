@@ -176,6 +176,21 @@
             <version>5.4.0</version>
             <scope>provided</scope>
         </dependency>
+        <!-- MySQL Connector/J：跨服同步数据存储（config.yml mysql 段启用时使用）。
+             compile + shade 打入 jar：Spigot 1.12.2 仅内置 5.x 驱动（com.mysql.jdbc.*，连 MySQL 8 有认证兼容问题），
+             自带 8.x（com.mysql.cj.*，与服务端 5.x 包名不同，无冲突）确保 MySQL 8 直连可用。
+             排除其传递的 protobuf（X DevAPI 用，本项目不用，避免与 FrameProto 的 protobuf 版本纠缠）。 -->
+        <dependency>
+            <groupId>mysql</groupId>
+            <artifactId>mysql-connector-java</artifactId>
+            <version>8.0.28</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>com.google.protobuf</groupId>
+                    <artifactId>protobuf-java</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
         <!-- 群组服（BungeeCord / Waterfall / Velocity）支持：
              仅编译期签名，provided 不打进 jar，后端 Spigot 独立运行不受影响；
              运行期经反射探测代理类，不在 classpath 时自动降级为独立服。

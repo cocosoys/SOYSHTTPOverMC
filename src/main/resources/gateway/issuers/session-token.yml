@@ -5,3 +5,6 @@
 enabled: true
 cookie-name: soys_session
 ttl-seconds: 86400
+# 跨服时钟容差（秒）：校验 exp/iat 时容忍各子服时钟偏移（默认 30s），
+# 防 NTP 未对齐导致误拒；超过容差的未来签发时间视为无效。
+clock-skew-seconds: 30

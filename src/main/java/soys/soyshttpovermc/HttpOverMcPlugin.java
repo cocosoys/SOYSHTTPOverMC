@@ -119,6 +119,8 @@ public class HttpOverMcPlugin extends JavaPlugin {
     private soys.soyshttpovermc.web.WebInterceptorRegistry webInterceptorRegistry = null;
     /** CORS 声明注册中心（onEnable 装配） */
     private soys.soyshttpovermc.web.CorsRegistry corsRegistry = null;
+    /** 跨服同步存储（MySQL 等；null=内存模式）。 */
+    private soys.soyshttpovermc.storage.SyncStorage syncStorage = null;
 
     /** 供其他插件获取本插件实例（接入注解式 API / 监听网关事件 / 下发凭证） */
     public static HttpOverMcPlugin getInstance() {
@@ -203,6 +205,8 @@ public class HttpOverMcPlugin extends JavaPlugin {
         // 3.6) 请求级拦截器 / CORS 声明注册中心（供第三方 SPI 与 WebFrontendHandler 使用）
         webInterceptorRegistry = new soys.soyshttpovermc.web.WebInterceptorRegistry();
         corsRegistry = new soys.soyshttpovermc.web.CorsRegistry();
+        // 3.7) 跨服同步存储（MySQL 等；config.yml mysql 段，须在日志就绪后装配）
+        initStorage();
         // 4) 安全网关（独立配置目录 gateway/）+ TLS 上下文（MC 端口就地升级，无独立端口）
         rebuildGateway(gatewayDir, log);
         // 4.5) AuthMe 网页登录接入（软依赖）：session-token 启用时建桥，AuthMe 在则建监听
@@ -251,6 +255,56 @@ public class HttpOverMcPlugin extends JavaPlugin {
             webContentCache = null;
             largeFileLoaderRegistry = null;
         }
+    }
+
+    /** 装配跨服同步存储（config.yml mysql 段）：启用则初始化 + 保活定时 + 心跳定时。 */
+    private void initStorage() {
+        syncStorage = soys.soyshttpovermc.storage.StorageManager.build(getConfig().getConfigurationSection("mysql"));
+        if (syncStorage == null) {
+            return;
+        }
+        // 保活探测（防 MySQL wait_timeout 断连）与实例心跳（跨服拓扑）
+        long keepaliveSeconds = Math.max(30, getConfig().getLong("mysql.keepalive-interval", 1800));
+        getServer().getScheduler().runTaskTimerAsynchronously(this, () -> {
+            try {
+                syncStorage.keepAlive();
+            } catch (Throwable ignored) {
+            }
+        }, keepaliveSeconds * 20L, keepaliveSeconds * 20L);
+        getServer().getScheduler().runTaskTimerAsynchronously(this, () -> {
+            try {
+                syncStorage.heartbeat(storageServerId(), serverName == null || serverName.isEmpty() ? getName() : serverName,
+                        mcHost, mcPort);
+            } catch (Throwable ignored) {
+            }
+        }, 0L, 30L * 20L);
+        LogKit.info("[HTTP-Over-MC] 跨服同步存储已装配: serverId=" + storageServerId());
+    }
+
+    /** 本服存储标识（群组服=server-name；独立服=standalone-&lt;host&gt;:&lt;port&gt;）。 */
+    public String storageServerId() {
+        if (proxyPlatform != ProxyPlatform.STANDALONE && serverName != null && !serverName.isEmpty()) {
+            return serverName;
+        }
+        return "standalone-" + mcHost + ":" + mcPort;
+    }
+
+    /**
+     * 解析 JWT 密钥：MySQL 启用时从共享存储集中下发（loadOrCreateJwtSecret，
+     * 首个服用本地密钥初始化全局密钥并写回，其后各服读同一密钥）；存储不可用/失败回退本地文件密钥。
+     */
+    private byte[] resolveJwtSecret() {
+        byte[] local = ConfigManager.loadOrCreateTokenSecret(this);
+        soys.soyshttpovermc.storage.SyncStorage s = syncStorage;
+        if (s != null && s.isAvailable()) {
+            byte[] global = s.loadOrCreateJwtSecret(local);
+            if (global != null) {
+                LogKit.info("[HTTP-Over-MC] JWT 密钥来源：MySQL 集中下发（跨服统一，serverId=" + storageServerId() + "）");
+                return global;
+            }
+            LogKit.warn("[HTTP-Over-MC] 从共享存储读取 JWT 密钥失败，回退本地文件密钥（跨服验签可能不一致）");
+        }
+        return local;
     }
 
     /** 从 config.yml 读取核心运行参数（Bot 用户名 / 通道 / 本服地址 / 嗅探开关与上限）。 */
@@ -424,8 +478,12 @@ public class HttpOverMcPlugin extends JavaPlugin {
                     + "（如需启用，请在 gateway/issuers/session-token.yml 设 enabled: true）");
             return;
         }
-        // JWT 签名密钥（持久化于 data/token-secret.key）：reload 复用同一密钥 → 已签发令牌不失效
-        issuer.setSecret(ConfigManager.loadOrCreateTokenSecret(this));
+        // JWT 签名密钥：MySQL 启用时从共享存储集中下发（meta 表，首个服初始化全局密钥，
+        // 各服读同一密钥 → 跨服验签一致，无需手工复制 token-secret.key）；否则本地文件密钥
+        issuer.setSecret(resolveJwtSecret());
+        // 跨服同步存储（MySQL 等）：黑名单/审计双写 + 本服标识
+        issuer.setSyncStorage(syncStorage);
+        issuer.setServerId(storageServerId());
         authLoginBridge = new AuthLoginBridge(issuer);
         // 离线 cookie 自动升级：浏览器带离线令牌的任意 API 请求，若玩家已进游戏在线，
         // 响应自动附带 Set-Cookie(新在线令牌)+X-Soys-New-Token，无需二次登录
@@ -728,6 +786,13 @@ public class HttpOverMcPlugin extends JavaPlugin {
         }
         if (bot != null) {
             bot.disconnect();
+        }
+        if (syncStorage != null) {
+            try {
+                syncStorage.shutdown();
+            } catch (Throwable ignored) {
+            }
+            syncStorage = null;
         }
         instance = null;
         LogKit.info("HTTP-Over-MC 已关闭");
