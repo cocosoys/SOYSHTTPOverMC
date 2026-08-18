@@ -13,17 +13,29 @@ import java.util.List;
  */
 public interface ApiRegistrationApi {
 
-    /** 注册注解式控制器（自动标记所属插件；非主插件自动加 /plugins/&lt;插件名&gt; 前缀） */
+    /** 注册注解式控制器（自动标记所属插件；非主插件自动加 /plugins/&lt;插件名&gt; 前缀）；重复路由默认阻止 */
     void registerController(Object instance);
 
     /** 注册注解式控制器并显式指定所属插件 */
     void registerController(Object instance, Plugin owner);
+
+    /** 注册注解式控制器（force=true 强制覆盖重复路由并打印强制注册的插件与原插件） */
+    void registerController(Object instance, boolean force);
+
+    /** 注册注解式控制器（显式 owner；force=true 强制覆盖重复路由） */
+    void registerController(Object instance, Plugin owner, boolean force);
 
     /** 强制以主插件代理注册（无 /plugins/&lt;插件名&gt; 前缀，ownerPlugin 仍标记真实插件） */
     void registerProxyController(Object instance);
 
     /** 强制以主插件代理注册并显式指定所属插件 */
     void registerProxyController(Object instance, Plugin owner);
+
+    /** 强制以主插件代理注册（force=true 强制覆盖重复路由并打印强制注册的插件） */
+    void registerProxyController(Object instance, boolean force);
+
+    /** 强制以主插件代理注册（显式 owner；force=true 强制覆盖重复路由） */
+    void registerProxyController(Object instance, Plugin owner, boolean force);
 
     /** 卸载某控制器实例注册的全部端点 */
     List<ApiInfo> unregisterController(Object instance);

@@ -1,4 +1,4 @@
-package soys.soyshttpovermc.gateway.policy.login;
+package soys.soyshttpovermc.gateway.policy.auth.login;
 
 /**
  * 网页登录模式：决定会话令牌的身份语义。

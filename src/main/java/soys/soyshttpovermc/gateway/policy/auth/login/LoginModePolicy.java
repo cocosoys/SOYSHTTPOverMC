@@ -1,4 +1,4 @@
-package soys.soyshttpovermc.gateway.policy.login;
+package soys.soyshttpovermc.gateway.policy.auth.login;
 
 /**
  * 网页登录模式策略（抽象基类，仿 {@code SecurityPolicy} 的可插拔模式）：

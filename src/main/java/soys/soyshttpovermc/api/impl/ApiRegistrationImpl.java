@@ -42,6 +42,24 @@ public class ApiRegistrationImpl implements ApiRegistrationApi {
     }
 
     @Override
+    public void registerController(Object instance, boolean force) {
+        try {
+            apiRegistry.register(instance, force);
+        } catch (Exception ex) {
+            throw ExceptionBus.fire(new ApiException("E_REGISTER", "注册控制器失败(force=" + force + "): " + ex.getMessage(), ex));
+        }
+    }
+
+    @Override
+    public void registerController(Object instance, Plugin owner, boolean force) {
+        try {
+            apiRegistry.register(owner, instance, force);
+        } catch (Exception ex) {
+            throw ExceptionBus.fire(new ApiException("E_REGISTER", "注册控制器失败(owner=" + owner + ", force=" + force + "): " + ex.getMessage(), ex));
+        }
+    }
+
+    @Override
     public void registerProxyController(Object instance) {
         try {
             apiRegistry.registerProxy(instance);
@@ -56,6 +74,24 @@ public class ApiRegistrationImpl implements ApiRegistrationApi {
             apiRegistry.registerProxy(owner, instance);
         } catch (Exception ex) {
             throw ExceptionBus.fire(new ApiException("E_REGISTER_PROXY", "代理注册控制器失败(owner=" + owner + "): " + ex.getMessage(), ex));
+        }
+    }
+
+    @Override
+    public void registerProxyController(Object instance, boolean force) {
+        try {
+            apiRegistry.registerProxy(instance, force);
+        } catch (Exception ex) {
+            throw ExceptionBus.fire(new ApiException("E_REGISTER_PROXY", "代理注册控制器失败(force=" + force + "): " + ex.getMessage(), ex));
+        }
+    }
+
+    @Override
+    public void registerProxyController(Object instance, Plugin owner, boolean force) {
+        try {
+            apiRegistry.registerProxy(owner, instance, force);
+        } catch (Exception ex) {
+            throw ExceptionBus.fire(new ApiException("E_REGISTER_PROXY", "代理注册控制器失败(owner=" + owner + ", force=" + force + "): " + ex.getMessage(), ex));
         }
     }
 

@@ -2,6 +2,7 @@ package soys.soyshttpovermc.spring.impl;
 
 import soys.soyshttpovermc.gateway.policy.auth.bridge.AuthLoginBridge;
 import soys.soyshttpovermc.gateway.policy.auth.issuer.CredentialPresentation;
+import soys.soyshttpovermc.gateway.policy.auth.login.LoginMode;
 import soys.soyshttpovermc.spring.service.IAuthService;
 import soys.soyshttpovermc.util.AjaxResult;
 import soys.soyshttpovermc.util.ApiResponse;
@@ -64,7 +65,7 @@ public class AuthServiceImpl implements IAuthService {
             }
         }
         // 登录模式（与 bridge.login 内部同一策略）：玩家在线→online；不在线→offline（离线专属 cookie）
-        soys.soyshttpovermc.gateway.policy.login.LoginMode mode =
+        LoginMode mode =
                 bridge.getLoginModePolicy().decideLogin(username.trim());
         Map<String, Object> data = new HashMap<>();
         data.put("player", username.trim());
@@ -96,7 +97,7 @@ public class AuthServiceImpl implements IAuthService {
         if (player == null) {
             return AjaxResult.unauthorized("未登录或凭证无效");
         }
-        soys.soyshttpovermc.gateway.policy.login.LoginMode mode = bridge.modeOf(credential);
+        LoginMode mode = bridge.modeOf(credential);
         Map<String, Object> data = new HashMap<>();
         data.put("player", player);
         data.put("authenticated", true);

@@ -56,51 +56,67 @@ public class WebRegistry {
 
     // ===== 普通登记（自动 /plugins/<插件名> 前缀） =====
 
-    /** 登记网页（直接内容；Content-Type 按路径扩展名推断） */
+    /** 登记网页（直接内容；Content-Type 按路径扩展名推断）；重复路径默认阻止（force=true 可强制覆盖）。 */
     public void registerPage(Plugin owner, String path, byte[] content) {
-        registerPage(owner, path, content, null);
+        registerPage(owner, path, content, null, false);
     }
 
-    /** 登记网页（直接内容；显式 Content-Type） */
+    /** 登记网页（直接内容；显式 Content-Type）；重复路径默认阻止（force=true 可强制覆盖）。 */
     public void registerPage(Plugin owner, String path, byte[] content, String contentType) {
-        register(owner, path, content, contentType, false);
+        registerPage(owner, path, content, contentType, false);
     }
 
-    /** 登记网页（来自插件自有 jar 的资源；Content-Type 按路径扩展名推断） */
+    /** 登记网页（直接内容；显式 Content-Type；force=true 强制覆盖重复登记并打印强制登记的插件）。 */
+    public void registerPage(Plugin owner, String path, byte[] content, String contentType, boolean force) {
+        register(owner, path, content, contentType, false, force);
+    }
+
+    /** 登记网页（来自插件自有 jar 的资源；Content-Type 按路径扩展名推断）；重复路径默认阻止。 */
     public void registerResource(Plugin owner, String path, ClassLoader resourceClassLoader, String resourcePath) {
-        registerResource(owner, path, resourceClassLoader, resourcePath, null);
+        registerResource(owner, path, resourceClassLoader, resourcePath, null, false);
     }
 
-    /** 登记网页（来自插件自有 jar 的资源；显式 Content-Type） */
+    /** 登记网页（来自插件自有 jar 的资源；显式 Content-Type）；重复路径默认阻止。 */
     public void registerResource(Plugin owner, String path, ClassLoader resourceClassLoader, String resourcePath, String contentType) {
-        registerRes(owner, path, resourceClassLoader, resourcePath, contentType, false);
+        registerResource(owner, path, resourceClassLoader, resourcePath, contentType, false);
+    }
+
+    /** 登记网页（来自插件自有 jar 的资源；显式 Content-Type；force=true 强制覆盖重复登记并打印强制登记的插件）。 */
+    public void registerResource(Plugin owner, String path, ClassLoader resourceClassLoader, String resourcePath, String contentType, boolean force) {
+        registerRes(owner, path, resourceClassLoader, resourcePath, contentType, false, force);
     }
 
     // ===== 强制代理登记（无 /plugins/<插件名> 前缀） =====
 
-    /** 强制以主插件代理登记网页（直接内容；Content-Type 按路径扩展名推断） */
+    /** 强制以主插件代理登记网页（直接内容；Content-Type 按路径扩展名推断）；重复路径默认阻止。 */
     public void registerProxyPage(Plugin owner, String path, byte[] content) {
         registerProxyPage(owner, path, content, null);
     }
 
-    /** 强制以主插件代理登记网页（直接内容；显式 Content-Type） */
+    /** 强制以主插件代理登记网页（直接内容；显式 Content-Type）；重复路径默认阻止（force=true 可强制覆盖）。 */
     public void registerProxyPage(Plugin owner, String path, byte[] content, String contentType) {
-        register(owner, path, content, contentType, true);
+        register(owner, path, content, contentType, true, false);
     }
 
-    /** 强制以主插件代理登记网页（来自插件自有 jar 的资源） */
+    /** 强制以主插件代理登记网页（直接内容；显式 Content-Type；force=true 强制覆盖重复登记）。 */
+    public void registerProxyPage(Plugin owner, String path, byte[] content, String contentType, boolean force) {
+        register(owner, path, content, contentType, true, force);
+    }
+
+    /** 强制以主插件代理登记网页（来自插件自有 jar 的资源）；重复路径默认阻止。 */
     public void registerProxyResource(Plugin owner, String path, ClassLoader resourceClassLoader, String resourcePath) {
         registerProxyResource(owner, path, resourceClassLoader, resourcePath, null);
     }
 
-    /** 强制以主插件代理登记网页（来自插件自有 jar 的资源；显式 Content-Type） */
+    /** 强制以主插件代理登记网页（来自插件自有 jar 的资源；显式 Content-Type）；重复路径默认阻止。 */
     public void registerProxyResource(Plugin owner, String path, ClassLoader resourceClassLoader, String resourcePath, String contentType) {
-        registerRes(owner, path, resourceClassLoader, resourcePath, contentType, true);
+        registerRes(owner, path, resourceClassLoader, resourcePath, contentType, true, false);
     }
 
     /**
      * 强制代理首页：以主插件名义覆盖内置门户首页 {@code /}（第三方自制首页）。
      * 等价于 {@code registerProxyPage(owner, "/", content, contentType)}；WebRegistry 路由先于内置静态资源命中。
+     * <b>覆盖语义</b>：首页登记采用强制覆盖（force=true）——后注册者覆盖先注册者并打印强制登记日志。
      */
     public void registerHome(Plugin owner, byte[] content) {
         registerHome(owner, content, "text/html; charset=utf-8");
@@ -108,7 +124,24 @@ public class WebRegistry {
 
     /** 强制代理首页（显式 Content-Type）。 */
     public void registerHome(Plugin owner, byte[] content, String contentType) {
-        registerProxyPage(owner, "/", content, contentType);
+        if (content == null || content.length == 0) return;
+        register(owner, "/", content, contentType, true, true);
+    }
+
+    /**
+     * 按<b>来源</b>注册首页：source 支持 相对路径（如 dist/index.html、status/index.html）/
+     * 绝对路径（本地磁盘文件）/ 网络 URL（按需拉取+缓存+失败回退），与 {@code web.home} 语义一致；
+     * 请求时解析（文件热替换、URL 带 TTL 缓存）。强制覆盖语义同 {@link #registerHome(Plugin, byte[])}。
+     */
+    public void registerHomeFrom(String ownerPlugin, String source, String contentType) {
+        if (source == null || source.trim().isEmpty()) return;
+        String ownerName = ownerPlugin == null ? null : ownerPlugin;
+        String full = "/";
+        String ct = (contentType == null || contentType.isEmpty()) ? null : contentType;
+        if (!putEntry("GET " + full, new Entry(ownerName, full, ct, null, null, null, null, 0, null, source.trim()), true)) {
+            return;
+        }
+        LogKit.info("[HTTP-Over-MC] 登记首页(来源): GET / 插件=" + ownerName + " source=" + source.trim());
     }
 
     // ===== 跳转登记（A 网址 → B 网址，302/301） =====
@@ -133,12 +166,38 @@ public class WebRegistry {
         registerRedirect(owner, fromPath, toPath, true, statusCode);
     }
 
-    /** 内部：登记跳转项。 */
+    /**
+     * 登记核心：重复路径<b>默认阻止</b>（打印拒绝日志，返回 false）；{@code force=true} 时
+     * 强制覆盖并打印<b>强制登记的插件</b>与原登记插件。
+     */
+    private boolean putEntry(String key, Entry e, boolean force) {
+        Entry old = pages.get(key);
+        if (old != null && !force) {
+            LogKit.warn("[HTTP-Over-MC] 拒绝重复登记: " + key
+                    + "（已由插件 " + old.ownerPlugin + " 登记；如需覆盖请用强制登记 force=true）");
+            return false;
+        }
+        pages.put(key, e);
+        if (old != null) {
+            LogKit.info("[HTTP-Over-MC] 插件 " + e.ownerPlugin + " 强制登记覆盖: " + key
+                    + "（原登记插件 " + old.ownerPlugin + "）");
+        }
+        return true;
+    }
+
+    /** 内部：登记跳转项（force=true 强制覆盖重复路径）。 */
     private void registerRedirect(Plugin owner, String fromPath, String toPath, boolean proxy, int statusCode) {
+        registerRedirect(owner, fromPath, toPath, proxy, statusCode, false);
+    }
+
+    /** 内部：登记跳转项（显式 force）。 */
+    private void registerRedirect(Plugin owner, String fromPath, String toPath, boolean proxy, int statusCode, boolean force) {
         if (fromPath == null || toPath == null) return;
         String ownerName = owner == null ? null : owner.getName();
         String full = resolvePath(ownerName, fromPath, proxy);
-        pages.put("GET " + full, new Entry(ownerName, full, null, null, null, null, toPath, statusCode, null));
+        if (!putEntry("GET " + full, new Entry(ownerName, full, null, null, null, null, toPath, statusCode, null), force)) {
+            return;
+        }
         LogKit.info("[HTTP-Over-MC] 登记跳转: GET " + full + " → " + toPath + " (" + statusCode + ")"
                 + " 插件=" + ownerName + (proxy ? " (代理无前缀)" : ""));
     }
@@ -193,8 +252,9 @@ public class WebRegistry {
                 if (rel == null || rel.isEmpty()) continue;
                 String full = resolvePath(owner.getName(), joinWeb(basePath, rel), proxy);
                 // contentType 置 null → 服务端按扩展名实时推断（配合 registerMimeType）
-                pages.put("GET " + full, new Entry(owner.getName(), full, null,
-                        null, resourceClassLoader, "/" + name, null, 0, null));
+                // 重复路径默认阻止（批量覆盖同一路径时打印拒绝日志）
+                putEntry("GET " + full, new Entry(owner.getName(), full, null,
+                        null, resourceClassLoader, "/" + name, null, 0, null), false);
             }
             LogKit.info("[HTTP-Over-MC] 批量登记 jar 目录: " + owner.getName() + " root=" + resourceRoot + " base=" + basePath);
         } catch (Exception ex) {
@@ -212,12 +272,29 @@ public class WebRegistry {
     /**
      * 登记网络文件/网络网页页面：访问 {@code page.path()} 时网关调用 {@code page.load()} 获取内容
      * （自动补 /plugins/&lt;插件名&gt; 前缀，与普通登记页一致；支持 .html 后缀智能匹配）。
+     * 重复路径默认阻止（force=true 强制覆盖并打印强制登记的插件）。
      */
     public void registerNetworkPage(String ownerPlugin, NetworkPage page) {
+        registerNetworkPage(ownerPlugin, page, false);
+    }
+
+    /** 登记网络页（显式 force；重复路径默认阻止，force=true 强制覆盖并打印强制登记的插件）。 */
+    public void registerNetworkPage(String ownerPlugin, NetworkPage page, boolean force) {
         if (page == null || page.path() == null) return;
         String full = resolvePath(ownerPlugin, page.path(), false);
-        networkPages.put("GET " + full, new RegisteredNetworkPage(ownerPlugin, full, page));
-        LogKit.info("[HTTP-Over-MC] 登记网络页: GET " + full + " name=" + page.name()
+        String key = "GET " + full;
+        RegisteredNetworkPage old = networkPages.get(key);
+        if (old != null && !force) {
+            LogKit.warn("[HTTP-Over-MC] 拒绝重复登记(网络页): " + key
+                    + "（已由插件 " + old.ownerPlugin + " 登记；如需覆盖请用强制登记 force=true）");
+            return;
+        }
+        networkPages.put(key, new RegisteredNetworkPage(ownerPlugin, full, page));
+        if (old != null) {
+            LogKit.info("[HTTP-Over-MC] 插件 " + ownerPlugin + " 强制登记覆盖(网络页): " + key
+                    + "（原登记插件 " + old.ownerPlugin + "）");
+        }
+        LogKit.info("[HTTP-Over-MC] 登记网络页: " + key + " name=" + page.name()
                 + " 插件=" + ownerPlugin + " cacheTtl=" + page.cacheTtlSeconds() + "s");
     }
 
@@ -336,21 +413,35 @@ public class WebRegistry {
     // ===== 内部 =====
 
     private void register(Plugin owner, String path, byte[] content, String contentType, boolean proxy) {
+        register(owner, path, content, contentType, proxy, false);
+    }
+
+    /** 内部：登记直接内容（显式 force；force=true 强制覆盖重复路径并打印强制登记插件）。 */
+    private void register(Plugin owner, String path, byte[] content, String contentType, boolean proxy, boolean force) {
         if (path == null || content == null) return;
         String ownerName = owner == null ? null : owner.getName();
         String full = resolvePath(ownerName, path, proxy);
         // contentType 为空 → 置 null，服务端按 MimeTypes 请求时实时推断（支持后续 registerMimeType）
         String ct = (contentType == null || contentType.isEmpty()) ? null : contentType;
-        pages.put("GET " + full, new Entry(ownerName, full, ct, content, null, null, null, 0, null));
+        if (!putEntry("GET " + full, new Entry(ownerName, full, ct, content, null, null, null, 0, null), force)) {
+            return;
+        }
         LogKit.info("[HTTP-Over-MC] 登记网页: GET " + full + " 插件=" + ownerName + (proxy ? " (代理无前缀)" : ""));
     }
 
     private void registerRes(Plugin owner, String path, ClassLoader cl, String resource, String contentType, boolean proxy) {
+        registerRes(owner, path, cl, resource, contentType, proxy, false);
+    }
+
+    /** 内部：登记 jar 资源（显式 force；force=true 强制覆盖重复路径并打印强制登记插件）。 */
+    private void registerRes(Plugin owner, String path, ClassLoader cl, String resource, String contentType, boolean proxy, boolean force) {
         if (path == null || cl == null || resource == null) return;
         String ownerName = owner == null ? null : owner.getName();
         String full = resolvePath(ownerName, path, proxy);
         String ct = (contentType == null || contentType.isEmpty()) ? null : contentType;
-        pages.put("GET " + full, new Entry(ownerName, full, ct, null, cl, resource, null, 0, null));
+        if (!putEntry("GET " + full, new Entry(ownerName, full, ct, null, cl, resource, null, 0, null), force)) {
+            return;
+        }
         LogKit.info("[HTTP-Over-MC] 登记网页(资源): GET " + full + " 插件=" + ownerName + (proxy ? " (代理无前缀)" : ""));
     }
 
@@ -373,7 +464,8 @@ public class WebRegistry {
             } else if (f.isFile()) {
                 String full = resolvePath(ownerName, joinWeb(basePath, f.getName()), proxy);
                 // contentType 置 null → 服务端按扩展名实时推断（支持热替换 MimeTypes）
-                pages.put("GET " + full, new Entry(ownerName, full, null, null, null, null, null, 0, f));
+                // 重复路径默认阻止
+                putEntry("GET " + full, new Entry(ownerName, full, null, null, null, null, null, 0, f), false);
             }
         }
         LogKit.info("[HTTP-Over-MC] 批量登记磁盘目录: " + ownerName + " base=" + basePath + " dir=" + dir.getAbsolutePath());
@@ -423,14 +515,25 @@ public class WebRegistry {
         private final ClassLoader resCl;     // 资源类加载器（按需读 jar 内资源）
         private final String resource;
         private final File diskFile;         // 磁盘文件（登记目录用，惰性读取，支持热替换）
+        private final String sourceSpec;     // 首页来源（相对路径/绝对路径/网络 URL；null=普通来源）
 
         /** 磁盘文件（null=非磁盘来源）；供内容缓存做热替换失效（lastModified）与大文件加载器判定。 */
         public File getDiskFile() {
             return diskFile;
         }
 
+        /** 首页来源描述（registerHomeFrom；null=普通字节/资源来源）。 */
+        public String getSourceSpec() {
+            return sourceSpec;
+        }
+
         Entry(String ownerPlugin, String path, String contentType, byte[] content,
               ClassLoader resCl, String resource, String redirectTo, int redirectCode, File diskFile) {
+            this(ownerPlugin, path, contentType, content, resCl, resource, redirectTo, redirectCode, diskFile, null);
+        }
+
+        Entry(String ownerPlugin, String path, String contentType, byte[] content,
+              ClassLoader resCl, String resource, String redirectTo, int redirectCode, File diskFile, String sourceSpec) {
             this.ownerPlugin = ownerPlugin;
             this.path = path;
             this.contentType = contentType;
@@ -440,6 +543,7 @@ public class WebRegistry {
             this.redirectTo = redirectTo;
             this.redirectCode = redirectCode;
             this.diskFile = diskFile;
+            this.sourceSpec = sourceSpec;
         }
 
         public byte[] resolveBytes() {

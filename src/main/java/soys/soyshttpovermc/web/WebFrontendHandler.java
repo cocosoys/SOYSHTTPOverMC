@@ -182,6 +182,14 @@ public class WebFrontendHandler {
                 if (page.redirectTo != null) {
                     return HttpFrames.redirect(page.redirectCode > 0 ? page.redirectCode : 302, page.redirectTo);
                 }
+                // 来源型首页（registerHomeFrom：相对/绝对路径/网络 URL）→ 请求时按 HomePageResolver 解析
+                String src = page.getSourceSpec();
+                if (src != null) {
+                    FrameProto.HttpResponseFrame resp = serveSourceHome(page, src);
+                    if (resp != null) return resp;
+                    // 解析失败 → 回退默认首页（web.home → index.html）
+                    return defaultHomeFrame();
+                }
                 return FrameProto.HttpResponseFrame.newBuilder()
                         .setStatusCode(200)
                         .putHeaders("Content-Type", page.effectiveContentType())
@@ -227,6 +235,53 @@ public class WebFrontendHandler {
             this.contentType = contentType;
             this.cachedAt = System.currentTimeMillis();
         }
+    }
+
+    /** 来源型首页解析器复用池：key=来源描述（保证 URL 缓存/文件热替换语义跨请求生效）。 */
+    private final java.util.concurrent.ConcurrentHashMap<String, HomePageResolver> sourceHomeResolvers =
+            new java.util.concurrent.ConcurrentHashMap<>();
+
+    /**
+     * 伺服来源型首页（registerHomeFrom：相对/绝对路径/网络 URL）；解析成功返回帧，失败返回 null（调用方回退默认首页）。
+     */
+    private FrameProto.HttpResponseFrame serveSourceHome(WebRegistry.Entry page, String src) {
+        try {
+            HomePageResolver hr = sourceHomeResolvers.computeIfAbsent(src,
+                    s -> new HomePageResolver(s, webRoot, webRootCanonical, largeFileMaxBytes));
+            HomePageResolver.Result r = hr.resolve();
+            if (r == null || r.bytes == null || r.bytes.length == 0) {
+                LogKit.warn("[HTTP-Over-MC] 来源型首页解析失败，回退默认: " + src);
+                return null;
+            }
+            String ct = r.contentType;
+            if (ct == null || ct.trim().isEmpty()) ct = page.effectiveContentType();
+            return FrameProto.HttpResponseFrame.newBuilder()
+                    .setStatusCode(200)
+                    .putHeaders("Content-Type", ct)
+                    .setBody(ByteString.copyFrom(r.bytes))
+                    .setFragmentIndex(0)
+                    .setTotalFragments(1)
+                    .build();
+        } catch (Throwable t) {
+            LogKit.warn("[HTTP-Over-MC] 来源型首页解析异常，回退默认: " + t);
+            return null;
+        }
+    }
+
+    /** 默认首页帧：web.home → 默认 index.html（来源型首页回退路径）。 */
+    private FrameProto.HttpResponseFrame defaultHomeFrame() {
+        Hit hit = resolveResource("/");
+        if (hit == null) {
+            return notFound("/");
+        }
+        return FrameProto.HttpResponseFrame.newBuilder()
+                .setStatusCode(200)
+                .putHeaders("Content-Type", hit.contentType != null
+                        ? hit.contentType : MimeTypes.forPath(hit.name))
+                .setBody(ByteString.copyFrom(hit.bytes))
+                .setFragmentIndex(0)
+                .setTotalFragments(1)
+                .build();
     }
 
     /**

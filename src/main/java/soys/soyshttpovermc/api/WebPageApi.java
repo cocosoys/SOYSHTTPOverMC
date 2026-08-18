@@ -17,9 +17,15 @@ public interface WebPageApi {
 
     void registerPage(Plugin owner, String path, byte[] content, String contentType);
 
+    /** 登记网页（直接内容；显式 Content-Type；force=true 强制覆盖重复登记并打印强制登记的插件） */
+    void registerPage(Plugin owner, String path, byte[] content, String contentType, boolean force);
+
     void registerResource(Plugin owner, String path, ClassLoader resourceClassLoader, String resourcePath);
 
     void registerResource(Plugin owner, String path, ClassLoader resourceClassLoader, String resourcePath, String contentType);
+
+    /** 登记网页（来自插件自有 jar 的资源；显式 Content-Type；force=true 强制覆盖重复登记并打印强制登记的插件） */
+    void registerResource(Plugin owner, String path, ClassLoader resourceClassLoader, String resourcePath, String contentType, boolean force);
 
     void registerProxyPage(Plugin owner, String path, byte[] content);
 
@@ -43,6 +49,29 @@ public interface WebPageApi {
 
     /** 卸载指定插件名登记的全部网页 */
     void unregisterPluginPages(String pluginName);
+
+    // ===== 首页（registerHome：直接把内容注册为站点首页 /，立即生效覆盖原首页） =====
+
+    /**
+     * 注册首页：把 {@code content} 注册为站点首页 {@code /}（Content-Type 默认 text/html）。
+     * <b>直接应用</b>：注册即时生效（无需重启），并<b>覆盖原首页</b>——优先级高于
+     * {@code web.home} 配置与默认 index.html（注册页路由先于静态资源命中）；
+     * 注册时后台打印「插件已注册首页并覆盖原首页」日志。
+     */
+    void registerHome(Plugin owner, byte[] content);
+
+    /** 注册首页（显式 Content-Type）。 */
+    void registerHome(Plugin owner, byte[] content, String contentType);
+
+    /**
+     * 按<b>来源</b>注册首页：{@code source} 支持 相对路径（如 {@code dist/index.html}、{@code status/index.html}）/
+     * 绝对路径（本地磁盘文件）/ 网络 URL（按需拉取+缓存+失败回退），语义与 {@code web.home} 一致；
+     * <b>请求时解析</b>（文件热替换、URL 带 TTL 缓存），立即生效覆盖原首页。
+     */
+    void registerHome(Plugin owner, String source);
+
+    /** 按来源注册首页（显式 Content-Type）。 */
+    void registerHome(Plugin owner, String source, String contentType);
 
     // ===== 网络文件/网络网页页面（NetworkPage 抽象） =====
 

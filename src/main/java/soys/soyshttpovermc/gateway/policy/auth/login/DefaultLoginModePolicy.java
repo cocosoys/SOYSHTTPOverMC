@@ -1,4 +1,4 @@
-package soys.soyshttpovermc.gateway.policy.login;
+package soys.soyshttpovermc.gateway.policy.auth.login;
 
 /**
  * 默认登录模式策略：

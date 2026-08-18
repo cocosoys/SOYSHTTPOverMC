@@ -48,8 +48,13 @@ public class WebPageImpl implements WebPageApi {
 
     @Override
     public void registerPage(Plugin owner, String path, byte[] content, String contentType) {
+        registerPage(owner, path, content, contentType, false);
+    }
+
+    @Override
+    public void registerPage(Plugin owner, String path, byte[] content, String contentType, boolean force) {
         try {
-            webRegistry.registerPage(owner, path, content, contentType);
+            webRegistry.registerPage(owner, path, content, contentType, force);
         } catch (Exception ex) {
             throw ExceptionBus.fire(new WebPageException("E_PAGE", "登记网页失败(path=" + path + "): " + ex.getMessage(), ex));
         }
@@ -66,8 +71,13 @@ public class WebPageImpl implements WebPageApi {
 
     @Override
     public void registerResource(Plugin owner, String path, ClassLoader resourceClassLoader, String resourcePath, String contentType) {
+        registerResource(owner, path, resourceClassLoader, resourcePath, contentType, false);
+    }
+
+    @Override
+    public void registerResource(Plugin owner, String path, ClassLoader resourceClassLoader, String resourcePath, String contentType, boolean force) {
         try {
-            webRegistry.registerResource(owner, path, resourceClassLoader, resourcePath, contentType);
+            webRegistry.registerResource(owner, path, resourceClassLoader, resourcePath, contentType, force);
         } catch (Exception ex) {
             throw ExceptionBus.fire(new WebPageException("E_RESOURCE", "登记资源失败(path=" + path + "): " + ex.getMessage(), ex));
         }
@@ -151,6 +161,42 @@ public class WebPageImpl implements WebPageApi {
             webRegistry.registerResourceDirectory(owner, basePath, resourceClassLoader, resourceRoot, proxy);
         } catch (Exception ex) {
             throw ExceptionBus.fire(new WebPageException("E_DIR_RES", "批量登记 jar 目录失败(root=" + resourceRoot + "): " + ex.getMessage(), ex));
+        }
+    }
+
+    @Override
+    public void registerHome(Plugin owner, byte[] content) {
+        registerHome(owner, content, "text/html; charset=utf-8");
+    }
+
+    @Override
+    public void registerHome(Plugin owner, byte[] content, String contentType) {
+        if (content == null || content.length == 0) return;
+        try {
+            // 委托 WebRegistry.registerHome：注册到 "/"（代理无前缀），路由先于静态资源命中 → 立即覆盖首页
+            webRegistry.registerHome(owner, content, contentType);
+            // 明确日志：插件已注册首页并覆盖原首页（后台可见）
+            LogKit.info("[HTTP-Over-MC] 插件 " + (owner == null ? "?" : owner.getName())
+                    + " 已注册首页并覆盖原首页（GET /，立即生效，优先级高于 web.home 与默认 index.html）");
+        } catch (Exception ex) {
+            throw ExceptionBus.fire(new WebPageException("E_HOME", "注册首页失败: " + ex.getMessage(), ex));
+        }
+    }
+
+    @Override
+    public void registerHome(Plugin owner, String source) {
+        registerHome(owner, source, null);
+    }
+
+    @Override
+    public void registerHome(Plugin owner, String source, String contentType) {
+        if (source == null || source.trim().isEmpty()) return;
+        try {
+            webRegistry.registerHomeFrom(owner == null ? null : owner.getName(), source.trim(), contentType);
+            LogKit.info("[HTTP-Over-MC] 插件 " + (owner == null ? "?" : owner.getName())
+                    + " 已注册首页(来源)并覆盖原首页（GET /，source=" + source.trim() + "，立即生效）");
+        } catch (Exception ex) {
+            throw ExceptionBus.fire(new WebPageException("E_HOME", "注册首页(来源)失败: " + ex.getMessage(), ex));
         }
     }
 

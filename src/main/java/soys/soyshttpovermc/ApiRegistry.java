@@ -156,9 +156,10 @@ public class ApiRegistry {
     /**
      * 注册一个带映射注解的处理器实例（自动标记其所属插件 = 处理器实例的 ClassLoader 归属插件）。
      * 非主插件注册时自动补充 {@code /plugins/<插件名>} 命名空间前缀（如 /api/plugins/Foo/users）。
+     * <b>重复路由默认阻止</b>（force=true 强制覆盖并打印强制注册的插件）。
      */
     public void register(Object instance) {
-        register(pluginOfInstance(instance), instance, false);
+        register(pluginOfInstance(instance), instance, false, false);
     }
 
     /**
@@ -166,7 +167,17 @@ public class ApiRegistry {
      * 非主插件且非强制代理时自动补充 {@code /plugins/<插件名>} 前缀。
      */
     public void register(Plugin owner, Object instance) {
-        register(owner, instance, false);
+        register(owner, instance, false, false);
+    }
+
+    /** 注册（force=true 强制覆盖重复路由并打印强制注册的插件与原插件）。 */
+    public void register(Object instance, boolean force) {
+        register(pluginOfInstance(instance), instance, false, force);
+    }
+
+    /** 注册（显式 owner；force=true 强制覆盖重复路由）。 */
+    public void register(Plugin owner, Object instance, boolean force) {
+        register(owner, instance, false, force);
     }
 
     /**
@@ -175,19 +186,30 @@ public class ApiRegistry {
      * 故该插件被禁用时其代理注册的 API 仍会被一并卸载。
      */
     public void registerProxy(Object instance) {
-        register(pluginOfInstance(instance), instance, true);
+        register(pluginOfInstance(instance), instance, true, false);
     }
 
     /** 强制代理注册并显式指定所属插件（见 {@link #registerProxy(Object)}）。 */
     public void registerProxy(Plugin owner, Object instance) {
-        register(owner, instance, true);
+        register(owner, instance, true, false);
+    }
+
+    /** 强制代理注册（force=true 强制覆盖重复路由并打印强制注册的插件）。 */
+    public void registerProxy(Object instance, boolean force) {
+        register(pluginOfInstance(instance), instance, true, force);
+    }
+
+    /** 强制代理注册（显式 owner；force=true 强制覆盖重复路由）。 */
+    public void registerProxy(Plugin owner, Object instance, boolean force) {
+        register(owner, instance, true, force);
     }
 
     /**
      * 注册核心实现。
      * @param proxy true=强制以主插件代理（无 /plugins 前缀）；false=非主插件自动加 /plugins/&lt;插件名&gt;。
+     * @param force true=强制覆盖重复路由（打印强制注册的插件与原插件）；false=重复路由默认阻止。
      */
-    private void register(Plugin owner, Object instance, boolean proxy) {
+    private void register(Plugin owner, Object instance, boolean proxy, boolean force) {
         if (instance == null) return;
         Class<?> cls = instance.getClass();
         String ownerName = owner == null ? null : owner.getName();
@@ -220,10 +242,17 @@ public class ApiRegistry {
                 path = applyPrefix(path);
                 String key = method + " " + path;
                 EndpointMeta meta = new EndpointMeta(instance, m, apiName, permission, params, path, method, ownerName, cls.getName());
-                EndpointMeta old = routes.put(key, meta);
+                EndpointMeta old = routes.get(key);
+                if (old != null && !force) {
+                    LogKit.warn("[HTTP-Over-MC] 拒绝重复注册 API: " + key
+                            + "（已由插件 " + old.ownerPlugin + " 的 " + old.handlerClass
+                            + " 注册；如需覆盖请用强制注册 force=true）");
+                    continue;
+                }
+                routes.put(key, meta);
                 if (old != null) {
-                    LogKit.warn("[HTTP-Over-MC] API 路由重复注册被覆盖: " + key + "（新=" + cls.getName()
-                            + "，旧=" + old.method.getDeclaringClass().getName() + "）");
+                    LogKit.info("[HTTP-Over-MC] 插件 " + ownerName + " 强制注册覆盖 API: " + key
+                            + "（原注册插件 " + old.ownerPlugin + "，原处理器 " + old.handlerClass + "）");
                 }
                 n++;
                 registered.add(new ApiInfo(method, path, apiName, permission, cls.getName(), ownerName));

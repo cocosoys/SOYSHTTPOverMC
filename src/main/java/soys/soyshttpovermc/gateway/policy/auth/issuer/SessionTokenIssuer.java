@@ -2,7 +2,7 @@ package soys.soyshttpovermc.gateway.policy.auth.issuer;
 
 import org.bukkit.configuration.ConfigurationSection;
 import soys.soyshttpovermc.gateway.policy.auth.util.AuthUtils;
-import soys.soyshttpovermc.gateway.policy.login.LoginMode;
+import soys.soyshttpovermc.gateway.policy.auth.login.LoginMode;
 
 import java.util.ArrayList;
 import java.util.Iterator;
