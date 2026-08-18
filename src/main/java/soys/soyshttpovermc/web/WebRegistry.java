@@ -167,7 +167,7 @@ public class WebRegistry {
     }
 
     /**
-     * 批量登记插件 jar 内资源目录（如 resources/web/ 下的前端产物）：扫描插件 jar 中
+     * 批量登记插件 jar 内资源目录（如 resources/dist/ 下的前端产物）：扫描插件 jar 中
      * {@code resourceRoot} 前缀下的全部条目，挂到 {@code basePath} 下。
      */
     public void registerResourceDirectory(Plugin owner, String basePath, ClassLoader resourceClassLoader, String resourceRoot) {

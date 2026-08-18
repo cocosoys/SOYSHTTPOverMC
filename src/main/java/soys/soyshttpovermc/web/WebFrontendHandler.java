@@ -1,12 +1,11 @@
 package soys.soyshttpovermc.web;
 
 import soys.soyshttpovermc.util.AjaxResult;
+import soys.soyshttpovermc.util.HttpFrames;
 import soys.soyshttpovermc.ApiRegistry;
 import soys.soyshttpovermc.gateway.policy.auth.bridge.AuthLoginBridge;
 import soys.soyshttpovermc.log.LogKit;
 import soys.soyshttpovermc.proto.FrameProto;
-import soys.soyshttpovermc.web.NavRegistry;
-
 import com.google.protobuf.ByteString;
 
 import java.io.ByteArrayOutputStream;
@@ -15,6 +14,9 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -24,10 +26,10 @@ import java.util.Map;
  *  1) 网页登录流程（/auth/login、/auth/issue）→ 登录桥处理；
  *  2) 注解式 API（@GetMapping 注册，如 /api/status、/api/ping）→ dispatch；
  *  3) /favicon.ico → 优先本地插件配置目录 web/favicon.ico（磁盘，可热替换），
- *     再 jar 内置 /web/favicon.ico，仍缺失才 204 无内容；
+ *     再 jar 内置 /dist/favicon.ico，仍缺失才 204 无内容；
  *  4) 插件登记网页（WebRegistry：第三方插件注册，默认 /plugins/&lt;插件名&gt; 前缀；
  *     支持强制代理、302/301 跳转与 .html 后缀智能匹配）；
- *  5) 静态资源：web.root 磁盘目录（含 .. 穿越防护）→ jar 内置 /web/ → 404。
+ *  5) 静态资源：web.root 磁盘目录（含 .. 穿越防护）→ jar 内置 /dist/ → 404。
  *     无扩展名路径同时支持带/不带 .html（/login 与 /login.html 等价）。
  */
 public class WebFrontendHandler {
@@ -133,12 +135,28 @@ public class WebFrontendHandler {
     /** 实际路由：登录流程 → 注解式 API → favicon → 插件登记网页 → 静态资源。 */
     private FrameProto.HttpResponseFrame handleInner(String m, String rawPath, Map<String, String> headers, byte[] body) {
 
-        // 0) AuthMe 网页登录流程（/auth/login 表单页 / /auth/issue 校验密码发 Cookie），先于 API 路由，且本身免鉴权
+        // 0) AuthMe 网页登录流程（/auth/login 重定向 / /auth/issue 校验发 Cookie / /auth/mode 模式探测），先于 API 路由，且本身免鉴权
         if (authBridge != null) {
             String ap = stripQuery(rawPath);
-            if (ap.equals("/auth/login") || ap.equals("/auth/issue")) {
+            if (ap.equals("/auth/login") || ap.equals("/auth/issue") || ap.equals("/auth/mode")) {
                 return handleAuth(m, rawPath, headers, body);
             }
+        }
+
+        // 0.5) 门户导航 JSON（供前端渲染插件面板，替代后端 injectNav 注入 DOM）
+        if (navRegistry != null && "/api/nav".equals(stripQuery(rawPath))) {
+            List<Map<String, Object>> data = new ArrayList<>();
+            for (NavRegistry.NavItem it : navRegistry.snapshot()) {
+                Map<String, Object> item = new LinkedHashMap<>();
+                item.put("owner", it.owner);
+                item.put("label", it.label);
+                item.put("path", it.path);
+                item.put("icon", it.icon);
+                item.put("permission", it.permission);
+                item.put("order", it.order);
+                data.add(item);
+            }
+            return HttpFrames.json(200, AjaxResult.success(data));
         }
 
         // 1) 注解式 API 优先（@GetMapping 等注册的路由）
@@ -156,7 +174,7 @@ public class WebFrontendHandler {
         String cleanPath = stripQuery(rawPath);
         if (cleanPath.isEmpty() || cleanPath.equals("/")) cleanPath = "/";
 
-        // favicon：优先本地插件配置目录 web/favicon.ico（磁盘，可热替换），再 jar 内置 /web/favicon.ico，仍缺失才 204 无内容
+        // favicon：优先本地插件配置目录 web/favicon.ico（磁盘，可热替换），再 jar 内置 /dist/favicon.ico，仍缺失才 204 无内容
         if (cleanPath.equals("/favicon.ico")) {
             byte[] ico = resolveFavicon();
             if (ico != null) {
@@ -183,28 +201,13 @@ public class WebFrontendHandler {
             WebRegistry.Entry page = webRegistry.resolve(m, cleanPath);
             if (page != null) {
                 if (page.redirectTo != null) {
-                    String loc = page.redirectTo;
-                    String html = "<!doctype html><html lang=zh><head><meta charset=utf-8>"
-                            + "<meta http-equiv=\"refresh\" content=\"0;url=" + escape(loc) + "\">"
-                            + "<title>Redirecting…</title></head>"
-                            + "<body style='font-family:monospace;background:#0a0a12;color:#0ff'>"
-                            + "<p>正在跳转到 <a href=\"" + escape(loc) + "\">" + escape(loc) + "</a>…</p>"
-                            + "</body></html>";
-                    return FrameProto.HttpResponseFrame.newBuilder()
-                            .setStatusCode(page.redirectCode > 0 ? page.redirectCode : 302)
-                            .putHeaders("Location", loc)
-                            .putHeaders("Content-Type", "text/html; charset=utf-8")
-                            .setBody(ByteString.copyFrom(html.getBytes(StandardCharsets.UTF_8)))
-                            .setFragmentIndex(0)
-                            .setTotalFragments(1)
-                            .build();
+                    return HttpFrames.redirect(page.redirectCode > 0 ? page.redirectCode : 302, page.redirectTo);
                 }
                 return FrameProto.HttpResponseFrame.newBuilder()
                         .setStatusCode(200)
                         .putHeaders("Content-Type", page.effectiveContentType())
-                        .setBody(ByteString.copyFrom(injectNav(cleanPath,
-                                loadBytes(page.path, page.getDiskFile(), page::resolveBytes),
-                                page.effectiveContentType())))
+                        .setBody(ByteString.copyFrom(
+                                loadBytes(page.path, page.getDiskFile(), page::resolveBytes)))
                         .setFragmentIndex(0)
                         .setTotalFragments(1)
                         .build();
@@ -222,7 +225,7 @@ public class WebFrontendHandler {
         return FrameProto.HttpResponseFrame.newBuilder()
                 .setStatusCode(200)
                 .putHeaders("Content-Type", MimeTypes.forPath(hit.name))
-                .setBody(ByteString.copyFrom(injectNav(cleanPath, hit.bytes, MimeTypes.forPath(hit.name))))
+                .setBody(ByteString.copyFrom(hit.bytes))
                 .setFragmentIndex(0)
                 .setTotalFragments(1)
                 .build();
@@ -242,6 +245,14 @@ public class WebFrontendHandler {
         }
         if (cleanPath.equals("/auth/login")) {
             return authBridge.serveLoginPage(queryParam(rawPath, "ticket"));
+        }
+        if (cleanPath.equals("/auth/mode")) {
+            // 登录模式信息：前端 /login.html 据此切换「票据+密码」/「免密用户名」表单
+            Map<String, Object> d = new LinkedHashMap<>();
+            d.put("requiresPassword", authBridge.loginRequiresPassword());
+            d.put("cookieName", authBridge.getCookieName());
+            d.put("ttlSeconds", authBridge.getTtlSeconds());
+            return HttpFrames.json(200, AjaxResult.success(d));
         }
         // 其它 /auth/* 方法不匹配 → 404
         return notFound(rawPath);
@@ -285,8 +296,18 @@ public class WebFrontendHandler {
         return null;
     }
 
-    /** 404 响应帧（路径不存在）；支持自定义错误页（registerErrorPage(404)）。 */
+    /** 404 响应帧（路径不存在）：优先伺服 dist/404.html 静态页 → webRegistry 自定义错误页（字节，非拼串）→ JSON 错误体。 */
     private FrameProto.HttpResponseFrame notFound(String cleanPath) {
+        byte[] page404 = readResource("/dist/404.html");
+        if (page404 != null) {
+            return FrameProto.HttpResponseFrame.newBuilder()
+                    .setStatusCode(404)
+                    .putHeaders("Content-Type", "text/html; charset=utf-8")
+                    .setBody(ByteString.copyFrom(page404))
+                    .setFragmentIndex(0)
+                    .setTotalFragments(1)
+                    .build();
+        }
         byte[] custom = webRegistry == null ? null : webRegistry.errorPage(404);
         if (custom != null) {
             return FrameProto.HttpResponseFrame.newBuilder()
@@ -297,16 +318,7 @@ public class WebFrontendHandler {
                     .setTotalFragments(1)
                     .build();
         }
-        String html = "<!doctype html><html><head><meta charset=utf-8>"
-                + "<title>404</title></head><body style='font-family:monospace;background:#0a0a12;color:#0ff'>"
-                + "<h1>404 Not Found</h1><p>HTTP-Over-MC: " + escape(cleanPath) + " 不存在</p></body></html>";
-        return FrameProto.HttpResponseFrame.newBuilder()
-                .setStatusCode(404)
-                .putHeaders("Content-Type", "text/html; charset=utf-8")
-                .setBody(ByteString.copyFrom(html.getBytes(StandardCharsets.UTF_8)))
-                .setFragmentIndex(0)
-                .setTotalFragments(1)
-                .build();
+        return HttpFrames.jsonError(404, "资源不存在: " + cleanPath);
     }
 
     /** 500 响应帧（支持自定义错误页 registerErrorPage(500)）。 */
@@ -331,7 +343,7 @@ public class WebFrontendHandler {
     }
 
     // ===== 资源解析 =====
-    /** favicon 解析顺序：1) 本地插件配置目录 web/favicon.ico（磁盘，可热替换）→ 2) jar 内置 /web/favicon.ico */
+    /** favicon 解析顺序：1) 本地插件配置目录 web/favicon.ico（磁盘，可热替换）→ 2) jar 内置 /dist/favicon.ico */
     private byte[] resolveFavicon() {
         if (webRoot != null) {
             File f = new File(webRoot, "favicon.ico");
@@ -343,11 +355,11 @@ public class WebFrontendHandler {
             } catch (Exception ignored) {
             }
         }
-        return readResource("/web/favicon.ico");
+        return readResource("/dist/favicon.ico");
     }
 
     /**
-     * 静态资源解析（磁盘 webroot 优先，jar 内置 /web/ 兜底）。
+     * 静态资源解析（磁盘 webroot 优先，jar 内置 /dist/ 兜底）。
      * 路径无扩展名时支持两种形式：先试 {@code path.html}（/login → login.html），
      * 再试 {@code path/index.html}（目录语义）；返回实际命中文件名（Content-Type 判定用）。
      */
@@ -386,8 +398,8 @@ public class WebFrontendHandler {
                 } catch (Exception ignored) {
                 }
             }
-            // 2) jar 内置 /web/（经缓存；null 表示未命中）
-            byte[] rb = loadBytes("/web/" + c, () -> readResource("/web/" + c));
+            // 2) jar 内置 /dist/（经缓存；null 表示未命中）
+            byte[] rb = loadBytes("/dist/" + c, () -> readResource("/dist/" + c));
             if (rb != null) {
                 return new Hit(c, rb);
             }
@@ -476,25 +488,6 @@ public class WebFrontendHandler {
         return b.build();
     }
 
-    // ===== 路径/字符串工具 =====
-    /** 门户首页（/）注入第三方插件导航条：在 &lt;body&gt; 起始处插入导航 HTML（无项则不注入）。 */
-    private byte[] injectNav(String cleanPath, byte[] body, String contentType) {
-        if (navRegistry == null || !"/".equals(cleanPath)) return body;
-        if (contentType == null || !contentType.startsWith("text/html")) return body;
-        String nav = navRegistry.renderHtml();
-        if (nav.isEmpty()) return body;
-        String html = new String(body, StandardCharsets.UTF_8);
-        int bi = html.indexOf("<body");
-        if (bi >= 0) {
-            int gt = html.indexOf('>', bi);
-            if (gt >= 0) {
-                html = html.substring(0, gt + 1) + nav + html.substring(gt + 1);
-                return html.getBytes(StandardCharsets.UTF_8);
-            }
-        }
-        return (nav + html).getBytes(StandardCharsets.UTF_8);
-    }
-
     private static String stripQuery(String p) {
         int q = p.indexOf('?');
         return q >= 0 ? p.substring(0, q) : p;
@@ -507,9 +500,5 @@ public class WebFrontendHandler {
         } catch (Exception e) {
             return p;
         }
-    }
-
-    private static String escape(String s) {
-        return s == null ? "" : s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
     }
 }

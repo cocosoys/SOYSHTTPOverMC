@@ -66,7 +66,7 @@ public class SelfServer {
         if (f == null || !f.isFile()) {
             if ("/".equals(path)) {
                 body = defaultPage().getBytes(StandardCharsets.UTF_8);
-                ctype = "text/html; charset=utf-8";
+                ctype = "application/json; charset=utf-8"; // 无 index.html 时返回 JSON 服务信息（非 HTML）
             } else {
                 body = ("404 Not Found: " + path).getBytes(StandardCharsets.UTF_8);
                 ctype = "text/plain; charset=utf-8";
@@ -154,15 +154,11 @@ public class SelfServer {
         return "application/octet-stream";
     }
 
+    /** 无 index.html 时的兜底主页：返回 JSON 服务信息（非 HTML，符合「后端零 HTML」整改）。 */
     private String defaultPage() {
-        return "<!doctype html><html lang=\"zh-CN\"><head><meta charset=\"utf-8\">"
-                + "<title>SOYS · HTTP-Over-MC (BungeeCord 代理主页)</title></head><body>"
-                + "<h1>SOYS HTTP-Over-MC · BungeeCord 代理主页</h1>"
-                + "<p>该页面由 BungeeCord 端代理模块自身托管（home-server=self）。</p>"
-                + "<ul>"
-                + "<li>访问某子服主页：<code>/server/&lt;子服名&gt;/</code></li>"
-                + "<li>访问某子服 API：<code>/server/&lt;子服名&gt;/api/...</code></li>"
-                + "</ul></body></html>";
+        return "{\"service\":\"soys-http-proxy\",\"mode\":\"self\","
+                + "\"tip\":\"该页面由 BungeeCord 端代理模块托管（home-server=self），请在 web-root 放置 index.html 以定制主页。\","
+                + "\"home\":\"/server/<子服名>/\"}";
     }
 
     /** 从请求字节中提取头块文本（到 \r\n\r\n 之前）。 */

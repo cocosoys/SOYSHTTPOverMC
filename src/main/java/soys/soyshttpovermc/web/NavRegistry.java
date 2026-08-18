@@ -53,24 +53,6 @@ public class NavRegistry {
         return s;
     }
 
-    /** 渲染为门户首页注入用的 HTML 片段；无项返回空串。 */
-    public String renderHtml() {
-        List<NavItem> s = snapshot();
-        if (s.isEmpty()) return "";
-        StringBuilder sb = new StringBuilder();
-        sb.append("<div id=\"soys-plugin-nav\" style=\"background:rgba(10,12,24,.92);color:#7fefff;")
-          .append("font:13px/1.6 monospace;padding:6px 12px;box-shadow:0 1px 6px rgba(0,0,0,.5);")
-          .append("display:flex;gap:14px;flex-wrap:wrap;align-items:center;border-bottom:1px solid #1b2a4a\">");
-        sb.append("<span style=\"color:#9aa;font-weight:bold\">插件面板</span>");
-        for (NavItem it : s) {
-            String icon = (it.icon == null || it.icon.isEmpty()) ? "" : it.icon + " ";
-            sb.append("<a href=\"").append(esc(it.path)).append("\" style=\"color:#7fefff;text-decoration:none\">")
-              .append(esc(icon)).append(esc(it.label)).append("</a>");
-        }
-        sb.append("</div>");
-        return sb.toString();
-    }
-
     private static String esc(String s) {
         if (s == null) return "";
         return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;");

@@ -18,7 +18,7 @@ import java.util.jar.JarFile;
  * 插件配置文件与资源处理（从 {@code HttpOverMcPlugin} 抽离，职责单一）：
  * <ul>
  *   <li>首次运行时把 jar 内置的默认配置解压到数据目录（gateway/、issuers/ 等）；</li>
- *   <li>解析 {@code web.root}：留空时把 jar 内 {@code /web/*} 解压到数据目录的 web/ 并指向它
+ *   <li>解析 {@code web.root}：留空时把 jar 内 {@code /dist/*} 解压到数据目录的 web/ 并指向它
  *       （支持磁盘热替换编辑），非空时按相对数据目录/绝对路径处理；</li>
  * </ul>
  */
@@ -56,7 +56,7 @@ public final class ConfigManager {
      *   <li>非空：相对数据目录或绝对路径（原逻辑）；</li>
      * </ul>
      * <b>两种情况都会调用 {@link #extractWebResources} 自动补缺省资源</b>：
-     * 目标目录不存在或为空时，把 jar 内置 {@code /web/*} 解压进去（已存在文件不覆盖，保留用户修改）；
+     * 目标目录不存在或为空时，把 jar 内置 {@code /dist/*} 解压进去（已存在文件不覆盖，保留用户修改）；
      * 非空目录中的缺失文件也会补回。修复"用户填写了 web.root 且目录为空/不存在时不会自动解压"的问题。
      *
      * <p>{@code pluginJar} 由插件自身（同包子类）通过 {@code getFile()} 取得后传入，
@@ -76,7 +76,7 @@ public final class ConfigManager {
     }
 
     /**
-     * 从插件 jar 解压 {@code /web/*} 到磁盘目录：
+     * 从插件 jar 解压 {@code /dist/*} 到磁盘目录：
      * 已存在的文件<b>不覆盖</b>（保留用户修改），仅补回缺失的内置默认资源。
      * 解压失败时仅告警，调用方回退到 jar 内置资源即可。
      */
@@ -93,9 +93,9 @@ public final class ConfigManager {
             while (entries.hasMoreElements()) {
                 JarEntry entry = entries.nextElement();
                 String name = entry.getName();
-                if (!name.startsWith("web/")) continue;
+                if (!name.startsWith("dist/")) continue;
                 if (entry.isDirectory()) continue;
-                File out = new File(webDir, name.substring("web/".length()));
+                File out = new File(webDir, name.substring("dist/".length()));
                 if (out.exists()) continue; // 不覆盖用户修改
                 out.getParentFile().mkdirs();
                 try (InputStream in = jf.getInputStream(entry);

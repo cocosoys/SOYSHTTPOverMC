@@ -78,14 +78,14 @@ sniffer:
   http-queue-size: 8
 
 # 前端资源目录（可选）
-# - 留空（默认）：插件首次运行会把 jar 内置的 /web/* 解压到插件数据目录的 web/ 文件夹
+# - 留空（默认）：插件首次运行会把 jar 内置的 /dist/* 解压到插件数据目录的 web/ 文件夹
 #   （即 plugins/SOYSHTTPOverMC/web/），并直接以该磁盘目录为前端根目录。
 #   此后可直接编辑磁盘上的文件（index.html / news/ / status/ 等），刷新浏览器即生效，无需重构建；
 #   已存在的文件不会被覆盖（保留你的修改），仅补回缺失的内置默认资源；磁盘缺失的文件回退 jar 内置。
 # - 指定路径：优先从该目录读取静态文件（相对数据目录或绝对路径）。
 # 支持路径：/、/index.html、/app.js、/styles.css、/api/status(动态JSON) 等。
 web:
-  root: "/web"
+  root: "/dist"
   # ===== Web 内容存活缓存（缓解大量 web 资源长期驻留内存）=====
   # 仅对「惰性来源」生效（磁盘文件 / jar 资源，请求时读取）；registerPage 直接给定的字节不受控。
   cache:

@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>网页登录 · SOYS HTTP-Over-MC</title>
+<style>
+  :root {
+    --bg: #05060f; --panel: #0d1024; --line: #1c2142;
+    --neon: #00f0ff; --neon2: #ff2bd6; --ok: #39ff14; --warn: #ffcc00; --err: #ff5252;
+    --txt: #cfe9ff; --dim: #7d93b8;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    min-height: 100vh; color: var(--txt);
+    background:
+      radial-gradient(700px 400px at 85% -10%, rgba(255,43,214,.14), transparent 60%),
+      radial-gradient(600px 380px at -5% 30%, rgba(0,240,255,.12), transparent 60%),
+      var(--bg);
+    font-family: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 0 24px; }
+
+  header {
+    border-bottom: 1px solid var(--line); background: rgba(6,7,18,.72);
+    backdrop-filter: blur(10px);
+  }
+  header .wrap { display: flex; align-items: center; height: 60px; gap: 16px; }
+  .logo { display: flex; align-items: center; gap: 10px; font-weight: 800; letter-spacing: 2px; color: #fff;
+    text-shadow: 0 0 10px rgba(0,240,255,.6); font-size: 15px; }
+  .logo .cube { width: 14px; height: 14px; background: linear-gradient(135deg,var(--neon),var(--neon2));
+    transform: rotate(45deg); box-shadow: 0 0 12px rgba(0,240,255,.8); }
+  .back { margin-left: auto; color: var(--neon); text-decoration: none; font-size: 14px; letter-spacing: 1px; }
+  .back:hover { text-shadow: 0 0 8px rgba(0,240,255,.5); }
+
+  main { padding: 70px 0; display: flex; justify-content: center; }
+  .card {
+    width: 400px; max-width: 100%;
+    background: linear-gradient(180deg, var(--panel), #090b1a);
+    border: 1px solid var(--line); border-radius: 14px; padding: 30px 32px;
+    box-shadow: 0 0 30px rgba(0,240,255,.08);
+  }
+  .card h2 { font-size: 19px; letter-spacing: 2px; color: #fff; margin-bottom: 6px; }
+  .card .sub { font-size: 13px; color: var(--dim); line-height: 1.7; margin-bottom: 22px; }
+  .card label { display: block; font-size: 12px; color: #9ab; letter-spacing: 1px; margin: 14px 0 5px; }
+  .card input {
+    width: 100%; box-sizing: border-box; padding: 11px 12px; border-radius: 8px;
+    border: 1px solid #2a2a40; background: #0a0c1c; color: var(--txt); font-size: 14px;
+    outline: none; transition: .2s;
+  }
+  .card input:focus { border-color: var(--neon); box-shadow: 0 0 10px rgba(0,240,255,.25); }
+  .card .err { min-height: 20px; margin-top: 10px; font-size: 12.5px; color: var(--err); word-break: break-all; line-height: 1.6; }
+  .card .ok { min-height: 20px; margin-top: 10px; font-size: 12.5px; color: var(--ok); line-height: 1.6; }
+  .btn-primary {
+    width: 100%; margin-top: 8px; padding: 13px; border: 0; border-radius: 10px; cursor: pointer;
+    font-size: 15px; font-weight: 700; letter-spacing: 2px; font-family: inherit;
+    color: #04121a; background: linear-gradient(135deg, var(--neon), #37d5ff);
+    box-shadow: 0 0 22px rgba(0,240,255,.4); transition: .2s;
+  }
+  .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 0 34px rgba(0,240,255,.65); }
+  .btn-primary:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+  .hint {
+    margin-top: 18px; padding: 12px 14px; border: 1px dashed rgba(255,204,0,.35);
+    background: rgba(255,204,0,.05); border-radius: 10px;
+    font-size: 12.5px; color: var(--dim); line-height: 1.8;
+  }
+  .hint code { color: var(--warn); }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <div class="logo"><span class="cube"></span>SOYS<span style="color:var(--neon2)">·</span>网页登录</div>
+    <a class="back" href="/">← 返回首页</a>
+  </div>
+</header>
+
+<main class="wrap">
+  <div class="card">
+    <h2 id="cardTitle">正在检测登录模式…</h2>
+    <p class="sub" id="cardSub"></p>
+
+    <form id="loginForm" hidden>
+      <input type="hidden" name="ticket" id="inTicket">
+      <label id="userLabel" hidden>玩家名</label>
+      <input type="text" name="username" id="inUser" autocomplete="username"
+             placeholder="游戏内玩家名" autofocus hidden>
+      <label id="passLabel" hidden>登录密码</label>
+      <input type="password" name="password" id="inPass" autocomplete="current-password"
+             placeholder="AuthMe 密码" hidden>
+      <div class="err" id="err"></div>
+      <button type="submit" id="btnSubmit" class="btn-primary" hidden>登录</button>
+    </form>
+
+    <div class="hint" id="hint" hidden></div>
+  </div>
+</main>
+
+<script>
+(function () {
+  'use strict';
+
+  var $ = function (id) { return document.getElementById(id); };
+  var ticket = new URLSearchParams(location.search).get('ticket');
+  var form = $('loginForm'), errEl = $('err');
+
+  function setTitle(t, sub) { $('cardTitle').textContent = t; $('cardSub').textContent = sub || ''; }
+  function showErr(msg) { errEl.className = 'err'; errEl.textContent = msg; }
+  function showOk(msg) { errEl.className = 'ok'; errEl.textContent = msg; }
+  function showHint(html) { var h = $('hint'); h.innerHTML = html; h.hidden = false; }
+
+  function switchTo(usernameOnly) {
+    $('userLabel').hidden = !usernameOnly;
+    $('inUser').hidden = !usernameOnly;
+    $('passLabel').hidden = usernameOnly;
+    $('inPass').hidden = usernameOnly;
+    form.hidden = false;
+    $('btnSubmit').hidden = false;
+    (usernameOnly ? $('inUser') : $('inPass')).focus();
+  }
+
+  // 有票据 → 票据+密码二次验证模式
+  if (ticket) {
+    $('inTicket').value = ticket;
+    setTitle('账号密码验证', '该链接由游戏内生成。请输入对应账号的登录密码完成二次验证，验证通过后令牌将写入浏览器 Cookie。');
+    switchTo(false);
+  } else {
+    // 无票据 → 询问服务端登录模式（需网关豁免 /auth/mode）
+    fetch('/auth/mode', { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (j) {
+      if (j && j.code === 200 && j.data) {
+        if (j.data.requiresPassword) {
+          setTitle('需要登录票据', '本服已接入登录插件，网页登录需要一次性票据：请在游戏内执行对应命令获取网页登录链接后再访问。');
+          showHint('提示：票据由<b>游戏内</b>生成（登录插件登录成功后下发），直接访问本页无法完成密码登录。');
+        } else {
+          setTitle('免密码登录', '本服未接入登录插件，启用免密码登录：输入玩家名即可签发访问令牌（Cookie 自动写入）。');
+          switchTo(true);
+        }
+      } else {
+        setTitle('登录暂不可用', (j && j.msg) || '无法获取登录模式，请稍后重试。');
+      }
+    }).catch(function () {
+      setTitle('登录暂不可用', '无法连接登录模式接口，请检查网关配置（/auth/mode 需加入 auth.yml exempt 豁免）。');
+    });
+  }
+
+  form.onsubmit = function (e) {
+    e.preventDefault();
+    var btn = $('btnSubmit');
+    btn.disabled = true; btn.textContent = '登录中…'; showErr('');
+
+    var body = new URLSearchParams();
+    if (ticket) {
+      body.set('ticket', ticket);
+      body.set('password', $('inPass').value);
+    } else {
+      body.set('username', $('inUser').value.trim());
+    }
+
+    fetch('/auth/issue', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: body.toString()
+    }).then(function (r) {
+      return r.text().then(function (text) {
+        var j = null; try { j = JSON.parse(text); } catch (e) {}
+        if (r.ok) {
+          // Set-Cookie 已由浏览器自动存储
+          var who = j && j.data ? j.data : '';
+          setTitle('✓ 登录成功', '玩家 ' + who + ' 的会话令牌已写入浏览器 Cookie。');
+          showOk('即将返回首页…');
+          form.hidden = true; $('hint').hidden = true;
+          setTimeout(function () { location.href = '/'; }, 1200);
+        } else {
+          showErr((j && j.msg) || ('HTTP ' + r.status));
+          btn.disabled = false; btn.textContent = '登录';
+        }
+      });
+    }).catch(function (ex) {
+      showErr('请求失败: ' + (ex && ex.message ? ex.message : ex));
+      btn.disabled = false; btn.textContent = '登录';
+    });
+  };
+})();
+</script>
+</body>
+</html>

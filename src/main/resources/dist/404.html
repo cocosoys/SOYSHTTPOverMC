@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>404 · SOYS HTTP-Over-MC</title>
+<style>
+  :root {
+    --bg: #05060f; --panel: #0d1024; --line: #1c2142;
+    --neon: #00f0ff; --neon2: #ff2bd6; --err: #ff5252; --txt: #cfe9ff; --dim: #7d93b8;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    min-height: 100vh; display: flex; align-items: center; justify-content: center;
+    color: var(--txt); font-family: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+    background:
+      radial-gradient(700px 400px at 85% -10%, rgba(255,43,214,.14), transparent 60%),
+      radial-gradient(600px 380px at -5% 30%, rgba(0,240,255,.12), transparent 60%),
+      var(--bg);
+  }
+  .box {
+    text-align: center; padding: 46px 54px; max-width: 480px;
+    background: linear-gradient(180deg, var(--panel), #090b1a);
+    border: 1px solid var(--line); border-radius: 16px;
+    box-shadow: 0 0 34px rgba(0,240,255,.08);
+  }
+  .code {
+    font-size: 84px; font-weight: 900; letter-spacing: 4px; color: var(--err);
+    text-shadow: 0 0 22px rgba(255,82,82,.45); line-height: 1.1; margin-bottom: 10px;
+  }
+  h1 { font-size: 20px; letter-spacing: 3px; color: #fff; margin-bottom: 10px; }
+  p { font-size: 13.5px; color: var(--dim); line-height: 1.8; margin-bottom: 26px; }
+  a.btn {
+    display: inline-block; padding: 12px 34px; border-radius: 10px; text-decoration: none;
+    font-size: 14px; font-weight: 700; letter-spacing: 2px;
+    color: #04121a; background: linear-gradient(135deg, var(--neon), #37d5ff);
+    box-shadow: 0 0 22px rgba(0,240,255,.4); transition: .2s;
+  }
+  a.btn:hover { transform: translateY(-2px); box-shadow: 0 0 34px rgba(0,240,255,.65); }
+</style>
+</head>
+<body>
+<div class="box">
+  <div class="code">404</div>
+  <h1>页面不存在</h1>
+  <p>你访问的资源不存在，或已被移除。<br>该页面由 <code>dist/404.html</code> 静态伺服（后端不再拼接错误 HTML）。</p>
+  <a class="btn" href="/">← 返回首页</a>
+</div>
+</body>
+</html>

@@ -32,7 +32,7 @@ public class PagesSubCommand extends SubCommand {
     /** 内置纯静态资源（脚本/图标），默认不展示，仅在 {@code pages all} 时列出。路径 → 说明。 */
     private static final String[][] BUILTIN_RESOURCES = {
             {"/soys-auth.js", "公共登录组件（任意页面引用即用）"},
-            {"/favicon.ico", "站点图标（磁盘 web/favicon.ico 可热替换）"},
+            {"/favicon.ico", "站点图标（磁盘 dist/favicon.ico 可热替换）"},
     };
 
     /** “查看全部”的别名参数（忽略大小写）。 */

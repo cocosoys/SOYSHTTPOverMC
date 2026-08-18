@@ -8,13 +8,13 @@ import soys.soyshttpovermc.gateway.policy.login.LoginMode;
 import soys.soyshttpovermc.gateway.policy.login.LoginModePolicy;
 import soys.soyshttpovermc.gateway.policy.auth.bridge.spi.LoginProvider;
 import soys.soyshttpovermc.proto.FrameProto;
-
-import com.google.protobuf.ByteString;
+import soys.soyshttpovermc.util.AjaxResult;
+import soys.soyshttpovermc.util.HttpFrames;
 
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 
-import java.nio.charset.StandardCharsets;
+import java.net.URLEncoder;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -218,46 +218,39 @@ public class AuthLoginBridge {
         return h;
     }
 
-    /** GET /auth/login?ticket=...：渲染登录表单（有登录插件=票据+密码二次验证；无登录插件=免密码用户名直登）。 */
+    /**
+     * GET /auth/login?ticket=...：重定向到前端登录页（/login.html?ticket=...，浏览器原生 302）。
+     * 有登录插件=票据+密码二次验证（票据无效 → 400 JSON）；无登录插件=免密码，直接跳到登录页
+     * （前端按 /auth/mode 切换「票据+密码」/「免密用户名」表单）。票据不在此消费（保留一次性语义）。
+     */
     public FrameProto.HttpResponseFrame serveLoginPage(String ticket) {
-        if (loginProvider == null) {
-            // 免密码模式：无需票据，直接渲染「输入用户名」表单
-            return htmlFrame(200, noPasswordLoginFormHtml());
+        if (loginProvider != null) {
+            String player = (ticket == null) ? null : loginTickets.get(ticket);
+            if (player == null) {
+                return HttpFrames.jsonError(400, "登录票据无效或已失效，请重新登录游戏以获取新的网页登录链接");
+            }
         }
-        String player = (ticket == null) ? null : loginTickets.get(ticket);
-        if (player == null) {
-            return errorPage(400, "登录票据无效或已失效，请重新登录游戏以获取新的网页登录链接");
-        }
-        return htmlFrame(200, loginFormHtml(ticket, player));
+        String loc = "/login.html" + (ticket == null ? "" : "?ticket=" + urlEncode(ticket));
+        return HttpFrames.redirect(loc);
     }
 
-    /** POST /auth/issue（免密码模式）：仅凭用户名直接签发会话 Cookie。 */
+    /** POST /auth/issue（免密码模式）：仅凭用户名直接签发会话 Cookie（JSON 成功体 + Set-Cookie）。 */
     public FrameProto.HttpResponseFrame issueByUsername(String username) {
         String token = loginByUsername(username);
         if (token == null) {
-            return errorPage(400, "用户名不合法（仅字母/数字/下划线，≤16 字符）或离线登录被策略禁止");
+            return HttpFrames.jsonError(400, "用户名不合法（仅字母/数字/下划线，≤16 字符）或离线登录被策略禁止");
         }
-        String cookie = issuer.getCookieName() + "=" + token
-                + "; Path=/; Max-Age=" + issuer.getTtlSeconds()
-                + "; HttpOnly; SameSite=Lax";
-        return FrameProto.HttpResponseFrame.newBuilder()
-                .setStatusCode(200)
-                .putHeaders("Content-Type", "text/html; charset=utf-8")
-                .putHeaders("Set-Cookie", cookie)
-                .setBody(ByteString.copyFrom(successHtml(username.trim()).getBytes(StandardCharsets.UTF_8)))
-                .setFragmentIndex(0)
-                .setTotalFragments(1)
-                .build();
+        return jsonWithCookie(username.trim(), token);
     }
 
-    /** POST /auth/issue：校验 AuthMe 密码，验证通过下发会话 Cookie。 */
+    /** POST /auth/issue：校验 AuthMe 密码，验证通过下发会话 Cookie（JSON 成功体 + Set-Cookie）。 */
     public FrameProto.HttpResponseFrame issue(String ticket, String password) {
         String player = (ticket == null) ? null : loginTickets.remove(ticket);
         if (player == null) {
-            return errorPage(400, "登录票据无效或已使用，请重新登录游戏以获取新的网页登录链接");
+            return HttpFrames.jsonError(400, "登录票据无效或已使用，请重新登录游戏以获取新的网页登录链接");
         }
         if (loginProvider == null) {
-            return errorPage(503, "未接入登录插件，无法验证密码（请确认服务器已加载 AuthMe 等登录插件）");
+            return HttpFrames.jsonError(503, "未接入登录插件，无法验证密码（请确认服务器已加载 AuthMe 等登录插件）");
         }
         boolean ok;
         try {
@@ -266,7 +259,7 @@ public class AuthLoginBridge {
             ok = false;
         }
         if (!ok) {
-            return errorPage(401, "账号或密码错误（AuthMe 校验失败，或服务器未安装 AuthMe，或禁止离线登录）");
+            return HttpFrames.jsonError(401, "账号或密码错误（AuthMe 校验失败，或服务器未安装 AuthMe，或禁止离线登录）");
         }
         String token = playerTokens.get(player);
         if (token == null) {
@@ -274,110 +267,27 @@ public class AuthLoginBridge {
             token = issuer.issueToken(player, LoginMode.ONLINE);
             playerTokens.put(player, token);
         }
+        return jsonWithCookie(player, token);
+    }
+
+    /**
+     * 登录成功统一响应：JSON 成功体 + Set-Cookie（令牌仅在密码验证通过后下发一次）。
+     * data 携带玩家名供前端展示；cookie 语义保留（HttpOnly，浏览器自动携带）。
+     */
+    private FrameProto.HttpResponseFrame jsonWithCookie(String player, String token) {
         String cookie = issuer.getCookieName() + "=" + token
                 + "; Path=/; Max-Age=" + issuer.getTtlSeconds()
                 + "; HttpOnly; SameSite=Lax";
-        return FrameProto.HttpResponseFrame.newBuilder()
-                .setStatusCode(200)
-                .putHeaders("Content-Type", "text/html; charset=utf-8")
-                .putHeaders("Set-Cookie", cookie)
-                .setBody(ByteString.copyFrom(successHtml(player).getBytes(StandardCharsets.UTF_8)))
-                .setFragmentIndex(0)
-                .setTotalFragments(1)
-                .build();
+        Map<String, String> extra = new HashMap<>();
+        extra.put("Set-Cookie", cookie);
+        return HttpFrames.json(200, AjaxResult.success("ok", player), extra);
     }
 
-    // ===== HTML 页面 =====
-
-    /** 免密码登录表单（未接入登录插件时使用）：仅输入用户名，无需密码。 */
-    private static String noPasswordLoginFormHtml() {
-        StringBuilder sb = new StringBuilder();
-        sb.append("<!doctype html><html lang=zh><head><meta charset=utf-8>");
-        sb.append("<meta name=viewport content=\"width=device-width,initial-scale=1\">");
-        sb.append("<title>HTTP-Over-MC 网页登录</title>");
-        sb.append("<style>body{margin:0;background:#0a0a12;color:#cfe;font-family:system-ui,Segoe UI,Arial,sans-serif;");
-        sb.append("display:flex;align-items:center;justify-content:center;min-height:100vh}");
-        sb.append(".card{background:#12121f;border:1px solid #1f6feb55;border-radius:12px;padding:28px 32px;width:340px;box-shadow:0 0 24px #1f6feb33}");
-        sb.append("h1{margin:0 0 4px;font-size:18px;color:#5cf}small{color:#789}p{color:#9ab}");
-        sb.append("input{width:100%;box-sizing:border-box;padding:10px;margin:10px 0;border-radius:8px;border:1px solid #2a2a40;");
-        sb.append("background:#0a0a12;color:#cfe;font-size:14px}");
-        sb.append("button{width:100%;padding:11px;border:0;border-radius:8px;background:#1f6feb;color:#fff;font-size:15px;cursor:pointer}");
-        sb.append("button:hover{background:#3b82f6}.warn{color:#f96;font-size:12px;line-height:1.6}</style></head>");
-        sb.append("<body><div class=card><h1>HTTP-Over-MC 网页登录</h1>");
-        sb.append("<small>本服未接入登录插件，启用<b>免密码登录</b></small>");
-        sb.append("<form method=POST action=/auth/issue>");
-        sb.append("<input type=text name=username placeholder=\"玩家名\" autofocus required>");
-        sb.append("<button type=submit>登录</button></form>");
-        sb.append("<p class=warn>⚠️ 免密码模式仅凭用户名签发令牌，请确认本服未接公网/无敏感数据，");
-        sb.append("或尽快接入 AuthMe 等登录插件后自动切换为密码验证。</p>");
-        sb.append("</div></body></html>");
-        return sb.toString();
-    }
-
-    private static String loginFormHtml(String ticket, String player) {
-        StringBuilder sb = new StringBuilder();
-        sb.append("<!doctype html><html lang=zh><head><meta charset=utf-8>");
-        sb.append("<meta name=viewport content=\"width=device-width,initial-scale=1\">");
-        sb.append("<title>HTTP-Over-MC 网页登录</title>");
-        sb.append("<style>body{margin:0;background:#0a0a12;color:#cfe;font-family:system-ui,Segoe UI,Arial,sans-serif;");
-        sb.append("display:flex;align-items:center;justify-content:center;min-height:100vh}");
-        sb.append(".card{background:#12121f;border:1px solid #1f6feb55;border-radius:12px;padding:28px 32px;width:340px;box-shadow:0 0 24px #1f6feb33}");
-        sb.append("h1{margin:0 0 4px;font-size:18px;color:#5cf}small{color:#789}p{color:#9ab}");
-        sb.append("input{width:100%;box-sizing:border-box;padding:10px;margin:10px 0;border-radius:8px;border:1px solid #2a2a40;");
-        sb.append("background:#0a0a12;color:#cfe;font-size:14px}");
-        sb.append("button{width:100%;padding:11px;border:0;border-radius:8px;background:#1f6feb;color:#fff;font-size:15px;cursor:pointer}");
-        sb.append("button:hover{background:#3b82f6}.hint{color:#f96;font-size:12px;min-height:16px}</style></head>");
-        sb.append("<body><div class=card><h1>HTTP-Over-MC 网页登录</h1>");
-        sb.append("<small>账号 ").append(escape(player)).append(" · 请输入 AuthMe 密码完成二次验证</small>");
-        sb.append("<form method=POST action=/auth/issue>");
-        sb.append("<input type=hidden name=ticket value=\"").append(escape(ticket)).append("\">");
-        sb.append("<input type=password name=password placeholder=\"AuthMe 密码\" autofocus required>");
-        sb.append("<div class=hint></div><button type=submit>验证并获取访问令牌</button></form>");
-        sb.append("<p>验证通过后将把会话令牌写入浏览器 Cookie，之后访问本服 HTTP 接口即自动带鉴权。</p>");
-        sb.append("</div></body></html>");
-        return sb.toString();
-    }
-
-    private static String successHtml(String player) {
-        StringBuilder sb = new StringBuilder();
-        sb.append("<!doctype html><html lang=zh><head><meta charset=utf-8>");
-        sb.append("<meta name=viewport content=\"width=device-width,initial-scale=1\"><title>登录成功</title>");
-        sb.append("<style>body{margin:0;background:#0a0a12;color:#cfe;font-family:system-ui,Segoe UI,Arial,sans-serif;");
-        sb.append("display:flex;align-items:center;justify-content:center;min-height:100vh}");
-        sb.append(".card{background:#12121f;border:1px solid #2ec27e55;border-radius:12px;padding:28px 32px;width:340px;text-align:center;box-shadow:0 0 24px #2ec27e33}");
-        sb.append("h1{color:#2ec27e;margin:0 0 8px}a{color:#5cf}</style></head>");
-        sb.append("<body><div class=card><h1>✓ 登录成功</h1>");
-        sb.append("<p>玩家 ").append(escape(player)).append(" 的会话令牌已写入浏览器 Cookie。</p>");
-        sb.append("<p><a href=\"/\">前往控制台首页</a></p>");
-        sb.append("<p><small>现在可直接访问本服 HTTP 接口（如 /api/status），无需再手动携带令牌。</small></p>");
-        sb.append("</div></body></html>");
-        return sb.toString();
-    }
-
-    private FrameProto.HttpResponseFrame errorPage(int code, String msg) {
-        String html = "<!doctype html><html lang=zh><head><meta charset=utf-8><title>错误</title>"
-                + "<style>body{margin:0;background:#0a0a12;color:#cfe;font-family:system-ui,Arial,sans-serif;"
-                + "display:flex;align-items:center;justify-content:center;min-height:100vh}"
-                + ".card{background:#12121f;border:1px solid #f9655555;border-radius:12px;padding:24px 28px;width:340px;text-align:center}"
-                + "h1{color:#f96;margin:0 0 8px}small{color:#789}</style></head><body><div class=card>"
-                + "<h1>无法登录</h1><p>" + escape(msg) + "</p>"
-                + "<p><small>请重新登录游戏以获取新的网页登录链接。</small></p></div></body></html>";
-        return htmlFrame(code, html);
-    }
-
-    private static FrameProto.HttpResponseFrame htmlFrame(int code, String html) {
-        return FrameProto.HttpResponseFrame.newBuilder()
-                .setStatusCode(code)
-                .putHeaders("Content-Type", "text/html; charset=utf-8")
-                .setBody(ByteString.copyFrom(html.getBytes(StandardCharsets.UTF_8)))
-                .setFragmentIndex(0)
-                .setTotalFragments(1)
-                .build();
-    }
-
-    private static String escape(String s) {
-        if (s == null) return "";
-        return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-                .replace("\"", "&quot;").replace("'", "&#39;");
+    private static String urlEncode(String s) {
+        try {
+            return URLEncoder.encode(s, "UTF-8");
+        } catch (Exception e) {
+            return s;
+        }
     }
 }

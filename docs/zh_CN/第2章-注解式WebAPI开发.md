@@ -44,22 +44,22 @@ public class AdminApi {
 
 常用属性：
 
-| 属性 | 说明 |
-| --- | --- |
-| `value()` / `path()` | 路由路径（二选一；都为空则注册为 `/`） |
-| `method()` | 允许的 HTTP 方法（`RequestMethod[]`）；为空表示不限定（匹配任意方法） |
+| 属性                     | 说明                                                                    |
+| ------------------------ | ----------------------------------------------------------------------- |
+| `value()` / `path()` | 路由路径（二选一；都为空则注册为`/`）                                 |
+| `method()`             | 允许的 HTTP 方法（`RequestMethod[]`）；为空表示不限定（匹配任意方法） |
 
 ### 2.2.2 方法级组合注解
 
 为减少样板，提供了五个方法级注解，分别对应常见 HTTP 动词：
 
-| 注解 | 等价 |
-| --- | --- |
-| `@GetMapping("/x")` | `@RequestMapping(method = GET)` |
-| `@PostMapping("/x")` | `@RequestMapping(method = POST)` |
-| `@PutMapping("/x")` | `@RequestMapping(method = PUT)` |
+| 注解                     | 等价                                 |
+| ------------------------ | ------------------------------------ |
+| `@GetMapping("/x")`    | `@RequestMapping(method = GET)`    |
+| `@PostMapping("/x")`   | `@RequestMapping(method = POST)`   |
+| `@PutMapping("/x")`    | `@RequestMapping(method = PUT)`    |
 | `@DeleteMapping("/x")` | `@RequestMapping(method = DELETE)` |
-| `@PatchMapping("/x")` | `@RequestMapping(method = PATCH)` |
+| `@PatchMapping("/x")`  | `@RequestMapping(method = PATCH)`  |
 
 它们都有 `value()` 与 `path()` 两个别名属性。
 
@@ -88,11 +88,11 @@ public AjaxResult hello(
 
 访问 `https://<地址>/hello?name=Steve&age=20` 即可拿到解析后的参数。属性：
 
-| 属性 | 说明 |
-| --- | --- |
-| `name()` | query key（必填） |
-| `required()` | 是否必填；缺失且必填返回 400 |
-| `defaultValue()` | 缺失且非必填时的默认值 |
+| 属性               | 说明                         |
+| ------------------ | ---------------------------- |
+| `name()`         | query key（必填）            |
+| `required()`     | 是否必填；缺失且必填返回 400 |
+| `defaultValue()` | 缺失且非必填时的默认值       |
 
 ### 2.3.2 请求体 @RequestBody
 
@@ -126,18 +126,18 @@ public AjaxResult whoami(ApiRequestContext ctx) {
 
 `ApiRequestContext` 提供的字段：
 
-| 方法 | 说明 |
-| --- | --- |
-| `getHttpMethod()` | 实际请求方法（GET/POST/...） |
-| `getPath()` | 完整路径（含 api-prefix） |
-| `getIp()` | 客户端 IP（0.0.0.0 表示未知） |
-| `getHeaders()` | 请求头（只读视图） |
-| `getCredential()` | 请求解析出的凭证（可为 null） |
-| `getPlayerName()` | 经 token/cookie 解析的玩家名（未登录/null） |
-| `getPlayer()` | 在线玩家实体（离线=null） |
-| `isAuthenticated()` | 请求是否携带有效凭证 |
+| 方法                  | 说明                                         |
+| --------------------- | -------------------------------------------- |
+| `getHttpMethod()`   | 实际请求方法（GET/POST/...）                 |
+| `getPath()`         | 完整路径（含 api-prefix）                    |
+| `getIp()`           | 客户端 IP（0.0.0.0 表示未知）                |
+| `getHeaders()`      | 请求头（只读视图）                           |
+| `getCredential()`   | 请求解析出的凭证（可为 null）                |
+| `getPlayerName()`   | 经 token/cookie 解析的玩家名（未登录/null）  |
+| `getPlayer()`       | 在线玩家实体（离线=null）                    |
+| `isAuthenticated()` | 请求是否携带有效凭证                         |
 | `getSourceServer()` | 跨服请求来源服名（独立服 / 本服直连为 null） |
-| `getTraceId()` | 跨服链路追踪 ID（无关联为 null） |
+| `getTraceId()`      | 跨服链路追踪 ID（无关联为 null）             |
 
 ## 2.4 统一返回体 AjaxResult
 
@@ -155,13 +155,13 @@ return AjaxResult.notFound("资源不存在");          // {"code":404,...}
 
 常用静态工厂：
 
-| 方法 | 含义 |
-| --- | --- |
-| `success()` / `success(data)` / `success(msg, data)` | 成功（code=200） |
-| `error()` / `error(msg)` / `error(code, msg)` | 失败（默认 code=500） |
-| `unauthorized(msg)` | 401 认证失败 |
-| `forbidden(msg)` | 403 无权限 |
-| `notFound(msg)` | 404 资源不存在 |
+| 方法                                                       | 含义                  |
+| ---------------------------------------------------------- | --------------------- |
+| `success()` / `success(data)` / `success(msg, data)` | 成功（code=200）      |
+| `error()` / `error(msg)` / `error(code, msg)`        | 失败（默认 code=500） |
+| `unauthorized(msg)`                                      | 401 认证失败          |
+| `forbidden(msg)`                                         | 403 无权限            |
+| `notFound(msg)`                                          | 404 资源不存在        |
 
 > 注意：网关对**注解式 API** 默认以 HTTP 200 返回，业务状态码放在 `body.code` 中（这是 RuoYi 风格）。只有被网关安全策略拒绝时，才会返回真实的 HTTP 状态码（如 401/403/429）。
 
