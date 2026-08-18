@@ -1,9 +1,9 @@
 package soys.soyshttpovermc.web;
 
 import soys.soyshttpovermc.util.AjaxResult;
+import soys.soyshttpovermc.util.ApiResponse;
 import soys.soyshttpovermc.util.HttpFrames;
 import soys.soyshttpovermc.ApiRegistry;
-import soys.soyshttpovermc.gateway.policy.auth.bridge.AuthLoginBridge;
 import soys.soyshttpovermc.log.LogKit;
 import soys.soyshttpovermc.proto.FrameProto;
 import com.google.protobuf.ByteString;
@@ -14,23 +14,23 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 
 /**
  * 服务端 HTTP 处理器：把一次经 Bot 隧道送达的 HTTP 请求，路由为注解式 API 或静态资源。
  *
  * 路由优先级：
- *  1) 网页登录流程（/auth/login、/auth/issue）→ 登录桥处理；
- *  2) 注解式 API（@GetMapping 注册，如 /api/status、/api/ping）→ dispatch；
- *  3) /favicon.ico → 优先本地插件配置目录 web/favicon.ico（磁盘，可热替换），
+ *  1) 注解式 API（@GetMapping 注册，如 /api/status、/api/ping、/api/auth/*）→ dispatch；
+ *  2) /favicon.ico → 优先本地插件配置目录 web/favicon.ico（磁盘，可热替换），
  *     再 jar 内置 /dist/favicon.ico，仍缺失才 204 无内容；
- *  4) 插件登记网页（WebRegistry：第三方插件注册，默认 /plugins/&lt;插件名&gt; 前缀；
+ *  3) 插件登记网页（WebRegistry：第三方插件注册，默认 /plugins/&lt;插件名&gt; 前缀；
  *     支持强制代理、302/301 跳转与 .html 后缀智能匹配）；
- *  5) 静态资源：web.root 磁盘目录（含 .. 穿越防护）→ jar 内置 /dist/ → 404。
+ *  4) 静态资源：web.root 磁盘目录（含 .. 穿越防护）→ jar 内置 /dist/ → 404。
  *     无扩展名路径同时支持带/不带 .html（/login 与 /login.html 等价）。
+ *
+ * <p>业务端点（票据登录 /api/auth/login|issue|mode、状态 /api/status 等）
+ * 一律归属 spring 包（controller/service/impl 分层），经 {@link ApiRegistry} 注册分发；
+ * 本类只保留静态资源与框架级钩子（CORS / 拦截器），不再承载业务路由。</p>
  */
 public class WebFrontendHandler {
 
@@ -38,8 +38,6 @@ public class WebFrontendHandler {
     private final String webRootCanonical;
     private final ApiRegistry apiRegistry; // 注解式 API 注册表（可为 null）
     private final WebRegistry webRegistry; // 插件登记网页（可为 null）
-    private final NavRegistry navRegistry; // 门户导航登记处（可为 null）
-    private volatile AuthLoginBridge authBridge; // AuthMe 网页登录桥（null=未启用；/soyshttp reload 后热替换）
     /** Web 内容存活缓存（常驻 pinned + LRU + 大文件加载器），null=禁用缓存 */
     private final WebContentCache webContent;
     /** 大文件安全上限（超过直接 413；防单文件把内存打爆，默认 128MB） */
@@ -50,13 +48,10 @@ public class WebFrontendHandler {
     private final WebInterceptorRegistry interceptorRegistry;
 
     public WebFrontendHandler(String webRootPath, ApiRegistry apiRegistry, WebRegistry webRegistry,
-                              NavRegistry navRegistry, AuthLoginBridge authBridge,
                               WebContentCache webContent, long largeFileMaxBytes,
                               CorsRegistry corsRegistry, WebInterceptorRegistry interceptorRegistry) {
         this.apiRegistry = apiRegistry;
         this.webRegistry = webRegistry;
-        this.navRegistry = navRegistry;
-        this.authBridge = authBridge;
         this.webContent = webContent;
         this.largeFileMaxBytes = Math.max(0, largeFileMaxBytes);
         this.corsRegistry = corsRegistry;
@@ -77,11 +72,6 @@ public class WebFrontendHandler {
         }
         this.webRoot = root;
         this.webRootCanonical = canonical;
-    }
-
-    /** 热替换 AuthMe 登录桥（/soyshttp reload 重建网关后调用，保持与最新 session-token 颁发器一致）。 */
-    public void setAuthBridge(AuthLoginBridge bridge) {
-        this.authBridge = bridge;
     }
 
     /**
@@ -132,41 +122,23 @@ public class WebFrontendHandler {
         return cors == null ? resp : corsRegistry.attach(cors, resp);
     }
 
-    /** 实际路由：登录流程 → 注解式 API → favicon → 插件登记网页 → 静态资源。 */
+    /** 实际路由：注解式 API → favicon → 插件登记网页 → 静态资源。 */
     private FrameProto.HttpResponseFrame handleInner(String m, String rawPath, Map<String, String> headers, byte[] body) {
 
-        // 0) AuthMe 网页登录流程（/auth/login 重定向 / /auth/issue 校验发 Cookie / /auth/mode 模式探测），先于 API 路由，且本身免鉴权
-        if (authBridge != null) {
-            String ap = stripQuery(rawPath);
-            if (ap.equals("/auth/login") || ap.equals("/auth/issue") || ap.equals("/auth/mode")) {
-                return handleAuth(m, rawPath, headers, body);
-            }
-        }
-
-        // 0.5) 门户导航 JSON（供前端渲染插件面板，替代后端 injectNav 注入 DOM）
-        if (navRegistry != null && "/api/nav".equals(stripQuery(rawPath))) {
-            List<Map<String, Object>> data = new ArrayList<>();
-            for (NavRegistry.NavItem it : navRegistry.snapshot()) {
-                Map<String, Object> item = new LinkedHashMap<>();
-                item.put("owner", it.owner);
-                item.put("label", it.label);
-                item.put("path", it.path);
-                item.put("icon", it.icon);
-                item.put("permission", it.permission);
-                item.put("order", it.order);
-                data.add(item);
-            }
-            return HttpFrames.json(200, AjaxResult.success(data));
-        }
-
-        // 1) 注解式 API 优先（@GetMapping 等注册的路由）
+        // 1) 注解式 API 优先（@GetMapping 等注册的路由；业务端点一律归属 spring 包）
         if (apiRegistry != null) {
             Object apiResult = apiRegistry.dispatch(m, rawPath, headers, body);
             if (apiResult != null) {
-                AjaxResult ar = apiResult instanceof AjaxResult
-                        ? (AjaxResult) apiResult : AjaxResult.success(apiResult);
                 // 离线 cookie 自动升级：响应附加 Set-Cookie(新在线令牌) + X-Soys-New-Token
                 Map<String, String> extra = apiRegistry.drainResponseHeaders();
+                if (apiResult instanceof ApiResponse) {
+                    // 响应控制：自定义状态码 + 响应头（302 跳转 / Set-Cookie / 错误状态码）
+                    ApiResponse ar = (ApiResponse) apiResult;
+                    return HttpFrames.json(ar.statusCode(), ar.body(),
+                            mergeHeaders(ar.headers(), extra));
+                }
+                AjaxResult ar = apiResult instanceof AjaxResult
+                        ? (AjaxResult) apiResult : AjaxResult.success(apiResult);
                 return jsonResponse(200, ar.toJson(), extra);
             }
         }
@@ -231,71 +203,6 @@ public class WebFrontendHandler {
                 .build();
     }
 
-    // ===== AuthMe 网页登录流程路由 =====
-    private FrameProto.HttpResponseFrame handleAuth(String method, String rawPath,
-                                                    Map<String, String> headers, byte[] body) {
-        String cleanPath = stripQuery(rawPath);
-        if (cleanPath.equals("/auth/issue") && "POST".equals(method)) {
-            Map<String, String> form = parseForm(body);
-            // 有登录插件=票据+密码校验；无登录插件=免密码，仅凭用户名直登
-            if (authBridge.loginRequiresPassword()) {
-                return authBridge.issue(form.get("ticket"), form.get("password"));
-            }
-            return authBridge.issueByUsername(form.get("username"));
-        }
-        if (cleanPath.equals("/auth/login")) {
-            return authBridge.serveLoginPage(queryParam(rawPath, "ticket"));
-        }
-        if (cleanPath.equals("/auth/mode")) {
-            // 登录模式信息：前端 /login.html 据此切换「票据+密码」/「免密用户名」表单
-            Map<String, Object> d = new LinkedHashMap<>();
-            d.put("requiresPassword", authBridge.loginRequiresPassword());
-            d.put("cookieName", authBridge.getCookieName());
-            d.put("ttlSeconds", authBridge.getTtlSeconds());
-            return HttpFrames.json(200, AjaxResult.success(d));
-        }
-        // 其它 /auth/* 方法不匹配 → 404
-        return notFound(rawPath);
-    }
-
-    /** 解析 application/x-www-form-urlencoded 请求体（POST /auth/issue）。 */
-    private static Map<String, String> parseForm(byte[] body) {
-        Map<String, String> map = new java.util.HashMap<>();
-        if (body == null || body.length == 0) return map;
-        String s = new String(body, StandardCharsets.UTF_8);
-        for (String pair : s.split("&")) {
-            int eq = pair.indexOf('=');
-            if (eq <= 0) continue;
-            String k = pair.substring(0, eq);
-            String v = pair.substring(eq + 1);
-            try {
-                map.put(java.net.URLDecoder.decode(k, "UTF-8"), java.net.URLDecoder.decode(v, "UTF-8"));
-            } catch (Exception ignored) {
-                map.put(k, v);
-            }
-        }
-        return map;
-    }
-
-    /** 从原始路径（含 ?query）提取单个查询参数值。 */
-    private static String queryParam(String rawPath, String name) {
-        int q = rawPath.indexOf('?');
-        if (q < 0 || q + 1 >= rawPath.length()) return null;
-        for (String pair : rawPath.substring(q + 1).split("&")) {
-            int eq = pair.indexOf('=');
-            String k = eq >= 0 ? pair.substring(0, eq) : pair;
-            if (k.equals(name)) {
-                String v = eq >= 0 ? pair.substring(eq + 1) : "";
-                try {
-                    return java.net.URLDecoder.decode(v, "UTF-8");
-                } catch (Exception e) {
-                    return v;
-                }
-            }
-        }
-        return null;
-    }
-
     /** 404 响应帧（路径不存在）：优先伺服 dist/404.html 静态页 → webRegistry 自定义错误页（字节，非拼串）→ JSON 错误体。 */
     private FrameProto.HttpResponseFrame notFound(String cleanPath) {
         byte[] page404 = readResource("/dist/404.html");
@@ -321,7 +228,7 @@ public class WebFrontendHandler {
         return HttpFrames.jsonError(404, "资源不存在: " + cleanPath);
     }
 
-    /** 500 响应帧（支持自定义错误页 registerErrorPage(500)）。 */
+    /** 500 响应帧（支持自定义错误页 registerErrorPage(500)；否则 JSON 错误体，无 text/plain 例外）。 */
     private FrameProto.HttpResponseFrame internalError(String path) {
         byte[] custom = webRegistry == null ? null : webRegistry.errorPage(500);
         if (custom != null) {
@@ -333,13 +240,7 @@ public class WebFrontendHandler {
                     .setTotalFragments(1)
                     .build();
         }
-        return FrameProto.HttpResponseFrame.newBuilder()
-                .setStatusCode(500)
-                .putHeaders("Content-Type", "text/plain; charset=utf-8")
-                .setBody(ByteString.copyFrom("Internal Server Error".getBytes(StandardCharsets.UTF_8)))
-                .setFragmentIndex(0)
-                .setTotalFragments(1)
-                .build();
+        return HttpFrames.jsonError(500, "Internal Server Error");
     }
 
     // ===== 资源解析 =====
@@ -486,6 +387,15 @@ public class WebFrontendHandler {
             }
         }
         return b.build();
+    }
+
+    /** 合并 ApiResponse 自带响应头与网关附加头（extra 优先，避免 Set-Cookie 冲突）。 */
+    private static Map<String, String> mergeHeaders(Map<String, String> base, Map<String, String> extra) {
+        if ((base == null || base.isEmpty()) && (extra == null || extra.isEmpty())) return null;
+        Map<String, String> m = new java.util.HashMap<>();
+        if (base != null) m.putAll(base);
+        if (extra != null) m.putAll(extra);
+        return m;
     }
 
     private static String stripQuery(String p) {

@@ -126,8 +126,8 @@
     setTitle('账号密码验证', '该链接由游戏内生成。请输入对应账号的登录密码完成二次验证，验证通过后令牌将写入浏览器 Cookie。');
     switchTo(false);
   } else {
-    // 无票据 → 询问服务端登录模式（需网关豁免 /auth/mode）
-    fetch('/auth/mode', { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (j) {
+    // 无票据 → 询问服务端登录模式（/api/auth/mode 已豁免鉴权）
+    fetch('/api/auth/mode', { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (j) {
       if (j && j.code === 200 && j.data) {
         if (j.data.requiresPassword) {
           setTitle('需要登录票据', '本服已接入登录插件，网页登录需要一次性票据：请在游戏内执行对应命令获取网页登录链接后再访问。');
@@ -140,7 +140,7 @@
         setTitle('登录暂不可用', (j && j.msg) || '无法获取登录模式，请稍后重试。');
       }
     }).catch(function () {
-      setTitle('登录暂不可用', '无法连接登录模式接口，请检查网关配置（/auth/mode 需加入 auth.yml exempt 豁免）。');
+      setTitle('登录暂不可用', '无法连接登录模式接口，请检查网关配置（/api/auth/mode 需加入 auth.yml exempt 豁免）。');
     });
   }
 
@@ -157,7 +157,7 @@
       body.set('username', $('inUser').value.trim());
     }
 
-    fetch('/auth/issue', {
+    fetch('/api/auth/issue', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: body.toString()

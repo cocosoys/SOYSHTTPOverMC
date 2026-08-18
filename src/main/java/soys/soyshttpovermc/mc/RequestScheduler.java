@@ -3,6 +3,7 @@ package soys.soyshttpovermc.mc;
 import soys.soyshttpovermc.bot.BotTier;
 import soys.soyshttpovermc.log.LogKit;
 import soys.soyshttpovermc.proto.FrameProto;
+import soys.soyshttpovermc.util.HttpFrames;
 import soys.soyshttpovermc.web.WebFrontendHandler;
 
 import org.bukkit.Bukkit;
@@ -136,12 +137,8 @@ public class RequestScheduler {
     }
 
     private static FrameProto.HttpResponseFrame buildStatus(long requestId, int code, String msg) {
-        return FrameProto.HttpResponseFrame.newBuilder()
-                .setRequestId(requestId)
-                .setStatusCode(code)
-                .putHeaders("Content-Type", "text/plain; charset=utf-8")
-                .setBody(ByteString.copyFrom(msg.getBytes(java.nio.charset.StandardCharsets.UTF_8)))
-                .build();
+        // 统一 JSON 信封（{code,msg,data}），与全局响应格式一致，无 text/plain 例外
+        return HttpFrames.jsonError(code, msg).toBuilder().setRequestId(requestId).build();
     }
 
     /** 停止 worker 线程池。 */

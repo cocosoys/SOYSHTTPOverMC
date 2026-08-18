@@ -83,9 +83,9 @@ public class CorsRegistry {
         return h;
     }
 
-    /** OPTIONS 预检短路响应（204 + CORS 头）。 */
+    /** OPTIONS 预检短路响应（204 + CORS 头；204 无 body，Content-Type 声明统一为 JSON 无 text/plain 例外）。 */
     public FrameProto.HttpResponseFrame preflight(CorsEntry e) {
-        return frame(204, "text/plain; charset=utf-8", new byte[0], headers(e, true));
+        return frame(204, "application/json; charset=utf-8", new byte[0], headers(e, true));
     }
 
     /** 把 CORS 头附加到既有响应帧（不覆盖已有同名字段之外的逻辑，直接 put 进 headers map）。 */

@@ -7,9 +7,8 @@ import soys.soyshttpovermc.gateway.policy.login.DefaultLoginModePolicy;
 import soys.soyshttpovermc.gateway.policy.login.LoginMode;
 import soys.soyshttpovermc.gateway.policy.login.LoginModePolicy;
 import soys.soyshttpovermc.gateway.policy.auth.bridge.spi.LoginProvider;
-import soys.soyshttpovermc.proto.FrameProto;
 import soys.soyshttpovermc.util.AjaxResult;
-import soys.soyshttpovermc.util.HttpFrames;
+import soys.soyshttpovermc.util.ApiResponse;
 
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
@@ -24,12 +23,16 @@ import java.util.concurrent.ConcurrentHashMap;
  * <ul>
  *   <li>玩家游戏内登录成功时，登录插件提供者（AuthMeLoginProvider 等）调用 {@link #storeToken}
  *       登记 players→token，并 {@link #mintTicket} 生成一次性登录票据；</li>
- *   <li>浏览器访问 {@link #serveLoginPage}（/auth/login?ticket=...）渲染账号密码表单；</li>
- *   <li>浏览器提交密码（POST /auth/issue），{@link #issue} 经登录插件提供者验证密码，
+ *   <li>浏览器访问 {@link #serveLoginPage}（/api/auth/login?ticket=...）→ 302 到前端登录页；</li>
+ *   <li>浏览器提交密码（POST /api/auth/issue），{@link #issue} 经登录插件提供者验证密码，
  *       验证通过后将已登记的会话令牌以 {@code Set-Cookie} 交给浏览器（仅此一次暴露令牌）。</li>
  * </ul>
  * 设计：即使登录链接被截获，攻击者也必须知道该玩家的登录密码才能换取 Cookie；令牌仅在密码
  * 验证通过后才下发。票据一次性（使用即销毁）。
+ *
+ * <p>本类已下沉为 spring 层内部组件：{@code AuthServiceImpl} 持有并调用，三个票据登录方法
+ * （serveLoginPage / issue / issueByUsername）返回 {@link ApiResponse}（注解式 API 响应控制），
+ * 经 {@code AuthController} 端点透传给网关组装为真实 HTTP 帧；不再被 Web 前端处理器直接路由。</p>
  *
  * <p>登录模式（{@link LoginModePolicy}）：玩家在线 → 签发 ONLINE 令牌（完整镜像权限）；
  * 玩家不在线 → 默认允许 OFFLINE 离线模式登录（离线专属 cookie），玩家进游戏登录后自动升级为 ONLINE。</p>
@@ -219,38 +222,39 @@ public class AuthLoginBridge {
     }
 
     /**
-     * GET /auth/login?ticket=...：重定向到前端登录页（/login.html?ticket=...，浏览器原生 302）。
+     * GET /api/auth/login?ticket=...：重定向到前端登录页（/login.html?ticket=...，浏览器原生 302）。
      * 有登录插件=票据+密码二次验证（票据无效 → 400 JSON）；无登录插件=免密码，直接跳到登录页
-     * （前端按 /auth/mode 切换「票据+密码」/「免密用户名」表单）。票据不在此消费（保留一次性语义）。
+     * （前端按 /api/auth/mode 切换「票据+密码」/「免密用户名」表单）。票据不在此消费（保留一次性语义）。
+     * <p>返回 {@link ApiResponse}（注解式 API 响应控制），由 AuthController 端点透传给网关组装帧。</p>
      */
-    public FrameProto.HttpResponseFrame serveLoginPage(String ticket) {
+    public ApiResponse serveLoginPage(String ticket) {
         if (loginProvider != null) {
             String player = (ticket == null) ? null : loginTickets.get(ticket);
             if (player == null) {
-                return HttpFrames.jsonError(400, "登录票据无效或已失效，请重新登录游戏以获取新的网页登录链接");
+                return ApiResponse.jsonError(400, "登录票据无效或已失效，请重新登录游戏以获取新的网页登录链接");
             }
         }
         String loc = "/login.html" + (ticket == null ? "" : "?ticket=" + urlEncode(ticket));
-        return HttpFrames.redirect(loc);
+        return ApiResponse.redirect(loc);
     }
 
-    /** POST /auth/issue（免密码模式）：仅凭用户名直接签发会话 Cookie（JSON 成功体 + Set-Cookie）。 */
-    public FrameProto.HttpResponseFrame issueByUsername(String username) {
+    /** POST /api/auth/issue（免密码模式）：仅凭用户名直接签发会话 Cookie（JSON 成功体 + Set-Cookie）。 */
+    public ApiResponse issueByUsername(String username) {
         String token = loginByUsername(username);
         if (token == null) {
-            return HttpFrames.jsonError(400, "用户名不合法（仅字母/数字/下划线，≤16 字符）或离线登录被策略禁止");
+            return ApiResponse.jsonError(400, "用户名不合法（仅字母/数字/下划线，≤16 字符）或离线登录被策略禁止");
         }
         return jsonWithCookie(username.trim(), token);
     }
 
-    /** POST /auth/issue：校验 AuthMe 密码，验证通过下发会话 Cookie（JSON 成功体 + Set-Cookie）。 */
-    public FrameProto.HttpResponseFrame issue(String ticket, String password) {
+    /** POST /api/auth/issue：校验 AuthMe 密码，验证通过下发会话 Cookie（JSON 成功体 + Set-Cookie）。 */
+    public ApiResponse issue(String ticket, String password) {
         String player = (ticket == null) ? null : loginTickets.remove(ticket);
         if (player == null) {
-            return HttpFrames.jsonError(400, "登录票据无效或已使用，请重新登录游戏以获取新的网页登录链接");
+            return ApiResponse.jsonError(400, "登录票据无效或已使用，请重新登录游戏以获取新的网页登录链接");
         }
         if (loginProvider == null) {
-            return HttpFrames.jsonError(503, "未接入登录插件，无法验证密码（请确认服务器已加载 AuthMe 等登录插件）");
+            return ApiResponse.jsonError(503, "未接入登录插件，无法验证密码（请确认服务器已加载 AuthMe 等登录插件）");
         }
         boolean ok;
         try {
@@ -259,7 +263,7 @@ public class AuthLoginBridge {
             ok = false;
         }
         if (!ok) {
-            return HttpFrames.jsonError(401, "账号或密码错误（AuthMe 校验失败，或服务器未安装 AuthMe，或禁止离线登录）");
+            return ApiResponse.jsonError(401, "账号或密码错误（AuthMe 校验失败，或服务器未安装 AuthMe，或禁止离线登录）");
         }
         String token = playerTokens.get(player);
         if (token == null) {
@@ -274,13 +278,13 @@ public class AuthLoginBridge {
      * 登录成功统一响应：JSON 成功体 + Set-Cookie（令牌仅在密码验证通过后下发一次）。
      * data 携带玩家名供前端展示；cookie 语义保留（HttpOnly，浏览器自动携带）。
      */
-    private FrameProto.HttpResponseFrame jsonWithCookie(String player, String token) {
+    private ApiResponse jsonWithCookie(String player, String token) {
         String cookie = issuer.getCookieName() + "=" + token
                 + "; Path=/; Max-Age=" + issuer.getTtlSeconds()
                 + "; HttpOnly; SameSite=Lax";
         Map<String, String> extra = new HashMap<>();
         extra.put("Set-Cookie", cookie);
-        return HttpFrames.json(200, AjaxResult.success("ok", player), extra);
+        return ApiResponse.status(200, AjaxResult.success("ok", player), extra);
     }
 
     private static String urlEncode(String s) {

@@ -176,9 +176,9 @@ public class AuthMeLoginProvider implements LoginProvider, Listener {
         // 再签发在线令牌并生成一次性登录票据
         int upgraded = bridge.upgradePlayerToOnline(name);
         String token = bridge.issueToken(name);
-        String ticket = bridge.mintTicket(name);
-        String url = LinkMessageUtil.resolveUrl("/auth/login?ticket=" + ticket,
-                context.getMcHost(), context.getMcPort());
+//        String ticket = bridge.mintTicket(name);
+//        String url = LinkMessageUtil.resolveUrl("/api/auth/login?ticket=" + ticket,
+//                context.getMcHost(), context.getMcPort());
 //        LinkMessageUtil.send(player, url, "&a[HTTP-Over-MC] 点击此处完成网页登录验证，获取访问令牌");
         if (upgraded > 0) {
             LogKit.info("[HTTP-Over-MC] 玩家 " + name + " 进游戏登录：已将 " + upgraded

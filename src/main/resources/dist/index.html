@@ -87,16 +87,6 @@
   .btn-mini:hover{box-shadow:0 0 18px rgba(0,240,255,.6)}
   .btn-mini.ghost{color:var(--neon); background:transparent; border-color:rgba(0,240,255,.4)}
   .btn-mini.off{color:var(--dim); background:transparent; border-color:var(--line)}
-
-  /* ===== 插件面板（GET /api/nav 前端渲染，替代后端 injectNav 注入） ===== */
-  .plugin-nav{
-    display:flex; gap:16px; flex-wrap:wrap; align-items:center;
-    background:rgba(10,12,24,.9); border-bottom:1px solid #1b2a4a;
-    padding:8px 12px; font-size:13px;
-  }
-  .plugin-nav .pn-label{color:#9aa; font-weight:bold; letter-spacing:1px}
-  .plugin-nav a.pn-item{color:#7fefff; text-decoration:none; transition:.2s}
-  .plugin-nav a.pn-item:hover{color:var(--neon); text-shadow:0 0 8px rgba(0,240,255,.5)}
   .toast{
     position:fixed; left:50%; bottom:34px; transform:translateX(-50%) translateY(80px);
     background:#0d1024; border:1px solid var(--neon); color:var(--neon); border-radius:8px;
@@ -173,10 +163,6 @@
   </div>
 </header>
 
-<div class="wrap" id="pluginNavWrap" hidden>
-  <div class="plugin-nav" id="pluginNav"></div>
-</div>
-
 <div class="wrap">
   <!-- Hero -->
   <section class="hero">
@@ -249,21 +235,6 @@ function setOnline(ok){
   $('statusText').textContent = ok ? '服务器在线' : '服务器离线';
   $('statusDot').classList.toggle('off', !ok);
 }
-function escapeHtml(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
-function escapeAttr(s){ return escapeHtml(s).replace(/"/g,'&quot;'); }
-// 插件面板：GET /api/nav 渲染（替代后端 injectNav 注入 DOM）
-function loadPluginNav(){
-  const wrap = $('pluginNavWrap'), box = $('pluginNav');
-  fetch('/api/nav', {cache:'no-store'}).then(r=>r.json()).then(j=>{
-    const items = (j && j.code === 200 && Array.isArray(j.data)) ? j.data : [];
-    if(!items.length){ wrap.hidden = true; return; }
-    box.innerHTML = '<span class="pn-label">插件面板</span>' + items.map(it =>
-      '<a class="pn-item" href="' + escapeAttr(it.path) + '">'
-        + (it.icon ? escapeHtml(it.icon) + ' ' : '') + escapeHtml(it.label) + '</a>'
-    ).join('');
-    wrap.hidden = false;
-  }).catch(()=>{ wrap.hidden = true; });
-}
 // 免凭证探活公开端点 /api/ping（auth.yml exempt 已豁免鉴权）
 async function probe(){
   // 登录窗口已打开：暂停探活轮询（配合 patchFetch 防重复弹窗）
@@ -335,7 +306,6 @@ navLogin.onclick = ()=>{
 SoysAuth.onLoginSuccess = ()=>{ refreshLoginBtn(); toast('登录成功'); };
 SoysAuth.patchFetch(); // 全局：页面任何受保护请求返回 401/403 自动弹出登录窗并重试
 refreshLoginBtn();
-loadPluginNav();
 probe();
 setInterval(probe, 10000);
 </script>

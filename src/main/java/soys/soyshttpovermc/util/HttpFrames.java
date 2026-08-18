@@ -12,8 +12,8 @@ import java.util.Map;
  * 消除后端散落的 HTML 字符串拼接（整改方案第 7 章）。
  *
  * <p>约定：所有错误/状态码响应体均为 {@link AjaxResult} 信封 {@code {code,msg,data}}，
- * 并携带真实 HTTP 状态码（401/403/404/426/429/500/502/503 等）；纯文本兜底仅用于
- * 302 跳转的 body 提示。</p>
+ * 并携带真实 HTTP 状态码（401/403/404/426/429/500/502/503 等）；302 跳转同样输出
+ * JSON 信封 + Location 头（浏览器原生跳转，无 text/plain 例外）。</p>
  */
 public final class HttpFrames {
 
@@ -56,15 +56,11 @@ public final class HttpFrames {
         return redirect(302, loc);
     }
 
-    /** 跳转帧（支持 301/302）：仅带 Location，浏览器原生跳转。 */
+    /** 跳转帧（支持 301/302）：JSON 信封 body + Location 头，浏览器原生跳转（无 text/plain 例外）。 */
     public static FrameProto.HttpResponseFrame redirect(int code, String loc) {
-        return FrameProto.HttpResponseFrame.newBuilder()
-                .setStatusCode(code > 0 ? code : 302)
-                .putHeaders("Location", loc == null ? "/" : loc)
-                .putHeaders("Content-Type", "text/plain; charset=utf-8")
-                .setBody(ByteString.copyFrom(("Redirecting to " + (loc == null ? "/" : loc)).getBytes(StandardCharsets.UTF_8)))
-                .setFragmentIndex(0)
-                .setTotalFragments(1)
-                .build();
+        int sc = code > 0 ? code : 302;
+        String target = loc == null ? "/" : loc;
+        return json(sc, new AjaxResult(sc, "Redirecting to " + target),
+                java.util.Collections.singletonMap("Location", target));
     }
 }

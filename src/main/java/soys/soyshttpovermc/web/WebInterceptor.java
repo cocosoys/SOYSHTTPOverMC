@@ -1,5 +1,7 @@
 package soys.soyshttpovermc.web;
 
+import soys.soyshttpovermc.util.AjaxResult;
+
 import java.util.HashMap;
 import java.util.Map;
 
@@ -56,10 +58,22 @@ public interface WebInterceptor {
             return new Outcome(status, contentType, body, headers);
         }
 
-        /** 便捷：短路返回纯文本。 */
+        /** 便捷：短路返回纯文本（兼容旧用法；新代码建议用 {@link #stopJson} 保持统一 JSON 信封）。 */
         public static Outcome stopText(int status, String text) {
             return new Outcome(status, "text/plain; charset=utf-8",
                     text == null ? new byte[0] : text.getBytes(java.nio.charset.StandardCharsets.UTF_8), null);
+        }
+
+        /** 便捷：短路返回 JSON 信封（{@code {code,msg,data}}，与全局业务响应格式一致）。 */
+        public static Outcome stopJson(int status, AjaxResult body) {
+            return new Outcome(status, "application/json; charset=utf-8",
+                    (body == null ? AjaxResult.error(status, "") : body).toJson()
+                            .getBytes(java.nio.charset.StandardCharsets.UTF_8), null);
+        }
+
+        /** 便捷：短路返回 JSON 错误信封（真实状态码 + 文案）。 */
+        public static Outcome stopJson(int status, String msg) {
+            return stopJson(status, AjaxResult.error(status, msg));
         }
 
         public boolean isStop() { return status > 0; }

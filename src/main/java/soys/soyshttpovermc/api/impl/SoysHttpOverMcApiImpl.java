@@ -40,13 +40,12 @@ public class SoysHttpOverMcApiImpl implements SoysHttpOverMcApi {
                                  soys.soyshttpovermc.web.LargeFileLoaderRegistry largeFileLoaderRegistry,
                                  soys.soyshttpovermc.web.CorsRegistry corsRegistry) {
         this.apiRegistration = new ApiRegistrationImpl(apiRegistry);
-        this.webPage = new WebPageImpl(webRegistry, ((soys.soyshttpovermc.HttpOverMcPlugin) hostPlugin).getNavRegistry(),
-                largeFileLoaderRegistry, corsRegistry);
+        this.webPage = new WebPageImpl(webRegistry, largeFileLoaderRegistry, corsRegistry);
         this.authCredential = new AuthCredentialImpl(gateway);
         this.toolkit = new ApiToolkitImpl(hostPlugin);
         this.logger = new PluginLoggerImpl(hostPlugin);
         this.botManagement = new BotManagementImpl(botManager);
-        this.httpClient = new HttpClientImpl(apiRegistry);
+        this.httpClient = new HttpClientImpl((soys.soyshttpovermc.HttpOverMcPlugin) hostPlugin, apiRegistry);
         this.extension = new ExtensionImpl((soys.soyshttpovermc.HttpOverMcPlugin) hostPlugin);
         this.crossServer = new CrossServerHttpClientImpl((soys.soyshttpovermc.HttpOverMcPlugin) hostPlugin,
                 ((soys.soyshttpovermc.HttpOverMcPlugin) hostPlugin).getMcLink());

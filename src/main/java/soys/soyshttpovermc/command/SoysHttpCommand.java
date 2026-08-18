@@ -54,7 +54,7 @@ public class SoysHttpCommand implements CommandExecutor, TabCompleter {
 
     /** 注册一个子指令（name 自动转小写作为匹配键）。 */
     private void register(SubCommand sub) {
-        subs.put(sub.name().toLowerCase(), sub);
+        getSubCommands().put(sub.name().toLowerCase(), sub);
     }
 
     /** 公开注册入口（第三方插件经门面 {@code getExtension().registerSubCommand(...)} 调用；name 重复时覆盖）。 */
@@ -81,7 +81,7 @@ public class SoysHttpCommand implements CommandExecutor, TabCompleter {
         // /soyshttp help [子指令] —— 帮助：无参数列总览；带子指令名展示该子指令详细用法
         if (args[0].equalsIgnoreCase("help")) {
             if (args.length > 1) {
-                SubCommand target = subs.get(args[1].toLowerCase());
+                SubCommand target = getSubCommands().get(args[1].toLowerCase());
                 if (target == null) {
                     msg(sender, "§c未知子指令: " + args[1]);
                     sendUsage(sender);
@@ -100,7 +100,7 @@ public class SoysHttpCommand implements CommandExecutor, TabCompleter {
             sendUsage(sender);
             return true;
         }
-        SubCommand sub = subs.get(args[0].toLowerCase());
+        SubCommand sub = getSubCommands().get(args[0].toLowerCase());
         if (sub == null) {
             msg(sender, "§c未知子指令: " + args[0]);
             sendUsage(sender);
@@ -117,39 +117,39 @@ public class SoysHttpCommand implements CommandExecutor, TabCompleter {
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
         String prefix = args.length == 0 ? "" : args[args.length - 1].toLowerCase();
-        if (args.length <= 1) {
+        if (args.length == 1) {
             // 一级：子指令名 + help（过滤 op 权限 + 前缀）
             List<String> out = new ArrayList<>();
-            for (Map.Entry<String, SubCommand> e : subs.entrySet()) {
+            for (Map.Entry<String, SubCommand> e : getSubCommands().entrySet()) {
                 SubCommand sub = e.getValue();
                 if (sub.requireOp() && !sender.isOp()) continue;
                 if (e.getKey().startsWith(prefix)) out.add(e.getKey());
             }
             if ("help".startsWith(prefix)) out.add("help");
-            return out;
+            return matchByPrefix(args[args.length-1],out);
         }
         // help 的二级参数：补全子指令名
         if (args[0].equalsIgnoreCase("help") && args.length == 2) {
             List<String> out = new ArrayList<>();
-            for (Map.Entry<String, SubCommand> e : subs.entrySet()) {
+            for (Map.Entry<String, SubCommand> e : getSubCommands().entrySet()) {
                 SubCommand sub = e.getValue();
                 if (sub.requireOp() && !sender.isOp()) continue;
                 if (e.getKey().startsWith(prefix)) out.add(e.getKey());
             }
-            return out;
+            return matchByPrefix(args[args.length-1],out);
         }
-        SubCommand sub = subs.get(args[0].toLowerCase());
+        SubCommand sub = getSubCommands().get(args[0].toLowerCase());
         if (sub != null && !(sub.requireOp() && !sender.isOp())) {
             List<String> out = sub.tabComplete(sender, args);
             if (out != null) out.removeIf(s -> !s.toLowerCase().startsWith(prefix));
-            return out == null ? Collections.emptyList() : out;
+            return out == null ? Collections.emptyList() : matchByPrefix(args[args.length-1],out);
         }
         return Collections.emptyList();
     }
 
     private void sendUsage(CommandSender sender) {
         sender.sendMessage("§a§l[SOYSHTTPOverMC] §f可用子指令：");
-        for (SubCommand sub : subs.values()) {
+        for (SubCommand sub : getSubCommands().values()) {
             if (sub.requireOp() && !sender.isOp()) continue; // 非 op 不展示 op 指令
             String usage = sub.usage();
             String cmd = usage;
@@ -167,5 +167,30 @@ public class SoysHttpCommand implements CommandExecutor, TabCompleter {
 
     private void msg(CommandSender sender, String text) {
         sender.sendMessage("§a[SOYSHTTPOverMC]§r " + text);
+    }
+
+    /**
+     * 根据输入前缀，匹配list中以前缀开头的字符串（大小写忽略）
+     * @param inputStr 输入的前缀字符
+     * @param sourceList 候选数据源list
+     * @return 匹配结果集合
+     */
+    public static List<String> matchByPrefix(String inputStr, List<String> sourceList) {
+        List<String> result = new ArrayList<>();
+        // 入参判空
+        if (inputStr == null || inputStr.isEmpty() || sourceList == null || sourceList.isEmpty()) {
+            return result;
+        }
+        String lowerInput = inputStr.toLowerCase();
+
+        for (String item : sourceList) {
+            if (item == null) {
+                continue;
+            }
+            if (item.toLowerCase().startsWith(lowerInput)) {
+                result.add(item);
+            }
+        }
+        return result;
     }
 }

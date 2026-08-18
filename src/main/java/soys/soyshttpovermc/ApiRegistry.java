@@ -9,6 +9,7 @@ import soys.soyshttpovermc.api.event.ApiInfo;
 import soys.soyshttpovermc.api.event.ApiRegisteredEvent;
 import soys.soyshttpovermc.api.event.ApiUnregisteredEvent;
 import soys.soyshttpovermc.util.AjaxResult;
+import soys.soyshttpovermc.util.ApiResponse;
 import soys.soyshttpovermc.gateway.policy.auth.util.AuthUtils;
 import soys.soyshttpovermc.gateway.policy.auth.issuer.CredentialPresentation;
 
@@ -385,6 +386,9 @@ public class ApiRegistry {
                     LogKit.warn("[HTTP-Over-MC] 离线令牌自动升级异常: " + t, t);
                 }
             }
+            // 响应控制：ApiResponse 携带自定义状态码/响应头（302 跳转、Set-Cookie、错误状态码等），
+            // 由 WebFrontendHandler 组装帧时使用；普通 AjaxResult / 任意对象按 200 + JSON 信封处理。
+            if (ret instanceof ApiResponse) return ret;
             if (ret instanceof AjaxResult) return ret;
             return AjaxResult.success(ret);
         } catch (InvocationTargetException e) {

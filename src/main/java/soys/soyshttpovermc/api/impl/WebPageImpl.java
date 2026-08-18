@@ -8,7 +8,6 @@ import soys.soyshttpovermc.exception.WebPageException;
 import soys.soyshttpovermc.web.CorsRegistry;
 import soys.soyshttpovermc.web.LargeFileLoader;
 import soys.soyshttpovermc.web.LargeFileLoaderRegistry;
-import soys.soyshttpovermc.web.NavRegistry;
 import soys.soyshttpovermc.web.WebRegistry;
 
 import java.io.File;
@@ -21,14 +20,12 @@ import java.nio.charset.StandardCharsets;
 public class WebPageImpl implements WebPageApi {
 
     private final WebRegistry webRegistry;
-    private final NavRegistry navRegistry;
     private final LargeFileLoaderRegistry largeLoaderRegistry;
     private final CorsRegistry corsRegistry;
 
-    public WebPageImpl(WebRegistry webRegistry, NavRegistry navRegistry,
+    public WebPageImpl(WebRegistry webRegistry,
                        LargeFileLoaderRegistry largeLoaderRegistry, CorsRegistry corsRegistry) {
         this.webRegistry = webRegistry;
-        this.navRegistry = navRegistry;
         this.largeLoaderRegistry = largeLoaderRegistry;
         this.corsRegistry = corsRegistry;
     }
@@ -147,21 +144,6 @@ public class WebPageImpl implements WebPageApi {
             webRegistry.registerResourceDirectory(owner, basePath, resourceClassLoader, resourceRoot, proxy);
         } catch (Exception ex) {
             throw ExceptionBus.fire(new WebPageException("E_DIR_RES", "批量登记 jar 目录失败(root=" + resourceRoot + "): " + ex.getMessage(), ex));
-        }
-    }
-
-    @Override
-    public void registerNavItem(Plugin owner, String label, String path) {
-        registerNavItem(owner, label, path, null, null, 100);
-    }
-
-    @Override
-    public void registerNavItem(Plugin owner, String label, String path, String icon, String permission, int order) {
-        try {
-            navRegistry.register(new NavRegistry.NavItem(
-                    owner == null ? null : owner.getName(), label, path, icon, permission, order));
-        } catch (Exception ex) {
-            throw ExceptionBus.fire(new WebPageException("E_NAV", "登记导航项失败(label=" + label + "): " + ex.getMessage(), ex));
         }
     }
 

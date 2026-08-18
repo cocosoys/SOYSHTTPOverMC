@@ -26,6 +26,7 @@ import soys.soyshttpovermc.gateway.Credential;
 import soys.soyshttpovermc.gateway.PolicyResult;
 import soys.soyshttpovermc.http.HttpMcTranslator;
 import soys.soyshttpovermc.proto.FrameProto;
+import soys.soyshttpovermc.util.HttpFrames;
 import soys.soyshttpovermc.web.RequestStats;
 import soys.soyshttpovermc.api.ApiRequestContext;
 
@@ -654,11 +655,12 @@ public class SocketSniffer {
         }
     }
 
+    /** 直接写出错误响应（413/503/502 等）：body 统一 JSON 信封（真实状态码 + {code,msg,data}）。 */
     private void writeRaw(ChannelHandlerContext ctx, String bodyText, int code, boolean tls) {
-        byte[] body = bodyText.getBytes(StandardCharsets.UTF_8);
+        byte[] body = HttpFrames.jsonError(code, bodyText).getBody().toByteArray();
         StringBuilder sb = new StringBuilder();
         sb.append(statusLine(code));
-        sb.append("Content-Type: text/plain; charset=utf-8\r\n");
+        sb.append("Content-Type: application/json; charset=utf-8\r\n");
         sb.append("Content-Length: ").append(body.length).append("\r\n");
         sb.append("Connection: close\r\n");
         sb.append("\r\n");
@@ -681,15 +683,16 @@ public class SocketSniffer {
         writeResponse(ctx, out, tls, true);
     }
 
-    /** 写出网关策略拒绝响应（401/403/426/429/500），附带策略指定的响应头。 */
+    /** 写出网关策略拒绝响应（401/403/426/429/500），附带策略指定的响应头；body 统一 JSON 信封。 */
     private void writeDeny(ChannelHandlerContext ctx, PolicyResult res, boolean tls) {
-        byte[] body = res.getBodyBytes();
+        String msg = new String(res.getBodyBytes(), StandardCharsets.UTF_8);
+        byte[] body = HttpFrames.jsonError(res.getStatusCode(), msg).getBody().toByteArray();
         StringBuilder sb = new StringBuilder();
         sb.append(statusLine(res.getStatusCode()));
         for (Map.Entry<String, String> h : res.getHeaders().entrySet()) {
             sb.append(h.getKey()).append(": ").append(h.getValue()).append("\r\n");
         }
-        sb.append("Content-Type: text/plain; charset=utf-8\r\n");
+        sb.append("Content-Type: application/json; charset=utf-8\r\n");
         sb.append("Content-Length: ").append(body.length).append("\r\n");
         sb.append("Connection: close\r\n\r\n");
         ByteBuf out = Unpooled.buffer(sb.length() + body.length);

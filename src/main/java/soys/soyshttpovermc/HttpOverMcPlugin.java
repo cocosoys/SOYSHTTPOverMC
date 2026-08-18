@@ -15,7 +15,6 @@ import soys.soyshttpovermc.api.SoysHttpOverMcApi;
 import soys.soyshttpovermc.api.impl.SoysHttpOverMcApiImpl;
 import soys.soyshttpovermc.bot.BotGuardian;
 import soys.soyshttpovermc.bot.BotManager;
-import soys.soyshttpovermc.web.NavRegistry;
 import soys.soyshttpovermc.web.WebRegistry;
 import soys.soyshttpovermc.spring.controller.StatusController;
 import soys.soyshttpovermc.spring.controller.SystemController;
@@ -69,7 +68,6 @@ public class HttpOverMcPlugin extends JavaPlugin {
     private TlsContextFactory tlsFactory;
     private ApiRegistry apiRegistry;
     private WebRegistry webRegistry;
-    private NavRegistry navRegistry;
     private SoysHttpOverMcApi api;
     private GatewayEventListener gatewayEventListener;
     /** 请求分配规则控制器：决定请求进入哪个逻辑队列（tier） */
@@ -137,11 +135,6 @@ public class HttpOverMcPlugin extends JavaPlugin {
     /** 网页登记处：其他插件登记新网页（默认 /plugins/<插件名> 前缀，registerProxy* 可强制无前缀） */
     public WebRegistry getWebRegistry() {
         return webRegistry;
-    }
-
-    /** 门户导航登记处：其他插件登记导航项到门户首页 */
-    public NavRegistry getNavRegistry() {
-        return navRegistry;
     }
 
     /** 网关策略链（含已启用的凭证颁发器） */
@@ -449,14 +442,12 @@ public class HttpOverMcPlugin extends JavaPlugin {
 
         // 网页登记处：第三方插件登记新网页（默认 /plugins/<插件名> 前缀）
         webRegistry = new WebRegistry(this.getName());
-        // 门户导航登记处：第三方插件把自己的页面登记到门户首页导航条
-        navRegistry = new NavRegistry();
 
         // 事件监听器：网关事件调试日志 + 插件卸载自动卸载其名下全部注解式 API / 网页
         gatewayEventListener = new GatewayEventListener();
         gatewayEventListener.setDebugEnabled(debugEventsEnabled);
         getServer().getPluginManager().registerEvents(gatewayEventListener, this);
-        getServer().getPluginManager().registerEvents(new ApiLifecycleListener(apiRegistry, webRegistry, navRegistry, this), this);
+        getServer().getPluginManager().registerEvents(new ApiLifecycleListener(apiRegistry, webRegistry, this), this);
 
         // 系统 API：装配 SystemServiceImpl → SystemController
         ISystemService systemService = new SystemServiceImpl(mcPort);
@@ -629,7 +620,7 @@ public class HttpOverMcPlugin extends JavaPlugin {
         apiRegistry.register(new StatusController(statusService));
 
         WebFrontendHandler web = new WebFrontendHandler(
-                webRoot == null ? null : webRoot.getAbsolutePath(), apiRegistry, webRegistry, navRegistry, authLoginBridge,
+                webRoot == null ? null : webRoot.getAbsolutePath(), apiRegistry, webRegistry,
                 webContentCache, largeFileMaxBytes, corsRegistry, webInterceptorRegistry);
         webFrontend = web;
         // 请求调度器：单物理 Bot + 多逻辑队列（common 512 / admin 128 容量，4 个 worker，admin 优先）
@@ -785,13 +776,10 @@ public class HttpOverMcPlugin extends JavaPlugin {
             apiRegistry.setPermissionService(pps);
             apiRegistry.setPlayerResolver(pps::subjectOf);
         }
-        // AuthMe 登录桥重建（持有最新 session-token 颁发器），并热替换到前端处理器与登录窗口认证服务
+        // AuthMe 登录桥重建（持有最新 session-token 颁发器），并热替换到登录窗口认证服务
         setupAuthIntegration();
         if (authService != null) {
             authService.setBridge(authLoginBridge);
-        }
-        if (webFrontend != null) {
-            webFrontend.setAuthBridge(authLoginBridge);
         }
     }
 

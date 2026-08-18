@@ -4,6 +4,7 @@ import soys.soyshttpovermc.gateway.policy.auth.bridge.AuthLoginBridge;
 import soys.soyshttpovermc.gateway.policy.auth.issuer.CredentialPresentation;
 import soys.soyshttpovermc.spring.service.IAuthService;
 import soys.soyshttpovermc.util.AjaxResult;
+import soys.soyshttpovermc.util.ApiResponse;
 
 import org.bukkit.Bukkit;
 
@@ -102,6 +103,39 @@ public class AuthServiceImpl implements IAuthService {
         data.put("online", Bukkit.getPlayerExact(player) != null);
         // 登录模式：offline=玩家使用离线模式登录网页（打标签）；online=在线正常登录（含升级后）
         data.put("mode", mode == null ? null : mode.name().toLowerCase());
+        return AjaxResult.success(data);
+    }
+
+    @Override
+    public ApiResponse serveLogin(String ticket) {
+        if (bridge == null) {
+            return ApiResponse.jsonError(503, "会话令牌颁发器未启用（请在 gateway/issuers/session-token.yml 设 enabled: true）");
+        }
+        return bridge.serveLoginPage(ticket);
+    }
+
+    @Override
+    public ApiResponse issue(String body) {
+        if (bridge == null) {
+            return ApiResponse.jsonError(503, "会话令牌颁发器未启用（请在 gateway/issuers/session-token.yml 设 enabled: true）");
+        }
+        Map<String, String> form = parseBody(body);
+        // 有登录插件=票据+密码校验；无登录插件=免密码，仅凭用户名直登（与弹窗登录 login 同策略）
+        if (bridge.loginRequiresPassword()) {
+            return bridge.issue(form.get("ticket"), form.get("password"));
+        }
+        return bridge.issueByUsername(form.get("username"));
+    }
+
+    @Override
+    public AjaxResult loginMode() {
+        if (bridge == null) {
+            return AjaxResult.error(503, "会话令牌颁发器未启用（请在 gateway/issuers/session-token.yml 设 enabled: true）");
+        }
+        Map<String, Object> data = new HashMap<>();
+        data.put("requiresPassword", bridge.loginRequiresPassword());
+        data.put("cookieName", bridge.getCookieName());
+        data.put("ttlSeconds", bridge.getTtlSeconds());
         return AjaxResult.success(data);
     }
 

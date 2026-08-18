@@ -5,6 +5,7 @@ import soys.soyshttpovermc.log.LogKit;
 import soys.soyshttpovermc.proto.FrameProto;
 import soys.soyshttpovermc.proxy.ServerRegistry;
 import soys.soyshttpovermc.proxy.ServerTag;
+import soys.soyshttpovermc.util.HttpFrames;
 import soys.soyshttpovermc.web.WebFrontendHandler;
 
 import org.bukkit.Bukkit;
@@ -209,9 +210,8 @@ public class CrossServerHub {
             clean.remove(HEADER_TIER);
             FrameProto.HttpResponseFrame resp = web.handle(req.getMethod(), req.getPath(), clean, req.getBody().toByteArray());
             if (resp == null) {
-                resp = FrameProto.HttpResponseFrame.newBuilder().setRequestId(req.getRequestId())
-                        .setStatusCode(500).putHeaders("Content-Type", "text/plain; charset=utf-8")
-                        .setBody(ByteString.copyFrom("internal error".getBytes(StandardCharsets.UTF_8))).build();
+                resp = HttpFrames.jsonError(500, "internal error")
+                        .toBuilder().setRequestId(req.getRequestId()).build();
             }
             resp = resp.toBuilder().setRequestId(req.getRequestId()).build();
             // 分片后逐片经 BungeeCord 回程到源服

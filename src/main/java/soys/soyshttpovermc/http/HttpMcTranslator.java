@@ -47,12 +47,16 @@ public class HttpMcTranslator {
     }
 
     /**
-     * 网关策略匹配用路径：群组服下剥掉跨服前缀后的真实业务路径。
+     * 网关策略匹配用路径：群组服下剥掉跨服前缀后的真实业务路径，并<b>剥除 query</b>
+     * （策略豁免/路径规则按路径匹配，query 不参与；否则 {@code /api/auth/login?ticket=..}
+     * 等带参请求会因豁免模式 {@code /auth/login} 匹配失败而被误拒 401）。
      * <p>安全要点：网关的 {@code paths: [/api/*]} 等规则必须匹配这个路径，否则
      * {@code /server/<name>/api/**} 会因前缀不匹配而绕过鉴权/限流等策略。
      */
     public String policyPath(String path) {
-        return splitCrossPath(path)[1];
+        String p = splitCrossPath(path)[1];
+        int q = p == null ? -1 : p.indexOf('?');
+        return q >= 0 ? p.substring(0, q) : p;
     }
 
     /**
