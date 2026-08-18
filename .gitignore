@@ -15,4 +15,3 @@ build*.log
 /lib/MCProtocolLib-1.12.2-2.jar
 docs/*.md
 dlz-db-core/
-src/main/java/com/dlz/
