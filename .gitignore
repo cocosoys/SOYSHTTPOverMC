@@ -13,5 +13,6 @@ build*.log
 *.class
 /packetlib-patch/
 /lib/MCProtocolLib-1.12.2-2.jar
-docs/
+docs/*.md
 dlz-db-core/
+src/main/java/com/dlz/

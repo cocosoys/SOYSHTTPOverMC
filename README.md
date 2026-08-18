@@ -5,6 +5,21 @@
 
 > 1.12.2 Spigot/Paper 插件（Java 8）。含 BungeeCord 端可选代理模块（反向代理 / 群组服出网）。
 
+## 目录
+
+- [特性](#特性)
+- [工作原理（简述）](#工作原理简述)
+- [环境要求](#环境要求)
+- [安装与使用](#安装与使用)
+- [存储与 ORM（可选）](#存储与-orm可选)
+- [命令参考](#命令参考)
+- [开发者扩展（第三方插件接入）](#开发者扩展第三方插件接入)
+- [开发文档](#开发文档)
+- [构建](#构建)
+- [安全说明](#安全说明)
+- [开源注意事项](#开源注意事项)
+- [免责声明](#免责声明)
+
 ---
 
 ## 特性
@@ -18,6 +33,7 @@
 - **群组服支持**：BungeeCord/Waterfall/Velocity 后端自动探测，Bot 携带转发握手数据，跨服请求 `/server/<子服名>/...`，并带可选代理模块（在代理监听端口上反向代理 HTTP/HTTPS）；
 - **登录插件接入**：`LoginProvider` SPI —— 已有 AuthMe 实现（网页登录、密码校验、免登录 Bot），可扩展其他登录插件；
 - **开发者开放面**：统一门面 `SoysHttpOverMcApi`（注解控制器 / 网页登记 / 目录批量托管 / 门户导航项 / 自定义 MIME / 凭证 / 跨服 HTTP / 日志 / Bot 管理），插件 onEnable 即用；
+- **双后端 ORM 存储**：内置 `YAML.Pojo` / `SQL.Pojo` 双后端 ORM 与多后端主辅镜像协调器（`StorageManager`），同一套 `@TableName` / `@TableId` 注解实体既落本地 YAML 又落 SQLite/MySQL（详见 [存储与 ORM](#存储与-orm可选) 与 [开发文档](#开发文档)）；
 - **性能**：gzip 压缩、ETag/304 缓存、HTTP/1.1 keep-alive、真实访客 IP 透传（`X-Forwarded-For`）。
 
 ---
@@ -99,6 +115,44 @@ plugins/SOYSHTTPOverMC/
 
 ---
 
+## 存储与 ORM（可选）
+
+插件内置一套**双后端 ORM**（`YAML.Pojo` / `SQL.Pojo`）与**多后端存储协调器**（`StorageManager`），
+可让第三方插件用同一套注解实体在本地 YAML、SQLite 或 MySQL 之间读写，无需引入外部数据库框架。
+
+- **双后端 ORM**：实体用 `@TableName` / `@TableId` / `@TableField` 标注，一行 `YAML.Pojo.select(User.class)` 即返回 `List<User>`；
+  同一份代码既可读 YAML（`data/<表名>.yml`），也可读 SQL（自动建表）。详细用法与最佳实践见 [开发文档](#开发文档)。
+- **主辅镜像存储**：在 `config.yml` 的 `storage.backends` 同时开启多个后端，优先级 `MYSQL > SQLITE > YAML`，
+  最高者为主存储（承担读），其余作为辅助存储镜像写入（热备 / 降级）。`/soyshttp migrate|sync` 可迁移 / 全量同步。
+
+开启存储后端示例（`config.yml`）：
+
+```yaml
+storage:
+  backends:
+    yaml:
+      enabled: true
+    sqlite:
+      enabled: true
+      file: "data/soyshttp.db"
+    mysql:
+      enabled: false
+      host: "127.0.0.1"
+      port: 3306
+      database: "soyshttp"
+      username: "root"
+      password: "****"
+  cross-server: false        # 跨服共享需主存储为 MySQL 且各子服指向同一库
+  mirror:
+    enabled: true
+    async: true
+    sync-on-startup: false
+```
+
+> 旧 `config.yml` 若没有 `storage` 段，插件按内存模式运行（不启用任何后端）；各服加上该段即启用对应后端。
+
+---
+
 ## 命令参考（`/soyshttp` 或简写 `/shttp`，默认 op）
 
 ```
@@ -135,6 +189,12 @@ api.getToolkit().registerMimeType("vue", "text/html; charset=utf-8");
 // 4) 凭证 / 工具 / 日志 / 跨服 HTTP / Bot
 api.getAuthCredential().issueCredential("someone");
 api.getHttpClient().sendGet("https://example.com/api");
+
+// 5) 双后端 ORM（同一套注解实体，YAML/SQL 通读）
+YAML.Pojo.init(getDataFolder());                       // 装配 YAML 后端（建议插件 onEnable 调用）
+List<User> users = YAML.Pojo.select(User.class, q -> q.eq(User::getRole, "admin"));
+User u = YAML.Pojo.get(User.class, "id-1");
+YAML.Pojo.insert(user);                                // 写（主存储 + 镜像辅助存储）
 ```
 
 能力组一览：`ApiRegistration`（注解控制器）、`WebPage`（网页/目录/导航）、`AuthCredential`、
@@ -183,6 +243,17 @@ $env:JAVA_HOME = "D:\WorkTools\JDK\8"
 - 仓库 `.gitignore` 已排除 `server*/`（测试环境）、`target/`、日志、脚本与补丁目录——**请勿提交任何
   `token-secret.key`、`*.pem`/`*.p12` 私钥、rcon 密码、服务器内网信息**等敏感内容；
 - 欢迎 Issue / PR；涉及协议库修改的 PR 请同时说明补丁来源。
+
+---
+
+## 开发文档
+
+面向二次开发者的详细规范（标准教程体例，含示例、参数说明与最佳实践）：
+
+- `docs/zh_CN/Web与API开发规范.md` —— 注解式 REST API、网页 / 目录 / 导航登记、鉴权凭证、事件监听、Bot 与跨服调用；
+- `docs/zh_CN/数据存储ORM开发规范.md` —— 双后端 ORM 实体定义、条件链、CRUD、多后端存储配置与跨服共享；
+
+顶层设计 / 设计稿见 `docs/`（API 请求处理链路、实体存储统一抽象、ORM 双后端改造等）。
 
 ---
 

@@ -19,7 +19,7 @@
     </properties>
 
     <build>
-        <finalName>SOYSHTTPOverMC-tmp</finalName>
+        <finalName>SOYSHTTPOverMC</finalName>
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
@@ -198,6 +198,53 @@
             <artifactId>sqlite-jdbc</artifactId>
             <version>3.36.0.3</version>
             <scope>provided</scope>
+        </dependency>
+        <!-- ===== dlz-db-core（全量移入）运行依赖 ===== -->
+        <!-- HikariCP：dlz 自带连接池（SQL 后端二期数据源），shade 进 jar（Spigot 无 HikariCP） -->
+        <dependency>
+            <groupId>com.zaxxer</groupId>
+            <artifactId>HikariCP</artifactId>
+            <version>4.0.3</version>
+        </dependency>
+        <!-- slf4j-api：dlz 的 lombok @Slf4j 与 MDC 运行期需要（无绑定实现时 NOP 静默，项目日志走 LogKit） -->
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+            <version>1.7.12</version>
+        </dependency>
+        <!-- swagger-annotations：dlz PojoCache 运行时反射读 @ApiModel（表注释），shade 进 jar -->
+        <dependency>
+            <groupId>io.swagger</groupId>
+            <artifactId>swagger-annotations</artifactId>
+            <version>1.5.20</version>
+        </dependency>
+        <!-- dom4j：dlz SqlHolder 依赖（SQL 执行链路必然加载 → 必须 shade 进 jar；排除其传递依赖避免引入多余库） -->
+        <dependency>
+            <groupId>dom4j</groupId>
+            <artifactId>dom4j</artifactId>
+            <version>1.6.1</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>xml-apis</groupId>
+                    <artifactId>xml-apis</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>jaxen</groupId>
+                    <artifactId>jaxen</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>jaxme</groupId>
+                    <artifactId>jaxme-api</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>msv</groupId>
+                    <artifactId>xsdlib</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>relaxngDatatype</groupId>
+                    <artifactId>relaxngDatatype</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
         <!-- 群组服（BungeeCord / Waterfall / Velocity）支持：
              仅编译期签名，provided 不打进 jar，后端 Spigot 独立运行不受影响；

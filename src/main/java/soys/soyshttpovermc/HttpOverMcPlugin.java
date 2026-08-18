@@ -209,6 +209,12 @@ public class HttpOverMcPlugin extends JavaPlugin {
         corsRegistry = new soys.soyshttpovermc.web.CorsRegistry();
         // 3.7) 跨服同步存储（MySQL 等；config.yml mysql 段，须在日志就绪后装配）
         initStorage();
+        // 3.8) ORM（YAML 后端）装配：YAML.Pojo.select/get 等门面入口，数据目录=插件 dataFolder
+        soys.soyshttpovermc.orm.YAML.Pojo.init(getDataFolder());
+        LogKit.debug("[HTTP-Over-MC] ORM(YAML) 已装配: dataDir=" + getDataFolder());
+        // 3.9) ORM（SQL 后端，二期）装配：SQL.Pojo 基于 dlz-db-core + HikariCP；
+        //     数据源来自 storage.backends.{mysql,sqlite}，失败自动降级（SQL.Pojo 不可用不影响运行）
+        soys.soyshttpovermc.orm.executor.SqlBackendExecutor.init(this);
         // 4) 安全网关（独立配置目录 gateway/）+ TLS 上下文（MC 端口就地升级，无独立端口）
         rebuildGateway(gatewayDir, log);
         // 4.5) AuthMe 网页登录接入（软依赖）：session-token 启用时建桥，AuthMe 在则建监听
