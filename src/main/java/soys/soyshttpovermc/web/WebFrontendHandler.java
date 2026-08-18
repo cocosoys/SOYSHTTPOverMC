@@ -38,6 +38,8 @@ public class WebFrontendHandler {
     private final String webRootCanonical;
     private final ApiRegistry apiRegistry; // 注解式 API 注册表（可为 null）
     private final WebRegistry webRegistry; // 插件登记网页（可为 null）
+    /** 首页解析器（web.home；null=未配置/禁用，走默认 index.html） */
+    private final HomePageResolver homeResolver;
     /** Web 内容存活缓存（常驻 pinned + LRU + 大文件加载器），null=禁用缓存 */
     private final WebContentCache webContent;
     /** 大文件安全上限（超过直接 413；防单文件把内存打爆，默认 128MB） */
@@ -46,8 +48,11 @@ public class WebFrontendHandler {
     private final CorsRegistry corsRegistry;
     /** 请求级拦截器注册中心（null=禁用） */
     private final WebInterceptorRegistry interceptorRegistry;
+    /** 网络页内容缓存：path -> (bytes, contentType, cachedAt)（按 NetworkPage.cacheTtlSeconds 失效） */
+    private final java.util.concurrent.ConcurrentHashMap<String, NetworkCacheEntry> networkCache =
+            new java.util.concurrent.ConcurrentHashMap<>();
 
-    public WebFrontendHandler(String webRootPath, ApiRegistry apiRegistry, WebRegistry webRegistry,
+    public WebFrontendHandler(String webRootPath, String homeSpec, ApiRegistry apiRegistry, WebRegistry webRegistry,
                               WebContentCache webContent, long largeFileMaxBytes,
                               CorsRegistry corsRegistry, WebInterceptorRegistry interceptorRegistry) {
         this.apiRegistry = apiRegistry;
@@ -72,6 +77,8 @@ public class WebFrontendHandler {
         }
         this.webRoot = root;
         this.webRootCanonical = canonical;
+        this.homeResolver = (homeSpec == null || homeSpec.trim().isEmpty())
+                ? null : new HomePageResolver(homeSpec, root, canonical, this.largeFileMaxBytes);
     }
 
     /**
@@ -184,6 +191,11 @@ public class WebFrontendHandler {
                         .setTotalFragments(1)
                         .build();
             }
+            // 网络文件/网络网页页面（NetworkPage 抽象：开发者自定义传输，如加密；按需 load + 可选缓存）
+            NetworkPage np = webRegistry.resolveNetworkPage(m, cleanPath);
+            if (np != null) {
+                return serveNetworkPage(np);
+            }
         }
 
         // 静态资源
@@ -196,8 +208,55 @@ public class WebFrontendHandler {
         }
         return FrameProto.HttpResponseFrame.newBuilder()
                 .setStatusCode(200)
-                .putHeaders("Content-Type", MimeTypes.forPath(hit.name))
+                .putHeaders("Content-Type", hit.contentType != null
+                        ? hit.contentType : MimeTypes.forPath(hit.name))
                 .setBody(ByteString.copyFrom(hit.bytes))
+                .setFragmentIndex(0)
+                .setTotalFragments(1)
+                .build();
+    }
+
+    /** 网络页缓存条目。 */
+    private static final class NetworkCacheEntry {
+        final byte[] bytes;
+        final String contentType;
+        final long cachedAt;
+
+        NetworkCacheEntry(byte[] bytes, String contentType) {
+            this.bytes = bytes;
+            this.contentType = contentType;
+            this.cachedAt = System.currentTimeMillis();
+        }
+    }
+
+    /**
+     * 伺服网络文件/网络网页页面：按 NetworkPage.load() 获取内容（可缓存），
+     * 传输/解密失败 → 502 JSON（保留真实状态码，与全局错误信封一致）。
+     */
+    private FrameProto.HttpResponseFrame serveNetworkPage(NetworkPage np) {
+        String key = np.path();
+        long ttl = Math.max(0, np.cacheTtlSeconds()) * 1000L;
+        NetworkCacheEntry cached = networkCache.get(key);
+        if (cached == null || System.currentTimeMillis() - cached.cachedAt > ttl) {
+            byte[] body;
+            try {
+                body = np.load();
+            } catch (Throwable t) {
+                LogKit.warn("[HTTP-Over-MC] 网络页加载失败(" + np.name() + " " + key + "): " + t);
+                return HttpFrames.jsonError(502, "网络页加载失败: " + np.name());
+            }
+            if (body == null || body.length == 0) {
+                return HttpFrames.jsonError(502, "网络页内容为空: " + np.name());
+            }
+            String ct = np.contentType();
+            if (ct == null || ct.trim().isEmpty()) ct = MimeTypes.forPath(key);
+            cached = new NetworkCacheEntry(body, ct);
+            if (ttl > 0) networkCache.put(key, cached);
+        }
+        return FrameProto.HttpResponseFrame.newBuilder()
+                .setStatusCode(200)
+                .putHeaders("Content-Type", cached.contentType)
+                .setBody(ByteString.copyFrom(cached.bytes))
                 .setFragmentIndex(0)
                 .setTotalFragments(1)
                 .build();
@@ -261,12 +320,17 @@ public class WebFrontendHandler {
 
     /**
      * 静态资源解析（磁盘 webroot 优先，jar 内置 /dist/ 兜底）。
+     * 根路径 "/" 优先走自定义首页（web.home；URL/绝对路径/相对路径），未配置或失败回退默认 index.html。
      * 路径无扩展名时支持两种形式：先试 {@code path.html}（/login → login.html），
      * 再试 {@code path/index.html}（目录语义）；返回实际命中文件名（Content-Type 判定用）。
      */
     private Hit resolveResource(String cleanPath) {
         String relative = cleanPath.startsWith("/") ? cleanPath.substring(1) : cleanPath;
-        if (relative.isEmpty()) relative = "index.html";
+        if (relative.isEmpty()) {
+            Hit home = resolveHome();
+            if (home != null) return home;
+            relative = "index.html";
+        }
         String[] candidates;
         if (hasExtension(relative) || relative.equals("index.html")) {
             candidates = new String[]{relative};
@@ -308,6 +372,19 @@ public class WebFrontendHandler {
         return null;
     }
 
+    /** 自定义首页（web.home）解析；未配置/失败返回 null（走默认 index.html）。 */
+    private Hit resolveHome() {
+        if (homeResolver == null) return null;
+        try {
+            HomePageResolver.Result r = homeResolver.resolve();
+            if (r == null || r.bytes == null || r.bytes.length == 0) return null;
+            return new Hit(r.name, r.bytes, r.contentType);
+        } catch (Throwable t) {
+            LogKit.warn("[HTTP-Over-MC] 首页解析异常，回退默认: " + t);
+            return null;
+        }
+    }
+
     /** 经 Web 内容缓存取字节（无磁盘文件来源：注册页 / jar 资源）。 */
     private byte[] loadBytes(String path, java.util.function.Supplier<byte[]> loader) {
         return webContent == null ? safeGet(loader) : webContent.bytes(path, loader);
@@ -326,14 +403,20 @@ public class WebFrontendHandler {
         }
     }
 
-    /** 命中的静态资源（文件名 + 字节内容）。 */
+    /** 命中的静态资源（文件名 + 字节内容 + 可选显式 Content-Type；ct=null 按扩展名推断）。 */
     private static final class Hit {
         final String name;
         final byte[] bytes;
+        final String contentType;
 
         Hit(String name, byte[] bytes) {
+            this(name, bytes, null);
+        }
+
+        Hit(String name, byte[] bytes, String contentType) {
             this.name = name;
             this.bytes = bytes;
+            this.contentType = contentType;
         }
     }
 

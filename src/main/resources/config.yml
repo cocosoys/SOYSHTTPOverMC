@@ -86,6 +86,13 @@ sniffer:
 # 支持路径：/、/index.html、/app.js、/styles.css、/api/status(动态JSON) 等。
 web:
   root: "/dist"
+  # ===== 首页（访问 / 时伺服的内容；留空=默认 web.root 下的 index.html → jar 内置 /dist/index.html 兜底）=====
+  # 支持三种来源（修改后需重启生效）：
+  #  - 相对/逻辑路径：如 "dist/index.html"（显式指定 jar 内置 dist 下页面）、"status/index.html"（按 web.root→jar /dist/ 顺序解析），正常情况下直接填写相对路径。
+  #       例如 {@code /status/index.html}、{@code /index.html}；
+  #  - 绝对路径：如 "C:/sites/home.html"（本地磁盘文件，直接伺服）；
+  #  - 网络 URL：如 "https://example.com/home.html"（按需拉取并缓存约 5 分钟，拉取失败自动回退默认首页）。
+  home: "/index.html"
   # ===== Web 内容存活缓存（缓解大量 web 资源长期驻留内存）=====
   # 仅对「惰性来源」生效（磁盘文件 / jar 资源，请求时读取）；registerPage 直接给定的字节不受控。
   cache:

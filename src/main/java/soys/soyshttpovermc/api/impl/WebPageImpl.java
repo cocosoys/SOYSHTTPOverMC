@@ -5,13 +5,18 @@ import org.bukkit.plugin.Plugin;
 import soys.soyshttpovermc.api.WebPageApi;
 import soys.soyshttpovermc.exception.ExceptionBus;
 import soys.soyshttpovermc.exception.WebPageException;
+import soys.soyshttpovermc.log.LogKit;
 import soys.soyshttpovermc.web.CorsRegistry;
 import soys.soyshttpovermc.web.LargeFileLoader;
 import soys.soyshttpovermc.web.LargeFileLoaderRegistry;
+import soys.soyshttpovermc.web.NetworkPage;
+import soys.soyshttpovermc.web.NetworkTransport;
 import soys.soyshttpovermc.web.WebRegistry;
 
 import java.io.File;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * 能力组 2：网页登记（委托 {@link WebRegistry}）。
@@ -22,6 +27,8 @@ public class WebPageImpl implements WebPageApi {
     private final WebRegistry webRegistry;
     private final LargeFileLoaderRegistry largeLoaderRegistry;
     private final CorsRegistry corsRegistry;
+    /** 网络传输提供者（预留：暂不接入加载链路，仅占位存储）。 */
+    private final List<NetworkTransport> networkTransports = new CopyOnWriteArrayList<>();
 
     public WebPageImpl(WebRegistry webRegistry,
                        LargeFileLoaderRegistry largeLoaderRegistry, CorsRegistry corsRegistry) {
@@ -145,6 +152,24 @@ public class WebPageImpl implements WebPageApi {
         } catch (Exception ex) {
             throw ExceptionBus.fire(new WebPageException("E_DIR_RES", "批量登记 jar 目录失败(root=" + resourceRoot + "): " + ex.getMessage(), ex));
         }
+    }
+
+    @Override
+    public void registerNetworkPage(Plugin owner, NetworkPage page) {
+        try {
+            webRegistry.registerNetworkPage(owner == null ? null : owner.getName(), page);
+        } catch (Exception ex) {
+            throw ExceptionBus.fire(new WebPageException("E_NET_PAGE",
+                    "登记网络页失败(name=" + (page == null ? "?" : page.name()) + "): " + ex.getMessage(), ex));
+        }
+    }
+
+    @Override
+    public void registerNetworkTransport(NetworkTransport transport) {
+        if (transport == null) return;
+        networkTransports.add(transport);
+        // 预留接口：仅占位存储，暂不接入加载链路（网络页传输仍由 NetworkPage.load() 自行实现）
+        LogKit.warn("[HTTP-Over-MC] registerNetworkTransport 为预留接口（暂不接入加载链路）: " + transport.name());
     }
 
     // ===== 大文件加载抽象（LargeFileLoader）=====

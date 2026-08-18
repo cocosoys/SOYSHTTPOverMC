@@ -620,7 +620,9 @@ public class HttpOverMcPlugin extends JavaPlugin {
         apiRegistry.register(new StatusController(statusService));
 
         WebFrontendHandler web = new WebFrontendHandler(
-                webRoot == null ? null : webRoot.getAbsolutePath(), apiRegistry, webRegistry,
+                webRoot == null ? null : webRoot.getAbsolutePath(),
+                getConfig().getString("web.home", ""),
+                apiRegistry, webRegistry,
                 webContentCache, largeFileMaxBytes, corsRegistry, webInterceptorRegistry);
         webFrontend = web;
         // 请求调度器：单物理 Bot + 多逻辑队列（common 512 / admin 128 容量，4 个 worker，admin 优先）

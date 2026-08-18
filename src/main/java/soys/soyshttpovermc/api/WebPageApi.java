@@ -4,6 +4,9 @@ import org.bukkit.plugin.Plugin;
 
 import java.io.File;
 
+import soys.soyshttpovermc.web.NetworkPage;
+import soys.soyshttpovermc.web.NetworkTransport;
+
 /**
  * 能力组 2：网页登记（委托 {@link WebRegistry}）。
  * 由 {@link SoysHttpOverMcApi#getWebPage()} 跳转获取。
@@ -40,6 +43,21 @@ public interface WebPageApi {
 
     /** 卸载指定插件名登记的全部网页 */
     void unregisterPluginPages(String pluginName);
+
+    // ===== 网络文件/网络网页页面（NetworkPage 抽象） =====
+
+    /**
+     * 注册网络文件/网络网页页面：访问 {@code page.path()} 时网关调用 {@code page.load()} 获取内容
+     * （自动补 /plugins/&lt;插件名&gt; 前缀；Content-Type 取 {@code page.contentType()} 或按扩展名推断；
+     * load 失败 → 网关 502 JSON）。开发者可在 load() 内实现<b>自定义加密传输</b>（拉取+解密+验签）。
+     */
+    void registerNetworkPage(Plugin owner, NetworkPage page);
+
+    /**
+     * <b>预留</b>：注册网络传输实例化入口（网络传输提供者）。当前版本仅占位存储并输出警告日志，
+     * <b>暂不接入加载链路</b>；未来将统一网络页与首页远程拉取（web.home 网络 URL）的底层传输层。
+     */
+    void registerNetworkTransport(NetworkTransport transport);
 
     // ===== 大文件加载抽象（LargeFileLoader）=====
 

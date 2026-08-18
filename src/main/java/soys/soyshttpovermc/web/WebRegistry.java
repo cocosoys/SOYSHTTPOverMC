@@ -45,6 +45,8 @@ public class WebRegistry {
 
     /** 路由表：key = "GET <路径>"，value = 登记项 */
     private final Map<String, Entry> pages = new ConcurrentHashMap<>();
+    /** 网络文件/网络网页页面：key = "GET <路径>"（NetworkPage 抽象，按需 load） */
+    private final Map<String, RegisteredNetworkPage> networkPages = new ConcurrentHashMap<>();
     /** 宿主插件名（SOYSHTTPOverMC 本体）：其登记不加 /plugins 前缀 */
     private final String hostName;
 
@@ -205,6 +207,47 @@ public class WebRegistry {
         registerResourceDirectory(owner, basePath, resourceClassLoader, resourceRoot, true);
     }
 
+    // ===== 网络文件/网络网页页面（NetworkPage 抽象：开发者自定义传输，如加密） =====
+
+    /**
+     * 登记网络文件/网络网页页面：访问 {@code page.path()} 时网关调用 {@code page.load()} 获取内容
+     * （自动补 /plugins/&lt;插件名&gt; 前缀，与普通登记页一致；支持 .html 后缀智能匹配）。
+     */
+    public void registerNetworkPage(String ownerPlugin, NetworkPage page) {
+        if (page == null || page.path() == null) return;
+        String full = resolvePath(ownerPlugin, page.path(), false);
+        networkPages.put("GET " + full, new RegisteredNetworkPage(ownerPlugin, full, page));
+        LogKit.info("[HTTP-Over-MC] 登记网络页: GET " + full + " name=" + page.name()
+                + " 插件=" + ownerPlugin + " cacheTtl=" + page.cacheTtlSeconds() + "s");
+    }
+
+    /** 按方法 + 路径匹配网络页（精确 + .html 智能匹配）；未命中返回 null。 */
+    public NetworkPage resolveNetworkPage(String httpMethod, String cleanPath) {
+        String method = httpMethod == null ? "GET" : httpMethod.toUpperCase();
+        if (cleanPath == null) return null;
+        RegisteredNetworkPage e = networkPages.get(method + " " + cleanPath);
+        if (e == null && cleanPath.indexOf('.') < 0) {
+            e = networkPages.get(method + " " + cleanPath + ".html");
+        }
+        if (e == null && cleanPath.endsWith(".html") && cleanPath.length() > 5) {
+            e = networkPages.get(method + " " + cleanPath.substring(0, cleanPath.length() - 5));
+        }
+        return e == null ? null : e.page;
+    }
+
+    /** 网络页登记项包装（记录归属插件与完整路径）。 */
+    private static final class RegisteredNetworkPage {
+        final String ownerPlugin;
+        final String path;
+        final NetworkPage page;
+
+        RegisteredNetworkPage(String ownerPlugin, String path, NetworkPage page) {
+            this.ownerPlugin = ownerPlugin;
+            this.path = path;
+            this.page = page;
+        }
+    }
+
     // ===== 解析 / 卸载 =====
 
     /**
@@ -232,8 +275,13 @@ public class WebRegistry {
         int n = pages.size();
         pages.entrySet().removeIf(e -> pluginName.equals(e.getValue().ownerPlugin));
         int removed = n - pages.size();
-        if (removed > 0) {
-            LogKit.info("[HTTP-Over-MC] 卸载网页（插件 " + pluginName + "）：共 " + removed + " 个");
+        // 一并清理该插件的网络页
+        int netRemoved = (int) networkPages.entrySet().stream()
+                .filter(e -> pluginName.equals(e.getValue().ownerPlugin)).count();
+        networkPages.entrySet().removeIf(e -> pluginName.equals(e.getValue().ownerPlugin));
+        if (removed > 0 || netRemoved > 0) {
+            LogKit.info("[HTTP-Over-MC] 卸载网页（插件 " + pluginName + "）：共 " + removed + " 个"
+                    + (netRemoved > 0 ? "，网络页 " + netRemoved + " 个" : ""));
         }
         // 一并清理该插件的自定义错误页
         errorPages.entrySet().removeIf(e -> pluginName.equals(e.getValue().ownerPlugin));
