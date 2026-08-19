@@ -154,7 +154,8 @@ storage:
     sqlite:
       enabled: false
       file: data/records.db
-      table-prefix: 'mc_shttp_'
+      # 创建表的前缀，若无特殊要求请勿修改，避免开发者无法获取到正确的表名称
+      table-prefix: ''
 
     # ---------- MySQL（默认禁用，启用后自动成为主存储） ----------
     mysql:
@@ -162,7 +163,8 @@ storage:
       url: 'jdbc:mysql://localhost:3306/minecraft?useUnicode=true&characterEncoding=utf8&autoReconnect=true&useSSL=false&serverTimezone=Asia/Shanghai'
       username: root
       password: ''
-      table-prefix: 'mc_shttp_'
+      # 创建表的前缀，若无特殊要求请勿修改，避免开发者无法获取到正确的表名称
+      table-prefix: ''
       keepalive-interval: 1800
 
   # --------------------------------------------------------------

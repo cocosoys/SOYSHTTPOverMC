@@ -54,6 +54,34 @@
                     </execution>
                 </executions>
             </plugin>
+            <!-- 资源过滤：保留文本占位符替换（plugin.yml 等），但排除二进制资源，
+                 否则 maven-resources-plugin 以文本编码读取 .eot/.ttf 等会抛 MalformedInputException。
+                 注意：显式配置 nonFilteredFileExtensions 会覆盖 Maven 内置默认列表，故需把
+                 内置默认（jpg/jpeg/gif/bmp/png）一并列出。 -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-resources-plugin</artifactId>
+                <version>3.3.1</version>
+                <configuration>
+                    <nonFilteredFileExtensions>
+                        <nonFilteredFileExtension>jpg</nonFilteredFileExtension>
+                        <nonFilteredFileExtension>jpeg</nonFilteredFileExtension>
+                        <nonFilteredFileExtension>gif</nonFilteredFileExtension>
+                        <nonFilteredFileExtension>bmp</nonFilteredFileExtension>
+                        <nonFilteredFileExtension>png</nonFilteredFileExtension>
+                        <nonFilteredFileExtension>eot</nonFilteredFileExtension>
+                        <nonFilteredFileExtension>ttf</nonFilteredFileExtension>
+                        <nonFilteredFileExtension>woff</nonFilteredFileExtension>
+                        <nonFilteredFileExtension>woff2</nonFilteredFileExtension>
+                        <nonFilteredFileExtension>otf</nonFilteredFileExtension>
+                        <nonFilteredFileExtension>ico</nonFilteredFileExtension>
+                        <nonFilteredFileExtension>mp3</nonFilteredFileExtension>
+                        <nonFilteredFileExtension>mp4</nonFilteredFileExtension>
+                        <nonFilteredFileExtension>wav</nonFilteredFileExtension>
+                        <nonFilteredFileExtension>pdf</nonFilteredFileExtension>
+                    </nonFilteredFileExtensions>
+                </configuration>
+            </plugin>
         </plugins>
         <resources>
             <resource>

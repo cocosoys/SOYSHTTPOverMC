@@ -13,6 +13,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import static soys.soyshttpovermc.util.StringListUtil.matchByPrefix;
+
 /**
  * /soyshttp 命令执行器（从 {@code HttpOverMcPlugin} 抽离）：
  * 本类仅负责<b>分发</b>与<b>op 校验</b>与<b>help 聚合</b>（tab 补全），具体逻辑下放到各 {@link SubCommand} 子类。
@@ -167,30 +169,5 @@ public class SoysHttpCommand implements CommandExecutor, TabCompleter {
 
     private void msg(CommandSender sender, String text) {
         sender.sendMessage("§a[SOYSHTTPOverMC]§r " + text);
-    }
-
-    /**
-     * 根据输入前缀，匹配list中以前缀开头的字符串（大小写忽略）
-     * @param inputStr 输入的前缀字符
-     * @param sourceList 候选数据源list
-     * @return 匹配结果集合
-     */
-    public static List<String> matchByPrefix(String inputStr, List<String> sourceList) {
-        List<String> result = new ArrayList<>();
-        // 入参判空
-        if (inputStr == null || inputStr.isEmpty() || sourceList == null || sourceList.isEmpty()) {
-            return result;
-        }
-        String lowerInput = inputStr.toLowerCase();
-
-        for (String item : sourceList) {
-            if (item == null) {
-                continue;
-            }
-            if (item.toLowerCase().startsWith(lowerInput)) {
-                result.add(item);
-            }
-        }
-        return result;
     }
 }

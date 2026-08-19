@@ -202,9 +202,12 @@ public class HttpOverMcPlugin extends JavaPlugin {
         corsRegistry = new soys.soyshttpovermc.web.CorsRegistry();
         // 3.7) 跨服同步存储（MySQL 等；config.yml mysql 段，须在日志就绪后装配）
         initStorage();
-        // 3.8) ORM（YAML 后端）装配：YAML.Pojo.select/get 等门面入口，数据目录=插件 dataFolder
-        soys.soyshttpovermc.orm.YAML.Pojo.init(getDataFolder());
-        LogKit.debug("[HTTP-Over-MC] ORM(YAML) 已装配: dataDir=" + getDataFolder());
+        // 3.8) ORM（YAML 后端）装配：YAML.Pojo.select/get 等门面入口。
+        //      数据目录取自 config.yml storage.backends.yaml.file 的父目录（与 KV 子系统共用同一文件夹），
+        //      配置缺失/为空时退回插件 dataFolder，保证向后兼容。
+        File yamlOrmDir = resolveYamlOrmDir();
+        soys.soyshttpovermc.orm.YAML.Pojo.init(yamlOrmDir);
+        LogKit.info("[HTTP-Over-MC] ORM(YAML) 已装配: dataDir=" + yamlOrmDir);
         // 3.9) ORM（SQL 后端，二期）装配：SQL.Pojo 基于 dlz-db-core + HikariCP；
         //     数据源来自 storage.backends.{mysql,sqlite}，失败自动降级（SQL.Pojo 不可用不影响运行）
         soys.soyshttpovermc.orm.executor.SqlBackendExecutor.init(this);
@@ -218,6 +221,10 @@ public class HttpOverMcPlugin extends JavaPlugin {
         initBot();
         // 6.5) 对外集成门面（聚合 API 注册 / 网页登记 / 凭证 / 日志 / Bot / HTTP，供第三方插件接入）
         initApiImpl();
+
+        // 6.6) 自定义主页插件 thismyhomepages（子包内嵌，未来可整体抽离为独立插件）
+        soys.thismyhomepages.MyHomePages.register(this);
+
         // 7) 统计 / 状态 API / 前端处理器 / 通道消息处理（返回统计实例供嗅探器复用）
         RequestStats stats = initFrontend(webRoot);
         // 8) 在 Spigot 自身监听端口安装三协议嗅探器（MC / 明文 HTTP / HTTPS）
@@ -231,6 +238,33 @@ public class HttpOverMcPlugin extends JavaPlugin {
         }
 
         logStartup(webRoot);
+    }
+
+    /**
+     * 解析 ORM（YAML 后端）实体数据存放目录：取 config.yml {@code storage.backends.yaml.file}
+     * 的父目录（即 KV 子系统 records.yml 所在的文件夹），使 {@code @TableName("x")} 生成的
+     * {@code x.yml} 与 KV 文件落在同一目录。
+     * <ul>
+     *   <li>配置缺失 / 为空 → 退回插件 {@code getDataFolder()}（向后兼容旧行为）；</li>
+     *   <li>配置为纯文件名（无目录部分）→ 父目录即 {@code getDataFolder()}；</li>
+     *   <li>目标目录不存在 → 自动 {@code mkdirs()}。</li>
+     * </ul>
+     */
+    private File resolveYamlOrmDir() {
+        File dataFolder = getDataFolder();
+        String fileCfg = getConfig().getString("storage.backends.yaml.file", "data/records.yml");
+        if (fileCfg == null || fileCfg.trim().isEmpty()) {
+            return dataFolder;
+        }
+        File target = new File(dataFolder, fileCfg.trim());
+        File dir = target.getParentFile();
+        if (dir == null) {
+            dir = dataFolder;
+        }
+        if (!dir.exists()) {
+            dir.mkdirs();
+        }
+        return dir;
     }
 
     /** 装配 Web 内容缓存（config.yml web.cache.* / web.large-file-*）。 */

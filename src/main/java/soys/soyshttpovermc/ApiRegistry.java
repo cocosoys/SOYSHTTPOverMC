@@ -352,7 +352,7 @@ public class ApiRegistry {
         // 群组服跨服关联：从内部头取来源服名与链路追踪 ID（独立服请求无此头则 null）
         String sourceServer = headers == null ? null : headers.get("X-Soys-Source-Server");
         String traceId = headers == null ? null : headers.get("X-Soys-Trace-Id");
-        ApiRequestContext requestContext = new ApiRequestContext(method, meta.path, clientIp,
+        ApiRequestContext requestContext = new ApiRequestContext(hostPlugin, method, meta.path, clientIp,
                 headers, credential, playerName, player, authenticated, sourceServer, traceId);
 
         // 参数绑定 + 调用
@@ -394,7 +394,7 @@ public class ApiRegistry {
         // 事件直接携带 token/cookie 解析出的玩家名与玩家实体（离线 player=null），
         // 监听 ApiAccessEvent 收全部 / 监听 ApiGetEvent 等只收对应方法。
         try {
-            fireApiEvent(ApiAccessEvent.forMethod(meta.httpMethod, meta.path, meta.apiName,
+            fireApiEvent(ApiAccessEvent.forMethod(hostPlugin, meta.httpMethod, meta.path, meta.apiName,
                     meta.permission, meta.ownerPlugin, authenticated, playerName, player, credential));
         } catch (Throwable ignored) {
         }
