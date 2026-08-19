@@ -200,6 +200,31 @@ public class WebPageImpl implements WebPageApi {
         }
     }
 
+    // ===== 首页列表（registerHomepage：按名称注册，支持指令切换） =====
+
+    @Override
+    public void registerHomepage(String name, Plugin owner, byte[] content, String contentType) {
+        try {
+            webRegistry.registerHomepage(name, owner, content, contentType);
+        } catch (Exception ex) {
+            throw ExceptionBus.fire(new WebPageException("E_HOMEPAGE", "登记首页失败(name=" + name + "): " + ex.getMessage(), ex));
+        }
+    }
+
+    @Override
+    public void registerHomepage(String name, Plugin owner, byte[] content) {
+        registerHomepage(name, owner, content, "text/html; charset=utf-8");
+    }
+
+    @Override
+    public boolean switchHomepage(String name) {
+        try {
+            return webRegistry.switchHomepage(name);
+        } catch (Exception ex) {
+            throw ExceptionBus.fire(new WebPageException("E_HOMEPAGE_SWITCH", "切换首页失败(name=" + name + "): " + ex.getMessage(), ex));
+        }
+    }
+
     @Override
     public void registerNetworkPage(Plugin owner, NetworkPage page) {
         try {

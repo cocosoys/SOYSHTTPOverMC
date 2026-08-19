@@ -50,8 +50,12 @@ public class WebRegistry {
     /** 宿主插件名（SOYSHTTPOverMC 本体）：其登记不加 /plugins 前缀 */
     private final String hostName;
 
+    /** 首页注册表（全局共享，按名称切换首页） */
+    private final HomepageRegistry homepageRegistry;
+
     public WebRegistry(String hostName) {
         this.hostName = hostName == null ? "" : hostName;
+        this.homepageRegistry = new HomepageRegistry(this, this.hostName);
     }
 
     // ===== 普通登记（自动 /plugins/<插件名> 前缀） =====
@@ -401,6 +405,68 @@ public class WebRegistry {
         }
         Collections.sort(out);
         return out;
+    }
+
+    // ===== 首页管理（HomepageRegistry） =====
+
+    /** 获取首页注册表实例。 */
+    public HomepageRegistry getHomepageRegistry() {
+        return homepageRegistry;
+    }
+
+    /**
+     * 按名称注册首页到列表（不自动切换）。
+     * 注册后可通过 {@link #switchHomepage(String)} 切换。
+     *
+     * @param name        首页唯一名称（如 "default"、"event"）
+     * @param owner       归属插件
+     * @param content     首页 HTML 字节内容
+     * @param contentType Content-Type（如 "text/html; charset=utf-8"）
+     */
+    public void registerHomepage(String name, Plugin owner, byte[] content, String contentType) {
+        String ownerName = owner == null ? null : owner.getName();
+        homepageRegistry.register(name, ownerName, content, contentType);
+        LogKit.info("[HTTP-Over-MC] 登记首页: name=" + name + " 插件=" + ownerName);
+    }
+
+    /**
+     * 按名称注册首页（默认 Content-Type: text/html; charset=utf-8）。
+     *
+     * @see #registerHomepage(String, Plugin, byte[], String)
+     */
+    public void registerHomepage(String name, Plugin owner, byte[] content) {
+        registerHomepage(name, owner, content, "text/html; charset=utf-8");
+    }
+
+    /**
+     * 切换到指定名称的首页，立即更新站点首页 {@code GET /} 路由。
+     *
+     * @param name 首页名称
+     * @return true 切换成功；false 名称不存在
+     */
+    public boolean switchHomepage(String name) {
+        return homepageRegistry.switchTo(name);
+    }
+
+    /** 列出所有已注册的首页名称。 */
+    public List<String> getHomepageNames() {
+        return homepageRegistry.list();
+    }
+
+    /** 当前首页名称（可能为 null）。 */
+    public String getCurrentHomepageName() {
+        return homepageRegistry.getCurrentName();
+    }
+
+    // ==================== 内部：供 HomepageRegistry 切换首页时调用 ====================
+
+    /** 直接设置站点首页 {@code GET /} 路由（由 HomepageRegistry 在切换时调用）。 */
+    void setHomePage(String ownerPlugin, byte[] content, String contentType) {
+        if (content == null || content.length == 0) return;
+        String key = "GET /";
+        String ct = (contentType == null || contentType.isEmpty()) ? "text/html; charset=utf-8" : contentType;
+        putEntry(key, new Entry(ownerPlugin, "/", ct, content, null, null, null, 0, null), true);
+        LogKit.info("[HTTP-Over-MC] 切换首页: GET / current=" + (ownerPlugin == null ? "?" : ownerPlugin));
     }
 
     /** 列出全部已登记项（Entry 原对象），按路径排序；供 /soyshttp pages 分类展示（区分页/资源/跳转）。 */

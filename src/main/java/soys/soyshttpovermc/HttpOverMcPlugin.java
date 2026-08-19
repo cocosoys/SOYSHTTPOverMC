@@ -231,6 +231,13 @@ public class HttpOverMcPlugin extends JavaPlugin {
         initSniffer(stats);
         // 9) 命令：/soyshttp reload | /soyshttp key <subject>
         initCommand();
+        // 9.5) 恢复持久化首页选择（在 MyHomePages.register 注册首页后执行）
+        String savedHomepage = getConfig().getString("homepage.current", null);
+        if (savedHomepage != null && !savedHomepage.isEmpty()) {
+            if (!webRegistry.switchHomepage(savedHomepage)) {
+                LogKit.info("[HTTP-Over-MC] 持久化首页 '" + savedHomepage + "' 不存在，保留当前首页");
+            }
+        }
         // 10) 就绪事件：第三方插件若先于本插件加载，可监听 SoysReadyEvent 做延迟注册
         try {
             getServer().getPluginManager().callEvent(new soys.soyshttpovermc.api.event.SoysReadyEvent(api));

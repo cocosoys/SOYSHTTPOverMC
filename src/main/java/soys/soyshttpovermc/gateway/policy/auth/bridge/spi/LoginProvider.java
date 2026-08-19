@@ -1,5 +1,7 @@
 package soys.soyshttpovermc.gateway.policy.auth.bridge.spi;
 
+import org.bukkit.configuration.ConfigurationSection;
+
 import soys.soyshttpovermc.gateway.policy.auth.bridge.AuthLoginBridge;
 
 /**
@@ -53,6 +55,16 @@ public interface LoginProvider {
     /** Bot 免登录移除：把指定 Bot 名移出免登录名单。返回 false=不支持。 */
     default boolean removeUnrestricted(String playerName) {
         return false;
+    }
+
+    /**
+     * 从 {@code gateway/providers/<name>.yml} 加载自定义配置。
+     * 每个 auth 实现必须完成自己的 config.yml 配置，以便对不同类型的登录插件进行更高度的自定义。
+     * <p>默认不加载配置；子类按需覆盖。</p>
+     *
+     * @param config 本提供者的专属配置段（{@code gateway/providers/<name>.yml} 文件内容）
+     */
+    default void reload(ConfigurationSection config) {
     }
 
     /**

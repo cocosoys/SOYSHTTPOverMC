@@ -52,6 +52,7 @@ public class SoysHttpCommand implements CommandExecutor, TabCompleter {
         register(new TokensSubCommand(plugin));
         register(new MigrateSub(plugin));
         register(new SyncSub(plugin));
+        register(new HomepageSubCommand(plugin));
     }
 
     /** 注册一个子指令（name 自动转小写作为匹配键）。 */

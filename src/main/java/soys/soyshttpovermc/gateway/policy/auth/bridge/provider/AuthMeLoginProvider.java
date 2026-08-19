@@ -6,6 +6,8 @@ import soys.soyshttpovermc.gateway.policy.auth.bridge.spi.LoginProviderContext;
 import soys.soyshttpovermc.log.LogKit;
 import soys.soyshttpovermc.util.LinkMessageUtil;
 
+import org.bukkit.configuration.ConfigurationSection;
+
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -79,6 +81,17 @@ public class AuthMeLoginProvider implements LoginProvider, Listener {
     @Override
     public String description() {
         return "账号密码离线校验 + 玩家登录自动签发令牌 + Bot 免登录内存热装填";
+    }
+
+    @Override
+    public void reload(ConfigurationSection config) {
+        if (config == null) {
+            LogKit.info("[AuthMeLoginProvider] 无专属配置，使用默认行为");
+            return;
+        }
+        // 读取 gateway/providers/authme.yml 中的自定义配置项
+        // 各配置项由本实现自行解析，不暴露给前端 API
+        LogKit.info("[AuthMeLoginProvider] 已加载专属配置: " + config.getKeys(false));
     }
 
     @Override

@@ -43,19 +43,20 @@ public final class MyHomePages {
         YamlHomeConfigSource home = new YamlHomeConfigSource(host);
         home.load();
 
-        // 3) 静态前端（dist/index.html 强制覆盖站点首页 /）
+        // 3) 静态前端（以 "default" 名称注册到首页列表并切换为当前首页）
         byte[] html = readResource(host, "thismyhomepages/dist/index.html");
         if (html.length > 0) {
-            api.getWebPage().registerHome(host, html);
+            api.getWebPage().registerHomepage("default", host, html);
+            api.getWebPage().switchHomepage("default");
         }
 
-        // 4) 接口（配置 JSON / 实时数据 / 礼包领取）
-        IHomeConfigExporter exporter = new JsonHomeConfigExporter();
+        // 4) 接口（配置 JSON / 实时数据 / 礼包领取 / 状态查询）
+        IHomeConfigExporter exporter = new JsonHomeConfigExporter(api.getHttpClient(), host.getDataFolder());
         IGiftService gift = new GiftServiceImpl(cfgReader, home, host);
         HomeApiController controller = new HomeApiController(home, exporter, gift, host);
         api.getApiRegistration().registerController(controller, host);
 
-        LogKit.info("[thismyhomepages] 已注册自定义主页：/ + /api/homepage/{config,live,gift/claim}");
+        LogKit.info("[thismyhomepages] 已注册自定义主页：/ + /api/homepage/{config,live,gift/claim,gift/status}");
     }
 
     /** 从插件 jar 资源读取字节（用于伺服 dist/index.html）。 */

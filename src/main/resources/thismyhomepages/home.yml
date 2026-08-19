@@ -55,13 +55,21 @@ gift:
   items:
     diamond:
       name: "钻石"
+      show: true
+      enable: true
+      icon: ""
       material: "minecraft:diamond"
       amount: 1
     apple:
       name: "苹果"
+      show: true
+      enable: true
+      icon: ""
       material: "minecraft:apple"
       amount: 16
   commands:
     welcome:
       name: "欢迎广播"
+      show: true
+      enable: true
       cmd: "say {player} 领取了新人礼包"

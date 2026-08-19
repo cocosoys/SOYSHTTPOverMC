@@ -53,6 +53,9 @@ public class GiftConfigEntity {
                 }
                 GiftItem gi = new GiftItem();
                 gi.setName(it.getString("name", ""));
+                gi.setShow(it.getBoolean("show", true));
+                gi.setEnable(it.getBoolean("enable", true));
+                gi.setIcon(it.getString("icon", ""));
                 gi.setMaterial(it.getString("material", ""));
                 gi.setAmount(it.getInt("amount", 1));
                 e.items.add(gi);
@@ -68,6 +71,8 @@ public class GiftConfigEntity {
                 }
                 GiftCommand gc = new GiftCommand();
                 gc.setName(c.getString("name", ""));
+                gc.setShow(c.getBoolean("show", true));
+                gc.setEnable(c.getBoolean("enable", true));
                 gc.setCmd(c.getString("cmd", ""));
                 e.commands.add(gc);
             }

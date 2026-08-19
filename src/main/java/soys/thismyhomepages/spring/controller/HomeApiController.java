@@ -18,10 +18,11 @@ import soys.thismyhomepages.spring.entity.LiveData;
  * <ul>
  *   <li>{@code GET /api/homepage/config} —— 返回 home.yml 的「仅展示」安全 JSON（前端渲染用）；</li>
  *   <li>{@code GET /api/homepage/live} —— 返回实时数据（在线人数等，独立端点可缓存）；</li>
- *   <li>{@code POST /api/homepage/gift/claim} —— 领取礼包（需登录凭证）。</li>
+ *   <li>{@code POST /api/homepage/gift/claim} —— 领取礼包（需登录凭证）；</li>
+ *   <li>{@code GET /api/homepage/gift/status} —— 查询礼包领取状态（需登录凭证）。</li>
  * </ul>
  * config / live 标注 {@code @ApiPublic} 且已在 auth.yml exempt 中豁免，浏览器无需凭证即可访问；
- * gift/claim 受网关保护（需玩家会话凭证）。
+ * gift/claim / gift/status 受网关保护（需玩家会话凭证）。
  */
 @RequestMapping("/homepage")
 public class HomeApiController {
@@ -65,10 +66,10 @@ public class HomeApiController {
         return gift.claim(ctx.getSyncPlayer());
     }
 
-    @ApiName("礼包状态")
+    @ApiName("礼包状态查询")
     @ApiPublic
-    @PostMapping("/gift/claimStyle")
-    public AjaxResult claimStyle(ApiRequestContext ctx) {
-        return gift.claim(ctx.getSyncPlayer());
+    @GetMapping("/gift/status")
+    public AjaxResult giftStatus(ApiRequestContext ctx) {
+        return gift.status(ctx.getSyncPlayer());
     }
 }

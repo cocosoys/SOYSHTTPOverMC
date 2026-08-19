@@ -5,6 +5,8 @@ import soys.soyshttpovermc.log.LogKit;
 import org.bukkit.configuration.ConfigurationSection;
 import soys.soyshttpovermc.gateway.policy.*;
 import soys.soyshttpovermc.gateway.policy.auth.AuthPolicy;
+import soys.soyshttpovermc.gateway.policy.auth.bridge.spi.LoginProvider;
+import soys.soyshttpovermc.gateway.policy.auth.bridge.spi.LoginProviderFactory;
 import soys.soyshttpovermc.gateway.policy.auth.issuer.CredentialIssuer;
 import soys.soyshttpovermc.gateway.policy.auth.issuer.SessionTokenIssuer;
 import soys.soyshttpovermc.gateway.policy.tls.TlsPolicy;
@@ -86,6 +88,9 @@ public class GatewayFilter {
         List<CredentialIssuer> issuerList = loadIssuers(gatewayDir);
         this.issuers = issuerList;
 
+        // 加载登录提供者专属配置（gateway/providers/*.yml）
+        loadProviders(gatewayDir);
+
         // 读取网关全局 API 前缀（config.yml api-prefix，默认 /api，始终生效）
         ConfigurationSection cfg = GatewayConfig.loadYml(new File(gatewayDir, "config.yml"));
         this.apiPrefix = cfg == null ? "/api" : cfg.getString("api-prefix", "/api");
@@ -160,6 +165,28 @@ public class GatewayFilter {
             if (issuer.isEnabled()) list.add(issuer);
         }
         return list;
+    }
+
+    /** 扫描 gateway/providers/*.yml，为每个已注册的登录提供者加载专属配置。 */
+    private void loadProviders(File gatewayDir) {
+        if (gatewayDir == null || !gatewayDir.isDirectory()) return;
+        File dir = new File(gatewayDir, "providers");
+        File[] files = dir.isDirectory() ? dir.listFiles((d, n) -> n.endsWith(".yml")) : null;
+        if (files == null) return;
+        Arrays.sort(files, Comparator.comparing(File::getName));
+        for (File f : files) {
+            String name = f.getName().substring(0, f.getName().length() - 4);
+            LoginProvider provider = LoginProviderFactory.get(name);
+            if (provider == null) {
+                LogKit.warn("[HTTP-Over-MC] 忽略未注册的提供者文件: " + f.getName()
+                        + "（如需启用请在 LoginProviderFactory 注册对应实现）");
+                continue;
+            }
+            ConfigurationSection cfg = GatewayConfig.loadYml(f);
+            provider.reload(cfg);
+            LogKit.info("[HTTP-Over-MC] 提供者配置已加载: " + name
+                    + (cfg == null ? "（空配置）" : ""));
+        }
     }
 
     private static String describe(List<SecurityPolicy> list) {
