@@ -107,7 +107,7 @@ public class GatewayFilter {
                     String name = f.getName().substring(0, f.getName().length() - 4);
                     Supplier<SecurityPolicy> factory = REGISTRY.get(name);
                     if (factory == null) {
-                        log.warn(I18n.t("log.gateway.policy-ignore", "忽略未注册的策略文件: {0}（如需启用请在 GatewayFilter.REGISTRY 注册对应实现）", f.getName()));
+                        log.warnT("log.gateway.policy-ignore", "忽略未注册的策略文件: {0}（如需启用请在 GatewayFilter.REGISTRY 注册对应实现）", f.getName());
                         continue;
                     }
                     SecurityPolicy p = factory.get();
@@ -129,11 +129,11 @@ public class GatewayFilter {
         merged.addAll(pluginPolicies);
         merged.sort(Comparator.comparingInt(SecurityPolicy::order));
         policies = merged;
-        log.info(I18n.t("log.gateway.chain-loaded", "网关策略链已加载：{0}{1}{2} | api-prefix={3}",
+        log.infoT("log.gateway.chain-loaded", "网关策略链已加载：{0}{1}{2} | api-prefix={3}",
                 list.isEmpty() ? "无启用策略" : describe(list),
                 pluginPolicies.isEmpty() ? "" : " | 插件策略: " + describe(pluginPolicies),
                 issuerList.isEmpty() ? "" : " | 颁发器: " + describeIssuers(issuerList),
-                apiPrefix));
+                apiPrefix);
         if (LogKit.isDebugEnabled()) {
             StringBuilder sb = new StringBuilder("策略明细: ");
             for (SecurityPolicy p : list) {
@@ -155,7 +155,7 @@ public class GatewayFilter {
             String name = f.getName().substring(0, f.getName().length() - 4);
             Supplier<CredentialIssuer> factory = ISSUER_REGISTRY.get(name);
             if (factory == null) {
-                log.warn(I18n.t("log.gateway.issuer-ignore", "忽略未注册的颁发器文件: {0}（如需启用请在 GatewayFilter.ISSUER_REGISTRY 注册对应实现）", f.getName()));
+                log.warnT("log.gateway.issuer-ignore", "忽略未注册的颁发器文件: {0}（如需启用请在 GatewayFilter.ISSUER_REGISTRY 注册对应实现）", f.getName());
                 continue;
             }
             CredentialIssuer issuer = factory.get();
@@ -176,12 +176,12 @@ public class GatewayFilter {
             String name = f.getName().substring(0, f.getName().length() - 4);
             LoginProvider provider = LoginProviderFactory.get(name);
             if (provider == null) {
-                log.warn(I18n.t("log.gateway.provider-ignore", "忽略未注册的提供者文件: {0}（如需启用请在 LoginProviderFactory 注册对应实现）", f.getName()));
+                log.warnT("log.gateway.provider-ignore", "忽略未注册的提供者文件: {0}（如需启用请在 LoginProviderFactory 注册对应实现）", f.getName());
                 continue;
             }
             ConfigurationSection cfg = GatewayConfig.loadYml(f);
             provider.reload(cfg);
-            log.info(I18n.t("log.gateway.provider-loaded", "提供者配置已加载: {0}{1}", name, cfg == null ? "（空配置）" : ""));
+            log.infoT("log.gateway.provider-loaded", "提供者配置已加载: {0}{1}", name, cfg == null ? "（空配置）" : "");
         }
     }
 
@@ -216,7 +216,7 @@ public class GatewayFilter {
                 PolicyResult r = p.check(ctx);
                 if (r != null && !r.isAllow()) return new Outcome(p, r);
             } catch (Exception e) {
-                log.warn(I18n.t("log.gateway.policy-error", "策略 {0} 执行异常，按拒绝处理: {1}", p.name(), e), e);
+                log.warnT("log.gateway.policy-error", "策略 {0} 执行异常，按拒绝处理: {1}", p.name(), e, e);
                 return new Outcome(p, PolicyResult.deny(500, "Internal Server Error: policy " + p.name()));
             }
         }
@@ -279,7 +279,7 @@ public class GatewayFilter {
         merged.add(policy);
         merged.sort(Comparator.comparingInt(SecurityPolicy::order));
         policies = merged;
-        log.info(I18n.t("log.gateway.plugin-policy-injected", "插件策略已注入: {0}(order={1})", policy.name(), policy.order()));
+        log.infoT("log.gateway.plugin-policy-injected", "插件策略已注入: {0}(order={1})", policy.name(), policy.order());
     }
 
     /** 插件注入的策略列表（只读）。 */

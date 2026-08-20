@@ -79,8 +79,8 @@ public class HomepageRegistry {
         }
         String ct = (contentType == null || contentType.isEmpty()) ? "text/html; charset=utf-8" : contentType;
         entries.put(name, new HomepageEntry(name, ownerPlugin, content, ct, null));
-        log.info(I18n.t("log.homepage.register-byte",
-                "[thismyhomepages] 注册首页: {0} (字节型, 归属={1})", name, ownerPlugin));
+        log.infoT("log.homepage.register-byte",
+                "[thismyhomepages] 注册首页: {0} (字节型, 归属={1})", name, ownerPlugin);
     }
 
     /**
@@ -97,13 +97,13 @@ public class HomepageRegistry {
             return false;
         }
         if (sourceResolver == null) {
-            log.warn(I18n.t("log.homepage.register-no-resolver",
-                    "[thismyhomepages] 未配置来源解析器，无法注册来源型首页: {0}", name));
+            log.warnT("log.homepage.register-no-resolver",
+                    "[thismyhomepages] 未配置来源解析器，无法注册来源型首页: {0}", name);
             return false;
         }
         entries.put(name, new HomepageEntry(name, ownerPlugin, null, "text/html; charset=utf-8", sourceSpec.trim()));
-        log.info(I18n.t("log.homepage.register-source",
-                "[thismyhomepages] 注册首页: {0} (来源型 {1}, 归属={2})", name, sourceSpec.trim(), ownerPlugin));
+        log.infoT("log.homepage.register-source",
+                "[thismyhomepages] 注册首页: {0} (来源型 {1}, 归属={2})", name, sourceSpec.trim(), ownerPlugin);
         return true;
     }
 
@@ -127,15 +127,15 @@ public class HomepageRegistry {
         } else if (entry.sourceSpec != null && sourceResolver != null) {
             Resolved r = sourceResolver.resolve(entry.sourceSpec);
             if (r == null || r.bytes == null || r.bytes.length == 0) {
-                log.warn(I18n.t("log.homepage.resolve-failed",
-                    "[thismyhomepages] 来源型首页解析失败({0}, {1})，保持当前首页", name, entry.sourceSpec));
+                log.warnT("log.homepage.resolve-failed",
+                    "[thismyhomepages] 来源型首页解析失败({0}, {1})，保持当前首页", name, entry.sourceSpec);
                 return false;
             }
             content = r.bytes;
             ct = (r.contentType == null || r.contentType.isEmpty()) ? entry.contentType : r.contentType;
         } else {
-            log.warn(I18n.t("log.homepage.no-content",
-                    "[thismyhomepages] 首页无可用内容({0})，保持当前首页", name));
+            log.warnT("log.homepage.no-content",
+                    "[thismyhomepages] 首页无可用内容({0})，保持当前首页", name);
             return false;
         }
         if (installer != null) {
@@ -156,8 +156,8 @@ public class HomepageRegistry {
         if (removed == null) {
             return false;
         }
-        log.info(I18n.t("log.homepage.unregister",
-                "[thismyhomepages] 注销首页: {0} (归属={1})", name, removed.ownerPlugin));
+        log.infoT("log.homepage.unregister",
+                "[thismyhomepages] 注销首页: {0} (归属={1})", name, removed.ownerPlugin);
         if (name.equals(currentName)) {
             this.currentName = null;
             if (installer != null) {
@@ -174,8 +174,8 @@ public class HomepageRegistry {
         if (n > 0) {
             entries.clear();
             this.currentName = null;
-            log.info(I18n.t("log.homepage.unregister-all",
-                "[thismyhomepages] 注销全部首页: {0} 个", n));
+            log.infoT("log.homepage.unregister-all",
+                "[thismyhomepages] 注销全部首页: {0} 个", n);
         }
         return n;
     }

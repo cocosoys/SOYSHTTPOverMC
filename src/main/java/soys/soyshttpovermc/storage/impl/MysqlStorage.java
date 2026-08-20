@@ -59,8 +59,8 @@ public class MysqlStorage extends SqlStorage {
         }
         // 通过 url 直接测试连接
         try (Connection test = connect(jdbcUrl, username, password)) {
-            log.info(I18n.t("log.storage.mysql-connect-success",
-                    "MySQL 连接测试成功: {0}", maskUrl(jdbcUrl)));
+            log.infoT("log.storage.mysql-connect-success",
+                    "MySQL 连接测试成功: {0}", maskUrl(jdbcUrl));
         } catch (SQLException e) {
             throw new IllegalStateException(I18n.t("exception.storage.mysql.connect-test-failed", "MySQL 连接测试失败: {0}", e.getMessage()), e);
         }

@@ -21,6 +21,7 @@ import java.util.logging.Logger;
  * <p>消息格式由调用方给定（规范为 {@code [HTTP-Over-MC] [模块] 内容}），本类不追加前缀，
  * 避免与既有消息重复；Bukkit 日志本身已带 {@code [SOYSHTTPOverMC]} 插件名。</p>
  */
+import soys.soyshttpovermc.i18n.I18n;
 import org.bukkit.Bukkit;
 
 public class LogKit {
@@ -102,12 +103,13 @@ public class LogKit {
             sb.append(" ");
         }
 
-        if (isDebugLevel) {
-            if (ENABLE_ANSI) sb.append(levelColor);
-            sb.append("[").append(sourceClass.getSimpleName()).append("]");
-            if (ENABLE_ANSI) sb.append(ANSI_RESET);
-            sb.append(" ");
-        }
+        // debug/trace 打短名，info/warn/error 打全限定类名，便于错误快速溯源；
+        // 此前缀在当前方法中于 i18n 转译完成后追加，故不会污染翻译 key。
+        String clsName = isDebugLevel ? sourceClass.getSimpleName() : sourceClass.getName();
+        if (ENABLE_ANSI) sb.append(levelColor);
+        sb.append("[").append(clsName).append("]");
+        if (ENABLE_ANSI) sb.append(ANSI_RESET);
+        sb.append(" ");
 
         if (ENABLE_ANSI) sb.append(levelColor);
         sb.append(rawMessage);
@@ -119,42 +121,71 @@ public class LogKit {
         return tierIndex >= minTier;
     }
 
-    private void print(String color, boolean debugLevel, String fmt, Object... args) {
-        String msg = String.format(fmt, args);
+    private void print(String color, boolean debugLevel, String i18nKey, String fmt, Object... args) {
+        String msg = I18n.resolve(i18nKey, fmt, args);
         Bukkit.getConsoleSender().sendMessage(formatMessage(msg, debugLevel, color));
     }
 
     public void trace(String fmt, Object... args) {
-        if (enabled(5)) print(ANSI_CYAN, true, fmt, args);
+        if (enabled(5)) print(ANSI_CYAN, true, null, fmt, args);
     }
 
     public void debug(String fmt, Object... args) {
-        if (enabled(4)) print(ANSI_CYAN, true, fmt, args);
+        if (enabled(4)) print(ANSI_CYAN, true, null, fmt, args);
     }
 
     public void info(String fmt, Object... args) {
-        if (enabled(3)) print(ANSI_GREEN, false, fmt, args);
+        if (enabled(3)) print(ANSI_GREEN, false, null, fmt, args);
     }
 
     public void warn(String fmt, Object... args) {
-        if (enabled(2)) print(ANSI_YELLOW, false, fmt, args);
+        if (enabled(2)) print(ANSI_YELLOW, false, null, fmt, args);
     }
 
     public void error(String fmt, Object... args) {
-        if (enabled(1)) print(ANSI_RED, false, fmt, args);
+        if (enabled(1)) print(ANSI_RED, false, null, fmt, args);
     }
 
     public void error(Throwable throwable, String fmt, Object... args) {
         if (!enabled(1)) return;
-        print(ANSI_RED, false, fmt, args);
+        print(ANSI_RED, false, null, fmt, args);
         if (throwable != null) throwable.printStackTrace();
     }
 
-    public void trace(String msg) { trace("%s", msg); }
-    public void debug(String msg) { debug("%s", msg); }
-    public void info(String msg) { info("%s", msg); }
-    public void warn(String msg) { warn("%s", msg); }
-    public void error(String msg) { error("%s", msg); }
+    // ========= i18n 版方法（*T：key 首参，命中语言表翻译，未命中回退 fallback） =========
+
+    public void traceT(String i18nKey, String fallback, Object... args) {
+        if (enabled(5)) print(ANSI_CYAN, true, i18nKey, fallback, args);
+    }
+
+    public void debugT(String i18nKey, String fallback, Object... args) {
+        if (enabled(4)) print(ANSI_CYAN, true, i18nKey, fallback, args);
+    }
+
+    public void infoT(String i18nKey, String fallback, Object... args) {
+        if (enabled(3)) print(ANSI_GREEN, false, i18nKey, fallback, args);
+    }
+
+    public void warnT(String i18nKey, String fallback, Object... args) {
+        if (enabled(2)) print(ANSI_YELLOW, false, i18nKey, fallback, args);
+    }
+
+    public void errorT(String i18nKey, String fallback, Object... args) {
+        if (enabled(1)) print(ANSI_RED, false, i18nKey, fallback, args);
+    }
+
+    public void errorT(Throwable throwable, String i18nKey, String fallback, Object... args) {
+        if (!enabled(1)) return;
+        print(ANSI_RED, false, i18nKey, fallback, args);
+        if (throwable != null) throwable.printStackTrace();
+    }
+
+    // ========= 便捷单参（消息原样，不做占位符替换） =========
+    public void trace(String msg) { print(ANSI_CYAN, true, null, msg); }
+    public void debug(String msg) { print(ANSI_CYAN, true, null, msg); }
+    public void info(String msg) { print(ANSI_GREEN, false, null, msg); }
+    public void warn(String msg) { print(ANSI_YELLOW, false, null, msg); }
+    public void error(String msg) { print(ANSI_RED, false, null, msg); }
     public void error(String msg, Throwable throwable) { error(throwable, msg); }
 
     // ========= Lombok 两个重载工厂 =========

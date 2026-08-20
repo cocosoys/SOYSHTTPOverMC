@@ -44,8 +44,8 @@ public final class LoginProviderFactory {
     public static void register(LoginProvider provider) {
         if (provider == null) return;
         REGISTRY.put(provider.name(), provider);
-        log.info(I18n.t("log.auth.registry.registered", "登录插件提供者已注册: {0} ({1}) - {2}", provider.name(),
-                provider.displayName(), provider.description()));
+        log.infoT("log.auth.registry.registered", "登录插件提供者已注册: {0} ({1}) - {2}", provider.name(),
+                provider.displayName(), provider.description());
     }
 
     /** 按名字取提供者。 */

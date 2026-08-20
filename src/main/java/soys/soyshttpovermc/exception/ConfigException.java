@@ -20,15 +20,28 @@ public class ConfigException extends SoysHttpException {
     }
 
 
-    public ConfigException(String code, String fmt, Object... args) {
-        super(Module.CONFIG, code, fmt, args);
+    /** i18n 无兜底版（兜底参数可省略）：{@code new ConfigException("CONFIG_ERR", "异常.key", v)}，未命中语言表时以 key 自身作模板回退填 {0}。 */
+    public ConfigException(String code, String i18nKey, Object... args) {
+        super(Module.CONFIG, code, i18nKey, args);
     }
 
-    public ConfigException(String fmt, Object... args) {
-        super(Module.CONFIG, "CONFIG_ERR", fmt, args);
+    /** 默认错误码、i18n 无兜底版：{@code new ConfigException("异常.key", v)}。 */
+    public ConfigException(String i18nKey, Object... args) {
+        super(Module.CONFIG, "CONFIG_ERR", i18nKey, args);
     }
 
-    public ConfigException(String code, String fmt, Throwable cause, Object... args) {
-        super(Module.CONFIG, code, fmt, cause, args);
+    /** i18n 无兜底 + 根因版：{@code new ConfigException("CONFIG_ERR", "异常.key", e, v)}。 */
+    public ConfigException(String code, String i18nKey, Throwable cause, Object... args) {
+        super(Module.CONFIG, code, i18nKey, cause, args);
+    }
+
+    /** i18n 显式兜底版：{@code new ConfigException("CONFIG_ERR", "异常.key", "兜底 {0}", v)}。 */
+    public ConfigException(String code, String i18nKey, String fallback, Object... args) {
+        super(Module.CONFIG, code, i18nKey, fallback, args);
+    }
+
+    /** i18n 显式兜底 + 根因版：{@code new ConfigException("CONFIG_ERR", "异常.key", "兜底 {0}", e, v)}。 */
+    public ConfigException(String code, String i18nKey, String fallback, Throwable cause, Object... args) {
+        super(Module.CONFIG, code, i18nKey, fallback, cause, args);
     }
 }

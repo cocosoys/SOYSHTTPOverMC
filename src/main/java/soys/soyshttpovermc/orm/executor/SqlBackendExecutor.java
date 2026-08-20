@@ -52,13 +52,13 @@ public class SqlBackendExecutor implements IBackendExecutor {
         try {
             HikariDataSource ds = buildDataSource(plugin);
             if (ds == null) {
-                log.warn(I18n.t("log.orm.sql-not-enabled",
-                    "[ORM] 未启用 SQL 后端（storage.backends.mysql/sqlite），SQL.Pojo 不可用"));
+                log.warnT("log.orm.sql-not-enabled",
+                    "[ORM] 未启用 SQL 后端（storage.backends.mysql/sqlite），SQL.Pojo 不可用");
                 return null;
             }
             return initDirect(ds, ds.getJdbcUrl().startsWith("jdbc:sqlite:") ? "sqlite" : "mysql");
         } catch (Throwable t) {
-            log.warn(I18n.t("log.orm.sql-init-failed", "[ORM] SQL 后端初始化失败: {0}", t));
+            log.warnT("log.orm.sql-init-failed", "[ORM] SQL 后端初始化失败: {0}", t);
             return null;
         }
     }
@@ -74,11 +74,11 @@ public class SqlBackendExecutor implements IBackendExecutor {
             e.available = true;
             e.dbName = name == null ? "sql" : name;
             instance = e;
-            log.info(I18n.t("log.orm.sql-assembled",
-                    "[ORM] SQL 后端已装配: {0}（dlz-db-core + HikariCP）", e.dbName));
+            log.infoT("log.orm.sql-assembled",
+                    "[ORM] SQL 后端已装配: {0}（dlz-db-core + HikariCP）", e.dbName);
             return e;
         } catch (Throwable t) {
-            log.warn(I18n.t("log.orm.sql-init-failed", "[ORM] SQL 后端初始化失败: {0}", t));
+            log.warnT("log.orm.sql-init-failed", "[ORM] SQL 后端初始化失败: {0}", t);
             return null;
         }
     }
@@ -154,8 +154,8 @@ public class SqlBackendExecutor implements IBackendExecutor {
         try {
             ex().update(ddl.toString());
         } catch (Throwable t) {
-            log.warn(I18n.t("log.orm.create-table-failed",
-                    "[ORM] 建表失败 {0}: {1}", meta.getTableName(), t.getMessage()));
+            log.warnT("log.orm.create-table-failed",
+                    "[ORM] 建表失败 {0}: {1}", meta.getTableName(), t.getMessage());
             return;
         }
         // 缺列容忍式补列（旧表升级）
@@ -319,7 +319,7 @@ public class SqlBackendExecutor implements IBackendExecutor {
             List<ResultMap> list = ex().getList(sql, id);
             return list.isEmpty() ? null : rowToBean(beanClass, list.get(0));
         } catch (Throwable t) {
-            log.warn(I18n.t("log.orm.get-by-id-failed", "[ORM] getById 失败: {0}", t.getMessage()));
+            log.warnT("log.orm.get-by-id-failed", "[ORM] getById 失败: {0}", t.getMessage());
             return null;
         }
     }
@@ -350,7 +350,7 @@ public class SqlBackendExecutor implements IBackendExecutor {
             for (ResultMap row : rows) out.add(rowToBean(beanClass, row));
             return out;
         } catch (Throwable t) {
-            log.warn(I18n.t("log.orm.select-by-tree-failed", "[ORM] selectByTree 失败: {0}", t.getMessage()));
+            log.warnT("log.orm.select-by-tree-failed", "[ORM] selectByTree 失败: {0}", t.getMessage());
             return java.util.Collections.emptyList();
         }
     }
@@ -432,7 +432,7 @@ public class SqlBackendExecutor implements IBackendExecutor {
             ex().update(sql, vals.toArray());
             return true;
         } catch (Throwable t) {
-            log.warn(I18n.t("log.orm.upsert-failed", "[ORM] upsert 失败: {0}", t.getMessage()));
+            log.warnT("log.orm.upsert-failed", "[ORM] upsert 失败: {0}", t.getMessage());
             return false;
         }
     }
@@ -447,7 +447,7 @@ public class SqlBackendExecutor implements IBackendExecutor {
             ex().update("DELETE FROM `" + table(beanClass) + "` WHERE `" + meta.getIdField().columnName + "` = ?", id);
             return true;
         } catch (Throwable t) {
-            log.warn(I18n.t("log.orm.delete-by-id-failed", "[ORM] deleteById 失败: {0}", t.getMessage()));
+            log.warnT("log.orm.delete-by-id-failed", "[ORM] deleteById 失败: {0}", t.getMessage());
             return false;
         }
     }
@@ -484,7 +484,7 @@ public class SqlBackendExecutor implements IBackendExecutor {
             for (ResultMap row : rows) out.add(rowToBean(beanClass, row));
             return out;
         } catch (Throwable t) {
-            log.warn(I18n.t("log.orm.search-failed", "[ORM] search 失败: {0}", t.getMessage()));
+            log.warnT("log.orm.search-failed", "[ORM] search 失败: {0}", t.getMessage());
             return java.util.Collections.emptyList();
         }
     }

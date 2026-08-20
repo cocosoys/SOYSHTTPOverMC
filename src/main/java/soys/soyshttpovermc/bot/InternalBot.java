@@ -141,7 +141,7 @@ public class InternalBot {
         }
         int idx = addr.lastIndexOf(':');
         if (idx < 0) {
-            log.warn(I18n.t("log.bot.proxy-address-invalid", "proxy-address 格式错误（应为 host:port）: {0}", addr));
+            log.warnT("log.bot.proxy-address-invalid", "proxy-address 格式错误（应为 host:port）: {0}", addr);
             return;
         }
         try {
@@ -149,7 +149,7 @@ public class InternalBot {
             this.proxyPort = Integer.parseInt(addr.substring(idx + 1).trim());
             this.connectViaProxy = this.proxyHost.length() > 0 && this.proxyPort > 0;
         } catch (NumberFormatException e) {
-            log.warn(I18n.t("log.bot.proxy-port-invalid", "proxy-address 端口解析失败: {0}", addr));
+            log.warnT("log.bot.proxy-port-invalid", "proxy-address 端口解析失败: {0}", addr);
         }
     }
 
@@ -174,15 +174,15 @@ public class InternalBot {
             connectHost = proxyHost;
             connectPort = proxyPort;
             handshakeHost = proxyHost;
-            log.info(I18n.t("log.bot.connect-via-proxy", "Bot 经代理连接 {0}:{1} user={2}", connectHost, connectPort, getUsername()));
+            log.infoT("log.bot.connect-via-proxy", "Bot 经代理连接 {0}:{1} user={2}", connectHost, connectPort, getUsername());
         } else {
             if (proxyForwarding) {
                 // Bot 经回环直连后端，其真实 socket IP 即 127.0.0.1；uuid 用 Bot 名的离线 UUID（与 Spigot 离线模式一致）
                 handshakeHost = getHost() + "\u0000" + "127.0.0.1" + "\u0000" + offlinePlayerUuid(getUsername());
-                log.info(I18n.t("log.bot.forwarding-handshake", "群组服转发模式：Bot 握手附加转发数据 -> {0}",
-                        handshakeHost.replace("\u0000", "<NUL>")));
+                log.infoT("log.bot.forwarding-handshake", "群组服转发模式：Bot 握手附加转发数据 -> {0}",
+                        handshakeHost.replace("\u0000", "<NUL>"));
             }
-            log.info(I18n.t("log.bot.connecting", "Bot 正在连接 {0}:{1} user={2}", connectHost, connectPort, getUsername()));
+            log.infoT("log.bot.connecting", "Bot 正在连接 {0}:{1} user={2}", connectHost, connectPort, getUsername());
         }
         client = new Client(handshakeHost, connectPort, protocol, new TcpSessionFactory());
         session = client.getSession();
@@ -190,7 +190,7 @@ public class InternalBot {
         try {
             session.connect();
         } catch (Throwable t) {
-            log.warn(I18n.t("log.bot.connect-fail", "Bot 连接失败，稍后自动重连: {0}", t));
+            log.warnT("log.bot.connect-fail", "Bot 连接失败，稍后自动重连: {0}", t);
             scheduleReconnect(60L);
         }
     }
@@ -219,7 +219,7 @@ public class InternalBot {
      * 仅断开旧会话并在其已关闭时重建，再发起一次 connect()；主通道与 McLink 引用保持不变。
      */
     public void reconnect() {
-        log.info(I18n.t("log.bot.reconnecting", "Bot 重新连接 user={0}", getUsername()));
+        log.infoT("log.bot.reconnecting", "Bot 重新连接 user={0}", getUsername());
         registered = false;
         inGame = false;
         if (session != null && session.isConnected()) {
@@ -237,7 +237,7 @@ public class InternalBot {
 
     public void sendChannelMessage(String ch, byte[] data) {
         if (!waitUntilRegistered()) {
-            log.warn(I18n.t("log.bot.not-ready-drop", "Bot 尚未就绪，丢弃请求帧（通道={0}）", ch));
+            log.warnT("log.bot.not-ready-drop", "Bot 尚未就绪，丢弃请求帧（通道={0}）", ch);
             return;
         }
         if (session != null && session.isConnected()) {
@@ -266,7 +266,7 @@ public class InternalBot {
         final Session s = session;
         sender.submit(() -> {
             s.send(new ClientPluginMessagePacket(REGISTER_CHANNEL, getChannel().getBytes(StandardCharsets.UTF_8)));
-            log.info(I18n.t("log.bot.channel-registersent", "Bot 已发送通道注册 {0}", getChannel()));
+            log.infoT("log.bot.channel-registersent", "Bot 已发送通道注册 {0}", getChannel());
             if (connectViaProxy && proxyHost != null && proxyPort > 0 && serverName != null && !serverName.isEmpty()) {
                 try {
                     // 注册 BungeeCord 通道（供服务端侧代发 Connect / 本服 Forward 透传）。
@@ -281,9 +281,9 @@ public class InternalBot {
                     cout.writeUTF(serverName);
                     cout.flush();
                     s.send(new ClientPluginMessagePacket(CHANNEL_BOT_CTL, cb.toByteArray()));
-                    log.info(I18n.t("log.bot.botctl-connect", "Bot 已请求服务端代发 Connect 切到本服: {0}", serverName));
+                    log.infoT("log.bot.botctl-connect", "Bot 已请求服务端代发 Connect 切到本服: {0}", serverName);
                 } catch (Throwable t) {
-                    log.warn(I18n.t("log.bot.botctl-send-fail", "Bot 发送 botctl 失败: {0}", t));
+                    log.warnT("log.bot.botctl-send-fail", "Bot 发送 botctl 失败: {0}", t);
                 }
             }
             // 登记跨服枢纽所需的额外监听通道（fwd-req/fwd-resp/discovery）。
@@ -298,7 +298,7 @@ public class InternalBot {
                         } catch (Throwable ignored) {
                         }
                     }
-                    log.info(I18n.t("log.bot.cross-channels-registered", "Bot 已注册跨服通道(共 {0} 个): {1}", extraChannels.size(), extraChannels));
+                    log.infoT("log.bot.cross-channels-registered", "Bot 已注册跨服通道(共 {0} 个): {1}", extraChannels.size(), extraChannels);
                 }
             }
             // 周期补注册主通道（代理模式下经 Connect 切换后端会重置通道，需周期性补注册；
@@ -325,13 +325,13 @@ public class InternalBot {
     private void scheduleReconnect(long delayTicks) {
         if (closed) return;
         if (maxReconnectAttempts > 0 && ++reconnectAttempts > maxReconnectAttempts) {
-            log.warn(I18n.t("log.bot.reconnect-limit",
+            log.warnT("log.bot.reconnect-limit",
                     "Bot 自动重连已达上限({0} 次)，放弃重连 user={1}（可执行 /soyshttp reconnect 手动恢复）",
-                    maxReconnectAttempts, getUsername()));
+                    maxReconnectAttempts, getUsername());
             return;
         }
-        log.info(I18n.t("log.bot.reconnect-schedule", "Bot 将在 {0} tick 后重连（第 {1}/{2} 次）", delayTicks, reconnectAttempts,
-                maxReconnectAttempts <= 0 ? "∞" : String.valueOf(maxReconnectAttempts)));
+        log.infoT("log.bot.reconnect-schedule", "Bot 将在 {0} tick 后重连（第 {1}/{2} 次）", delayTicks, reconnectAttempts,
+                maxReconnectAttempts <= 0 ? "∞" : String.valueOf(maxReconnectAttempts));
         try {
             plugin.getServer().getScheduler().runTaskLater(plugin, this::reconnect, delayTicks);
         } catch (Throwable t) {
@@ -357,7 +357,7 @@ public class InternalBot {
                 }
             }
         } catch (Throwable t) {
-            log.warn(I18n.t("log.bot.reregen-fail", "Bot 周期重注册通道失败: {0}", t));
+            log.warnT("log.bot.reregen-fail", "Bot 周期重注册通道失败: {0}", t);
         }
     }
 
@@ -373,7 +373,7 @@ public class InternalBot {
         final Session s = session;
         if (s != null && s.isConnected()) {
             sender.submit(() -> s.send(new ClientPluginMessagePacket(REGISTER_CHANNEL, ch.getBytes(StandardCharsets.UTF_8))));
-            log.info(I18n.t("log.bot.extra-channel-registered", "Bot 已注册额外通道 {0}", ch));
+            log.infoT("log.bot.extra-channel-registered", "Bot 已注册额外通道 {0}", ch);
         }
     }
 
@@ -395,7 +395,7 @@ public class InternalBot {
             sender.submit(() -> {
                 try {
                     s.send(new ClientPluginMessagePacket(REGISTER_CHANNEL, ch.getBytes(StandardCharsets.UTF_8)));
-                    log.info(I18n.t("log.bot.extra-channel-backfill", "Bot 已补注册额外通道 {0}", ch));
+                    log.infoT("log.bot.extra-channel-backfill", "Bot 已补注册额外通道 {0}", ch);
                 } catch (Throwable ignored) {
                 }
             });
@@ -409,7 +409,7 @@ public class InternalBot {
         }
         final Session s = session;
         sender.submit(() -> s.send(new ClientPluginMessagePacket(UNREGISTER_CHANNEL, ch.getBytes(StandardCharsets.UTF_8))));
-        log.info(I18n.t("log.bot.channel-unregistered-bot", "Bot 已注销通道 {0}", ch));
+        log.infoT("log.bot.channel-unregistered-bot", "Bot 已注销通道 {0}", ch);
     }
 
     private void asyncSend(Packet p, String label) {
@@ -419,14 +419,14 @@ public class InternalBot {
         }
         sender.submit(() -> {
             s.send(p);
-            log.info(I18n.t("log.bot.sent", "已发送 {0}", label));
+            log.infoT("log.bot.sent", "已发送 {0}", label);
         });
     }
 
     private class BotSessionListener extends SessionAdapter {
         @Override
         public void connected(ConnectedEvent event) {
-            log.info(I18n.t("log.bot.tcp-connected", "Bot TCP 已连接，等待登录完成"));
+            log.infoT("log.bot.tcp-connected", "Bot TCP 已连接，等待登录完成");
         }
 
         @Override
@@ -434,8 +434,8 @@ public class InternalBot {
             registered = false;
             inGame = false;
             Throwable cause = event.getCause();
-            log.warn(I18n.t("log.bot.disconnected", "Bot 断开连接: reason={0}{1}", event.getReason(),
-                    cause != null ? " | cause=" + cause : " | cause=null"));
+            log.warnT("log.bot.disconnected", "Bot 断开连接: reason={0}{1}", event.getReason(),
+                    cause != null ? " | cause=" + cause : " | cause=null");
             if (cause != null) {
                 cause.printStackTrace();
             }
@@ -453,7 +453,7 @@ public class InternalBot {
                     MinecraftProtocol mp = (MinecraftProtocol) s.getPacketProtocol();
                     if (!inGame && mp.getSubProtocol() == SubProtocol.GAME) {
                         inGame = true;
-                        log.info(I18n.t("log.bot.game-enter", "Bot 进入 GAME，开始登记通道"));
+                        log.infoT("log.bot.game-enter", "Bot 进入 GAME，开始登记通道");
                         registerChannel();
                     }
                 }
@@ -474,8 +474,8 @@ public class InternalBot {
                 if (p instanceof ServerPluginMessagePacket) {
                     ServerPluginMessagePacket sp = (ServerPluginMessagePacket) p;
                     byte[] d = sp.getData();
-                    log.info(I18n.t("log.bot.plugin-message", "Bot 收到服务端 PluginMessage channel={0} len={1}", sp.getChannel(),
-                            d == null ? -1 : d.length));
+                    log.infoT("log.bot.plugin-message", "Bot 收到服务端 PluginMessage channel={0} len={1}", sp.getChannel(),
+                            d == null ? -1 : d.length);
                     // 仅主通道帧交由隧道分发(BotManager→McLink)；fwd-req/fwd-resp/botctl/BungeeCord 等
                     // 通道由服务端侧 PluginMessageListener 处理，不应回灌客户端侧 McLink。否则跨服响应
                     // (fwd-resp) 会被 Bot 与服务端双重处理，竞争同一 pending 表导致响应错乱/超时。
@@ -484,7 +484,7 @@ public class InternalBot {
                     }
                 }
             } catch (Throwable t) {
-                log.warn(I18n.t("log.bot.packet-error", "Bot 处理数据包异常"), t);
+                log.warnT("log.bot.packet-error", "Bot 处理数据包异常", t);
             }
         }
     }

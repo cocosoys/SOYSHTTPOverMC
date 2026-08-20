@@ -87,8 +87,8 @@ public abstract class SqlStorage implements DataStorage {
                                 || msg.contains("exist") || msg.contains("重复")) {
                             continue; // 列已存在，预期情况
                         }
-                        log.warn(I18n.t("log.storage.schema-migration-skip",
-                            "[{0}] 表结构迁移跳过: {1}", getType().getId(), e.getMessage()));
+                        log.warnT("log.storage.schema-migration-skip",
+                            "[{0}] 表结构迁移跳过: {1}", getType().getId(), e.getMessage());
                     }
                 }
             }
@@ -121,8 +121,8 @@ public abstract class SqlStorage implements DataStorage {
             try {
                 connection().isValid(3);
             } catch (SQLException e) {
-                log.warn(I18n.t("log.storage.keepalive-failed",
-                        "[{0}] 保活探测失败: {1}", getType().getId(), e.getMessage()));
+                log.warnT("log.storage.keepalive-failed",
+                        "[{0}] 保活探测失败: {1}", getType().getId(), e.getMessage());
             }
         }
     }

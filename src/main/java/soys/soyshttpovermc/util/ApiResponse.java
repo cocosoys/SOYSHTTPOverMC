@@ -4,6 +4,8 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
+import soys.soyshttpovermc.i18n.I18n;
+
 /**
  * 注解式 API 响应控制（仿 Spring MVC 的 {@code ResponseEntity}）：
  * 允许端点声明<b>自定义 HTTP 状态码</b>与<b>附加响应头</b>（302 跳转、Set-Cookie、
@@ -52,6 +54,11 @@ public class ApiResponse {
     /** 错误响应：真实 HTTP 状态码 + {@code {code,msg,data:null}} 信封。 */
     public static ApiResponse jsonError(int code, String msg) {
         return new ApiResponse(code, AjaxResult.error(code, msg), null);
+    }
+
+    /** 错误响应（i18n 版，key 首参，命中语言表翻译，未命中回退 fallback）：{@code jsonErrorT(400, "ajax.auth.key", "兜底 {0}", v)}。 */
+    public static ApiResponse jsonErrorT(int code, String i18nKey, String fallback, Object... args) {
+        return new ApiResponse(code, AjaxResult.errorT(code, i18nKey, fallback, args), null);
     }
 
     public int statusCode() {

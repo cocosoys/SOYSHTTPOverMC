@@ -28,7 +28,7 @@ public class ExtensionImpl implements ExtensionApi {
             LoginProviderFactory.register(provider);
         } catch (Exception ex) {
             throw ExceptionBus.fire(new ApiException("E_REGISTER_LOGIN_PROVIDER",
-                    I18n.t("exception.extension.login-provider-fail", "注册登录插件提供者失败: {0}", ex.getMessage()), ex));
+                    "exception.extension.login-provider-fail", "注册登录插件提供者失败: {0}", ex, ex.getMessage()));
         }
     }
 
@@ -37,7 +37,7 @@ public class ExtensionImpl implements ExtensionApi {
         SoysHttpCommand cmd = plugin.getCommandExecutor();
         if (cmd == null) {
             throw ExceptionBus.fire(new ApiException("E_REGISTER_SUB_COMMAND",
-                    I18n.t("exception.extension.sub-command-uninit", "/soyshttp 命令尚未初始化（请在宿主 onEnable 完成后注册子指令）")));
+                    "exception.extension.sub-command-uninit", "/soyshttp 命令尚未初始化（请在宿主 onEnable 完成后注册子指令）"));
         }
         cmd.registerSubCommand(subCommand);
     }
@@ -52,7 +52,7 @@ public class ExtensionImpl implements ExtensionApi {
             reg.register(interceptor);
         } catch (Exception ex) {
             throw ExceptionBus.fire(new ApiException("E_REGISTER_INTERCEPTOR",
-                    I18n.t("exception.extension.interceptor-register-fail", "注册请求拦截器失败: {0}", ex.getMessage()), ex));
+                    "exception.extension.interceptor-register-fail", "注册请求拦截器失败: {0}", ex, ex.getMessage()));
         }
     }
 
@@ -66,7 +66,7 @@ public class ExtensionImpl implements ExtensionApi {
             gw.addPluginPolicy(policy);
         } catch (Exception ex) {
             throw ExceptionBus.fire(new ApiException("E_REGISTER_POLICY",
-                    I18n.t("exception.extension.policy-inject-fail", "注入插件策略失败: {0}", ex.getMessage()), ex));
+                    "exception.extension.policy-inject-fail", "注入插件策略失败: {0}", ex, ex.getMessage()));
         }
     }
 }

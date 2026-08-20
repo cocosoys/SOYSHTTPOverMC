@@ -120,7 +120,7 @@ public class WebFrontendHandler {
                         return cors == null ? stop : corsRegistry.attach(cors, stop);
                     }
                 } catch (Throwable t) {
-                    log.warn(I18n.t("log.web.interceptor-error", "拦截器 {0} 异常，放行继续: {1}", in.name(), t));
+                    log.warnT("log.web.interceptor-error", "拦截器 {0} 异常，放行继续: {1}", in.name(), t);
                 }
             }
             m = ctx.method();
@@ -232,7 +232,7 @@ public class WebFrontendHandler {
                     s -> new HomePageResolver(s, webRoot, webRootCanonical, largeFileMaxBytes));
             return hr.resolve();
         } catch (Throwable t) {
-            log.warn(I18n.t("log.web.source-resolve-error", "来源解析异常({0}): {1}", sourceSpec, t));
+            log.warnT("log.web.source-resolve-error", "来源解析异常({0}): {1}", sourceSpec, t);
             return null;
         }
     }
@@ -267,7 +267,7 @@ public class WebFrontendHandler {
             try {
                 body = np.load();
             } catch (Throwable t) {
-                log.warn(I18n.t("log.web.network-page-load-fail", "网络页加载失败({0} {1}): {2}", np.name(), key, t));
+                log.warnT("log.web.network-page-load-fail", "网络页加载失败({0} {1}): {2}", np.name(), key, t);
                 return HttpFrames.jsonError(502, I18n.t("log.web.network-page-load-fail-msg", "网络页加载失败: {0}", np.name()));
             }
             if (body == null || body.length == 0) {
@@ -370,8 +370,8 @@ public class WebFrontendHandler {
                 try {
                     if (f.getCanonicalPath().startsWith(webRootCanonical) && f.isFile()) {
                         if (largeFileMaxBytes > 0 && f.length() > largeFileMaxBytes) {
-                            log.warn(I18n.t("log.web.static-oversize", "静态资源超过大文件上限，拒绝加载: /{0} size={1} limit={2}",
-                                    c, f.length(), largeFileMaxBytes));
+                            log.warnT("log.web.static-oversize", "静态资源超过大文件上限，拒绝加载: /{0} size={1} limit={2}",
+                                    c, f.length(), largeFileMaxBytes);
                             continue;
                         }
                         byte[] body = loadBytes("/" + c, f, () -> {
@@ -405,7 +405,7 @@ public class WebFrontendHandler {
             if (r == null || r.bytes == null || r.bytes.length == 0) return null;
             return new Hit(r.name, r.bytes, r.contentType);
         } catch (Throwable t) {
-            log.warn(I18n.t("log.web.home-resolve-error", "首页解析异常，回退默认: {0}", t));
+            log.warnT("log.web.home-resolve-error", "首页解析异常，回退默认: {0}", t);
             return null;
         }
     }

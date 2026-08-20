@@ -1,5 +1,7 @@
 package soys.soyshttpovermc.exception;
 
+import soys.soyshttpovermc.i18n.I18n;
+
 /**
  * HTTP-Over-MC 异常体系的根抽象类。
  *
@@ -35,14 +37,27 @@ public abstract class SoysHttpException extends RuntimeException {
         this.code = code;
     }
 
-    /** 格式化消息构造器：{@code new ApiException("用户 %s 已存在", name)}。 */
-    protected SoysHttpException(Module module, String code, String fmt, Object... args) {
-        this(module, code, String.format(fmt, args));
+    /**
+     * i18n 无 fallback 版：{@code new ApiException("异常.key", v)}。
+     * 以 {@code i18nKey} 查语言表翻译，未命中时回退 {@code i18nKey} 本身作模板再填 {@code {i}} 占位符。
+     */
+    protected SoysHttpException(Module module, String code, String i18nKey, Object... args) {
+        this(module, code, i18nKey, i18nKey, args);
     }
 
-    /** 格式化消息并携带根因：{@code new ApiException("读取 %s 失败", e, path)}。 */
-    protected SoysHttpException(Module module, String code, String fmt, Throwable cause, Object... args) {
-        this(module, code, String.format(fmt, args), cause);
+    /** i18n 无 fallback + 根因版：{@code new ApiException("异常.key", e, v)}。 */
+    protected SoysHttpException(Module module, String code, String i18nKey, Throwable cause, Object... args) {
+        this(module, code, i18nKey, i18nKey, cause, args);
+    }
+
+    /** i18n 显式兜底版：{@code new ApiException("异常.key", "兜底模板 {0}", v)}。 */
+    protected SoysHttpException(Module module, String code, String i18nKey, String fallback, Object... args) {
+        this(module, code, I18n.resolve(i18nKey, fallback, args));
+    }
+
+    /** i18n 显式兜底 + 根因版：{@code new ApiException("异常.key", "兜底 {0}", e, v)}。 */
+    protected SoysHttpException(Module module, String code, String i18nKey, String fallback, Throwable cause, Object... args) {
+        this(module, code, I18n.resolve(i18nKey, fallback, args), cause);
     }
 
     public Module getModule() { return module; }

@@ -29,7 +29,7 @@ public class ApiRegistrationImpl implements ApiRegistrationApi {
         try {
             apiRegistry.register(instance);
         } catch (Exception ex) {
-            throw ExceptionBus.fire(new ApiException("E_REGISTER", I18n.t("exception.api.register-fail", "注册控制器失败: {0}", ex.getMessage()), ex));
+            throw ExceptionBus.fire(new ApiException("E_REGISTER", "exception.api.register-fail", "注册控制器失败: {0}", ex, ex.getMessage()));
         }
     }
 
@@ -38,7 +38,7 @@ public class ApiRegistrationImpl implements ApiRegistrationApi {
         try {
             apiRegistry.register(owner, instance);
         } catch (Exception ex) {
-            throw ExceptionBus.fire(new ApiException("E_REGISTER", I18n.t("exception.api.register-fail-owner", "注册控制器失败(owner={0}): {1}", owner, ex.getMessage()), ex));
+            throw ExceptionBus.fire(new ApiException("E_REGISTER", "exception.api.register-fail-owner", "注册控制器失败(owner={0}): {1}", ex, owner, ex.getMessage()));
         }
     }
 
@@ -47,7 +47,7 @@ public class ApiRegistrationImpl implements ApiRegistrationApi {
         try {
             apiRegistry.register(instance, force);
         } catch (Exception ex) {
-            throw ExceptionBus.fire(new ApiException("E_REGISTER", I18n.t("exception.api.register-fail-force", "注册控制器失败(force={0}): {1}", force, ex.getMessage()), ex));
+            throw ExceptionBus.fire(new ApiException("E_REGISTER", "exception.api.register-fail-force", "注册控制器失败(force={0}): {1}", ex, force, ex.getMessage()));
         }
     }
 
@@ -56,7 +56,7 @@ public class ApiRegistrationImpl implements ApiRegistrationApi {
         try {
             apiRegistry.register(owner, instance, force);
         } catch (Exception ex) {
-            throw ExceptionBus.fire(new ApiException("E_REGISTER", I18n.t("exception.api.register-fail-owner-force", "注册控制器失败(owner={0}, force={1}): {2}", owner, force, ex.getMessage()), ex));
+            throw ExceptionBus.fire(new ApiException("E_REGISTER", "exception.api.register-fail-owner-force", "注册控制器失败(owner={0}, force={1}): {2}", ex, owner, force, ex.getMessage()));
         }
     }
 
@@ -65,7 +65,7 @@ public class ApiRegistrationImpl implements ApiRegistrationApi {
         try {
             apiRegistry.registerProxy(instance);
         } catch (Exception ex) {
-            throw ExceptionBus.fire(new ApiException("E_REGISTER_PROXY", I18n.t("exception.api.register-proxy-fail", "代理注册控制器失败: {0}", ex.getMessage()), ex));
+            throw ExceptionBus.fire(new ApiException("E_REGISTER_PROXY", "exception.api.register-proxy-fail", "代理注册控制器失败: {0}", ex, ex.getMessage()));
         }
     }
 
@@ -74,7 +74,7 @@ public class ApiRegistrationImpl implements ApiRegistrationApi {
         try {
             apiRegistry.registerProxy(owner, instance);
         } catch (Exception ex) {
-            throw ExceptionBus.fire(new ApiException("E_REGISTER_PROXY", I18n.t("exception.api.register-proxy-fail-owner", "代理注册控制器失败(owner={0}): {1}", owner, ex.getMessage()), ex));
+            throw ExceptionBus.fire(new ApiException("E_REGISTER_PROXY", "exception.api.register-proxy-fail-owner", "代理注册控制器失败(owner={0}): {1}", ex, owner, ex.getMessage()));
         }
     }
 
@@ -83,7 +83,7 @@ public class ApiRegistrationImpl implements ApiRegistrationApi {
         try {
             apiRegistry.registerProxy(instance, force);
         } catch (Exception ex) {
-            throw ExceptionBus.fire(new ApiException("E_REGISTER_PROXY", I18n.t("exception.api.register-proxy-fail-force", "代理注册控制器失败(force={0}): {1}", force, ex.getMessage()), ex));
+            throw ExceptionBus.fire(new ApiException("E_REGISTER_PROXY", "exception.api.register-proxy-fail-force", "代理注册控制器失败(force={0}): {1}", ex, force, ex.getMessage()));
         }
     }
 
@@ -92,7 +92,7 @@ public class ApiRegistrationImpl implements ApiRegistrationApi {
         try {
             apiRegistry.registerProxy(owner, instance, force);
         } catch (Exception ex) {
-            throw ExceptionBus.fire(new ApiException("E_REGISTER_PROXY", I18n.t("exception.api.register-proxy-fail-owner-force", "代理注册控制器失败(owner={0}, force={1}): {2}", owner, force, ex.getMessage()), ex));
+            throw ExceptionBus.fire(new ApiException("E_REGISTER_PROXY", "exception.api.register-proxy-fail-owner-force", "代理注册控制器失败(owner={0}, force={1}): {2}", ex, owner, force, ex.getMessage()));
         }
     }
 
@@ -101,7 +101,7 @@ public class ApiRegistrationImpl implements ApiRegistrationApi {
         try {
             return apiRegistry.unregister(instance);
         } catch (Exception ex) {
-            throw ExceptionBus.fire(new ApiException("E_UNREGISTER", I18n.t("exception.api.unregister-fail", "卸载控制器失败: {0}", ex.getMessage()), ex));
+            throw ExceptionBus.fire(new ApiException("E_UNREGISTER", "exception.api.unregister-fail", "卸载控制器失败: {0}", ex, ex.getMessage()));
         }
     }
 
@@ -110,7 +110,7 @@ public class ApiRegistrationImpl implements ApiRegistrationApi {
         try {
             return apiRegistry.unregisterPlugin(pluginName);
         } catch (Exception ex) {
-            throw ExceptionBus.fire(new ApiException("E_UNREGISTER", I18n.t("exception.api.unregister-plugin-fail", "卸载插件端点失败(plugin={0}): {1}", pluginName, ex.getMessage()), ex));
+            throw ExceptionBus.fire(new ApiException("E_UNREGISTER", "exception.api.unregister-plugin-fail", "卸载插件端点失败(plugin={0}): {1}", ex, pluginName, ex.getMessage()));
         }
     }
 
@@ -119,7 +119,7 @@ public class ApiRegistrationImpl implements ApiRegistrationApi {
         try {
             apiRegistry.setPermissionService(ps);
         } catch (Exception ex) {
-            throw ExceptionBus.fire(new ApiException("E_PERMISSION", I18n.t("exception.api.permission-fail", "接入权限服务失败: {0}", ex.getMessage()), ex));
+            throw ExceptionBus.fire(new ApiException("E_PERMISSION", "exception.api.permission-fail", "接入权限服务失败: {0}", ex, ex.getMessage()));
         }
     }
 

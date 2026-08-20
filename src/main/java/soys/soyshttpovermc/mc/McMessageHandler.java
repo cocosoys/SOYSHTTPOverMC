@@ -78,14 +78,14 @@ public class McMessageHandler implements PluginMessageListener {
             // 关键修复：见原实现说明——强制把 Bot 加入 listening 集合，保证响应可达。
             if (!player.getListeningPluginChannels().contains(channel)) {
                 ensureListening(player, channel);
-                log.info(I18n.t("log.mc.force-listen", "已为 Bot 强制登记监听通道 {0} -> listening={1}", channel,
-                        player.getListeningPluginChannels()));
+                log.infoT("log.mc.force-listen", "已为 Bot 强制登记监听通道 {0} -> listening={1}", channel,
+                        player.getListeningPluginChannels());
             }
 
             // 跨服中继：若本请求指向其他服（请求头携带 X-Soys-Target-Server 且非本服），逐分片转发到目标服。
             if (hub != null && hub.isCrossServer(chunk)) {
-                log.info(I18n.t("log.mc.cross-server-route", "[CrossServer] 网关侧命中跨服路由 target={0} id={1}",
-                        chunk.getHeadersMap().get(CrossServerHub.HEADER_TARGET), chunk.getRequestId()));
+                log.infoT("log.mc.cross-server-route", "[CrossServer] 网关侧命中跨服路由 target={0} id={1}",
+                        chunk.getHeadersMap().get(CrossServerHub.HEADER_TARGET), chunk.getRequestId());
                 hub.relayRequestFragment(message, chunk.getHeadersMap().get(CrossServerHub.HEADER_TARGET));
                 return;
             }
@@ -94,7 +94,7 @@ public class McMessageHandler implements PluginMessageListener {
             int rawTotal = chunk.getTotalFragments();
             final int total = rawTotal < 1 ? 1 : rawTotal;
             if (total > MAX_FRAGMENTS) {
-                log.warn(I18n.t("log.mc.fragments-oversize", "分片数超限，丢弃请求 id={0} total={1}", id, total));
+                log.warnT("log.mc.fragments-oversize", "分片数超限，丢弃请求 id={0} total={1}", id, total);
                 return;
             }
             PendingReq pr = pending.computeIfAbsent(id, k -> new PendingReq(total));
@@ -127,7 +127,7 @@ public class McMessageHandler implements PluginMessageListener {
             // 提交到对应 tier 队列，由 RequestScheduler 按优先级异步处理（不再同步执行 web.handle）
             scheduler.submit(tier, player, id, req.getMethod(), req.getPath(), clean, req.getBody().toByteArray());
         } catch (Exception e) {
-            log.warn(I18n.t("log.mc.process-fail", "处理消息失败: {0}", e));
+            log.warnT("log.mc.process-fail", "处理消息失败: {0}", e);
         }
     }
 
@@ -144,7 +144,7 @@ public class McMessageHandler implements PluginMessageListener {
                 }
             }
             if (removed) {
-                log.info(I18n.t("log.mc.fragments-swept", "分片 pending 表已清理过期条目（剩余 {0}）", pending.size()));
+                log.infoT("log.mc.fragments-swept", "分片 pending 表已清理过期条目（剩余 {0}）", pending.size());
             }
         } finally {
             // 仅当仍有未完成分片时才续排下一次；空闲即停止调度（不驻留定时任务）
@@ -184,7 +184,7 @@ public class McMessageHandler implements PluginMessageListener {
             }
             m.invoke(player, ch);
         } catch (Exception e) {
-            log.warn(I18n.t("log.mc.force-listen-fail", "无法强制登记监听通道 {0}: {1}", ch, e));
+            log.warnT("log.mc.force-listen-fail", "无法强制登记监听通道 {0}: {1}", ch, e);
         }
     }
 

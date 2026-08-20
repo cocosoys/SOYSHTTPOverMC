@@ -107,7 +107,7 @@ public class WebContentCache {
             b = safeLoad(loader);
             if (b != null) {
                 pinnedBytes.put(path, b);
-                log.info(I18n.t("log.web.cache-pinned-load", "Web 缓存：常驻资源已加载 {0} ({1} B，不计入 max-bytes)", path, b.length));
+                log.infoT("log.web.cache-pinned-load", "Web 缓存：常驻资源已加载 {0} ({1} B，不计入 max-bytes)", path, b.length);
             }
             misses.incrementAndGet();
             return b;
@@ -119,7 +119,7 @@ public class WebContentCache {
             try {
                 return large.load(path, file);
             } catch (Exception e) {
-                log.warn(I18n.t("log.web.cache-large-fail", "Web 缓存：大文件加载失败 path={0} loader={1}: {2}", path, large.name(), e));
+                log.warnT("log.web.cache-large-fail", "Web 缓存：大文件加载失败 path={0} loader={1}: {2}", path, large.name(), e);
                 return null;
             }
         }
@@ -193,7 +193,7 @@ public class WebContentCache {
         try {
             return loader == null ? null : loader.get();
         } catch (Throwable t) {
-            log.warn(I18n.t("log.web.cache-load-exception", "Web 缓存：资源加载异常: {0}", t));
+            log.warnT("log.web.cache-load-exception", "Web 缓存：资源加载异常: {0}", t);
             return null;
         }
     }

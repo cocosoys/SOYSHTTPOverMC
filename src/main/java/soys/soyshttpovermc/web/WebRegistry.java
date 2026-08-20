@@ -144,13 +144,13 @@ public class WebRegistry {
     private boolean putEntry(String key, Entry e, boolean force) {
         Entry old = pages.get(key);
         if (old != null && !force) {
-            log.warn(I18n.t("log.web.register-duplicate-denied", "拒绝重复登记: {0}（已由插件 {1} 登记；如需覆盖请用强制登记 force=true）",
-                    key, old.ownerPlugin));
+            log.warnT("log.web.register-duplicate-denied", "拒绝重复登记: {0}（已由插件 {1} 登记；如需覆盖请用强制登记 force=true）",
+                    key, old.ownerPlugin);
             return false;
         }
         pages.put(key, e);
         if (old != null) {
-            log.info(I18n.t("log.web.register-force-overwrite", "插件 {0} 强制登记覆盖: {1}（原登记插件 {2}）", e.ownerPlugin, key, old.ownerPlugin));
+            log.infoT("log.web.register-force-overwrite", "插件 {0} 强制登记覆盖: {1}（原登记插件 {2}）", e.ownerPlugin, key, old.ownerPlugin);
         }
         return true;
     }
@@ -168,8 +168,8 @@ public class WebRegistry {
         if (!putEntry("GET " + full, new Entry(ownerName, full, null, null, null, null, toPath, statusCode, null), force)) {
             return;
         }
-        log.info(I18n.t("log.web.register-redirect", "登记跳转: GET {0} → {1} ({2}) 插件={3}{4}", full, toPath, statusCode,
-                    ownerName, proxy ? " (代理无前缀)" : ""));
+        log.infoT("log.web.register-redirect", "登记跳转: GET {0} → {1} ({2}) 插件={3}{4}", full, toPath, statusCode,
+                    ownerName, proxy ? " (代理无前缀)" : "");
     }
 
     // ===== 目录批量登记（一行托管整个前端文件夹） =====
@@ -226,9 +226,9 @@ public class WebRegistry {
                 putEntry("GET " + full, new Entry(owner.getName(), full, null,
                         null, resourceClassLoader, "/" + name, null, 0, null), false);
             }
-            log.info(I18n.t("log.web.register-jar-dir", "批量登记 jar 目录: {0} root={1} base={2}", owner.getName(), resourceRoot, basePath));
+            log.infoT("log.web.register-jar-dir", "批量登记 jar 目录: {0} root={1} base={2}", owner.getName(), resourceRoot, basePath);
         } catch (Exception ex) {
-            log.warn(I18n.t("log.web.register-jar-dir-fail", "批量登记 jar 目录失败: {0} -> {1}", owner.getName(), ex.getMessage()));
+            log.warnT("log.web.register-jar-dir-fail", "批量登记 jar 目录失败: {0} -> {1}", owner.getName(), ex.getMessage());
         }
     }
 
@@ -255,16 +255,16 @@ public class WebRegistry {
         String key = "GET " + full;
         RegisteredNetworkPage old = networkPages.get(key);
         if (old != null && !force) {
-            log.warn(I18n.t("log.web.register-netpage-duplicate-denied", "拒绝重复登记(网络页): {0}（已由插件 {1} 登记；如需覆盖请用强制登记 force=true）",
-                    key, old.ownerPlugin));
+            log.warnT("log.web.register-netpage-duplicate-denied", "拒绝重复登记(网络页): {0}（已由插件 {1} 登记；如需覆盖请用强制登记 force=true）",
+                    key, old.ownerPlugin);
             return;
         }
         networkPages.put(key, new RegisteredNetworkPage(ownerPlugin, full, page));
         if (old != null) {
-            log.info(I18n.t("log.web.register-netpage-force-overwrite", "插件 {0} 强制登记覆盖(网络页): {1}（原登记插件 {2}）", ownerPlugin, key, old.ownerPlugin));
+            log.infoT("log.web.register-netpage-force-overwrite", "插件 {0} 强制登记覆盖(网络页): {1}（原登记插件 {2}）", ownerPlugin, key, old.ownerPlugin);
         }
-        log.info(I18n.t("log.web.register-netpage", "登记网络页: {0} name={1} 插件={2} cacheTtl={3}s", key, page.name(),
-                ownerPlugin, page.cacheTtlSeconds()));
+        log.infoT("log.web.register-netpage", "登记网络页: {0} name={1} 插件={2} cacheTtl={3}s", key, page.name(),
+                ownerPlugin, page.cacheTtlSeconds());
     }
 
     /** 按方法 + 路径匹配网络页（精确 + .html 智能匹配）；未命中返回 null。 */
@@ -326,8 +326,8 @@ public class WebRegistry {
                 .filter(e -> pluginName.equals(e.getValue().ownerPlugin)).count();
         networkPages.entrySet().removeIf(e -> pluginName.equals(e.getValue().ownerPlugin));
         if (removed > 0 || netRemoved > 0) {
-            log.info(I18n.t("log.web.unregister", "卸载网页（插件 {0}）：共 {1} 个{2}", pluginName, removed,
-                    netRemoved > 0 ? "，网络页 " + netRemoved + " 个" : ""));
+            log.infoT("log.web.unregister", "卸载网页（插件 {0}）：共 {1} 个{2}", pluginName, removed,
+                    netRemoved > 0 ? "，网络页 " + netRemoved + " 个" : "");
         }
         // 一并清理该插件的自定义错误页
         errorPages.entrySet().removeIf(e -> pluginName.equals(e.getValue().ownerPlugin));
@@ -342,7 +342,7 @@ public class WebRegistry {
     public void registerErrorPage(String ownerPlugin, int status, byte[] content) {
         if (content == null || content.length == 0 || status <= 0) return;
         errorPages.put(status, new ErrorPage(ownerPlugin, content));
-        log.info(I18n.t("log.web.register-error-page", "已登记自定义错误页 status={0} owner={1}", status, ownerPlugin));
+        log.infoT("log.web.register-error-page", "已登记自定义错误页 status={0} owner={1}", status, ownerPlugin);
     }
 
     /** 查询自定义错误页（未注册返回 null）。 */
@@ -382,7 +382,7 @@ public class WebRegistry {
         String key = "GET /";
         String ct = (contentType == null || contentType.isEmpty()) ? "text/html; charset=utf-8" : contentType;
         putEntry(key, new Entry(ownerPlugin, "/", ct, content, null, null, null, 0, null), true);
-        log.info(I18n.t("log.web.switch-home", "切换首页: GET / current={0}", ownerPlugin == null ? "?" : ownerPlugin));
+        log.infoT("log.web.switch-home", "切换首页: GET / current={0}", ownerPlugin == null ? "?" : ownerPlugin);
     }
 
     /** 列出全部已登记项（Entry 原对象），按路径排序；供 /soyshttp pages 分类展示（区分页/资源/跳转）。 */
@@ -408,7 +408,7 @@ public class WebRegistry {
         if (!putEntry("GET " + full, new Entry(ownerName, full, ct, content, null, null, null, 0, null), force)) {
             return;
         }
-        log.info(I18n.t("log.web.register-page", "登记网页: GET {0} 插件={1}{2}", full, ownerName, proxy ? " (代理无前缀)" : ""));
+        log.infoT("log.web.register-page", "登记网页: GET {0} 插件={1}{2}", full, ownerName, proxy ? " (代理无前缀)" : "");
     }
 
     private void registerRes(Plugin owner, String path, ClassLoader cl, String resource, String contentType, boolean proxy) {
@@ -424,7 +424,7 @@ public class WebRegistry {
         if (!putEntry("GET " + full, new Entry(ownerName, full, ct, null, cl, resource, null, 0, null), force)) {
             return;
         }
-        log.info(I18n.t("log.web.register-resource", "登记网页(资源): GET {0} 插件={1}{2}", full, ownerName, proxy ? " (代理无前缀)" : ""));
+        log.infoT("log.web.register-resource", "登记网页(资源): GET {0} 插件={1}{2}", full, ownerName, proxy ? " (代理无前缀)" : "");
     }
 
     /** 计算最终路径：非主插件且非代理 → 前置 /plugins/<插件名> */
@@ -450,7 +450,7 @@ public class WebRegistry {
                 putEntry("GET " + full, new Entry(ownerName, full, null, null, null, null, null, 0, f), false);
             }
         }
-        log.info(I18n.t("log.web.register-disk-dir", "批量登记磁盘目录: {0} base={1} dir={2}", ownerName, basePath, dir.getAbsolutePath()));
+        log.infoT("log.web.register-disk-dir", "批量登记磁盘目录: {0} base={1} dir={2}", ownerName, basePath, dir.getAbsolutePath());
     }
 
     /** 拼接 web 路径片段（保证单层斜杠，根前缀 / 不产生双斜杠）。 */

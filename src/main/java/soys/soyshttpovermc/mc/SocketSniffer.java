@@ -150,7 +150,7 @@ public class SocketSniffer {
                     return t;
                 },
                 new ThreadPoolExecutor.AbortPolicy()); // 拒绝：提交处捕获并直接 503
-        log.info(I18n.t("log.sniffer.pool", "嗅探器线程池: concurrency={0} queue={1}", this.httpConcurrency, queue));
+        log.infoT("log.sniffer.pool", "嗅探器线程池: concurrency={0} queue={1}", this.httpConcurrency, queue);
         this.stats = stats;
         this.gateway = gateway;
         this.tlsEngineSupplier = tlsEngineSupplier;
@@ -172,14 +172,14 @@ public class SocketSniffer {
         try {
             Object serverConnection = getServerConnection();
             if (serverConnection == null) {
-                log.error(I18n.t("log.sniffer.no-server-connection", "无法获取 ServerConnection，HTTP 同端口嗅探器安装失败"));
+                log.errorT("log.sniffer.no-server-connection", "无法获取 ServerConnection，HTTP 同端口嗅探器安装失败");
                 return;
             }
             @SuppressWarnings("unchecked")
             List<io.netty.channel.ChannelFuture> futures =
                     (List<io.netty.channel.ChannelFuture>) getField(serverConnection, "g");
             if (futures == null) {
-                log.error(I18n.t("log.sniffer.no-channel-list", "无法获取监听 channel 列表（字段 g），安装失败"));
+                log.errorT("log.sniffer.no-channel-list", "无法获取监听 channel 列表（字段 g），安装失败");
                 return;
             }
             int n = 0;
@@ -192,16 +192,16 @@ public class SocketSniffer {
                     pipe.addFirst("http-over-mc-parent", new ParentInjectorHandler());
                     installedParents.add(parent);
                     n++;
-                    log.info(I18n.t("log.sniffer.installed-on-port", "已在 Spigot 监听端口 {0} 上安装 HTTP 嗅探器", parent.localAddress()));
+                    log.infoT("log.sniffer.installed-on-port", "已在 Spigot 监听端口 {0} 上安装 HTTP 嗅探器", parent.localAddress());
                 }
             }
             if (n == 0) {
-                log.warn(I18n.t("log.sniffer.no-active-port", "未找到任何活跃监听端口，嗅探器未生效（请确认 Spigot 已绑定端口）"));
+                log.warnT("log.sniffer.no-active-port", "未找到任何活跃监听端口，嗅探器未生效（请确认 Spigot 已绑定端口）");
             } else {
-                log.info(I18n.t("log.sniffer.installed", "同端口嗅探器已安装：{0} 个端口。访问端口 == Spigot server-port，MC 与 HTTP 共用", n));
+                log.infoT("log.sniffer.installed", "同端口嗅探器已安装：{0} 个端口。访问端口 == Spigot server-port，MC 与 HTTP 共用", n);
             }
         } catch (Throwable t) {
-            log.error(I18n.t("log.sniffer.install-error", "安装嗅探器异常"), t);
+            log.errorT("log.sniffer.install-error", "安装嗅探器异常", t);
         }
     }
 
@@ -332,8 +332,8 @@ public class SocketSniffer {
                 } catch (java.util.concurrent.RejectedExecutionException e) {
                     // 秒杀防护：线程池与队列已满（并发上限 sniffer.http-concurrency）→ 不再接收，
                     // 立即 503 快速失败，直到有空位（避免任务无限堆积打爆内存）
-                    log.warn(I18n.t("log.sniffer.concurrency-limit", "HTTP 并发已达上限({0})，拒绝新请求: {1} {2}",
-                            httpConcurrency, parsed.method, parsed.path));
+                    log.warnT("log.sniffer.concurrency-limit", "HTTP 并发已达上限({0})，拒绝新请求: {1} {2}",
+                            httpConcurrency, parsed.method, parsed.path);
                     writeRaw(ctx, "Service Unavailable (HTTP concurrency limit)", 503, tls);
                     releaseBuffer();
                     httpHandled = false;
@@ -519,7 +519,7 @@ public class SocketSniffer {
             if (gw != null) {
                 Credential cred = gw.resolveCredential(p.headers);
                 if (cred != null && !tls && tlsEngineSupplier != null) {
-                    log.warn(I18n.t("log.sniffer.plaintext-cred", "凭证经明文 HTTP 传输（建议启用 TLS）: {0}", ip));
+                    log.warnT("log.sniffer.plaintext-cred", "凭证经明文 HTTP 传输（建议启用 TLS）: {0}", ip);
                 }
                 GatewayContext gctx = new GatewayContext(p.method, translator.policyPath(p.path),
                         p.headers, ip, tls, cred, p.path);
@@ -594,7 +594,7 @@ public class SocketSniffer {
             writeResponse(ctx, out, tls, keepAlive);
         } catch (Exception e) {
             code = 502;
-            log.warn(I18n.t("log.sniffer.tunnel-fail", "隧道转换失败: {0}", e));
+            log.warnT("log.sniffer.tunnel-fail", "隧道转换失败: {0}", e);
             writeRaw(ctx, "HTTP-Over-MC tunnel error: "
                     + (e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage()), 502, tls);
         } finally {
@@ -814,7 +814,7 @@ public class SocketSniffer {
             Method getServerConnection = mcServer.getClass().getMethod("getServerConnection");
             return getServerConnection.invoke(mcServer);
         } catch (Throwable t) {
-            log.error(I18n.t("log.sniffer.reflect-server-connection-fail", "反射获取 ServerConnection 失败"), t);
+            log.errorT("log.sniffer.reflect-server-connection-fail", "反射获取 ServerConnection 失败", t);
             return null;
         }
     }

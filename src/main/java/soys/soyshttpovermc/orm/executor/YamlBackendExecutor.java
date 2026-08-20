@@ -90,7 +90,7 @@ public class YamlBackendExecutor implements IBackendExecutor {
             if (config == null) {
                 File file = fileOf(beanClass);
                 if (!file.getParentFile().exists() && !file.getParentFile().mkdirs()) {
-                    log.warn(I18n.t("log.orm.mkdir-failed", "[ORM] 无法创建数据目录: {0}", file.getParentFile()));
+                    log.warnT("log.orm.mkdir-failed", "[ORM] 无法创建数据目录: {0}", file.getParentFile());
                 }
                 config = file.isFile() ? YamlConfiguration.loadConfiguration(file) : new YamlConfiguration();
                 if (!config.isConfigurationSection(table)) {
@@ -116,7 +116,7 @@ public class YamlBackendExecutor implements IBackendExecutor {
     private void flush(YamlConfiguration config, File target) {
         try {
             if (!target.getParentFile().exists() && !target.getParentFile().mkdirs()) {
-                log.warn(I18n.t("log.orm.mkdir-failed", "[ORM] 无法创建数据目录: {0}", target.getParentFile()));
+                log.warnT("log.orm.mkdir-failed", "[ORM] 无法创建数据目录: {0}", target.getParentFile());
                 return;
             }
             File tmp = new File(target.getParentFile(), target.getName() + ".tmp");
@@ -124,7 +124,7 @@ public class YamlBackendExecutor implements IBackendExecutor {
             Files.move(tmp.toPath(), target.toPath(),
                     StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
         } catch (IOException | RuntimeException e) {
-            log.warn(I18n.t("log.orm.yaml-flush-failed", "[ORM] YAML 落盘失败: {0}", e.getMessage()));
+            log.warnT("log.orm.yaml-flush-failed", "[ORM] YAML 落盘失败: {0}", e.getMessage());
         }
     }
 

@@ -59,7 +59,7 @@ public final class I18n {
         if (dataFolder == null) return;
         File dir = new File(dataFolder, "language");
         if (!dir.exists() && !dir.mkdirs()) {
-            log.warn(I18n.t("log.i18n.dir-create-fail", "[i18n] 创建语言目录失败: {0}", dir.getAbsolutePath()));
+            log.warnT("log.i18n.dir-create-fail", "[i18n] 创建语言目录失败: {0}", dir.getAbsolutePath());
             languageDir = dir;
             return;
         }
@@ -74,14 +74,14 @@ public final class I18n {
         if (code == null || code.isEmpty() || languageDir == null) return false;
         File file = new File(languageDir, code.toLowerCase() + ".yml");
         if (!file.isFile()) {
-            log.warn(I18n.t("log.i18n.file-not-found", "[i18n] 默认语言文件不存在: {0}，保持当前语言", file.getAbsolutePath()));
+            log.warnT("log.i18n.file-not-found", "[i18n] 默认语言文件不存在: {0}，保持当前语言", file.getAbsolutePath());
             return false;
         }
         YamlLanguageBundle bundle = new YamlLanguageBundle(code);
         if (bundle.load(file)) {
             lang = code.toLowerCase();
             current = bundle;
-            log.info(I18n.t("log.i18n.bundle-loaded", "[i18n] 默认语言包已加载: {0} ({1} 条)", lang, bundle.messagesSize()));
+            log.infoT("log.i18n.bundle-loaded", "[i18n] 默认语言包已加载: {0} ({1} 条)", lang, bundle.messagesSize());
             return true;
         }
         return false;
@@ -115,7 +115,7 @@ public final class I18n {
         Map<String, I18nScope> map = new LinkedHashMap<>(pluginScopes);
         map.put(name, scope);
         pluginScopes = map;
-        log.info(I18n.t("log.i18n.plugin-registered", "[i18n] 插件作用域已注册: {0}（前缀 {1}）", name, prefix));
+        log.infoT("log.i18n.plugin-registered", "[i18n] 插件作用域已注册: {0}（前缀 {1}）", name, prefix);
         return scope;
     }
 
@@ -140,7 +140,7 @@ public final class I18n {
         list.removeIf(s -> s.name().equalsIgnoreCase(id));
         list.add(scope);
         headlessScopes = list;
-        log.info(I18n.t("log.i18n.headless-registered", "[i18n] 无头作用域已登记: {0}（{1} 条，前缀 {2}）", id, entries.size(), prefix));
+        log.infoT("log.i18n.headless-registered", "[i18n] 无头作用域已登记: {0}（{1} 条，前缀 {2}）", id, entries.size(), prefix);
         return scope;
     }
 
@@ -184,6 +184,41 @@ public final class I18n {
     /** 当前语言代码。 */
     public static String languageCode() {
         return lang;
+    }
+
+    // ==================== 统一转译决策（底层函数入口） ====================
+
+    /**
+     * 统一转译决策，供日志 / 异常 / AjaxResult 等底层函数复用，业务调用点无需再手动拼 {@code I18n.t}。
+     *
+     * <p>规则：</p>
+     * <ul>
+     *   <li>{@code key} 非空 → 以 {@code key} 查语言表翻译 {@code fallback}，命中用表文本，未命中回退 {@code fallback}，最后填 {@code {i}} 占位符；</li>
+     *   <li>{@code key} 为 {@code null} → 不查表，仅对 {@code fallback} 做 {@code {i}} 占位符替换（作为纯模板）。</li>
+     * </ul>
+     */
+    public static String resolve(String key, String fallback, Object... args) {
+        if (key == null) {
+            return replace(fallback, args);
+        }
+        return t(key, fallback, args);
+    }
+
+    /** 纯占位符 {@code {0} {1}...} 替换（不查表）；{@code null} 模板返回 {@code null}。 */
+    public static String replace(String template, Object... args) {
+        if (template == null) {
+            return null;
+        }
+        if (args == null || args.length == 0) {
+            return template;
+        }
+        for (int i = 0; i < args.length; i++) {
+            if (args[i] == null) {
+                continue;
+            }
+            template = template.replace("{" + i + "}", String.valueOf(args[i]));
+        }
+        return template;
     }
 
     // ==================== 取值 ====================
@@ -240,7 +275,7 @@ public final class I18n {
         File target = new File(dir, fileName);
         if (target.isFile()) return;
         if (!writeResource(dir, fileName)) {
-            log.warn(I18n.t("log.i18n.copy-resource-fail", "[i18n] 复制内置语言文件失败: {0}", fileName));
+            log.warnT("log.i18n.copy-resource-fail", "[i18n] 复制内置语言文件失败: {0}", fileName);
         }
     }
 

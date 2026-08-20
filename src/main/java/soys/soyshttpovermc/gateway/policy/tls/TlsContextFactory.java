@@ -67,12 +67,12 @@ public class TlsContextFactory {
         try {
             sslContext = SSLContext.getInstance(minTls);
         } catch (Exception e) {
-            log.warn(I18n.t("log.tls.min-tls-fallback", "不支持 min-tls={0}，回退 TLSv1.2: {1}", minTls, e.getMessage()));
+            log.warnT("log.tls.min-tls-fallback", "不支持 min-tls={0}，回退 TLSv1.2: {1}", minTls, e.getMessage());
             minTls = "TLSv1.2";
             sslContext = SSLContext.getInstance(minTls);
         }
         sslContext.init(kmf.getKeyManagers(), null, null);
-        log.info(I18n.t("log.tls.context-ready", "TLS 上下文就绪 (min={0}, 服务端模式)", minTls));
+        log.infoT("log.tls.context-ready", "TLS 上下文就绪 (min={0}, 服务端模式)", minTls);
     }
 
     /** 每个新 TLS 连接调用一次，返回已配置为服务端模式的新引擎（线程安全）。 */
@@ -91,7 +91,7 @@ public class TlsContextFactory {
         }
         KeyManagerFactory kmf = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
         kmf.init(ks, keyPass.toCharArray());
-        log.info(I18n.t("log.tls.keystore-loaded", "已加载 keystore: {0}", f.getAbsolutePath()));
+        log.infoT("log.tls.keystore-loaded", "已加载 keystore: {0}", f.getAbsolutePath());
         return kmf;
     }
 
@@ -109,7 +109,7 @@ public class TlsContextFactory {
         ks.setKeyEntry("soys", priv, keyPass.toCharArray(), chain.toArray(new Certificate[0]));
         KeyManagerFactory kmf = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
         kmf.init(ks, keyPass.toCharArray());
-        log.info(I18n.t("log.tls.pem-loaded", "已加载 PEM: cert={0} key={1}", certFile, keyFile));
+        log.infoT("log.tls.pem-loaded", "已加载 PEM: cert={0} key={1}", certFile, keyFile);
         return kmf;
     }
 
@@ -171,7 +171,7 @@ public class TlsContextFactory {
             if (rc != 0 || !p12.isFile()) {
                 throw new IllegalStateException(I18n.t("exception.tls.keytool-fail", "keytool 自签失败(rc={0}): {1}", rc, out));
             }
-            log.info(I18n.t("log.tls.selfsigned-generated", "已自动生成自签证书: {0} (CN={1}, SAN={2})", p12.getAbsolutePath(), host, san));
+            log.infoT("log.tls.selfsigned-generated", "已自动生成自签证书: {0} (CN={1}, SAN={2})", p12.getAbsolutePath(), host, san);
         }
         return loadKeyStore(p12, pass, pass);
     }

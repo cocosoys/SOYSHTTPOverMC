@@ -86,7 +86,7 @@ public final class ConfigManager {
     public static void extractWebResources(JavaPlugin plugin, File pluginJar, File webDir) {
         webDir.mkdirs();
         if (pluginJar == null || !pluginJar.isFile()) {
-            log.warn(I18n.t("log.config.no-plugin-jar", "无法定位插件 jar，跳过 web 资源解压（回退 jar 内置）"));
+            log.warnT("log.config.no-plugin-jar", "无法定位插件 jar，跳过 web 资源解压（回退 jar 内置）");
             return;
         }
         try (JarFile jf = new JarFile(pluginJar)) {
@@ -109,12 +109,12 @@ public final class ConfigManager {
                 extracted++;
             }
             if (extracted > 0) {
-                log.info(I18n.t("log.config.web-extracted", "web 资源已解压 {0} 个文件到: {1}", extracted, webDir.getAbsolutePath()));
+                log.infoT("log.config.web-extracted", "web 资源已解压 {0} 个文件到: {1}", extracted, webDir.getAbsolutePath());
             } else {
-                log.info(I18n.t("log.config.web-ready", "web 目录已就绪（资源来自磁盘或 jar 内置）: {0}", webDir.getAbsolutePath()));
+                log.infoT("log.config.web-ready", "web 目录已就绪（资源来自磁盘或 jar 内置）: {0}", webDir.getAbsolutePath());
             }
         } catch (Exception e) {
-            log.warn(I18n.t("log.config.web-extract-fail", "web 资源解压失败（回退 jar 内置）: {0}", e.getMessage()));
+            log.warnT("log.config.web-extract-fail", "web 资源解压失败（回退 jar 内置）: {0}", e.getMessage());
         }
     }
 
@@ -214,7 +214,7 @@ public final class ConfigManager {
             properties.load(in);
             return properties.getProperty(key);
         } catch (Exception e) {
-            log.warn(I18n.t("log.config.server-properties-read-fail", "读取 server.properties 失败（键={0}）: {1}", key, e.getMessage()));
+            log.warnT("log.config.server-properties-read-fail", "读取 server.properties 失败（键={0}）: {1}", key, e.getMessage());
             return null;
         }
     }
@@ -236,7 +236,7 @@ public final class ConfigManager {
             if (!plugin.getDataFolder().isDirectory()) plugin.getDataFolder().mkdirs();
             writeText(f, bytesToHex(key));
         } catch (Exception e) {
-            log.warn(I18n.t("log.config.secret-write-fail", "写入 token-secret.key 失败（本次密钥仅内存有效）: {0}", e.getMessage()));
+            log.warnT("log.config.secret-write-fail", "写入 token-secret.key 失败（本次密钥仅内存有效）: {0}", e.getMessage());
         }
         return key;
     }

@@ -148,8 +148,8 @@ public class JsonHomeConfigExporter implements IHomeConfigExporter {
             return "data:" + mime + ";base64," + Base64.getEncoder().encodeToString(data);
 
         } catch (Exception e) {
-            log.warn(I18n.t("log.homepage.icon-load-failed",
-                    "[thismyhomepages] 加载图标失败: {0} - {1}", iconPath, e.getMessage()));
+            log.warnT("log.homepage.icon-load-failed",
+                    "[thismyhomepages] 加载图标失败: {0} - {1}", iconPath, e.getMessage());
             return "";
         }
     }
@@ -161,11 +161,11 @@ public class JsonHomeConfigExporter implements IHomeConfigExporter {
             if (resp.getStatus() == 200) {
                 return resp.getBody();
             }
-            log.warn(I18n.t("log.homepage.icon-download-failed",
-                    "[thismyhomepages] 下载图标失败: {0} (HTTP {1})", url, resp.getStatus()));
+            log.warnT("log.homepage.icon-download-failed",
+                    "[thismyhomepages] 下载图标失败: {0} (HTTP {1})", url, resp.getStatus());
         } catch (Exception e) {
-            log.warn(I18n.t("log.homepage.icon-download-error",
-                    "[thismyhomepages] 下载图标异常: {0} - {1}", url, e.getMessage()));
+            log.warnT("log.homepage.icon-download-error",
+                    "[thismyhomepages] 下载图标异常: {0} - {1}", url, e.getMessage());
         }
         return null;
     }
@@ -178,8 +178,8 @@ public class JsonHomeConfigExporter implements IHomeConfigExporter {
         try {
             return Files.readAllBytes(file.toPath());
         } catch (IOException e) {
-            log.warn(I18n.t("log.homepage.icon-read-failed",
-                    "[thismyhomepages] 读取图标文件失败: {0} - {1}", file.getAbsolutePath(), e.getMessage()));
+            log.warnT("log.homepage.icon-read-failed",
+                    "[thismyhomepages] 读取图标文件失败: {0} - {1}", file.getAbsolutePath(), e.getMessage());
             return null;
         }
     }

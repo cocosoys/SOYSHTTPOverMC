@@ -20,15 +20,28 @@ public class UnknownException extends SoysHttpException {
     }
 
 
-    public UnknownException(String code, String fmt, Object... args) {
-        super(Module.UNKNOWN, code, fmt, args);
+    /** i18n 无兜底版（兜底参数可省略）：{@code new UnknownException("E_UNKNOWN", "异常.key", v)}，未命中语言表时以 key 自身作模板回退填 {0}。 */
+    public UnknownException(String code, String i18nKey, Object... args) {
+        super(Module.UNKNOWN, code, i18nKey, args);
     }
 
-    public UnknownException(String fmt, Object... args) {
-        super(Module.UNKNOWN, "E_UNKNOWN", fmt, args);
+    /** 默认错误码、i18n 无兜底版：{@code new UnknownException("异常.key", v)}。 */
+    public UnknownException(String i18nKey, Object... args) {
+        super(Module.UNKNOWN, "E_UNKNOWN", i18nKey, args);
     }
 
-    public UnknownException(String code, String fmt, Throwable cause, Object... args) {
-        super(Module.UNKNOWN, code, fmt, cause, args);
+    /** i18n 无兜底 + 根因版：{@code new UnknownException("E_UNKNOWN", "异常.key", e, v)}。 */
+    public UnknownException(String code, String i18nKey, Throwable cause, Object... args) {
+        super(Module.UNKNOWN, code, i18nKey, cause, args);
+    }
+
+    /** i18n 显式兜底版：{@code new UnknownException("E_UNKNOWN", "异常.key", "兜底 {0}", v)}。 */
+    public UnknownException(String code, String i18nKey, String fallback, Object... args) {
+        super(Module.UNKNOWN, code, i18nKey, fallback, args);
+    }
+
+    /** i18n 显式兜底 + 根因版：{@code new UnknownException("E_UNKNOWN", "异常.key", "兜底 {0}", e, v)}。 */
+    public UnknownException(String code, String i18nKey, String fallback, Throwable cause, Object... args) {
+        super(Module.UNKNOWN, code, i18nKey, fallback, cause, args);
     }
 }

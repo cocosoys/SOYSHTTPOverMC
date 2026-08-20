@@ -24,7 +24,7 @@ public class BotManagementImpl implements BotManagementApi {
         try {
             return botManager.addBot(name, channel);
         } catch (Exception ex) {
-            throw ExceptionBus.fire(new BotException("E_ADD_BOT", I18n.t("exception.bot.add-fail", "创建受管 Bot 失败(name={0}): {1}", name, ex.getMessage()), ex));
+            throw ExceptionBus.fire(new BotException("E_ADD_BOT", "exception.bot.add-fail", "创建受管 Bot 失败(name={0}): {1}", ex, name, ex.getMessage()));
         }
     }
 
@@ -33,7 +33,7 @@ public class BotManagementImpl implements BotManagementApi {
         try {
             return botManager.addBot(name);
         } catch (Exception ex) {
-            throw ExceptionBus.fire(new BotException("E_ADD_BOT", I18n.t("exception.bot.add-fail", "创建受管 Bot 失败(name={0}): {1}", name, ex.getMessage()), ex));
+            throw ExceptionBus.fire(new BotException("E_ADD_BOT", "exception.bot.add-fail", "创建受管 Bot 失败(name={0}): {1}", ex, name, ex.getMessage()));
         }
     }
 
@@ -42,7 +42,7 @@ public class BotManagementImpl implements BotManagementApi {
         try {
             botManager.kickBot(name);
         } catch (Exception ex) {
-            throw ExceptionBus.fire(new BotException("E_KICK_BOT", I18n.t("exception.bot.kick-fail", "踢出 Bot 失败(name={0}): {1}", name, ex.getMessage()), ex));
+            throw ExceptionBus.fire(new BotException("E_KICK_BOT", "exception.bot.kick-fail", "踢出 Bot 失败(name={0}): {1}", ex, name, ex.getMessage()));
         }
     }
 
@@ -51,7 +51,7 @@ public class BotManagementImpl implements BotManagementApi {
         try {
             botManager.registerChannel(channel, listener);
         } catch (Exception ex) {
-            throw ExceptionBus.fire(new BotException("E_REG_CHANNEL", I18n.t("exception.bot.register-channel-fail", "注册通道失败(channel={0}): {1}", channel, ex.getMessage()), ex));
+            throw ExceptionBus.fire(new BotException("E_REG_CHANNEL", "exception.bot.register-channel-fail", "注册通道失败(channel={0}): {1}", ex, channel, ex.getMessage()));
         }
     }
 
@@ -60,7 +60,7 @@ public class BotManagementImpl implements BotManagementApi {
         try {
             botManager.unregisterChannel(channel);
         } catch (Exception ex) {
-            throw ExceptionBus.fire(new BotException("E_UNREG_CHANNEL", I18n.t("exception.bot.unregister-channel-fail", "注销通道失败(channel={0}): {1}", channel, ex.getMessage()), ex));
+            throw ExceptionBus.fire(new BotException("E_UNREG_CHANNEL", "exception.bot.unregister-channel-fail", "注销通道失败(channel={0}): {1}", ex, channel, ex.getMessage()));
         }
     }
 

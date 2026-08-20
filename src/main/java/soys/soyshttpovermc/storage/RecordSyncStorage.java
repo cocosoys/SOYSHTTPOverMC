@@ -85,7 +85,7 @@ public class RecordSyncStorage implements SyncStorage {
                 return true;
             }
         } catch (Exception e) {
-            log.warn(I18n.t("log.storage.blacklist-query-failed", "黑名单查询失败: {0}", e.getMessage()));
+            log.warnT("log.storage.blacklist-query-failed", "黑名单查询失败: {0}", e.getMessage());
         }
         return false;
     }
@@ -140,8 +140,8 @@ public class RecordSyncStorage implements SyncStorage {
             if (b2 != null && b2.length >= 16) return b2;
             return localSecret;
         } catch (Exception e) {
-            log.warn(I18n.t("log.storage.jwt-secret-failed",
-                    "全局 JWT 密钥读写失败，回退本地密钥: {0}", e.getMessage()));
+            log.warnT("log.storage.jwt-secret-failed",
+                    "全局 JWT 密钥读写失败，回退本地密钥: {0}", e.getMessage());
             return null;
         }
     }

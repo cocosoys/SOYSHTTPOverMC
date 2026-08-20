@@ -75,8 +75,8 @@ public class YamlStorage implements DataStorage {
                     config.save(file);
                 }
             } catch (IOException e) {
-                log.warn(I18n.t("log.storage.yaml-shutdown-save-failed",
-                "[YAML] 关闭时保存失败: {0}", e.getMessage()));
+                log.warnT("log.storage.yaml-shutdown-save-failed",
+                "[YAML] 关闭时保存失败: {0}", e.getMessage());
             }
             available = false;
         }
@@ -176,7 +176,7 @@ public class YamlStorage implements DataStorage {
             try {
                 Files.copy(file.toPath(), backup.toPath(), StandardCopyOption.REPLACE_EXISTING);
             } catch (IOException e) {
-                log.warn(I18n.t("log.storage.yaml-backup-failed", "[YAML] 备份失败: {0}", e.getMessage()));
+                log.warnT("log.storage.yaml-backup-failed", "[YAML] 备份失败: {0}", e.getMessage());
             }
         }
         config.save(file);

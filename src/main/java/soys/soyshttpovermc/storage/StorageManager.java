@@ -74,11 +74,11 @@ public class StorageManager {
             try {
                 storage.initialize();
                 storages.put(type, storage);
-                log.info(I18n.t("log.storage.backend-enabled",
-                    "已启用存储后端: {0} ({1})", type.getDisplayName(), storage.describe()));
+                log.infoT("log.storage.backend-enabled",
+                    "已启用存储后端: {0} ({1})", type.getDisplayName(), storage.describe());
             } catch (Exception e) {
-                log.warn(I18n.t("log.storage.backend-init-failed",
-                    "存储后端 {0} 初始化失败，已跳过: {1}", type.getDisplayName(), e.getMessage()));
+                log.warnT("log.storage.backend-init-failed",
+                    "存储后端 {0} 初始化失败，已跳过: {1}", type.getDisplayName(), e.getMessage());
             }
         }
 
@@ -97,29 +97,29 @@ public class StorageManager {
 
         // 跨服数据同步前置校验：开启跨服但主存储并非 MySQL → 多实例无法共享
         if (isCrossServer() && primary.getType() != StorageType.MYSQL) {
-            log.warn(I18n.t("log.storage.cross-server-not-mysql",
+            log.warnT("log.storage.cross-server-not-mysql",
                     "已启用跨服数据同步（storage.cross-server: true），"
                     + "但主存储并非 MySQL，多实例将无法共享数据！请在所有实例的 config.yml 中"
-                    + "将 storage.backends.mysql.enabled 设为 true 并指向同一数据库。"));
+                    + "将 storage.backends.mysql.enabled 设为 true 并指向同一数据库。");
         }
 
-        log.info(I18n.t("log.storage.primary", "主存储: {0}{1}",
+        log.infoT("log.storage.primary", "主存储: {0}{1}",
                 primary.getType().getDisplayName(),
-                (secondaries.isEmpty() ? "，无辅助存储" : "，辅助存储: " + describeSecondaries())));
+                (secondaries.isEmpty() ? "，无辅助存储" : "，辅助存储: " + describeSecondaries()));
 
         startKeepAliveTask();
 
         if (isSyncOnStartup() && !secondaries.isEmpty()) {
-            log.info(I18n.t("log.storage.startup-sync-starting",
-                    "正在执行启动时同步..."));
+            log.infoT("log.storage.startup-sync-starting",
+                    "正在执行启动时同步...");
             submit(() -> {
                 try {
                     int count = syncToSecondaries();
-                    log.info(I18n.t("log.storage.startup-sync-complete",
-                            "启动同步完成，已写入 {0} 条记录", count));
+                    log.infoT("log.storage.startup-sync-complete",
+                            "启动同步完成，已写入 {0} 条记录", count);
                 } catch (Exception e) {
-                    log.warn(I18n.t("log.storage.startup-sync-failed",
-                            "启动同步失败: {0}", e.getMessage()));
+                    log.warnT("log.storage.startup-sync-failed",
+                            "启动同步失败: {0}", e.getMessage());
                 }
             });
         }
@@ -136,8 +136,8 @@ public class StorageManager {
             if (awaitWrites) {
                 try {
                     if (!writeExecutor.awaitTermination(15, TimeUnit.SECONDS)) {
-                        log.warn(I18n.t("log.storage.writer-drain-timeout",
-                        "存储写入队列未能在 15 秒内排空，部分数据可能丢失"));
+                        log.warnT("log.storage.writer-drain-timeout",
+                        "存储写入队列未能在 15 秒内排空，部分数据可能丢失");
                         writeExecutor.shutdownNow();
                     }
                 } catch (InterruptedException e) {
@@ -151,8 +151,8 @@ public class StorageManager {
             try {
                 storage.shutdown();
             } catch (Exception e) {
-                log.warn(I18n.t("log.storage.shutdown-failed",
-                "关闭存储后端 {0} 时出错: {1}", storage.getType().getId(), e.getMessage()));
+                log.warnT("log.storage.shutdown-failed",
+                "关闭存储后端 {0} 时出错: {1}", storage.getType().getId(), e.getMessage());
             }
         }
         storages.clear();
@@ -254,7 +254,7 @@ public class StorageManager {
             try {
                 task.run();
             } catch (Throwable t) {
-                log.warn(I18n.t("log.storage.task-error", "存储任务执行异常: {0}", t.getMessage()));
+                log.warnT("log.storage.task-error", "存储任务执行异常: {0}", t.getMessage());
             }
         });
     }
@@ -301,8 +301,8 @@ public class StorageManager {
             primary.save(record);
             debug("已保存记录 " + record.getKey() + " 到 " + primary.getType().getId());
         } catch (Exception e) {
-            log.warn(I18n.t("log.storage.save-failed",
-                "保存记录 {0} 到主存储失败: {1}", record.getKey(), e.getMessage()));
+            log.warnT("log.storage.save-failed",
+                "保存记录 {0} 到主存储失败: {1}", record.getKey(), e.getMessage());
             return;
         }
         mirror(storage -> storage.save(record), "保存记录 " + record.getKey());
@@ -315,7 +315,7 @@ public class StorageManager {
             primary.saveAll(records);
             debug("已批量保存 " + records.size() + " 条记录到 " + primary.getType().getId());
         } catch (Exception e) {
-            log.warn(I18n.t("log.storage.save-all-failed", "批量保存到主存储失败: {0}", e.getMessage()));
+            log.warnT("log.storage.save-all-failed", "批量保存到主存储失败: {0}", e.getMessage());
             return;
         }
         mirror(storage -> storage.saveAll(records), "批量保存 " + records.size() + " 条记录");
@@ -328,8 +328,8 @@ public class StorageManager {
                 primary.delete(key);
                 debug("已从 " + primary.getType().getId() + " 删除记录 " + key);
             } catch (Exception e) {
-                log.warn(I18n.t("log.storage.delete-failed",
-                "从主存储删除记录 {0} 失败: {1}", key, e.getMessage()));
+                log.warnT("log.storage.delete-failed",
+                "从主存储删除记录 {0} 失败: {1}", key, e.getMessage());
                 return;
             }
             mirror(storage -> storage.delete(key), "删除记录 " + key);
@@ -347,8 +347,8 @@ public class StorageManager {
                 try {
                     action.execute(storage);
                 } catch (Exception e) {
-                    log.warn(I18n.t("log.storage.mirror-write-failed",
-                    "[镜像] {0} 写入 {1} 失败: {2}", description, storage.getType().getId(), e.getMessage()));
+                    log.warnT("log.storage.mirror-write-failed",
+                    "[镜像] {0} 写入 {1} 失败: {2}", description, storage.getType().getId(), e.getMessage());
                 }
             }
         };
@@ -387,8 +387,8 @@ public class StorageManager {
                 storage.clear();
                 storage.saveAll(records);
             } catch (Exception e) {
-                log.warn(I18n.t("log.storage.sync-failed",
-                "同步到 {0} 失败: {1}", storage.getType().getId(), e.getMessage()));
+                log.warnT("log.storage.sync-failed",
+                "同步到 {0} 失败: {1}", storage.getType().getId(), e.getMessage());
             }
         }
         return records.size();

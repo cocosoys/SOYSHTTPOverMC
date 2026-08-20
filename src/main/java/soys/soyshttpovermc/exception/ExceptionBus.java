@@ -77,7 +77,7 @@ public final class ExceptionBus {
         if (e.getPlugin() != null) sb.append(" (plugin=").append(e.getPlugin()).append(')');
         log.error(sb.toString());
         Throwable cause = e.getCause();
-        if (cause != null) log.error(I18n.t("log.exception.caused-by", "  Caused by: {0}", cause));
+        if (cause != null) log.errorT("log.exception.caused-by", "  Caused by: {0}", cause);
 
         for (ExceptionHandler h : handlers) {
             try {

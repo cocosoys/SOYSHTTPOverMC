@@ -85,14 +85,14 @@ public class BotGuardian implements Listener {
             InetAddress addr = e.getAddress();
             String ip = addr == null ? "" : addr.getHostAddress();
             if (ipAllowed(ip)) {
-                log.info(I18n.t("log.bot.login-allowed", "Bot 专属账号登录放行: {0} ip={1}", name, ip));
+                log.infoT("log.bot.login-allowed", "Bot 专属账号登录放行: {0} ip={1}", name, ip);
                 return;
             }
-            log.warn(I18n.t("log.bot.login-blocked", "拦截 bot 专属账号登录（IP 不在白名单）: name={0} ip={1} 白名单={2}", name, ip, allowedIps));
+            log.warnT("log.bot.login-blocked", "拦截 bot 专属账号登录（IP 不在白名单）: name={0} ip={1} 白名单={2}", name, ip, allowedIps);
             e.disallow(PlayerLoginEvent.Result.KICK_OTHER,
                     I18n.t("exception.bot.login-forbidden", "该账号为 bot 专属账号，禁止登录（来源 IP 不在白名单）"));
         } catch (Throwable t) {
-            log.warn(I18n.t("log.bot.onlogin-error", "BotGuardian.onLogin 异常: {0}", t));
+            log.warnT("log.bot.onlogin-error", "BotGuardian.onLogin 异常: {0}", t);
         }
     }
 
@@ -113,7 +113,7 @@ public class BotGuardian implements Listener {
                 }
             }
         } catch (Throwable t) {
-            log.warn(I18n.t("log.bot.onjoin-error", "BotGuardian.onJoin 异常: {0}", t));
+            log.warnT("log.bot.onjoin-error", "BotGuardian.onJoin 异常: {0}", t);
         }
     }
 
@@ -126,7 +126,7 @@ public class BotGuardian implements Listener {
             }
             viewer.hidePlayer(target);
         } catch (Throwable t) {
-            log.warn(I18n.t("log.bot.hide-fail", "隐藏 Bot 失败 viewer={0} target={1}: {2}", viewer.getName(), target.getName(), t));
+            log.warnT("log.bot.hide-fail", "隐藏 Bot 失败 viewer={0} target={1}: {2}", viewer.getName(), target.getName(), t);
         }
     }
 
@@ -136,6 +136,6 @@ public class BotGuardian implements Listener {
      * 当前为占位空函数，配置 {@code bot.hide-mode: playerinfo-remove} 后仅打日志，不生效。
      */
     private void sendPlayerInfoRemove(Player bot) {
-        log.info(I18n.t("log.bot.playerinfo-remove-reserved", "[预留] hide-mode=playerinfo-remove：未来以 PacketPlayOutPlayerInfo(REMOVE_PLAYER) 向所有客户端移除 Bot {0}（当前为空实现）", bot.getName()));
+        log.infoT("log.bot.playerinfo-remove-reserved", "[预留] hide-mode=playerinfo-remove：未来以 PacketPlayOutPlayerInfo(REMOVE_PLAYER) 向所有客户端移除 Bot {0}（当前为空实现）", bot.getName());
     }
 }

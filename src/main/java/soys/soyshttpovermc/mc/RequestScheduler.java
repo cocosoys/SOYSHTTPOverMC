@@ -57,7 +57,7 @@ public class RequestScheduler {
         for (int i = 0; i < n; i++) {
             pool.execute(this::loop);
         }
-        log.info(I18n.t("log.mc.scheduler-started", "请求调度器已启动: workers={0} commonCap={1} adminCap={2}", n, commonCap, adminCap));
+        log.infoT("log.mc.scheduler-started", "请求调度器已启动: workers={0} commonCap={1} adminCap={2}", n, commonCap, adminCap);
     }
 
     /** 提交一次已重组完成的请求到对应 tier 队列；队列满则背压回 503。 */
@@ -66,7 +66,7 @@ public class RequestScheduler {
         BotTier t = tier == null ? BotTier.COMMON : tier;
         Task task = new Task(player, requestId, method, path, headers, body);
         if (!queues.get(t).offer(task)) {
-            log.warn(I18n.t("log.mc.queue-full-503", "tier={0} 队列已满，背压返回 503: {1} {2}", t, method, path));
+            log.warnT("log.mc.queue-full-503", "tier={0} 队列已满，背压返回 503: {1} {2}", t, method, path);
             writeResponse(player, buildStatus(requestId, 503, "Service Unavailable (queue full)"));
         }
     }
@@ -96,7 +96,7 @@ public class RequestScheduler {
                 Thread.currentThread().interrupt();
                 break;
             } catch (Throwable e) {
-                log.warn(I18n.t("log.mc.worker-err", "调度器 worker 异常: {0}", e));
+                log.warnT("log.mc.worker-err", "调度器 worker 异常: {0}", e);
             }
         }
     }
@@ -108,7 +108,7 @@ public class RequestScheduler {
             final Player p = task.player;
             Bukkit.getScheduler().runTask(plugin, () -> writeResponse(p, out));
         } catch (Throwable e) {
-            log.warn(I18n.t("log.mc.process-err", "请求处理异常 method={0} path={1}: {2}", task.method, task.path, e));
+            log.warnT("log.mc.process-err", "请求处理异常 method={0} path={1}: {2}", task.method, task.path, e);
             writeResponse(task.player, buildStatus(task.requestId, 500, "Internal Server Error"));
         }
     }
@@ -134,7 +134,7 @@ public class RequestScheduler {
                 player.sendPluginMessage(plugin, channel, c.toByteArray());
             }
         } catch (Throwable t) {
-            log.warn(I18n.t("log.mc.write-response-err", "响应写回异常 id={0}: {1}", resp.getRequestId(), t));
+            log.warnT("log.mc.write-response-err", "响应写回异常 id={0}: {1}", resp.getRequestId(), t);
         }
     }
 

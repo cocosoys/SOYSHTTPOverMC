@@ -33,26 +33,26 @@ public class GatewayEventListener implements Listener {
     @EventHandler
     public void onRequest(GatewayRequestEvent e) {
         if (!debugEnabled) return;
-        log.info(I18n.t("log.event.request", "[EVENT] request {0} {1} ip={2}{3}", e.getMethod(), e.getPath(), e.getIp(), e.isTls() ? " (TLS)" : ""));
+        log.infoT("log.event.request", "[EVENT] request {0} {1} ip={2}{3}", e.getMethod(), e.getPath(), e.getIp(), e.isTls() ? " (TLS)" : "");
     }
 
     @EventHandler
     public void onDenied(GatewayAccessDeniedEvent e) {
         if (!debugEnabled) return;
-        log.info(I18n.t("log.event.denied", "[EVENT] denied {0} {1} ip={2} policy={3} code={4} reason={5}",
-                e.getMethod(), e.getPath(), e.getIp(), e.getPolicyName(), e.getStatusCode(), e.getReason()));
+        log.infoT("log.event.denied", "[EVENT] denied {0} {1} ip={2} policy={3} code={4} reason={5}",
+                e.getMethod(), e.getPath(), e.getIp(), e.getPolicyName(), e.getStatusCode(), e.getReason());
     }
 
     @EventHandler
     public void onServed(GatewayRequestServedEvent e) {
         if (!debugEnabled) return;
-        log.info(I18n.t("log.event.served", "[EVENT] served {0} {1} code={2} {3}ms", e.getMethod(), e.getPath(), e.getStatusCode(), e.getLatencyMs()));
+        log.infoT("log.event.served", "[EVENT] served {0} {1} code={2} {3}ms", e.getMethod(), e.getPath(), e.getStatusCode(), e.getLatencyMs());
     }
 
     @EventHandler
     public void onIssued(GatewayCredentialIssuedEvent e) {
         if (!debugEnabled) return;
-        log.info(I18n.t("log.event.issued", "[EVENT] credential issued subject={0} issuer={1}", e.getSubject(), e.getIssuerName()));
+        log.infoT("log.event.issued", "[EVENT] credential issued subject={0} issuer={1}", e.getSubject(), e.getIssuerName());
     }
 
     @EventHandler
@@ -69,6 +69,6 @@ public class GatewayEventListener implements Listener {
     @EventHandler
     public void onApiUnregistered(ApiUnregisteredEvent e) {
         if (!debugEnabled) return;
-        log.info(I18n.t("log.event.api-unregistered", "[EVENT] api unregistered plugin={0} count={1}", e.getOwnerPlugin(), e.getApis().size()));
+        log.infoT("log.event.api-unregistered", "[EVENT] api unregistered plugin={0} count={1}", e.getOwnerPlugin(), e.getApis().size());
     }
 }

@@ -232,7 +232,7 @@ public class AuthLoginBridge {
         if (loginProvider != null) {
             String player = (ticket == null) ? null : loginTickets.get(ticket);
             if (player == null) {
-                return ApiResponse.jsonError(400, I18n.t("ajax.auth.login-ticket-invalid", "登录票据无效或已失效，请重新登录游戏以获取新的网页登录链接"));
+                return ApiResponse.jsonErrorT(400, "ajax.auth.login-ticket-invalid", "登录票据无效或已失效，请重新登录游戏以获取新的网页登录链接");
             }
         }
         String loc = "/login.html" + (ticket == null ? "" : "?ticket=" + urlEncode(ticket));
@@ -243,7 +243,7 @@ public class AuthLoginBridge {
     public ApiResponse issueByUsername(String username) {
         String token = loginByUsername(username);
         if (token == null) {
-            return ApiResponse.jsonError(400, I18n.t("ajax.auth.username-invalid", "用户名不合法（仅字母/数字/下划线，≤16 字符）或离线登录被策略禁止"));
+            return ApiResponse.jsonErrorT(400, "ajax.auth.username-invalid", "用户名不合法（仅字母/数字/下划线，≤16 字符）或离线登录被策略禁止");
         }
         return jsonWithCookie(username.trim(), token);
     }
@@ -252,10 +252,10 @@ public class AuthLoginBridge {
     public ApiResponse issue(String ticket, String password) {
         String player = (ticket == null) ? null : loginTickets.remove(ticket);
         if (player == null) {
-            return ApiResponse.jsonError(400, I18n.t("ajax.auth.login-ticket-used", "登录票据无效或已使用，请重新登录游戏以获取新的网页登录链接"));
+            return ApiResponse.jsonErrorT(400, "ajax.auth.login-ticket-used", "登录票据无效或已使用，请重新登录游戏以获取新的网页登录链接");
         }
         if (loginProvider == null) {
-            return ApiResponse.jsonError(503, I18n.t("ajax.auth.no-login-plugin", "未接入登录插件，无法验证密码（请确认服务器已加载 AuthMe 等登录插件）"));
+            return ApiResponse.jsonErrorT(503, "ajax.auth.no-login-plugin", "未接入登录插件，无法验证密码（请确认服务器已加载 AuthMe 等登录插件）");
         }
         boolean ok;
         try {
@@ -264,7 +264,7 @@ public class AuthLoginBridge {
             ok = false;
         }
         if (!ok) {
-            return ApiResponse.jsonError(401, I18n.t("ajax.auth.bad-credentials", "账号或密码错误（AuthMe 校验失败，或服务器未安装 AuthMe，或禁止离线登录）"));
+            return ApiResponse.jsonErrorT(401, "ajax.auth.bad-credentials", "账号或密码错误（AuthMe 校验失败，或服务器未安装 AuthMe，或禁止离线登录）");
         }
         String token = playerTokens.get(player);
         if (token == null) {

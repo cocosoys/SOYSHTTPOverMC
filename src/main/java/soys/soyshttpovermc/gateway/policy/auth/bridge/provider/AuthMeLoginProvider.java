@@ -89,12 +89,12 @@ public class AuthMeLoginProvider implements LoginProvider, Listener {
     @Override
     public void reload(ConfigurationSection config) {
         if (config == null) {
-            log.info(I18n.t("log.authme.no-config", "[AuthMeLoginProvider] 无专属配置，使用默认行为"));
+            log.infoT("log.authme.no-config", "[AuthMeLoginProvider] 无专属配置，使用默认行为");
             return;
         }
         // 读取 gateway/providers/authme.yml 中的自定义配置项
         // 各配置项由本实现自行解析，不暴露给前端 API
-        log.info(I18n.t("log.authme.config-loaded", "[AuthMeLoginProvider] 已加载专属配置: {0}", config.getKeys(false)));
+        log.infoT("log.authme.config-loaded", "[AuthMeLoginProvider] 已加载专属配置: {0}", config.getKeys(false));
     }
 
     @Override
@@ -112,7 +112,7 @@ public class AuthMeLoginProvider implements LoginProvider, Listener {
         host.getServer().getPluginManager().registerEvents(this, host);
         initAuthMeHandles();   // 主线程初始化底层句柄（worker 线程 getPlugin 可能返回 null）
         initUnrestricted();    // 主线程初始化免登录名单反射通道
-        log.info(I18n.t("log.authme.connected", "登录插件 AuthMe 已接入（{0}）", description()));
+        log.infoT("log.authme.connected", "登录插件 AuthMe 已接入（{0}）", description());
     }
 
     @Override
@@ -130,33 +130,33 @@ public class AuthMeLoginProvider implements LoginProvider, Listener {
                 String name = playerName.toLowerCase();
                 PlayerAuth auth = authMeDataSource.getAuth(name);
                 if (auth == null) {
-                    log.warn(I18n.t("log.authme.verify-account-missing", "AuthMe 离线校验：账号不存在或未注册: {0}", playerName));
+                    log.warnT("log.authme.verify-account-missing", "AuthMe 离线校验：账号不存在或未注册: {0}", playerName);
                     return false;
                 }
                 HashedPassword hashed = auth.getPassword();
                 if (hashed == null) {
-                    log.warn(I18n.t("log.authme.verify-no-password", "AuthMe 离线校验：账号无密码记录: {0}", playerName));
+                    log.warnT("log.authme.verify-no-password", "AuthMe 离线校验：账号无密码记录: {0}", playerName);
                     return false;
                 }
                 boolean ok = authMePasswordSecurity.comparePassword(password, hashed, name);
                 if (!ok) {
-                    log.warn(I18n.t("log.authme.verify-bad-password", "AuthMe 离线校验：密码错误: {0}", playerName));
+                    log.warnT("log.authme.verify-bad-password", "AuthMe 离线校验：密码错误: {0}", playerName);
                 }
                 return ok;
             } catch (Throwable t) {
-                log.warn(I18n.t("log.authme.compare-fallback", "AuthMe 底层密码比对异常，回退 AuthMeApi: {0}", t));
+                log.warnT("log.authme.compare-fallback", "AuthMe 底层密码比对异常，回退 AuthMeApi: {0}", t);
             }
         }
         // 兜底：AuthMeApi.checkPassword（两参版同样为纯数据库比对，但依赖单例初始化，5.5.0-SNAPSHOT 可能为 null）
         try {
             AuthMeApi api = AuthMeApi.getInstance();
             if (api == null) {
-                log.warn(I18n.t("log.authme.api-null", "AuthMeApi.getInstance() 返回 null（AuthMe 单例未初始化），无法校验"));
+                log.warnT("log.authme.api-null", "AuthMeApi.getInstance() 返回 null（AuthMe 单例未初始化），无法校验");
                 return false;
             }
             return api.checkPassword(playerName, password);
         } catch (Throwable t) {
-            log.warn(I18n.t("log.authme.verify-exception", "AuthMe 密码校验异常: {0}", t));
+            log.warnT("log.authme.verify-exception", "AuthMe 密码校验异常: {0}", t);
             return false;
         }
     }
@@ -182,7 +182,7 @@ public class AuthMeLoginProvider implements LoginProvider, Listener {
 
         AuthLoginBridge bridge = context.bridge();
         if (bridge == null) {
-            log.warn(I18n.t("log.authme.login-not-enabled", "AuthMe 登录事件到达但会话令牌颁发器未启用，跳过自动签发"));
+            log.warnT("log.authme.login-not-enabled", "AuthMe 登录事件到达但会话令牌颁发器未启用，跳过自动签发");
             return;
         }
         // 幂等绑定本提供者（bridge 重建后重新绑定；离线登录校验立即可用，不依赖本事件）
@@ -197,10 +197,10 @@ public class AuthMeLoginProvider implements LoginProvider, Listener {
 //                context.getMcHost(), context.getMcPort());
 //        LinkMessageUtil.send(player, url, "&a[HTTP-Over-MC] 点击此处完成网页登录验证，获取访问令牌");
         if (upgraded > 0) {
-            log.info(I18n.t("log.authme.login-upgraded", "玩家 {0} 进游戏登录：已将 {1} 个离线令牌升级为在线模式", name, upgraded));
+            log.infoT("log.authme.login-upgraded", "玩家 {0} 进游戏登录：已将 {1} 个离线令牌升级为在线模式", name, upgraded);
         }
-        log.info(I18n.t("log.authme.login-issued", "玩家 {0} 经 AuthMe 登录：已签发会话令牌并发送网页登录链接 (token={1}...)", name,
-                token.substring(0, Math.min(8, token.length()))));
+        log.infoT("log.authme.login-issued", "玩家 {0} 经 AuthMe 登录：已签发会话令牌并发送网页登录链接 (token={1}...)", name,
+                token.substring(0, Math.min(8, token.length())));
     }
 
     // ===== Bot 免登录热装填（PlayerJoinEvent / PlayerQuitEvent）=====
@@ -210,16 +210,16 @@ public class AuthMeLoginProvider implements LoginProvider, Listener {
         Player p = event.getPlayer();
         if (p == null || context == null || !context.isManagedBot(p.getName())) return;
         if (mutateUnrestricted(true, p.getName())) {
-            log.info(I18n.t("log.authme.unrestricted-added", "AuthMe 免登录名单已热装填: {0}", p.getName()));
+            log.infoT("log.authme.unrestricted-added", "AuthMe 免登录名单已热装填: {0}", p.getName());
         } else {
             // 反射不可用时的兜底：forceLogin（未注册玩家 AuthMe 可能不买账）
             try {
                 Class<?> api = Class.forName("fr.xephi.authme.api.v3.AuthMeApi");
                 Method forceLogin = api.getMethod("forceLogin", Player.class);
                 forceLogin.invoke(api.getMethod("getInstance").invoke(null), p);
-                log.warn(I18n.t("log.authme.forcelogin-fallback", "已用 forceLogin 兜底（内存名单不可用）: {0}", p.getName()));
+                log.warnT("log.authme.forcelogin-fallback", "已用 forceLogin 兜底（内存名单不可用）: {0}", p.getName());
             } catch (Throwable t) {
-                log.warn(I18n.t("log.authme.forcelogin-fallback-fail", "forceLogin 兜底也失败: {0}", t));
+                log.warnT("log.authme.forcelogin-fallback-fail", "forceLogin 兜底也失败: {0}", t);
             }
         }
     }
@@ -228,7 +228,7 @@ public class AuthMeLoginProvider implements LoginProvider, Listener {
     public void onQuit(PlayerQuitEvent event) {
         String name = event.getPlayer().getName();
         if (name != null && context != null && context.isManagedBot(name) && mutateUnrestricted(false, name)) {
-            log.info(I18n.t("log.authme.unrestricted-removed", "AuthMe 免登录名单已移除: {0}", name));
+            log.infoT("log.authme.unrestricted-removed", "AuthMe 免登录名单已移除: {0}", name);
         }
     }
 
@@ -244,8 +244,8 @@ public class AuthMeLoginProvider implements LoginProvider, Listener {
         try {
             Plugin authme = org.bukkit.Bukkit.getPluginManager().getPlugin("AuthMe");
             if (authme == null) {
-                log.warn(I18n.t("log.authme.handle-plugin-null", "AuthMe 底层句柄初始化：getPlugin(\"AuthMe\") 返回 null（thread={0}），将回退 AuthMeApi 兜底校验",
-                        Thread.currentThread().getName()));
+                log.warnT("log.authme.handle-plugin-null", "AuthMe 底层句柄初始化：getPlugin(\"AuthMe\") 返回 null（thread={0}），将回退 AuthMeApi 兜底校验",
+                        Thread.currentThread().getName());
                 return;
             }
             Class<?> cls = authme.getClass();
@@ -271,7 +271,7 @@ public class AuthMeLoginProvider implements LoginProvider, Listener {
                         }
                     }
                 } catch (Throwable t) {
-                    log.info(I18n.t("log.authme.injector-ps-fail", "AuthMe injector 获取 PasswordSecurity 失败: {0}", t));
+                    log.infoT("log.authme.injector-ps-fail", "AuthMe injector 获取 PasswordSecurity 失败: {0}", t);
                 }
             }
 
@@ -288,15 +288,15 @@ public class AuthMeLoginProvider implements LoginProvider, Listener {
                         }
                     }
                 } catch (Throwable t) {
-                    log.info(I18n.t("log.authme.api-ps-fail", "AuthMeApi 单例字段获取 PasswordSecurity 失败: {0}", t));
+                    log.infoT("log.authme.api-ps-fail", "AuthMeApi 单例字段获取 PasswordSecurity 失败: {0}", t);
                 }
             }
 
-            log.info(I18n.t("log.authme.handle-status", "AuthMe 底层校验句柄: dataSource={0} passwordSecurity={1}（离线纯数据库密码校验{2}）",
+            log.infoT("log.authme.handle-status", "AuthMe 底层校验句柄: dataSource={0} passwordSecurity={1}（离线纯数据库密码校验{2}）",
                     authMeDataSource != null, authMePasswordSecurity != null,
-                    authMeDataSource != null && authMePasswordSecurity != null ? "已启用" : "不可用，将回退 AuthMeApi"));
+                    authMeDataSource != null && authMePasswordSecurity != null ? "已启用" : "不可用，将回退 AuthMeApi");
         } catch (Throwable t) {
-            log.warn(I18n.t("log.authme.init-fail", "AuthMe 底层句柄初始化失败: {0}", t));
+            log.warnT("log.authme.init-fail", "AuthMe 底层句柄初始化失败: {0}", t);
         }
     }
 
@@ -323,10 +323,10 @@ public class AuthMeLoginProvider implements LoginProvider, Listener {
             this.configData = cfgData;
             this.unrestrictedProperty = property;
             this.unrestrictedReady = true;
-            log.info(I18n.t("log.authme.unrestricted-ready", "AuthMe 免登录内存通道就绪（UNRESTRICTED_NAMES 反射可用）"));
+            log.infoT("log.authme.unrestricted-ready", "AuthMe 免登录内存通道就绪（UNRESTRICTED_NAMES 反射可用）");
         } catch (Throwable t) {
             this.unrestrictedReady = false;
-            log.warn(I18n.t("log.authme.unrestricted-init-fail", "AuthMe 免登录内存通道初始化失败，回退 forceLogin（未注册 Bot 可能仍被踢）: {0}", t));
+            log.warnT("log.authme.unrestricted-init-fail", "AuthMe 免登录内存通道初始化失败，回退 forceLogin（未注册 Bot 可能仍被踢）: {0}", t);
         }
     }
 
@@ -336,7 +336,7 @@ public class AuthMeLoginProvider implements LoginProvider, Listener {
         for (String name : context.getPlugin().getBotManager().getBotNames()) {
             mutateUnrestricted(false, name);
         }
-        log.info(I18n.t("log.authme.unrestricted-cleared", "AuthMe 免登录名单已全部清理（shutdown）"));
+        log.infoT("log.authme.unrestricted-cleared", "AuthMe 免登录名单已全部清理（shutdown）");
     }
 
     /**
@@ -360,7 +360,7 @@ public class AuthMeLoginProvider implements LoginProvider, Listener {
             setValue.invoke(cfg, prop, set);
             return true;
         } catch (Throwable t) {
-            log.warn(I18n.t("log.authme.unrestricted-mutate-fail", "AuthMe 免登录名单热装填失败: {0}", t));
+            log.warnT("log.authme.unrestricted-mutate-fail", "AuthMe 免登录名单热装填失败: {0}", t);
             return false;
         }
     }

@@ -30,7 +30,7 @@ public class AuthCredentialImpl implements AuthCredentialApi {
         try {
             GatewayFilter.registerIssuer(name, factory);
         } catch (Exception ex) {
-            throw ExceptionBus.fire(new AuthException("E_REGISTER_ISSUER", I18n.t("exception.auth.register-issuer-fail", "注册凭证颁发器失败(name={0}): {1}", name, ex.getMessage()), ex));
+            throw ExceptionBus.fire(new AuthException("E_REGISTER_ISSUER", "exception.auth.register-issuer-fail", "注册凭证颁发器失败(name={0}): {1}", ex, name, ex.getMessage()));
         }
     }
 
@@ -73,7 +73,7 @@ public class AuthCredentialImpl implements AuthCredentialApi {
                 }
                 return i.issue(subject);
             } catch (Exception ex) {
-                throw ExceptionBus.fire(new AuthException("E_ISSUE", I18n.t("exception.auth.issue-fail", "签发凭证失败(issuer={0}, subject={1}): {2}", i.name(), subject, ex.getMessage()), ex));
+                throw ExceptionBus.fire(new AuthException("E_ISSUE", "exception.auth.issue-fail", "签发凭证失败(issuer={0}, subject={1}): {2}", ex, i.name(), subject, ex.getMessage()));
             }
         }
         return null;

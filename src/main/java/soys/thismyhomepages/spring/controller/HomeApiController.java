@@ -47,7 +47,7 @@ public class HomeApiController {
     public AjaxResult config() {
         HomeConfigEntity hc = home.get();
         if (hc == null) {
-            return AjaxResult.error(500, I18n.t("gift.config.no-config", "主页配置未加载"));
+            return AjaxResult.errorT(500, "gift.config.no-config", "主页配置未加载");
         }
         return AjaxResult.success(exporter.export(hc));
     }

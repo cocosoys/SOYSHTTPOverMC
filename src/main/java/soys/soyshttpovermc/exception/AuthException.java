@@ -19,15 +19,28 @@ public class AuthException extends SoysHttpException {
         super(Module.AUTH, "AUTH_ERR", message, cause);
     }
 
-    public AuthException(String code, String fmt, Object... args) {
-        super(Module.AUTH, code, fmt, args);
+    /** i18n 无兜底版（兜底参数可省略）：{@code new AuthException("AUTH_ERR", "异常.key", v)}，未命中语言表时以 key 自身作模板回退填 {0}。 */
+    public AuthException(String code, String i18nKey, Object... args) {
+        super(Module.AUTH, code, i18nKey, args);
     }
 
-    public AuthException(String fmt, Object... args) {
-        super(Module.AUTH, "AUTH_ERR", fmt, args);
+    /** 默认错误码、i18n 无兜底版：{@code new AuthException("异常.key", v)}。 */
+    public AuthException(String i18nKey, Object... args) {
+        super(Module.AUTH, "AUTH_ERR", i18nKey, args);
     }
 
-    public AuthException(String code, String fmt, Throwable cause, Object... args) {
-        super(Module.AUTH, code, fmt, cause, args);
+    /** i18n 无兜底 + 根因版：{@code new AuthException("AUTH_ERR", "异常.key", e, v)}。 */
+    public AuthException(String code, String i18nKey, Throwable cause, Object... args) {
+        super(Module.AUTH, code, i18nKey, cause, args);
+    }
+
+    /** i18n 显式兜底版：{@code new AuthException("AUTH_ERR", "异常.key", "兜底 {0}", v)}。 */
+    public AuthException(String code, String i18nKey, String fallback, Object... args) {
+        super(Module.AUTH, code, i18nKey, fallback, args);
+    }
+
+    /** i18n 显式兜底 + 根因版：{@code new AuthException("AUTH_ERR", "异常.key", "兜底 {0}", e, v)}。 */
+    public AuthException(String code, String i18nKey, String fallback, Throwable cause, Object... args) {
+        super(Module.AUTH, code, i18nKey, fallback, cause, args);
     }
 }

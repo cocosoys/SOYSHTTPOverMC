@@ -2,6 +2,8 @@ package soys.soyshttpovermc.util;
 
 import java.util.HashMap;
 
+import soys.soyshttpovermc.i18n.I18n;
+
 /**
  * 仿 RuoYi/Spring 的统一返回体：{@code {code, msg, data}}。
  * 注解式 API 处理器可直接返回本类；网关将其序列化为 JSON 响应。
@@ -106,6 +108,43 @@ public class AjaxResult extends HashMap<String, Object> {
     /** 格式化资源不存在消息，如 {@code notFoundf("资源 %s 不存在", path)}。 */
     public static AjaxResult notFoundf(String fmt, Object... args) {
         return new AjaxResult(NOT_FOUND, String.format(fmt, args));
+    }
+
+    // ===== i18n 版（*T：key 首参，命中语言表翻译，未命中回退 fallback）=====
+
+    /** i18n 成功消息：{@code successT("ajax.x.key", "兜底 {0}", v)}。 */
+    public static AjaxResult successT(String i18nKey, String fallback, Object... args) {
+        return new AjaxResult(SUCCESS, I18n.resolve(i18nKey, fallback, args));
+    }
+
+    /** i18n 成功消息 + data 字段：{@code successDataT(data, "ajax.x.key", "兜底 {0}", v)}。 */
+    public static AjaxResult successDataT(Object data, String i18nKey, String fallback, Object... args) {
+        return new AjaxResult(SUCCESS, I18n.resolve(i18nKey, fallback, args), data);
+    }
+
+    /** i18n 失败消息：{@code errorT("ajax.x.key", "兜底 {0}", v)}。 */
+    public static AjaxResult errorT(String i18nKey, String fallback, Object... args) {
+        return new AjaxResult(ERROR, I18n.resolve(i18nKey, fallback, args));
+    }
+
+    /** i18n 指定码失败消息：{@code errorT(400, "ajax.x.key", "兜底 {0}", v)}。 */
+    public static AjaxResult errorT(int code, String i18nKey, String fallback, Object... args) {
+        return new AjaxResult(code, I18n.resolve(i18nKey, fallback, args));
+    }
+
+    /** i18n 认证失败消息：{@code unauthorizedT("ajax.auth.key", "兜底 {0}", v)}。 */
+    public static AjaxResult unauthorizedT(String i18nKey, String fallback, Object... args) {
+        return new AjaxResult(UNAUTHORIZED, I18n.resolve(i18nKey, fallback, args));
+    }
+
+    /** i18n 无权限消息：{@code forbiddenT("ajax.perm.key", "兜底 {0}", v)}。 */
+    public static AjaxResult forbiddenT(String i18nKey, String fallback, Object... args) {
+        return new AjaxResult(FORBIDDEN, I18n.resolve(i18nKey, fallback, args));
+    }
+
+    /** i18n 资源不存在消息：{@code notFoundT("ajax.x.key", "兜底 {0}", v)}。 */
+    public static AjaxResult notFoundT(String i18nKey, String fallback, Object... args) {
+        return new AjaxResult(NOT_FOUND, I18n.resolve(i18nKey, fallback, args));
     }
 
     // ===== 访问器 =====

@@ -56,8 +56,8 @@ public final class MyHomePages {
         cfgReader.load();
         if (!cfgReader.isEnabled()) {
             homeApi = null;
-            log.info(I18n.t("mhp.disabled",
-                    "[thismyhomepages] 已在 config.yml 中禁用（enabled: false），跳过注册。"));
+            log.infoT("mhp.disabled",
+                    "[thismyhomepages] 已在 config.yml 中禁用（enabled: false），跳过注册。");
             return;
         }
 
@@ -96,8 +96,8 @@ public final class MyHomePages {
         String savedHomepage = hpState.readCurrent();
         if (savedHomepage != null && !savedHomepage.isEmpty()) {
             if (!apiFacade.switchTo(savedHomepage)) {
-                log.info(I18n.t("log.homepage.persist-nonexistent",
-                        "[thismyhomepages] 持久化首页 '{0}' 不存在，保留当前首页", savedHomepage));
+                log.infoT("log.homepage.persist-nonexistent",
+                        "[thismyhomepages] 持久化首页 '{0}' 不存在，保留当前首页", savedHomepage);
             }
         }
 
@@ -110,8 +110,8 @@ public final class MyHomePages {
         HomeApiController controller = new HomeApiController(home, exporter, gift, host);
         api.getApiRegistration().registerController(controller, host);
 
-        log.info(I18n.t("mhp.registered",
-                "[thismyhomepages] 已注册自定义主页：/ + /api/homepage/{config,live,gift/claim,gift/status}"));
+        log.infoT("mhp.registered",
+                "[thismyhomepages] 已注册自定义主页：/ + /api/homepage/{config,live,gift/claim,gift/status}");
     }
 
     /** 从插件 jar 资源读取字节（用于伺服 dist/index.html）。 */
