@@ -1,6 +1,8 @@
 package soys.soyshttpovermc.exception;
+import lombok.CustomLog;
 
 import soys.soyshttpovermc.log.LogKit;
+import soys.soyshttpovermc.i18n.I18n;
 
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -25,6 +27,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
  * 非本体系异常（普通 {@link RuntimeException}/{@link Exception}）经 {@link #report(Throwable)} 会被包成
  * {@link SoysHttpException}（模块 {@code UNKNOWN}），统一走总线。
  */
+@CustomLog
 public final class ExceptionBus {
 
     private static final List<ExceptionHandler> handlers = new CopyOnWriteArrayList<>();
@@ -72,9 +75,9 @@ public final class ExceptionBus {
         StringBuilder sb = new StringBuilder();
         sb.append('[').append(e.getModule()).append("] ").append(e.getCode()).append(' ').append(e.getMessage());
         if (e.getPlugin() != null) sb.append(" (plugin=").append(e.getPlugin()).append(')');
-        LogKit.error(sb.toString());
+        log.error(sb.toString());
         Throwable cause = e.getCause();
-        if (cause != null) LogKit.error("  Caused by: " + cause);
+        if (cause != null) log.error(I18n.t("log.exception.caused-by", "  Caused by: {0}", cause));
 
         for (ExceptionHandler h : handlers) {
             try {

@@ -26,7 +26,6 @@ import soys.soyshttpovermc.exception.ExceptionBus;
  *   <li>{@link WebPageApi} —— 网页登记</li>
  *   <li>{@link AuthCredentialApi} —— 鉴权与凭证</li>
  *   <li>{@link ApiToolkitApi} —— 工具（JSON / Content-Type）</li>
- *   <li>{@link PluginLoggerApi} —— 日志（自动识别调用插件）</li>
  *   <li>{@link BotManagementApi} —— Bot 管理</li>
  *   <li>{@link HttpClientApi} —— HTTP 请求 / 本地回环</li>
  * </ul>
@@ -51,9 +50,6 @@ public interface SoysHttpOverMcApi {
 
     /** 能力组 4：工具（JSON / Content-Type） */
     ApiToolkitApi getToolkit();
-
-    /** 能力组 5：日志（自动识别调用插件并加 [插件名] 前缀） */
-    PluginLoggerApi getLogger();
 
     /** 能力组 6：Bot 管理 */
     BotManagementApi getBotManagement();

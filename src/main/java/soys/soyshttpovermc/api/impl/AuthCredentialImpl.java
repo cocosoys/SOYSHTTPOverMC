@@ -3,6 +3,7 @@ package soys.soyshttpovermc.api.impl;
 import soys.soyshttpovermc.api.AuthCredentialApi;
 import soys.soyshttpovermc.exception.AuthException;
 import soys.soyshttpovermc.exception.ExceptionBus;
+import soys.soyshttpovermc.i18n.I18n;
 import soys.soyshttpovermc.gateway.GatewayFilter;
 import soys.soyshttpovermc.gateway.policy.auth.issuer.CredentialIssuer;
 import soys.soyshttpovermc.gateway.policy.auth.issuer.IssuedCredential;
@@ -29,7 +30,7 @@ public class AuthCredentialImpl implements AuthCredentialApi {
         try {
             GatewayFilter.registerIssuer(name, factory);
         } catch (Exception ex) {
-            throw ExceptionBus.fire(new AuthException("E_REGISTER_ISSUER", "注册凭证颁发器失败(name=" + name + "): " + ex.getMessage(), ex));
+            throw ExceptionBus.fire(new AuthException("E_REGISTER_ISSUER", I18n.t("exception.auth.register-issuer-fail", "注册凭证颁发器失败(name={0}): {1}", name, ex.getMessage()), ex));
         }
     }
 
@@ -72,7 +73,7 @@ public class AuthCredentialImpl implements AuthCredentialApi {
                 }
                 return i.issue(subject);
             } catch (Exception ex) {
-                throw ExceptionBus.fire(new AuthException("E_ISSUE", "签发凭证失败(issuer=" + i.name() + ", subject=" + subject + "): " + ex.getMessage(), ex));
+                throw ExceptionBus.fire(new AuthException("E_ISSUE", I18n.t("exception.auth.issue-fail", "签发凭证失败(issuer={0}, subject={1}): {2}", i.name(), subject, ex.getMessage()), ex));
             }
         }
         return null;

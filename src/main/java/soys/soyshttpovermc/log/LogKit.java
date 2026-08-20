@@ -6,139 +6,163 @@ import java.util.logging.Logger;
 /**
  * 统一日志门面：全插件日志一律经此类打印，支持运行时级别过滤与热重载。
  *
- * <p>级别（由高到低过滤）：OFF &gt; ERROR &gt; WARN &gt; INFO &gt; DEBUG &gt; TRACE（默认 INFO）。
+ * <p>级别（由高到低过滤，默认 INFO）：OFF &gt; ERROR &gt; WARN &gt; INFO &gt; DEBUG &gt; TRACE。</p>
+ *
+ * <p>两种用法并存：</p>
  * <ul>
- *   <li>OFF   —— 关闭所有输出；</li>
- *   <li>ERROR —— 仅严重错误（severe）；</li>
- *   <li>WARN  —— 错误 + 警告；</li>
- *   <li>INFO  —— 以上 + 常规运行信息（启动/策略加载/请求事件等）；</li>
- *   <li>DEBUG —— 以上 + 调试明细；</li>
- *   <li>TRACE —— 以上 + 最细粒度追踪。</li>
+ *   <li><b>Lombok 实例写法（推荐）</b>：给类加 {@code @CustomLog}，生成 {@code static final LogKit log}，
+ *       然后 {@code log.info("玩家 %s 加入", name)} 即以 {@code String.format} 风格打印；
+ *       支持多参数与 {@code log.error(throwable, "…", arg)} 异常打印。</li>
+ *   <li><b>静态控制层</b>：{@link #setLevel} / {@link #levelName} / {@link #isDebugEnabled} /
+ *       {@link #init} 维护全局级别（{@code /soyshttp reload} 热重载），供宿主配置与检查。</li>
  * </ul>
  *
- * <p>配置：主 config.yml 的 {@code log.level}（/soyshttp reload 热重载）。
- * 消息格式由调用方给定（规范为 {@code [HTTP-Over-MC] [模块] 内容}），本类不追加前缀，
- * 避免与既有消息重复；Bukkit 日志本身已带 {@code [SOYSHTTPOverMC]} 插件名。
+ * <p>级别状态为静态、实例方法打印时读取静态级别做过滤，故热重载对所有 {@code log} 实例即时生效。</p>
+ * <p>消息格式由调用方给定（规范为 {@code [HTTP-Over-MC] [模块] 内容}），本类不追加前缀，
+ * 避免与既有消息重复；Bukkit 日志本身已带 {@code [SOYSHTTPOverMC]} 插件名。</p>
  */
-public final class LogKit {
+import org.bukkit.Bukkit;
 
-    public static final int OFF = 0;
-    public static final int ERROR = 1;
-    public static final int WARN = 2;
-    public static final int INFO = 3;
-    public static final int DEBUG = 4;
-    public static final int TRACE = 5;
+public class LogKit {
+    public static boolean ENABLE_ANSI = true;
 
-    private static volatile Logger logger = Logger.getLogger("SOYSHTTPOverMC");
-    private static volatile int level = INFO;
+    // ========= 静态控制层：全局级别状态 + 热重载 =========
+    private static volatile int tierIndex = 3; // INFO
+    private static final String[] TIER_NAMES = {"OFF", "ERROR", "WARN", "INFO", "DEBUG", "TRACE"};
 
-    private LogKit() {
-    }
-
-    /** 绑定插件 Logger 并设置级别（onEnable 时调用）。 */
-    public static void init(Logger pluginLogger, String levelName) {
-        if (pluginLogger != null) {
-            logger = pluginLogger;
-        }
+    /** 初始化（宿主启动时调用；第一个参数为旧式 JUL Logger，本实现以控制台直出，忽略该参数，仅兼容旧签名）。 */
+    public static synchronized void init(Object unusedLogger, String levelName) {
         setLevel(levelName);
     }
 
-    /** 热重载级别（/soyshttp reload 时调用）；非法值回退 INFO。 */
-    public static void setLevel(String name) {
-        int lv = parse(name);
-        level = lv;
-        // OFF 表示完全静默：连切换提示本身也不输出（避免"关了还冒一行"的违和）；
-        // 其余级别照常打印确认行（命令方的 sender.sendMessage 也会回显，不依赖此行）。
-        if (lv != OFF) {
-            logger.info("[HTTP-Over-MC] 日志级别 -> " + name(lv));
+    /** 设置运行时级别（用于 /soyshttp reload 热重载）。非法值忽略。 */
+    public static synchronized void setLevel(String raw) {
+        if (raw == null) return;
+        String up = raw.trim().toUpperCase();
+        for (int i = 0; i < TIER_NAMES.length; i++) {
+            if (TIER_NAMES[i].equals(up)) { tierIndex = i; return; }
         }
     }
 
-    public static int currentLevel() {
-        return level;
-    }
-
-    /** 当前级别名（OFF/ERROR/WARN/INFO/DEBUG/TRACE） */
+    /** 当前级别名称（供指令/提示展示）。 */
     public static String levelName() {
-        return name(level);
+        int idx = Math.min(Math.max(tierIndex, 0), TIER_NAMES.length - 1);
+        return TIER_NAMES[idx];
     }
 
+    /** 是否开启 DEBUG 级（含更细）输出（供条件分支避免拼接开销）。 */
     public static boolean isDebugEnabled() {
-        return level >= DEBUG;
+        return tierIndex >= 4;
     }
 
-    // 注意：不用 logger.fine()——Bukkit 的 Logger/ConsoleHandler 默认级别为 INFO，
-    // FINE 消息会被 JUL 层直接丢弃。级别过滤统一由本类完成，DEBUG/TRACE 走 logger.info 输出。
-    public static void trace(String msg) {
-        if (level >= TRACE) logger.info(fmt(msg));
+    // ========= 实例桥（@CustomLog 注入用） =========
+
+    private static final String ANSI_RESET = "\u001B[0m";
+    private static final String ANSI_GRAY = "\u001B[38;2;128;128;128m";
+    private static final String ANSI_CYAN = "\u001B[38;2;0;255;255m";
+    private static final String ANSI_GREEN = "\u001B[38;2;80;255;120m";
+    private static final String ANSI_YELLOW = "\u001B[38;2;255;220;0m";
+    private static final String ANSI_RED = "\u001B[38;2;255;60;60m";
+
+    protected final String prefix;
+    protected final Class<?> sourceClass;
+
+    public LogKit(String prefix, Class<?> sourceClass) {
+        this.prefix = prefix;
+        this.sourceClass = sourceClass;
     }
 
-    public static void debug(String msg) {
-        if (level >= DEBUG) logger.info(fmt(msg));
+    private String ansiFg(int r, int g, int b) {
+        if (!ENABLE_ANSI) return "";
+        return String.format("\u001B[38;2;%d;%d;%dm", r, g, b);
     }
 
-    public static void debug(String msg, Throwable t) {
-        if (level >= DEBUG) logger.log(Level.INFO, fmt(msg), t);
-    }
-
-    public static void info(String msg) {
-        if (level >= INFO) logger.info(fmt(msg));
-    }
-
-    public static void warn(String msg) {
-        if (level >= WARN) logger.warning(fmt(msg));
-    }
-
-    public static void warn(String msg, Throwable t) {
-        if (level >= WARN) logger.log(Level.WARNING, fmt(msg), t);
-    }
-
-    public static void error(String msg) {
-        if (level >= ERROR) logger.severe(fmt(msg));
-    }
-
-    public static void error(String msg, Throwable t) {
-        if (level >= ERROR) logger.log(Level.SEVERE, fmt(msg), t);
-    }
-
-    /** 统一前缀：消息已带 [HTTP-Over-MC] 则不重复添加 */
-    private static String fmt(String msg) {
-        if (msg == null) return "[HTTP-Over-MC] null";
-        return msg.startsWith("[HTTP-Over-MC]") ? msg : "[HTTP-Over-MC] " + msg;
-    }
-
-    private static int parse(String name) {
-        if (name == null) return INFO;
-        String s = name.trim().toUpperCase();
-        if (s.isEmpty()) return INFO;
-        switch (s) {
-            // YAML 1.1 把未加引号的 OFF 解析为布尔 false，getString 会得到 "false"，
-            // 这里兜底映射回 OFF，避免用户写 `level: OFF` 时静默退化为 INFO。
-            case "OFF":
-            case "FALSE": return OFF;
-            case "ERROR":
-            case "SEVERE": return ERROR;
-            case "WARN":
-            case "WARNING": return WARN;
-            case "INFO": return INFO;
-            case "DEBUG":
-            case "FINE": return DEBUG;
-            case "TRACE":
-            case "FINER":
-            case "FINEST":
-            case "ALL": return TRACE;
-            default: return INFO;
+    public String gradient(String text, int r1, int g1, int b1, int r2, int g2, int b2) {
+        if (!ENABLE_ANSI || text == null || text.isEmpty()) return text;
+        StringBuilder sb = new StringBuilder();
+        int len = text.length();
+        for (int i = 0; i < len; i++) {
+            float t = (float) i / Math.max(len - 1, 1);
+            int r = (int) (r1 * (1 - t) + r2 * t);
+            int g = (int) (g1 * (1 - t) + g2 * t);
+            int b = (int) (b1 * (1 - t) + b2 * t);
+            sb.append(ansiFg(r, g, b)).append(text.charAt(i)).append(ANSI_RESET);
         }
+        return sb.toString();
     }
 
-    private static String name(int lv) {
-        switch (lv) {
-            case OFF: return "OFF";
-            case ERROR: return "ERROR";
-            case WARN: return "WARN";
-            case DEBUG: return "DEBUG";
-            case TRACE: return "TRACE";
-            default: return "INFO";
+    protected String formatMessage(String rawMessage, boolean isDebugLevel, String levelColor) {
+        if (rawMessage == null) rawMessage = "null";
+        StringBuilder sb = new StringBuilder();
+
+        if (ENABLE_ANSI) sb.append(levelColor);
+        if (prefix != null && !prefix.isEmpty()) {
+            sb.append(prefix);
+            if (ENABLE_ANSI) sb.append(ANSI_RESET);
+            sb.append(" ");
         }
+
+        if (isDebugLevel) {
+            if (ENABLE_ANSI) sb.append(levelColor);
+            sb.append("[").append(sourceClass.getSimpleName()).append("]");
+            if (ENABLE_ANSI) sb.append(ANSI_RESET);
+            sb.append(" ");
+        }
+
+        if (ENABLE_ANSI) sb.append(levelColor);
+        sb.append(rawMessage);
+        if (ENABLE_ANSI) sb.append(ANSI_RESET);
+        return sb.toString();
+    }
+
+    private boolean enabled(int minTier) {
+        return tierIndex >= minTier;
+    }
+
+    private void print(String color, boolean debugLevel, String fmt, Object... args) {
+        String msg = String.format(fmt, args);
+        Bukkit.getConsoleSender().sendMessage(formatMessage(msg, debugLevel, color));
+    }
+
+    public void trace(String fmt, Object... args) {
+        if (enabled(5)) print(ANSI_CYAN, true, fmt, args);
+    }
+
+    public void debug(String fmt, Object... args) {
+        if (enabled(4)) print(ANSI_CYAN, true, fmt, args);
+    }
+
+    public void info(String fmt, Object... args) {
+        if (enabled(3)) print(ANSI_GREEN, false, fmt, args);
+    }
+
+    public void warn(String fmt, Object... args) {
+        if (enabled(2)) print(ANSI_YELLOW, false, fmt, args);
+    }
+
+    public void error(String fmt, Object... args) {
+        if (enabled(1)) print(ANSI_RED, false, fmt, args);
+    }
+
+    public void error(Throwable throwable, String fmt, Object... args) {
+        if (!enabled(1)) return;
+        print(ANSI_RED, false, fmt, args);
+        if (throwable != null) throwable.printStackTrace();
+    }
+
+    public void trace(String msg) { trace("%s", msg); }
+    public void debug(String msg) { debug("%s", msg); }
+    public void info(String msg) { info("%s", msg); }
+    public void warn(String msg) { warn("%s", msg); }
+    public void error(String msg) { error("%s", msg); }
+    public void error(String msg, Throwable throwable) { error(throwable, msg); }
+
+    // ========= Lombok 两个重载工厂 =========
+    public static LogKit getLogger(Class<?> clazz) {
+        return new LogKit("[HTTP-Over-MC]", clazz);
+    }
+
+    public static LogKit getLogger(Class<?> clazz, String topic) {
+        return new LogKit("[" + topic + "]", clazz);
     }
 }

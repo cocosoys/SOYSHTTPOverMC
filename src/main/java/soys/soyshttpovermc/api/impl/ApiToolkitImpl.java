@@ -7,6 +7,7 @@ import org.bukkit.plugin.Plugin;
 import soys.soyshttpovermc.api.ApiToolkitApi;
 import soys.soyshttpovermc.exception.ExceptionBus;
 import soys.soyshttpovermc.exception.ToolkitException;
+import soys.soyshttpovermc.i18n.I18n;
 import soys.soyshttpovermc.util.JsonWriter;
 import soys.soyshttpovermc.util.LinkMessageUtil;
 import soys.soyshttpovermc.web.MimeTypes;
@@ -33,7 +34,7 @@ public class ApiToolkitImpl implements ApiToolkitApi {
         try {
             return JsonWriter.write(obj);
         } catch (Exception ex) {
-            throw ExceptionBus.fire(new ToolkitException("E_TO_JSON", "对象序列化 JSON 失败: " + ex.getMessage(), ex));
+            throw ExceptionBus.fire(new ToolkitException("E_TO_JSON", I18n.t("exception.toolkit.to-json-fail", "对象序列化 JSON 失败: {0}", ex.getMessage()), ex));
         }
     }
 
@@ -42,7 +43,7 @@ public class ApiToolkitImpl implements ApiToolkitApi {
         try {
             return MimeTypes.forPath(path);
         } catch (Exception ex) {
-            throw ExceptionBus.fire(new ToolkitException("E_MIME", "推断 Content-Type 失败(path=" + path + "): " + ex.getMessage(), ex));
+            throw ExceptionBus.fire(new ToolkitException("E_MIME", I18n.t("exception.toolkit.mime-fail", "推断 Content-Type 失败(path={0}): {1}", path, ex.getMessage()), ex));
         }
     }
 
@@ -51,7 +52,7 @@ public class ApiToolkitImpl implements ApiToolkitApi {
         try {
             MimeTypes.register(ext, contentType);
         } catch (Exception ex) {
-            throw ExceptionBus.fire(new ToolkitException("E_MIME_REGISTER", "注册 Content-Type 失败(ext=" + ext + "): " + ex.getMessage(), ex));
+            throw ExceptionBus.fire(new ToolkitException("E_MIME_REGISTER", I18n.t("exception.toolkit.mime-register-fail", "注册 Content-Type 失败(ext={0}): {1}", ext, ex.getMessage()), ex));
         }
     }
 

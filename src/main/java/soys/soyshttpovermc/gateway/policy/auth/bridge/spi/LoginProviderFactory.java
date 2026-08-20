@@ -1,5 +1,7 @@
 package soys.soyshttpovermc.gateway.policy.auth.bridge.spi;
+import lombok.CustomLog;
 
+import soys.soyshttpovermc.i18n.I18n;
 import soys.soyshttpovermc.log.LogKit;
 
 import java.util.ArrayList;
@@ -19,6 +21,7 @@ import java.util.Map;
  *   <li>重启或 /soyshttp reload 后，网关自动经 {@link #active()} 选取并使用。</li>
  * </ol>
  */
+@CustomLog
 public final class LoginProviderFactory {
 
     private static final Map<String, LoginProvider> REGISTRY = new LinkedHashMap<>();
@@ -41,8 +44,8 @@ public final class LoginProviderFactory {
     public static void register(LoginProvider provider) {
         if (provider == null) return;
         REGISTRY.put(provider.name(), provider);
-        LogKit.info("[HTTP-Over-MC] 登录插件提供者已注册: " + provider.name()
-                + " (" + provider.displayName() + ") - " + provider.description());
+        log.info(I18n.t("log.auth.registry.registered", "登录插件提供者已注册: {0} ({1}) - {2}", provider.name(),
+                provider.displayName(), provider.description()));
     }
 
     /** 按名字取提供者。 */

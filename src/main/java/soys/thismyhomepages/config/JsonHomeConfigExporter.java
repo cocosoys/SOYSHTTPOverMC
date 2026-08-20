@@ -1,6 +1,8 @@
 package soys.thismyhomepages.config;
+import lombok.CustomLog;
 
 import soys.soyshttpovermc.api.HttpClientApi;
+import soys.soyshttpovermc.i18n.I18n;
 import soys.soyshttpovermc.log.LogKit;
 import soys.thismyhomepages.spring.entity.GiftCommand;
 import soys.thismyhomepages.spring.entity.GiftConfigEntity;
@@ -23,6 +25,7 @@ import java.util.Map;
  * <p>图标处理：支持三种路径类型——网络 URL（通过 {@link HttpClientApi#sendGet} 下载）、
  * 绝对路径、相对路径（相对于插件 data 目录），加载后自动转换为 Base64 Data URI。</p>
  */
+@CustomLog
 public class JsonHomeConfigExporter implements IHomeConfigExporter {
 
     private final HttpClientApi httpClient;
@@ -145,7 +148,8 @@ public class JsonHomeConfigExporter implements IHomeConfigExporter {
             return "data:" + mime + ";base64," + Base64.getEncoder().encodeToString(data);
 
         } catch (Exception e) {
-            LogKit.warn("[thismyhomepages] 加载图标失败: " + iconPath + " - " + e.getMessage());
+            log.warn(I18n.t("log.homepage.icon-load-failed",
+                    "[thismyhomepages] 加载图标失败: {0} - {1}", iconPath, e.getMessage()));
             return "";
         }
     }
@@ -157,9 +161,11 @@ public class JsonHomeConfigExporter implements IHomeConfigExporter {
             if (resp.getStatus() == 200) {
                 return resp.getBody();
             }
-            LogKit.warn("[thismyhomepages] 下载图标失败: " + url + " (HTTP " + resp.getStatus() + ")");
+            log.warn(I18n.t("log.homepage.icon-download-failed",
+                    "[thismyhomepages] 下载图标失败: {0} (HTTP {1})", url, resp.getStatus()));
         } catch (Exception e) {
-            LogKit.warn("[thismyhomepages] 下载图标异常: " + url + " - " + e.getMessage());
+            log.warn(I18n.t("log.homepage.icon-download-error",
+                    "[thismyhomepages] 下载图标异常: {0} - {1}", url, e.getMessage()));
         }
         return null;
     }
@@ -172,7 +178,8 @@ public class JsonHomeConfigExporter implements IHomeConfigExporter {
         try {
             return Files.readAllBytes(file.toPath());
         } catch (IOException e) {
-            LogKit.warn("[thismyhomepages] 读取图标文件失败: " + file.getAbsolutePath() + " - " + e.getMessage());
+            log.warn(I18n.t("log.homepage.icon-read-failed",
+                    "[thismyhomepages] 读取图标文件失败: {0} - {1}", file.getAbsolutePath(), e.getMessage()));
             return null;
         }
     }

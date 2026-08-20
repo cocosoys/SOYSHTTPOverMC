@@ -3,6 +3,7 @@ package soys.soyshttpovermc.spring.impl;
 import soys.soyshttpovermc.gateway.policy.auth.bridge.AuthLoginBridge;
 import soys.soyshttpovermc.gateway.policy.auth.issuer.CredentialPresentation;
 import soys.soyshttpovermc.gateway.policy.auth.login.LoginMode;
+import soys.soyshttpovermc.i18n.I18n;
 import soys.soyshttpovermc.spring.service.IAuthService;
 import soys.soyshttpovermc.util.AjaxResult;
 import soys.soyshttpovermc.util.ApiResponse;
@@ -40,7 +41,7 @@ public class AuthServiceImpl implements IAuthService {
     @Override
     public AjaxResult login(String body) {
         if (bridge == null) {
-            return AjaxResult.error(503, "会话令牌颁发器未启用（请在 gateway/issuers/session-token.yml 设 enabled: true）");
+            return AjaxResult.error(503, I18n.t("ajax.auth.issuer-not-enabled", "会话令牌颁发器未启用（请在 gateway/issuers/session-token.yml 设 enabled: true）"));
         }
         Map<String, String> form = parseBody(body);
         String username = form.get("username");
@@ -49,19 +50,19 @@ public class AuthServiceImpl implements IAuthService {
         String token;
         if (!bridge.loginRequiresPassword()) {
             if (username == null || username.isEmpty()) {
-                return AjaxResult.error(400, "缺少必填参数: username");
+                return AjaxResult.error(400, I18n.t("ajax.auth.missing-username", "缺少必填参数: username"));
             }
             token = bridge.loginByUsername(username.trim());
             if (token == null) {
-                return AjaxResult.error(400, "用户名不合法（仅字母/数字/下划线，≤16 字符）或离线登录被策略禁止");
+                return AjaxResult.error(400, I18n.t("ajax.auth.username-invalid", "用户名不合法（仅字母/数字/下划线，≤16 字符）或离线登录被策略禁止"));
             }
         } else {
             if (username == null || username.isEmpty() || password == null || password.isEmpty()) {
-                return AjaxResult.error(400, "缺少必填参数: username / password");
+                return AjaxResult.error(400, I18n.t("ajax.auth.missing-username-password", "缺少必填参数: username / password"));
             }
             token = bridge.login(username.trim(), password);
             if (token == null) {
-                return AjaxResult.unauthorized("账号或密码错误（AuthMe 校验失败，或服务器未安装 AuthMe，或禁止离线登录）");
+                return AjaxResult.unauthorized(I18n.t("ajax.auth.bad-credentials", "账号或密码错误（AuthMe 校验失败，或服务器未安装 AuthMe，或禁止离线登录）"));
             }
         }
         // 登录模式（与 bridge.login 内部同一策略）：玩家在线→online；不在线→offline（离线专属 cookie）
@@ -74,28 +75,28 @@ public class AuthServiceImpl implements IAuthService {
         data.put("ttlSeconds", bridge.getTtlSeconds());
         data.put("mode", mode.name().toLowerCase()); // online / offline（离线模式登录标签）
         data.put("authenticated", true);
-        return AjaxResult.success("登录成功", data);
+        return AjaxResult.success(I18n.t("ajax.auth.login-success", "登录成功"), data);
     }
 
     @Override
     public AjaxResult logout(CredentialPresentation credential) {
         if (bridge == null) {
-            return AjaxResult.error(503, "会话令牌颁发器未启用");
+            return AjaxResult.error(503, I18n.t("ajax.auth.issuer-not-enabled-short", "会话令牌颁发器未启用"));
         }
         if (!bridge.logout(credential)) {
-            return AjaxResult.unauthorized("未登录或凭证无效");
+            return AjaxResult.unauthorized(I18n.t("ajax.auth.not-logged-in", "未登录或凭证无效"));
         }
-        return AjaxResult.success("已退出登录");
+        return AjaxResult.success(I18n.t("ajax.auth.logout-success", "已退出登录"));
     }
 
     @Override
     public AjaxResult me(CredentialPresentation credential) {
         if (bridge == null) {
-            return AjaxResult.unauthorized("未登录或会话令牌颁发器未启用");
+            return AjaxResult.unauthorized(I18n.t("ajax.auth.not-logged-in-no-issuer", "未登录或会话令牌颁发器未启用"));
         }
         String player = bridge.subjectOf(credential);
         if (player == null) {
-            return AjaxResult.unauthorized("未登录或凭证无效");
+            return AjaxResult.unauthorized(I18n.t("ajax.auth.not-logged-in", "未登录或凭证无效"));
         }
         LoginMode mode = bridge.modeOf(credential);
         Map<String, Object> data = new HashMap<>();
@@ -110,7 +111,7 @@ public class AuthServiceImpl implements IAuthService {
     @Override
     public ApiResponse serveLogin(String ticket) {
         if (bridge == null) {
-            return ApiResponse.jsonError(503, "会话令牌颁发器未启用（请在 gateway/issuers/session-token.yml 设 enabled: true）");
+            return ApiResponse.jsonError(503, I18n.t("ajax.auth.issuer-not-enabled", "会话令牌颁发器未启用（请在 gateway/issuers/session-token.yml 设 enabled: true）"));
         }
         return bridge.serveLoginPage(ticket);
     }
@@ -118,7 +119,7 @@ public class AuthServiceImpl implements IAuthService {
     @Override
     public ApiResponse issue(String body) {
         if (bridge == null) {
-            return ApiResponse.jsonError(503, "会话令牌颁发器未启用（请在 gateway/issuers/session-token.yml 设 enabled: true）");
+            return ApiResponse.jsonError(503, I18n.t("ajax.auth.issuer-not-enabled", "会话令牌颁发器未启用（请在 gateway/issuers/session-token.yml 设 enabled: true）"));
         }
         Map<String, String> form = parseBody(body);
         // 有登录插件=票据+密码校验；无登录插件=免密码，仅凭用户名直登（与弹窗登录 login 同策略）
@@ -131,7 +132,7 @@ public class AuthServiceImpl implements IAuthService {
     @Override
     public AjaxResult loginMode() {
         if (bridge == null) {
-            return AjaxResult.error(503, "会话令牌颁发器未启用（请在 gateway/issuers/session-token.yml 设 enabled: true）");
+            return AjaxResult.error(503, I18n.t("ajax.auth.issuer-not-enabled", "会话令牌颁发器未启用（请在 gateway/issuers/session-token.yml 设 enabled: true）"));
         }
         Map<String, Object> data = new HashMap<>();
         data.put("requiresPassword", bridge.loginRequiresPassword());

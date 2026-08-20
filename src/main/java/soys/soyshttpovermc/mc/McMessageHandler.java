@@ -1,7 +1,9 @@
 package soys.soyshttpovermc.mc;
+import lombok.CustomLog;
 
 import soys.soyshttpovermc.bot.BotTier;
 import soys.soyshttpovermc.cross.CrossServerHub;
+import soys.soyshttpovermc.i18n.I18n;
 import soys.soyshttpovermc.log.LogKit;
 
 import org.bukkit.Bukkit;
@@ -25,6 +27,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * 解析/重组/入队，不执行 web.handle，从而避免重活阻塞入站与主线程。
  * 分片重组表（pending）增加 TTL 淘汰与分片数上限，防止半截分片堆积导致内存耗尽。
  */
+@CustomLog
 public class McMessageHandler implements PluginMessageListener {
 
     private final JavaPlugin plugin;
@@ -75,15 +78,14 @@ public class McMessageHandler implements PluginMessageListener {
             // 关键修复：见原实现说明——强制把 Bot 加入 listening 集合，保证响应可达。
             if (!player.getListeningPluginChannels().contains(channel)) {
                 ensureListening(player, channel);
-                LogKit.info("[HTTP-Over-MC] 已为 Bot 强制登记监听通道 " + channel
-                        + " -> listening=" + player.getListeningPluginChannels());
+                log.info(I18n.t("log.mc.force-listen", "已为 Bot 强制登记监听通道 {0} -> listening={1}", channel,
+                        player.getListeningPluginChannels()));
             }
 
             // 跨服中继：若本请求指向其他服（请求头携带 X-Soys-Target-Server 且非本服），逐分片转发到目标服。
             if (hub != null && hub.isCrossServer(chunk)) {
-                LogKit.info("[CrossServer] 网关侧命中跨服路由 target="
-                        + chunk.getHeadersMap().get(CrossServerHub.HEADER_TARGET)
-                        + " id=" + chunk.getRequestId());
+                log.info(I18n.t("log.mc.cross-server-route", "[CrossServer] 网关侧命中跨服路由 target={0} id={1}",
+                        chunk.getHeadersMap().get(CrossServerHub.HEADER_TARGET), chunk.getRequestId()));
                 hub.relayRequestFragment(message, chunk.getHeadersMap().get(CrossServerHub.HEADER_TARGET));
                 return;
             }
@@ -92,7 +94,7 @@ public class McMessageHandler implements PluginMessageListener {
             int rawTotal = chunk.getTotalFragments();
             final int total = rawTotal < 1 ? 1 : rawTotal;
             if (total > MAX_FRAGMENTS) {
-                LogKit.warn("[HTTP-Over-MC] 分片数超限，丢弃请求 id=" + id + " total=" + total);
+                log.warn(I18n.t("log.mc.fragments-oversize", "分片数超限，丢弃请求 id={0} total={1}", id, total));
                 return;
             }
             PendingReq pr = pending.computeIfAbsent(id, k -> new PendingReq(total));
@@ -125,7 +127,7 @@ public class McMessageHandler implements PluginMessageListener {
             // 提交到对应 tier 队列，由 RequestScheduler 按优先级异步处理（不再同步执行 web.handle）
             scheduler.submit(tier, player, id, req.getMethod(), req.getPath(), clean, req.getBody().toByteArray());
         } catch (Exception e) {
-            LogKit.warn("[HTTP-Over-MC] 处理消息失败: " + e);
+            log.warn(I18n.t("log.mc.process-fail", "处理消息失败: {0}", e));
         }
     }
 
@@ -142,7 +144,7 @@ public class McMessageHandler implements PluginMessageListener {
                 }
             }
             if (removed) {
-                LogKit.info("[HTTP-Over-MC] 分片 pending 表已清理过期条目（剩余 " + pending.size() + "）");
+                log.info(I18n.t("log.mc.fragments-swept", "分片 pending 表已清理过期条目（剩余 {0}）", pending.size()));
             }
         } finally {
             // 仅当仍有未完成分片时才续排下一次；空闲即停止调度（不驻留定时任务）
@@ -182,7 +184,7 @@ public class McMessageHandler implements PluginMessageListener {
             }
             m.invoke(player, ch);
         } catch (Exception e) {
-            LogKit.warn("[HTTP-Over-MC] 无法强制登记监听通道 " + ch + ": " + e);
+            log.warn(I18n.t("log.mc.force-listen-fail", "无法强制登记监听通道 {0}: {1}", ch, e));
         }
     }
 

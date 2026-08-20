@@ -63,9 +63,9 @@ public class HttpMcTranslator {
      * 把一次 HTTP 请求转换为 HttpRequestFrame，经由 McLink 发往服务端，
      * 阻塞等待对应的 HttpResponseFrame 返回（30s 超时保护）。
      * 规则控制器按请求头决定逻辑队列 tier，并以内部头 X-SOYS-TIER 携带，供服务端按优先级入队。
- * 群组服下：解析跨服路径前缀 {@code /server/<server>/...}（新）或 {@code /srv/<server>/...}（兼容别名）
- * 设置目标服（X-Soys-Target-Server），并注入来源服（X-Soys-Source-Server）与链路追踪（X-Soys-Trace-Id）头。
- * 独立服（localServerName 为空）不解析此前缀，路径原样本地处理（特性关闭）。
+     * 群组服下：解析跨服路径前缀 {@code /server/<server>/...}（新）或 {@code /srv/<server>/...}（兼容别名）
+     * 设置目标服（X-Soys-Target-Server），并注入来源服（X-Soys-Source-Server）与链路追踪（X-Soys-Trace-Id）头。
+     * 独立服（localServerName 为空）不解析此前缀，路径原样本地处理（特性关闭）。
      */
     public FrameProto.HttpResponseFrame translate(String method, String path, Map<String, String> headers, byte[] body)
             throws Exception {

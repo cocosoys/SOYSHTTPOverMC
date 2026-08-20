@@ -1,6 +1,8 @@
 package soys.soyshttpovermc.bot;
+import lombok.CustomLog;
 
 import soys.soyshttpovermc.log.LogKit;
+import soys.soyshttpovermc.i18n.I18n;
 
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -27,6 +29,7 @@ import java.util.Set;
  *       当前为占位空函数，切换配置即切换入口。</li>
  * </ul>
  */
+@CustomLog
 public class BotGuardian implements Listener {
 
     /** 隐藏模式：hideplayer=hidePlayer 方案（当前实现）；playerinfo-remove=PacketPlayOutPlayerInfo 方案（预留）。 */
@@ -82,15 +85,14 @@ public class BotGuardian implements Listener {
             InetAddress addr = e.getAddress();
             String ip = addr == null ? "" : addr.getHostAddress();
             if (ipAllowed(ip)) {
-                LogKit.info("[HTTP-Over-MC] Bot 专属账号登录放行: " + name + " ip=" + ip);
+                log.info(I18n.t("log.bot.login-allowed", "Bot 专属账号登录放行: {0} ip={1}", name, ip));
                 return;
             }
-            LogKit.warn("[HTTP-Over-MC] 拦截 bot 专属账号登录（IP 不在白名单）: name=" + name + " ip=" + ip
-                    + " 白名单=" + allowedIps);
+            log.warn(I18n.t("log.bot.login-blocked", "拦截 bot 专属账号登录（IP 不在白名单）: name={0} ip={1} 白名单={2}", name, ip, allowedIps));
             e.disallow(PlayerLoginEvent.Result.KICK_OTHER,
-                    "该账号为 bot 专属账号，禁止登录（来源 IP 不在白名单）");
+                    I18n.t("exception.bot.login-forbidden", "该账号为 bot 专属账号，禁止登录（来源 IP 不在白名单）"));
         } catch (Throwable t) {
-            LogKit.warn("[HTTP-Over-MC] BotGuardian.onLogin 异常: " + t);
+            log.warn(I18n.t("log.bot.onlogin-error", "BotGuardian.onLogin 异常: {0}", t));
         }
     }
 
@@ -111,7 +113,7 @@ public class BotGuardian implements Listener {
                 }
             }
         } catch (Throwable t) {
-            LogKit.warn("[HTTP-Over-MC] BotGuardian.onJoin 异常: " + t);
+            log.warn(I18n.t("log.bot.onjoin-error", "BotGuardian.onJoin 异常: {0}", t));
         }
     }
 
@@ -124,7 +126,7 @@ public class BotGuardian implements Listener {
             }
             viewer.hidePlayer(target);
         } catch (Throwable t) {
-            LogKit.warn("[HTTP-Over-MC] 隐藏 Bot 失败 viewer=" + viewer.getName() + " target=" + target.getName() + ": " + t);
+            log.warn(I18n.t("log.bot.hide-fail", "隐藏 Bot 失败 viewer={0} target={1}: {2}", viewer.getName(), target.getName(), t));
         }
     }
 
@@ -134,7 +136,6 @@ public class BotGuardian implements Listener {
      * 当前为占位空函数，配置 {@code bot.hide-mode: playerinfo-remove} 后仅打日志，不生效。
      */
     private void sendPlayerInfoRemove(Player bot) {
-        LogKit.info("[HTTP-Over-MC] [预留] hide-mode=playerinfo-remove：未来以 PacketPlayOutPlayerInfo(REMOVE_PLAYER) "
-                + "向所有客户端移除 Bot " + bot.getName() + "（当前为空实现）");
+        log.info(I18n.t("log.bot.playerinfo-remove-reserved", "[预留] hide-mode=playerinfo-remove：未来以 PacketPlayOutPlayerInfo(REMOVE_PLAYER) 向所有客户端移除 Bot {0}（当前为空实现）", bot.getName()));
     }
 }

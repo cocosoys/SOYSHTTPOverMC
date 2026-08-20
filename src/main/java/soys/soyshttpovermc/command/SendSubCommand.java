@@ -4,6 +4,7 @@ import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 
 import soys.soyshttpovermc.HttpOverMcPlugin;
+import soys.soyshttpovermc.i18n.I18n;
 import soys.soyshttpovermc.util.LinkMessageUtil;
 import soys.soyshttpovermc.util.PlayerTargetUtil;
 import soys.soyshttpovermc.web.WebRegistry;
@@ -35,19 +36,20 @@ public class SendSubCommand extends SubCommand {
 
     @Override
     public String usage() {
-        return "/soyshttp send <url|/page> [显示文字] [玩家] —— 发送可点击链接";
+        return I18n.t("command.send.usage", "/soyshttp send <url|/page> [显示文字] [玩家] —— 发送可点击链接");
     }
 
     @Override
     public String detail() {
-        return "/soyshttp send <url|/page> [显示文字] [玩家] —— 向玩家发送可点击链接消息。\n"
+        return I18n.t("command.send.detail",
+                "/soyshttp send <url|/page> [显示文字] [玩家] —— 向玩家发送可点击链接消息。\n"
                 + "  <url|/page>   完整 URL；或以 / 开头的本服页面路径（自动拼 https://<对外地址>/...）。\n"
                 + "  [显示文字]     支持 %url%（整条链接）与 %url_标签%（仅标签部分着色）；& 代替 § 颜色码。\n"
                 + "  [玩家]         玩家名，或选择器 @a/@p/@r/@e/@s；省略则发给自己（命令者须为玩家）。\n"
                 + "示例：\n"
                 + "  /soyshttp send /status\n"
                 + "  /soyshttp send /status \"状态面板：%url%\"\n"
-                + "  /soyshttp send https://example.com \"点&b这里&f进去\" @a";
+                + "  /soyshttp send https://example.com \"点&b这里&f进去\" @a");
     }
 
     @Override
@@ -68,7 +70,7 @@ public class SendSubCommand extends SubCommand {
     @Override
     public void execute(CommandSender sender, String label, String[] args) {
         if (args.length < 2) {
-            msg(sender, "用法: /soyshttp send <url或/page路径> [显示文字] [玩家]");
+            msgT(sender, "command.send.usage-short", "用法: /soyshttp send <url或/page路径> [显示文字] [玩家]");
             return;
         }
         String raw = args[1];
@@ -99,15 +101,17 @@ public class SendSubCommand extends SubCommand {
 
         if (players.isEmpty()) {
             if (target != null) {
-                msg(sender, "未找到在线玩家: " + target + "（玩家需在线；或用 @a/@p/@r/@e/@s 选择器）");
+                msgT(sender, "command.send.target-not-found",
+                        "未找到在线玩家: {0}（玩家需在线；或用 @a/@p/@r/@e/@s 选择器）", target);
             } else {
-                msg(sender, "未指定目标玩家，且命令执行者不是玩家（请补玩家名或 @a/@p/@r/@e/@s）");
+                msgT(sender, "command.send.target-none",
+                        "未指定目标玩家，且命令执行者不是玩家（请补玩家名或 @a/@p/@r/@e/@s）");
             }
             return;
         }
         for (Player p : players) {
             LinkMessageUtil.send(p, url, display);
         }
-        msg(sender, "已向 " + players.size() + " 名玩家发送链接: " + url);
+        msgT(sender, "command.send.sent", "已向 {0} 名玩家发送链接: {1}", players.size(), url);
     }
 }

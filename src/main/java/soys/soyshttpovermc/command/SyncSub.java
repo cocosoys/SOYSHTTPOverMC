@@ -1,6 +1,7 @@
 package soys.soyshttpovermc.command;
 
 import soys.soyshttpovermc.HttpOverMcPlugin;
+import soys.soyshttpovermc.i18n.I18n;
 import soys.soyshttpovermc.storage.StorageManager;
 
 import org.bukkit.command.CommandSender;
@@ -29,7 +30,7 @@ public class SyncSub extends SubCommand {
 
     @Override
     public String usage() {
-        return "/soyshttp sync —— 主存储全量数据覆盖写入所有辅助存储";
+        return I18n.t("command.sync.usage", "/soyshttp sync —— 主存储全量数据覆盖写入所有辅助存储");
     }
 
     @Override
@@ -41,20 +42,21 @@ public class SyncSub extends SubCommand {
     public void execute(CommandSender sender, String label, String[] args) {
         StorageManager manager = plugin.getStorageManager();
         if (manager == null) {
-            msg(sender, "§c数据存储未启用（内存模式），无法同步");
+            msgT(sender, "command.sync.storage-off", "§c数据存储未启用（内存模式），无法同步");
             return;
         }
         if (manager.getSecondaries().isEmpty()) {
-            msg(sender, "§e无辅助存储，无需同步");
+            msgT(sender, "command.sync.no-secondary", "§e无辅助存储，无需同步");
             return;
         }
-        msg(sender, "§7开始同步主存储 → " + describe(manager));
+        msgT(sender, "command.sync.start", "§7开始同步主存储 → {0}", describe(manager));
         manager.submit(() -> {
             try {
                 int count = manager.syncToSecondaries();
-                msg(sender, "§a同步完成，已写入 " + count + " 条记录到所有辅助存储");
+                msgT(sender, "command.sync.done",
+                        "§a同步完成，已写入 {0} 条记录到所有辅助存储", count);
             } catch (Exception e) {
-                msg(sender, "§c同步失败: " + e.getMessage());
+                msgT(sender, "command.sync.fail", "§c同步失败: {0}", e.getMessage());
             }
         });
     }

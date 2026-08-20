@@ -18,4 +18,17 @@ public class WebPageException extends SoysHttpException {
     public WebPageException(String message, Throwable cause) {
         super(Module.WEB, "WEB_ERR", message, cause);
     }
+
+
+    public WebPageException(String code, String fmt, Object... args) {
+        super(Module.WEB, code, fmt, args);
+    }
+
+    public WebPageException(String fmt, Object... args) {
+        super(Module.WEB, "WEB_ERR", fmt, args);
+    }
+
+    public WebPageException(String code, String fmt, Throwable cause, Object... args) {
+        super(Module.WEB, code, fmt, cause, args);
+    }
 }

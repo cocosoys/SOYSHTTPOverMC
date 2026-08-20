@@ -50,55 +50,6 @@ public interface WebPageApi {
     /** 卸载指定插件名登记的全部网页 */
     void unregisterPluginPages(String pluginName);
 
-    // ===== 首页（registerHome：直接把内容注册为站点首页 /，立即生效覆盖原首页） =====
-
-    /**
-     * 注册首页：把 {@code content} 注册为站点首页 {@code /}（Content-Type 默认 text/html）。
-     * <b>直接应用</b>：注册即时生效（无需重启），并<b>覆盖原首页</b>——优先级高于
-     * {@code web.home} 配置与默认 index.html（注册页路由先于静态资源命中）；
-     * 注册时后台打印「插件已注册首页并覆盖原首页」日志。
-     */
-    void registerHome(Plugin owner, byte[] content);
-
-    /** 注册首页（显式 Content-Type）。 */
-    void registerHome(Plugin owner, byte[] content, String contentType);
-
-    /**
-     * 按<b>来源</b>注册首页：{@code source} 支持 相对路径（如 {@code dist/index.html}、{@code status/index.html}）/
-     * 绝对路径（本地磁盘文件）/ 网络 URL（按需拉取+缓存+失败回退），语义与 {@code web.home} 一致；
-     * <b>请求时解析</b>（文件热替换、URL 带 TTL 缓存），立即生效覆盖原首页。
-     */
-    void registerHome(Plugin owner, String source);
-
-    /** 按来源注册首页（显式 Content-Type）。 */
-    void registerHome(Plugin owner, String source, String contentType);
-
-    // ===== 首页列表（registerHomepage：按名称注册，支持指令切换） =====
-
-    /**
-     * 按名称注册首页到全局列表（不自动切换）。
-     * 注册后可通过 {@link #switchHomepage(String)} 切换，也可通过
-     * {@code /soyshttp homepage} 指令查看和切换。
-     * 所有插件共享同一个首页列表。
-     *
-     * @param name        首页唯一名称（如 "default"、"event"）
-     * @param owner       归属插件
-     * @param content     首页 HTML 字节内容
-     * @param contentType Content-Type（如 "text/html; charset=utf-8"）
-     */
-    void registerHomepage(String name, Plugin owner, byte[] content, String contentType);
-
-    /** 按名称注册首页（默认 Content-Type: text/html; charset=utf-8）。 */
-    void registerHomepage(String name, Plugin owner, byte[] content);
-
-    /**
-     * 切换到指定名称的首页，立即更新站点首页 {@code GET /} 路由。
-     *
-     * @param name 首页名称
-     * @return true 切换成功；false 名称不存在
-     */
-    boolean switchHomepage(String name);
-
     // ===== 网络文件/网络网页页面（NetworkPage 抽象） =====
 
     /**

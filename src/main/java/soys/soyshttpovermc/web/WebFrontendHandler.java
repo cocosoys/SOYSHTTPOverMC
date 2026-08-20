@@ -1,9 +1,11 @@
 package soys.soyshttpovermc.web;
+import lombok.CustomLog;
 
 import soys.soyshttpovermc.util.AjaxResult;
 import soys.soyshttpovermc.util.ApiResponse;
 import soys.soyshttpovermc.util.HttpFrames;
 import soys.soyshttpovermc.ApiRegistry;
+import soys.soyshttpovermc.i18n.I18n;
 import soys.soyshttpovermc.log.LogKit;
 import soys.soyshttpovermc.proto.FrameProto;
 import com.google.protobuf.ByteString;
@@ -32,6 +34,7 @@ import java.util.Map;
  * 一律归属 spring 包（controller/service/impl 分层），经 {@link ApiRegistry} 注册分发；
  * 本类只保留静态资源与框架级钩子（CORS / 拦截器），不再承载业务路由。</p>
  */
+@CustomLog
 public class WebFrontendHandler {
 
     private final File webRoot;     // null 表示未配置磁盘 webroot
@@ -117,7 +120,7 @@ public class WebFrontendHandler {
                         return cors == null ? stop : corsRegistry.attach(cors, stop);
                     }
                 } catch (Throwable t) {
-                    LogKit.warn("[HTTP-Over-MC] 拦截器 " + in.name() + " 异常，放行继续: " + t);
+                    log.warn(I18n.t("log.web.interceptor-error", "拦截器 {0} 异常，放行继续: {1}", in.name(), t));
                 }
             }
             m = ctx.method();
@@ -182,14 +185,6 @@ public class WebFrontendHandler {
                 if (page.redirectTo != null) {
                     return HttpFrames.redirect(page.redirectCode > 0 ? page.redirectCode : 302, page.redirectTo);
                 }
-                // 来源型首页（registerHomeFrom：相对/绝对路径/网络 URL）→ 请求时按 HomePageResolver 解析
-                String src = page.getSourceSpec();
-                if (src != null) {
-                    FrameProto.HttpResponseFrame resp = serveSourceHome(page, src);
-                    if (resp != null) return resp;
-                    // 解析失败 → 回退默认首页（web.home → index.html）
-                    return defaultHomeFrame();
-                }
                 return FrameProto.HttpResponseFrame.newBuilder()
                         .setStatusCode(200)
                         .putHeaders("Content-Type", page.effectiveContentType())
@@ -224,6 +219,28 @@ public class WebFrontendHandler {
                 .build();
     }
 
+    /**
+     * 解析任意首页来源描述（相对路径/绝对路径/网络 URL）为字节与 Content-Type。
+     * <p>供上层业务（如 thismyhomepages 的来源型首页）复用框架的 {@code web.home} 解析语义
+     * （相对路径按本服务 web.root → jar /dist/ 顺序、绝对路径读磁盘、URL 拉取并按 TTL 缓存）；
+     * 未配置/解析失败返回 null。这是框架对外暴露的「解析 web.home」原语，不含任何注册语义。</p>
+     */
+    public HomePageResolver.Result resolveHomeSource(String sourceSpec) {
+        if (sourceSpec == null || sourceSpec.trim().isEmpty()) return null;
+        try {
+            HomePageResolver hr = sourceResolvers.computeIfAbsent(sourceSpec.trim(),
+                    s -> new HomePageResolver(s, webRoot, webRootCanonical, largeFileMaxBytes));
+            return hr.resolve();
+        } catch (Throwable t) {
+            log.warn(I18n.t("log.web.source-resolve-error", "来源解析异常({0}): {1}", sourceSpec, t));
+            return null;
+        }
+    }
+
+    /** 来源解析器复用池：key=来源描述（保证 URL 缓存/文件热替换语义跨调用生效）。 */
+    private final java.util.concurrent.ConcurrentHashMap<String, HomePageResolver> sourceResolvers =
+            new java.util.concurrent.ConcurrentHashMap<>();
+
     /** 网络页缓存条目。 */
     private static final class NetworkCacheEntry {
         final byte[] bytes;
@@ -235,53 +252,6 @@ public class WebFrontendHandler {
             this.contentType = contentType;
             this.cachedAt = System.currentTimeMillis();
         }
-    }
-
-    /** 来源型首页解析器复用池：key=来源描述（保证 URL 缓存/文件热替换语义跨请求生效）。 */
-    private final java.util.concurrent.ConcurrentHashMap<String, HomePageResolver> sourceHomeResolvers =
-            new java.util.concurrent.ConcurrentHashMap<>();
-
-    /**
-     * 伺服来源型首页（registerHomeFrom：相对/绝对路径/网络 URL）；解析成功返回帧，失败返回 null（调用方回退默认首页）。
-     */
-    private FrameProto.HttpResponseFrame serveSourceHome(WebRegistry.Entry page, String src) {
-        try {
-            HomePageResolver hr = sourceHomeResolvers.computeIfAbsent(src,
-                    s -> new HomePageResolver(s, webRoot, webRootCanonical, largeFileMaxBytes));
-            HomePageResolver.Result r = hr.resolve();
-            if (r == null || r.bytes == null || r.bytes.length == 0) {
-                LogKit.warn("[HTTP-Over-MC] 来源型首页解析失败，回退默认: " + src);
-                return null;
-            }
-            String ct = r.contentType;
-            if (ct == null || ct.trim().isEmpty()) ct = page.effectiveContentType();
-            return FrameProto.HttpResponseFrame.newBuilder()
-                    .setStatusCode(200)
-                    .putHeaders("Content-Type", ct)
-                    .setBody(ByteString.copyFrom(r.bytes))
-                    .setFragmentIndex(0)
-                    .setTotalFragments(1)
-                    .build();
-        } catch (Throwable t) {
-            LogKit.warn("[HTTP-Over-MC] 来源型首页解析异常，回退默认: " + t);
-            return null;
-        }
-    }
-
-    /** 默认首页帧：web.home → 默认 index.html（来源型首页回退路径）。 */
-    private FrameProto.HttpResponseFrame defaultHomeFrame() {
-        Hit hit = resolveResource("/");
-        if (hit == null) {
-            return notFound("/");
-        }
-        return FrameProto.HttpResponseFrame.newBuilder()
-                .setStatusCode(200)
-                .putHeaders("Content-Type", hit.contentType != null
-                        ? hit.contentType : MimeTypes.forPath(hit.name))
-                .setBody(ByteString.copyFrom(hit.bytes))
-                .setFragmentIndex(0)
-                .setTotalFragments(1)
-                .build();
     }
 
     /**
@@ -297,11 +267,11 @@ public class WebFrontendHandler {
             try {
                 body = np.load();
             } catch (Throwable t) {
-                LogKit.warn("[HTTP-Over-MC] 网络页加载失败(" + np.name() + " " + key + "): " + t);
-                return HttpFrames.jsonError(502, "网络页加载失败: " + np.name());
+                log.warn(I18n.t("log.web.network-page-load-fail", "网络页加载失败({0} {1}): {2}", np.name(), key, t));
+                return HttpFrames.jsonError(502, I18n.t("log.web.network-page-load-fail-msg", "网络页加载失败: {0}", np.name()));
             }
             if (body == null || body.length == 0) {
-                return HttpFrames.jsonError(502, "网络页内容为空: " + np.name());
+                return HttpFrames.jsonError(502, I18n.t("log.web.network-page-empty", "网络页内容为空: {0}", np.name()));
             }
             String ct = np.contentType();
             if (ct == null || ct.trim().isEmpty()) ct = MimeTypes.forPath(key);
@@ -339,7 +309,7 @@ public class WebFrontendHandler {
                     .setTotalFragments(1)
                     .build();
         }
-        return HttpFrames.jsonError(404, "资源不存在: " + cleanPath);
+        return HttpFrames.jsonError(404, I18n.t("log.web.not-found", "资源不存在: {0}", cleanPath));
     }
 
     /** 500 响应帧（支持自定义错误页 registerErrorPage(500)；否则 JSON 错误体，无 text/plain 例外）。 */
@@ -400,8 +370,8 @@ public class WebFrontendHandler {
                 try {
                     if (f.getCanonicalPath().startsWith(webRootCanonical) && f.isFile()) {
                         if (largeFileMaxBytes > 0 && f.length() > largeFileMaxBytes) {
-                            LogKit.warn("[HTTP-Over-MC] 静态资源超过大文件上限，拒绝加载: /" + c
-                                    + " size=" + f.length() + " limit=" + largeFileMaxBytes);
+                            log.warn(I18n.t("log.web.static-oversize", "静态资源超过大文件上限，拒绝加载: /{0} size={1} limit={2}",
+                                    c, f.length(), largeFileMaxBytes));
                             continue;
                         }
                         byte[] body = loadBytes("/" + c, f, () -> {
@@ -435,7 +405,7 @@ public class WebFrontendHandler {
             if (r == null || r.bytes == null || r.bytes.length == 0) return null;
             return new Hit(r.name, r.bytes, r.contentType);
         } catch (Throwable t) {
-            LogKit.warn("[HTTP-Over-MC] 首页解析异常，回退默认: " + t);
+            log.warn(I18n.t("log.web.home-resolve-error", "首页解析异常，回退默认: {0}", t));
             return null;
         }
     }

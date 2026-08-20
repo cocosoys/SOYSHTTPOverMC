@@ -6,6 +6,7 @@ import soys.soyshttpovermc.HttpOverMcPlugin;
 import soys.soyshttpovermc.gateway.GatewayFilter;
 import soys.soyshttpovermc.gateway.policy.auth.issuer.CredentialIssuer;
 import soys.soyshttpovermc.gateway.policy.auth.issuer.SessionTokenIssuer;
+import soys.soyshttpovermc.i18n.I18n;
 
 import java.text.SimpleDateFormat;
 import java.util.Date;
@@ -30,21 +31,22 @@ public class TokensSubCommand extends SubCommand {
 
     @Override
     public String usage() {
-        return "/soyshttp tokens —— 查询所有已颁发的令牌";
+        return I18n.t("command.tokens.usage", "/soyshttp tokens —— 查询所有已颁发的令牌");
     }
 
     @Override
     public String detail() {
-        return "/soyshttp tokens —— 查询所有已颁发的会话令牌（签发审计）。\n"
+        return I18n.t("command.tokens.detail",
+                "/soyshttp tokens —— 查询所有已颁发的会话令牌（签发审计）。\n"
                 + "展示：主体 / 模式 / 是否 admin / 状态（有效 | 已注销）/ 签发时间 / 过期时间。\n"
-                + "令牌本体不回显（避免泄露有效凭据）；注销后记录标记为“已注销”；仅 op 可执行。";
+                + "令牌本体不回显（避免泄露有效凭据）；注销后记录标记为“已注销”；仅 op 可执行。");
     }
 
     @Override
     public void execute(CommandSender sender, String label, String[] args) {
         GatewayFilter gateway = plugin.getGateway();
         if (gateway == null) {
-            msg(sender, "网关未启用，无法查询令牌");
+            msgT(sender, "command.tokens.gateway-off", "网关未启用，无法查询令牌");
             return;
         }
         SessionTokenIssuer issuer = null;
@@ -55,24 +57,28 @@ public class TokensSubCommand extends SubCommand {
             }
         }
         if (issuer == null) {
-            msg(sender, "未启用 session-token 颁发器（请在 gateway/issuers/session-token.yml 设 enabled: true）");
+            msgT(sender, "command.tokens.no-issuer",
+                    "未启用 session-token 颁发器（请在 gateway/issuers/session-token.yml 设 enabled: true）");
             return;
         }
         List<SessionTokenIssuer.IssuedRecord> all = issuer.listIssued();
         long active = all.stream().filter(r -> "有效".equals(r.status())).count();
-        msg(sender, "§a已颁发令牌（共 " + all.size() + " 个，其中有效 " + active + " 个）:");
+        msgT(sender, "command.tokens.summary",
+                "§a已颁发令牌（共 {0} 个，其中有效 {1} 个）:", all.size(), active);
         if (all.isEmpty()) {
-            sender.sendMessage("  §7（暂无签发记录）");
+            sender.sendMessage(I18n.t("command.tokens.empty", "  §7（暂无签发记录）"));
             return;
         }
+        String yes = I18n.t("command.tokens.admin-label", "是");
+        String no = I18n.t("command.tokens.not-admin-label", "否");
         for (SessionTokenIssuer.IssuedRecord r : all) {
             String statusColor = "已注销".equals(r.status()) ? "§7" : "有效".equals(r.status()) ? "§a" : "§e";
             sender.sendMessage("  §f" + r.subject
                     + "  §7mode=§f" + r.mode
-                    + "  §7admin=§f" + (r.admin ? "是" : "否")
+                    + "  §7admin=§f" + (r.admin ? yes : no)
                     + "  " + statusColor + r.status()
-                    + "  §7签发=§f" + FMT.format(new Date(r.issuedAt))
-                    + "  §7过期=§f" + FMT.format(new Date(r.expiresAt)));
+                    + I18n.t("command.tokens.issued-label", "  §7签发=§f{0}", FMT.format(new Date(r.issuedAt)))
+                    + I18n.t("command.tokens.expires-label", "  §7过期=§f{0}", FMT.format(new Date(r.expiresAt))));
         }
     }
 }

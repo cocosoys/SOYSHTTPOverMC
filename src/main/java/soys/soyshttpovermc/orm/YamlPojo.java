@@ -5,6 +5,7 @@ import soys.soyshttpovermc.orm.executor.YamlBackendExecutor;
 import soys.soyshttpovermc.orm.query.ConditionTree;
 import soys.soyshttpovermc.orm.query.Page;
 import soys.soyshttpovermc.orm.query.Query;
+import soys.soyshttpovermc.i18n.I18n;
 
 import org.bukkit.configuration.file.YamlConfiguration;
 
@@ -98,7 +99,7 @@ public class YamlPojo {
         if (e instanceof YamlBackendExecutor) {
             return ((YamlBackendExecutor) e).getConfig(beanClass);
         }
-        throw new IllegalStateException("当前后端不是 YAML：" + (e == null ? "null" : e.name()));
+        throw new IllegalStateException(I18n.t("exception.orm.not-yaml-backend", "当前后端不是 YAML：{0}", e == null ? "null" : e.name()));
     }
 
     /** 把 {@link #get(Class)} 视图的修改显式落盘（原子写）。 */

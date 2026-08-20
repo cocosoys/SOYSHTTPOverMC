@@ -1,6 +1,7 @@
 package soys.soyshttpovermc.command;
 
 import soys.soyshttpovermc.HttpOverMcPlugin;
+import soys.soyshttpovermc.i18n.I18n;
 import soys.soyshttpovermc.storage.StorageManager;
 import soys.soyshttpovermc.storage.StorageType;
 
@@ -31,7 +32,8 @@ public class MigrateSub extends SubCommand {
 
     @Override
     public String usage() {
-        return "/soyshttp migrate <来源> <目标> [overwrite] —— 在 yaml/sqlite/mysql 后端间迁移全量数据";
+        return I18n.t("command.migrate.usage",
+                "/soyshttp migrate <来源> <目标> [overwrite] —— 在 yaml/sqlite/mysql 后端间迁移全量数据");
     }
 
     @Override
@@ -45,7 +47,8 @@ public class MigrateSub extends SubCommand {
     public void execute(CommandSender sender, String label, String[] args) {
         StorageManager manager = plugin.getStorageManager();
         if (manager == null) {
-            msg(sender, "§c数据存储未启用（内存模式），无法迁移");
+            msgT(sender, "command.migrate.storage-off",
+                    "§c数据存储未启用（内存模式），无法迁移");
             return;
         }
         if (args.length < 3) {
@@ -55,22 +58,23 @@ public class MigrateSub extends SubCommand {
         StorageType from = StorageType.fromId(args[1]);
         StorageType to = StorageType.fromId(args[2]);
         if (from == null || to == null) {
-            msg(sender, "§c未知后端（可选: yaml / sqlite / mysql）");
+            msgT(sender, "command.migrate.unknown-backend", "§c未知后端（可选: yaml / sqlite / mysql）");
             return;
         }
         if (from == to) {
-            msg(sender, "§c来源与目标不能相同");
+            msgT(sender, "command.migrate.same-backend", "§c来源与目标不能相同");
             return;
         }
         boolean overwrite = args.length > 3 && "overwrite".equalsIgnoreCase(args[3]);
-        msg(sender, "§7开始迁移: " + from.getDisplayName() + " → " + to.getDisplayName()
-                + (overwrite ? "（overwrite）" : ""));
+        msgT(sender, "command.migrate.start", "§7开始迁移: {0} → {1}{2}",
+                from.getDisplayName(), to.getDisplayName(),
+                overwrite ? I18n.t("command.migrate.overwrite-suffix", "（overwrite）") : "");
         manager.submit(() -> {
             try {
                 int count = manager.migrate(from, to, overwrite);
-                msg(sender, "§a迁移完成，共 " + count + " 条记录 → " + to.getDisplayName());
+                msgT(sender, "command.migrate.done", "§a迁移完成，共 {0} 条记录 → {1}", count, to.getDisplayName());
             } catch (Exception e) {
-                msg(sender, "§c迁移失败: " + e.getMessage());
+                msgT(sender, "command.migrate.fail", "§c迁移失败: {0}", e.getMessage());
             }
         });
     }

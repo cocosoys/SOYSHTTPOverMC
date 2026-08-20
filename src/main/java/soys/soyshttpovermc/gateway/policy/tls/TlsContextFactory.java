@@ -1,5 +1,7 @@
 package soys.soyshttpovermc.gateway.policy.tls;
+import lombok.CustomLog;
 
+import soys.soyshttpovermc.i18n.I18n;
 import soys.soyshttpovermc.log.LogKit;
 
 import org.bukkit.configuration.ConfigurationSection;
@@ -20,9 +22,8 @@ import java.security.cert.Certificate;
 import java.security.cert.CertificateFactory;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.util.ArrayList;
-import java.util.Base64;
 import java.util.List;
-import java.util.logging.Logger;
+import java.util.Base64;
 
 /**
  * TLS 上下文工厂：为 MC 端口就地 TLS 升级提供服务端 SSLEngine（每个连接一个，线程安全）。
@@ -34,16 +35,15 @@ import java.util.logging.Logger;
  *   <li>全部留空：用 JDK keytool 本地自动生成自签证书（纯离线，无需联网）。</li>
  * </ol>
  */
+@CustomLog
 public class TlsContextFactory {
 
-    private final Logger log;
     private final File dataFolder;
     private final ConfigurationSection https;
     private SSLContext sslContext;
     private String minTls = "TLSv1.2";
 
-    public TlsContextFactory(Logger log, File dataFolder, ConfigurationSection https) {
-        this.log = log;
+    public TlsContextFactory(File dataFolder, ConfigurationSection https) {
         this.dataFolder = dataFolder;
         this.https = https;
     }
@@ -67,12 +67,12 @@ public class TlsContextFactory {
         try {
             sslContext = SSLContext.getInstance(minTls);
         } catch (Exception e) {
-            LogKit.warn("[HTTP-Over-MC] 不支持 min-tls=" + minTls + "，回退 TLSv1.2: " + e.getMessage());
+            log.warn(I18n.t("log.tls.min-tls-fallback", "不支持 min-tls={0}，回退 TLSv1.2: {1}", minTls, e.getMessage()));
             minTls = "TLSv1.2";
             sslContext = SSLContext.getInstance(minTls);
         }
         sslContext.init(kmf.getKeyManagers(), null, null);
-        LogKit.info("[HTTP-Over-MC] TLS 上下文就绪 (min=" + minTls + ", 服务端模式)");
+        log.info(I18n.t("log.tls.context-ready", "TLS 上下文就绪 (min={0}, 服务端模式)", minTls));
     }
 
     /** 每个新 TLS 连接调用一次，返回已配置为服务端模式的新引擎（线程安全）。 */
@@ -91,7 +91,7 @@ public class TlsContextFactory {
         }
         KeyManagerFactory kmf = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
         kmf.init(ks, keyPass.toCharArray());
-        LogKit.info("[HTTP-Over-MC] 已加载 keystore: " + f.getAbsolutePath());
+        log.info(I18n.t("log.tls.keystore-loaded", "已加载 keystore: {0}", f.getAbsolutePath()));
         return kmf;
     }
 
@@ -102,14 +102,14 @@ public class TlsContextFactory {
         try (InputStream in = new FileInputStream(certFile)) {
             for (Certificate c : cf.generateCertificates(in)) chain.add(c);
         }
-        if (chain.isEmpty()) throw new IllegalArgumentException("PEM 证书为空: " + certFile);
+        if (chain.isEmpty()) throw new IllegalArgumentException(I18n.t("exception.tls.pem-empty", "PEM 证书为空: {0}", certFile));
         PrivateKey priv = parsePrivateKey(readAll(keyFile), keyFile);
         KeyStore ks = KeyStore.getInstance("JKS");
         ks.load(null, null);
         ks.setKeyEntry("soys", priv, keyPass.toCharArray(), chain.toArray(new Certificate[0]));
         KeyManagerFactory kmf = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
         kmf.init(ks, keyPass.toCharArray());
-        LogKit.info("[HTTP-Over-MC] 已加载 PEM: cert=" + certFile + " key=" + keyFile);
+        log.info(I18n.t("log.tls.pem-loaded", "已加载 PEM: cert={0} key={1}", certFile, keyFile));
         return kmf;
     }
 
@@ -120,8 +120,7 @@ public class TlsContextFactory {
         try {
             return KeyFactory.getInstance(algo).generatePrivate(new PKCS8EncodedKeySpec(der));
         } catch (Exception e) {
-            throw new IllegalArgumentException("私钥解析失败（要求 PKCS8，可用 "
-                    + "openssl pkcs8 -topk8 -nocrypt -in key.pem -out key.p8 转换）: " + keyFile, e);
+            throw new IllegalArgumentException(I18n.t("exception.tls.private-key-parse-fail", "私钥解析失败（要求 PKCS8，可用 openssl pkcs8 -topk8 -nocrypt -in key.pem -out key.p8 转换）: {0}", keyFile), e);
         }
     }
 
@@ -170,9 +169,9 @@ public class TlsContextFactory {
             }
             int rc = proc.waitFor();
             if (rc != 0 || !p12.isFile()) {
-                throw new IllegalStateException("keytool 自签失败(rc=" + rc + "): " + out);
+                throw new IllegalStateException(I18n.t("exception.tls.keytool-fail", "keytool 自签失败(rc={0}): {1}", rc, out));
             }
-            LogKit.info("[HTTP-Over-MC] 已自动生成自签证书: " + p12.getAbsolutePath() + " (CN=" + host + ", SAN=" + san + ")");
+            log.info(I18n.t("log.tls.selfsigned-generated", "已自动生成自签证书: {0} (CN={1}, SAN={2})", p12.getAbsolutePath(), host, san));
         }
         return loadKeyStore(p12, pass, pass);
     }

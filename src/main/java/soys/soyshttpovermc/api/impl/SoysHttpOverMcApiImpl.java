@@ -9,7 +9,6 @@ import soys.soyshttpovermc.api.BotManagementApi;
 import soys.soyshttpovermc.api.CrossServerHttpClient;
 import soys.soyshttpovermc.api.ExtensionApi;
 import soys.soyshttpovermc.api.HttpClientApi;
-import soys.soyshttpovermc.api.PluginLoggerApi;
 import soys.soyshttpovermc.api.ApiToolkitApi;
 import soys.soyshttpovermc.api.SoysHttpOverMcApi;
 import soys.soyshttpovermc.api.WebPageApi;
@@ -29,7 +28,6 @@ public class SoysHttpOverMcApiImpl implements SoysHttpOverMcApi {
     private final WebPageImpl webPage;
     private final AuthCredentialImpl authCredential;
     private final ApiToolkitImpl toolkit;
-    private final PluginLoggerImpl logger;
     private final BotManagementImpl botManagement;
     private final HttpClientImpl httpClient;
     private final ExtensionImpl extension;
@@ -43,7 +41,6 @@ public class SoysHttpOverMcApiImpl implements SoysHttpOverMcApi {
         this.webPage = new WebPageImpl(webRegistry, largeFileLoaderRegistry, corsRegistry);
         this.authCredential = new AuthCredentialImpl(gateway);
         this.toolkit = new ApiToolkitImpl(hostPlugin);
-        this.logger = new PluginLoggerImpl(hostPlugin);
         this.botManagement = new BotManagementImpl(botManager);
         this.httpClient = new HttpClientImpl((soys.soyshttpovermc.HttpOverMcPlugin) hostPlugin, apiRegistry);
         this.extension = new ExtensionImpl((soys.soyshttpovermc.HttpOverMcPlugin) hostPlugin);
@@ -58,8 +55,6 @@ public class SoysHttpOverMcApiImpl implements SoysHttpOverMcApi {
     @Override public AuthCredentialApi getAuthCredential() { return authCredential; }
 
     @Override public ApiToolkitApi getToolkit() { return toolkit; }
-
-    @Override public PluginLoggerApi getLogger() { return logger; }
 
     @Override public BotManagementApi getBotManagement() { return botManagement; }
 

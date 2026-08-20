@@ -1,11 +1,13 @@
 package soys.soyshttpovermc.api.impl;
 
+import lombok.CustomLog;
 import org.bukkit.plugin.Plugin;
 
 import soys.soyshttpovermc.api.WebPageApi;
 import soys.soyshttpovermc.exception.ExceptionBus;
 import soys.soyshttpovermc.exception.WebPageException;
 import soys.soyshttpovermc.log.LogKit;
+import soys.soyshttpovermc.i18n.I18n;
 import soys.soyshttpovermc.web.CorsRegistry;
 import soys.soyshttpovermc.web.LargeFileLoader;
 import soys.soyshttpovermc.web.LargeFileLoaderRegistry;
@@ -22,6 +24,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
  * 能力组 2：网页登记（委托 {@link WebRegistry}）。
  * 由 {@link SoysHttpOverMcApiImpl} 组合并对外暴露；实现 {@link WebPageApi}。
  */
+@CustomLog
 public class WebPageImpl implements WebPageApi {
 
     private final WebRegistry webRegistry;
@@ -42,7 +45,7 @@ public class WebPageImpl implements WebPageApi {
         try {
             webRegistry.registerPage(owner, path, content);
         } catch (Exception ex) {
-            throw ExceptionBus.fire(new WebPageException("E_PAGE", "登记网页失败(path=" + path + "): " + ex.getMessage(), ex));
+            throw ExceptionBus.fire(new WebPageException("E_PAGE", I18n.t("exception.web.register-page", "登记网页失败(path={0}): {1}", path, ex.getMessage()), ex));
         }
     }
 
@@ -56,7 +59,7 @@ public class WebPageImpl implements WebPageApi {
         try {
             webRegistry.registerPage(owner, path, content, contentType, force);
         } catch (Exception ex) {
-            throw ExceptionBus.fire(new WebPageException("E_PAGE", "登记网页失败(path=" + path + "): " + ex.getMessage(), ex));
+            throw ExceptionBus.fire(new WebPageException("E_PAGE", I18n.t("exception.web.register-page", "登记网页失败(path={0}): {1}", path, ex.getMessage()), ex));
         }
     }
 
@@ -65,7 +68,7 @@ public class WebPageImpl implements WebPageApi {
         try {
             webRegistry.registerResource(owner, path, resourceClassLoader, resourcePath);
         } catch (Exception ex) {
-            throw ExceptionBus.fire(new WebPageException("E_RESOURCE", "登记资源失败(path=" + path + "): " + ex.getMessage(), ex));
+            throw ExceptionBus.fire(new WebPageException("E_RESOURCE", I18n.t("exception.web.register-resource", "登记资源失败(path={0}): {1}", path, ex.getMessage()), ex));
         }
     }
 
@@ -79,7 +82,7 @@ public class WebPageImpl implements WebPageApi {
         try {
             webRegistry.registerResource(owner, path, resourceClassLoader, resourcePath, contentType, force);
         } catch (Exception ex) {
-            throw ExceptionBus.fire(new WebPageException("E_RESOURCE", "登记资源失败(path=" + path + "): " + ex.getMessage(), ex));
+            throw ExceptionBus.fire(new WebPageException("E_RESOURCE", I18n.t("exception.web.register-resource", "登记资源失败(path={0}): {1}", path, ex.getMessage()), ex));
         }
     }
 
@@ -88,7 +91,7 @@ public class WebPageImpl implements WebPageApi {
         try {
             webRegistry.registerProxyPage(owner, path, content);
         } catch (Exception ex) {
-            throw ExceptionBus.fire(new WebPageException("E_PAGE_PROXY", "代理登记网页失败(path=" + path + "): " + ex.getMessage(), ex));
+            throw ExceptionBus.fire(new WebPageException("E_PAGE_PROXY", I18n.t("exception.web.register-proxy-page", "代理登记网页失败(path={0}): {1}", path, ex.getMessage()), ex));
         }
     }
 
@@ -97,7 +100,7 @@ public class WebPageImpl implements WebPageApi {
         try {
             webRegistry.registerProxyPage(owner, path, content, contentType);
         } catch (Exception ex) {
-            throw ExceptionBus.fire(new WebPageException("E_PAGE_PROXY", "代理登记网页失败(path=" + path + "): " + ex.getMessage(), ex));
+            throw ExceptionBus.fire(new WebPageException("E_PAGE_PROXY", I18n.t("exception.web.register-proxy-page", "代理登记网页失败(path={0}): {1}", path, ex.getMessage()), ex));
         }
     }
 
@@ -106,7 +109,7 @@ public class WebPageImpl implements WebPageApi {
         try {
             webRegistry.registerProxyResource(owner, path, resourceClassLoader, resourcePath);
         } catch (Exception ex) {
-            throw ExceptionBus.fire(new WebPageException("E_RESOURCE_PROXY", "代理登记资源失败(path=" + path + "): " + ex.getMessage(), ex));
+            throw ExceptionBus.fire(new WebPageException("E_RESOURCE_PROXY", I18n.t("exception.web.register-proxy-resource", "代理登记资源失败(path={0}): {1}", path, ex.getMessage()), ex));
         }
     }
 
@@ -115,7 +118,7 @@ public class WebPageImpl implements WebPageApi {
         try {
             webRegistry.registerProxyResource(owner, path, resourceClassLoader, resourcePath, contentType);
         } catch (Exception ex) {
-            throw ExceptionBus.fire(new WebPageException("E_RESOURCE_PROXY", "代理登记资源失败(path=" + path + "): " + ex.getMessage(), ex));
+            throw ExceptionBus.fire(new WebPageException("E_RESOURCE_PROXY", I18n.t("exception.web.register-proxy-resource", "代理登记资源失败(path={0}): {1}", path, ex.getMessage()), ex));
         }
     }
 
@@ -124,7 +127,7 @@ public class WebPageImpl implements WebPageApi {
         try {
             webRegistry.unregisterPlugin(pluginName);
         } catch (Exception ex) {
-            throw ExceptionBus.fire(new WebPageException("E_UNREGISTER", "卸载网页失败(plugin=" + pluginName + "): " + ex.getMessage(), ex));
+            throw ExceptionBus.fire(new WebPageException("E_UNREGISTER", I18n.t("exception.web.unregister", "卸载网页失败(plugin={0}): {1}", pluginName, ex.getMessage()), ex));
         }
     }
 
@@ -133,7 +136,7 @@ public class WebPageImpl implements WebPageApi {
         try {
             webRegistry.registerDirectory(owner, basePath, dir);
         } catch (Exception ex) {
-            throw ExceptionBus.fire(new WebPageException("E_DIR", "批量登记目录失败(path=" + basePath + "): " + ex.getMessage(), ex));
+            throw ExceptionBus.fire(new WebPageException("E_DIR", I18n.t("exception.web.register-dir", "批量登记目录失败(path={0}): {1}", basePath, ex.getMessage()), ex));
         }
     }
 
@@ -142,7 +145,7 @@ public class WebPageImpl implements WebPageApi {
         try {
             webRegistry.registerDirectory(owner, basePath, dir, proxy);
         } catch (Exception ex) {
-            throw ExceptionBus.fire(new WebPageException("E_DIR", "批量登记目录失败(path=" + basePath + "): " + ex.getMessage(), ex));
+            throw ExceptionBus.fire(new WebPageException("E_DIR", I18n.t("exception.web.register-dir", "批量登记目录失败(path={0}): {1}", basePath, ex.getMessage()), ex));
         }
     }
 
@@ -151,7 +154,7 @@ public class WebPageImpl implements WebPageApi {
         try {
             webRegistry.registerResourceDirectory(owner, basePath, resourceClassLoader, resourceRoot);
         } catch (Exception ex) {
-            throw ExceptionBus.fire(new WebPageException("E_DIR_RES", "批量登记 jar 目录失败(root=" + resourceRoot + "): " + ex.getMessage(), ex));
+            throw ExceptionBus.fire(new WebPageException("E_DIR_RES", I18n.t("exception.web.register-resource-dir", "批量登记 jar 目录失败(root={0}): {1}", resourceRoot, ex.getMessage()), ex));
         }
     }
 
@@ -160,68 +163,7 @@ public class WebPageImpl implements WebPageApi {
         try {
             webRegistry.registerResourceDirectory(owner, basePath, resourceClassLoader, resourceRoot, proxy);
         } catch (Exception ex) {
-            throw ExceptionBus.fire(new WebPageException("E_DIR_RES", "批量登记 jar 目录失败(root=" + resourceRoot + "): " + ex.getMessage(), ex));
-        }
-    }
-
-    @Override
-    public void registerHome(Plugin owner, byte[] content) {
-        registerHome(owner, content, "text/html; charset=utf-8");
-    }
-
-    @Override
-    public void registerHome(Plugin owner, byte[] content, String contentType) {
-        if (content == null || content.length == 0) return;
-        try {
-            // 委托 WebRegistry.registerHome：注册到 "/"（代理无前缀），路由先于静态资源命中 → 立即覆盖首页
-            webRegistry.registerHome(owner, content, contentType);
-            // 明确日志：插件已注册首页并覆盖原首页（后台可见）
-            LogKit.info("[HTTP-Over-MC] 插件 " + (owner == null ? "?" : owner.getName())
-                    + " 已注册首页并覆盖原首页（GET /，立即生效，优先级高于 web.home 与默认 index.html）");
-        } catch (Exception ex) {
-            throw ExceptionBus.fire(new WebPageException("E_HOME", "注册首页失败: " + ex.getMessage(), ex));
-        }
-    }
-
-    @Override
-    public void registerHome(Plugin owner, String source) {
-        registerHome(owner, source, null);
-    }
-
-    @Override
-    public void registerHome(Plugin owner, String source, String contentType) {
-        if (source == null || source.trim().isEmpty()) return;
-        try {
-            webRegistry.registerHomeFrom(owner == null ? null : owner.getName(), source.trim(), contentType);
-            LogKit.info("[HTTP-Over-MC] 插件 " + (owner == null ? "?" : owner.getName())
-                    + " 已注册首页(来源)并覆盖原首页（GET /，source=" + source.trim() + "，立即生效）");
-        } catch (Exception ex) {
-            throw ExceptionBus.fire(new WebPageException("E_HOME", "注册首页(来源)失败: " + ex.getMessage(), ex));
-        }
-    }
-
-    // ===== 首页列表（registerHomepage：按名称注册，支持指令切换） =====
-
-    @Override
-    public void registerHomepage(String name, Plugin owner, byte[] content, String contentType) {
-        try {
-            webRegistry.registerHomepage(name, owner, content, contentType);
-        } catch (Exception ex) {
-            throw ExceptionBus.fire(new WebPageException("E_HOMEPAGE", "登记首页失败(name=" + name + "): " + ex.getMessage(), ex));
-        }
-    }
-
-    @Override
-    public void registerHomepage(String name, Plugin owner, byte[] content) {
-        registerHomepage(name, owner, content, "text/html; charset=utf-8");
-    }
-
-    @Override
-    public boolean switchHomepage(String name) {
-        try {
-            return webRegistry.switchHomepage(name);
-        } catch (Exception ex) {
-            throw ExceptionBus.fire(new WebPageException("E_HOMEPAGE_SWITCH", "切换首页失败(name=" + name + "): " + ex.getMessage(), ex));
+            throw ExceptionBus.fire(new WebPageException("E_DIR_RES", I18n.t("exception.web.register-resource-dir", "批量登记 jar 目录失败(root={0}): {1}", resourceRoot, ex.getMessage()), ex));
         }
     }
 
@@ -231,7 +173,7 @@ public class WebPageImpl implements WebPageApi {
             webRegistry.registerNetworkPage(owner == null ? null : owner.getName(), page);
         } catch (Exception ex) {
             throw ExceptionBus.fire(new WebPageException("E_NET_PAGE",
-                    "登记网络页失败(name=" + (page == null ? "?" : page.name()) + "): " + ex.getMessage(), ex));
+                    I18n.t("exception.web.register-net-page", "登记网络页失败(name={0}): {1}", (page == null ? "?" : page.name()), ex.getMessage()), ex));
         }
     }
 
@@ -240,7 +182,7 @@ public class WebPageImpl implements WebPageApi {
         if (transport == null) return;
         networkTransports.add(transport);
         // 预留接口：仅占位存储，暂不接入加载链路（网络页传输仍由 NetworkPage.load() 自行实现）
-        LogKit.warn("[HTTP-Over-MC] registerNetworkTransport 为预留接口（暂不接入加载链路）: " + transport.name());
+        log.warn(I18n.t("log.web.transport-reserved", "registerNetworkTransport 为预留接口（暂不接入加载链路）: {0}", transport.name()));
     }
 
     // ===== 大文件加载抽象（LargeFileLoader）=====
@@ -267,7 +209,7 @@ public class WebPageImpl implements WebPageApi {
         try {
             webRegistry.registerErrorPage(owner == null ? null : owner.getName(), status, content);
         } catch (Exception ex) {
-            throw ExceptionBus.fire(new WebPageException("E_ERR_PAGE", "登记错误页失败(status=" + status + "): " + ex.getMessage(), ex));
+            throw ExceptionBus.fire(new WebPageException("E_ERR_PAGE", I18n.t("exception.web.register-error-page", "登记错误页失败(status={0}): {1}", status, ex.getMessage()), ex));
         }
     }
 

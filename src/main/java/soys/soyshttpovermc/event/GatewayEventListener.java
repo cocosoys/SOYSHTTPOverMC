@@ -1,4 +1,5 @@
 package soys.soyshttpovermc.event;
+import lombok.CustomLog;
 
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -11,6 +12,7 @@ import soys.soyshttpovermc.api.event.GatewayCredentialIssuedEvent;
 import soys.soyshttpovermc.api.event.GatewayRequestEvent;
 import soys.soyshttpovermc.api.event.GatewayRequestServedEvent;
 import soys.soyshttpovermc.log.LogKit;
+import soys.soyshttpovermc.i18n.I18n;
 
 /**
  * 内置网关事件调试监听器（从 {@code HttpOverMcPlugin} 抽离）：
@@ -19,6 +21,7 @@ import soys.soyshttpovermc.log.LogKit;
  *
  * <p>事件调试开关由插件在启动/热重载后通过 {@link #setDebugEnabled(boolean)} 同步。</p>
  */
+@CustomLog
 public class GatewayEventListener implements Listener {
 
     private volatile boolean debugEnabled = false;
@@ -30,30 +33,26 @@ public class GatewayEventListener implements Listener {
     @EventHandler
     public void onRequest(GatewayRequestEvent e) {
         if (!debugEnabled) return;
-        LogKit.info("[EVENT] request " + e.getMethod() + " " + e.getPath()
-                + " ip=" + e.getIp() + (e.isTls() ? " (TLS)" : ""));
+        log.info(I18n.t("log.event.request", "[EVENT] request {0} {1} ip={2}{3}", e.getMethod(), e.getPath(), e.getIp(), e.isTls() ? " (TLS)" : ""));
     }
 
     @EventHandler
     public void onDenied(GatewayAccessDeniedEvent e) {
         if (!debugEnabled) return;
-        LogKit.info("[EVENT] denied " + e.getMethod() + " " + e.getPath()
-                + " ip=" + e.getIp() + " policy=" + e.getPolicyName() + " code=" + e.getStatusCode()
-                + " reason=" + e.getReason());
+        log.info(I18n.t("log.event.denied", "[EVENT] denied {0} {1} ip={2} policy={3} code={4} reason={5}",
+                e.getMethod(), e.getPath(), e.getIp(), e.getPolicyName(), e.getStatusCode(), e.getReason()));
     }
 
     @EventHandler
     public void onServed(GatewayRequestServedEvent e) {
         if (!debugEnabled) return;
-        LogKit.info("[EVENT] served " + e.getMethod() + " " + e.getPath()
-                + " code=" + e.getStatusCode() + " " + e.getLatencyMs() + "ms");
+        log.info(I18n.t("log.event.served", "[EVENT] served {0} {1} code={2} {3}ms", e.getMethod(), e.getPath(), e.getStatusCode(), e.getLatencyMs()));
     }
 
     @EventHandler
     public void onIssued(GatewayCredentialIssuedEvent e) {
         if (!debugEnabled) return;
-        LogKit.info("[EVENT] credential issued subject=" + e.getSubject()
-                + " issuer=" + e.getIssuerName());
+        log.info(I18n.t("log.event.issued", "[EVENT] credential issued subject={0} issuer={1}", e.getSubject(), e.getIssuerName()));
     }
 
     @EventHandler
@@ -64,13 +63,12 @@ public class GatewayEventListener implements Listener {
         for (ApiInfo a : e.getApis()) {
             sb.append("\n    ").append(a.toString());
         }
-        LogKit.info(sb.toString());
+        log.info(sb.toString());
     }
 
     @EventHandler
     public void onApiUnregistered(ApiUnregisteredEvent e) {
         if (!debugEnabled) return;
-        LogKit.info("[EVENT] api unregistered plugin=" + e.getOwnerPlugin()
-                + " count=" + e.getApis().size());
+        log.info(I18n.t("log.event.api-unregistered", "[EVENT] api unregistered plugin={0} count={1}", e.getOwnerPlugin(), e.getApis().size()));
     }
 }

@@ -18,4 +18,17 @@ public class HttpClientException extends SoysHttpException {
     public HttpClientException(String message, Throwable cause) {
         super(Module.HTTP, "HTTP_ERR", message, cause);
     }
+
+
+    public HttpClientException(String code, String fmt, Object... args) {
+        super(Module.HTTP, code, fmt, args);
+    }
+
+    public HttpClientException(String fmt, Object... args) {
+        super(Module.HTTP, "HTTP_ERR", fmt, args);
+    }
+
+    public HttpClientException(String code, String fmt, Throwable cause, Object... args) {
+        super(Module.HTTP, code, fmt, cause, args);
+    }
 }

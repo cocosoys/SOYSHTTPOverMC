@@ -1,4 +1,5 @@
 package soys.soyshttpovermc;
+import lombok.CustomLog;
 
 import soys.soyshttpovermc.log.LogKit;
 
@@ -10,6 +11,7 @@ import soys.soyshttpovermc.api.event.ApiRegisteredEvent;
 import soys.soyshttpovermc.api.event.ApiUnregisteredEvent;
 import soys.soyshttpovermc.util.AjaxResult;
 import soys.soyshttpovermc.util.ApiResponse;
+import soys.soyshttpovermc.i18n.I18n;
 import soys.soyshttpovermc.gateway.policy.auth.util.AuthUtils;
 import soys.soyshttpovermc.gateway.policy.auth.issuer.CredentialPresentation;
 
@@ -29,7 +31,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
-import java.util.logging.Logger;
 
 /**
  * 注解式 API 注册表与分发器（仿 Spring MVC / RuoYi）：
@@ -72,11 +73,11 @@ import java.util.logging.Logger;
  *   <li>参数支持 {@link RequestParam}（query 绑定 + 类型转换）与 {@link RequestBody}（String body）。</li>
  * </ul>
  */
+@CustomLog
 public class ApiRegistry {
 
     private static final String ANY_METHOD = "*";
 
-    private final Logger log;
     /** 宿主插件（SOYSHTTPOverMC 本体）：注册时若无法归属到其它插件则归为本插件 */
     private final Plugin hostPlugin;
     private final Map<String, EndpointMeta> routes = new ConcurrentHashMap<>();
@@ -99,9 +100,8 @@ public class ApiRegistry {
     /** 全局路径前缀（网关配置 api-prefix，默认 /api；始终生效，与 auth 是否启用解耦） */
     private volatile String pathPrefix = "/api";
 
-    public ApiRegistry(Plugin hostPlugin, Logger log) {
+    public ApiRegistry(Plugin hostPlugin) {
         this.hostPlugin = hostPlugin;
-        this.log = log;
     }
 
     /** 注册 PermissionService（登录插件接入点）：非空后 @ApiPermission 生效。 */
@@ -244,25 +244,27 @@ public class ApiRegistry {
                 EndpointMeta meta = new EndpointMeta(instance, m, apiName, permission, params, path, method, ownerName, cls.getName());
                 EndpointMeta old = routes.get(key);
                 if (old != null && !force) {
-                    LogKit.warn("[HTTP-Over-MC] 拒绝重复注册 API: " + key
-                            + "（已由插件 " + old.ownerPlugin + " 的 " + old.handlerClass
-                            + " 注册；如需覆盖请用强制注册 force=true）");
+                    log.warn(I18n.t("log.registry.duplicate-register",
+                            "拒绝重复注册 API: {0}（已由插件 {1} 的 {2} 注册；如需覆盖请用强制注册 force=true）",
+                            key, old.ownerPlugin, old.handlerClass));
                     continue;
                 }
                 routes.put(key, meta);
                 if (old != null) {
-                    LogKit.info("[HTTP-Over-MC] 插件 " + ownerName + " 强制注册覆盖 API: " + key
-                            + "（原注册插件 " + old.ownerPlugin + "，原处理器 " + old.handlerClass + "）");
+                    log.info(I18n.t("log.registry.force-override",
+                            "插件 {0} 强制注册覆盖 API: {1}（原注册插件 {2}，原处理器 {3}）",
+                            ownerName, key, old.ownerPlugin, old.handlerClass));
                 }
                 n++;
                 registered.add(new ApiInfo(method, path, apiName, permission, cls.getName(), ownerName));
-                LogKit.info("[HTTP-Over-MC] 注册 API: " + key + " 名称=" + apiName
-                        + " 插件=" + ownerName + (proxy ? " (代理无前缀)" : "")
-                        + (permission.isEmpty() ? "" : " 权限=" + permission));
+                log.info(I18n.t("log.registry.register",
+                        "注册 API: {0} 名称={1} 插件={2}{3}{4}", key, apiName, ownerName,
+                        proxy ? " (代理无前缀)" : "",
+                        permission.isEmpty() ? "" : " 权限=" + permission));
             }
         }
         if (n == 0) {
-            LogKit.warn("[HTTP-Over-MC] register(" + cls.getName() + ") 未发现映射注解方法（@GetMapping 等）");
+            log.warn(I18n.t("log.registry.no-mapping", "register({0}) 未发现映射注解方法（@GetMapping 等）", cls.getName()));
             return;
         }
         // 发射注册事件（同步事件，确保在主线程触发；监听器异常不影响注册）
@@ -283,7 +285,7 @@ public class ApiRegistry {
             }
         }
         if (!removed.isEmpty()) {
-            LogKit.info("[HTTP-Over-MC] 卸载 API（实例 " + instance.getClass().getName() + "）：共 " + removed.size() + " 个");
+            log.info(I18n.t("log.registry.unregister-instance", "卸载 API（实例 {0}）：共 {1} 个", instance.getClass().getName(), removed.size()));
             fireApiEvent(new ApiUnregisteredEvent(removed.get(0).getOwnerPlugin(), removed));
         }
         return removed;
@@ -302,7 +304,7 @@ public class ApiRegistry {
             }
         }
         if (!removed.isEmpty()) {
-            LogKit.info("[HTTP-Over-MC] 卸载 API（插件 " + pluginName + "）：共 " + removed.size() + " 个");
+            log.info(I18n.t("log.registry.unregister-plugin", "卸载 API（插件 {0}）：共 {1} 个", pluginName, removed.size()));
             fireApiEvent(new ApiUnregisteredEvent(pluginName, removed));
         }
         return removed;
@@ -323,7 +325,7 @@ public class ApiRegistry {
         // 默认拒绝：auth 框架已启用（PermissionService 注册）时，既无 @ApiPermission 又无 @ApiPublic 的端点
         // 默认拒绝（安全优先）；未注册 PermissionService 时不强制（兼容关闭注解鉴权的旧部署）。
         if (permissionService != null && meta.permission.isEmpty() && !isPublicEndpoint(meta)) {
-            return AjaxResult.error(403, "默认拒绝：端点未声明公开(@ApiPublic)或权限(@ApiPermission)");
+            return AjaxResult.error(403, I18n.t("ajax.registry.default-denied", "默认拒绝：端点未声明公开(@ApiPublic)或权限(@ApiPermission)"));
         }
 
         // 统一解析请求凭证（权限判定 / 参数注入 / 访问事件共用，避免重复解析）
@@ -335,11 +337,11 @@ public class ApiRegistry {
         if (ps != null && !meta.permission.isEmpty()) {
             try {
                 if (!ps.hasPermission(credential, meta.permission)) {
-                    return AjaxResult.forbidden("无权限访问: " + meta.apiName + "（需要 " + meta.permission + "）");
+                    return AjaxResult.forbidden(I18n.t("ajax.registry.no-permission", "无权限访问: {0}（需要 {1}）", meta.apiName, meta.permission));
                 }
             } catch (Exception e) {
-                LogKit.warn("[HTTP-Over-MC] PermissionService 异常，按拒绝处理: " + e, e);
-                return AjaxResult.forbidden("权限服务异常");
+                log.warn(I18n.t("log.registry.permission-service-error", "PermissionService 异常，按拒绝处理: {0}", e));
+                return AjaxResult.forbidden(I18n.t("ajax.registry.permission-service-error", "权限服务异常"));
             }
         }
 
@@ -379,14 +381,14 @@ public class ApiRegistry {
             String value = query.get(pb.name);
             if (value == null) {
                 if (pb.required) {
-                    return AjaxResult.error(400, "缺少必填参数: " + pb.name);
+                    return AjaxResult.error(400, I18n.t("ajax.registry.missing-required-param", "缺少必填参数: {0}", pb.name));
                 }
                 value = pb.defaultValue;
             }
             try {
                 args[i] = convert(pb.type, value);
             } catch (Exception e) {
-                return AjaxResult.error(400, "参数 " + pb.name + " 类型不合法: " + value);
+                return AjaxResult.error(400, I18n.t("ajax.registry.invalid-param-type", "参数 {0} 类型不合法: {1}", pb.name, value));
             }
         }
 
@@ -409,10 +411,10 @@ public class ApiRegistry {
                     Map<String, String> upgradeHeaders = upgrader.apply(credential);
                     if (upgradeHeaders != null && !upgradeHeaders.isEmpty()) {
                         pendingHeaders.get().putAll(upgradeHeaders);
-                        LogKit.info("[HTTP-Over-MC] 离线令牌已自动升级为在线令牌（响应附带 Set-Cookie + X-Soys-New-Token）");
+                        log.info(I18n.t("log.registry.token-upgraded", "离线令牌已自动升级为在线令牌（响应附带 Set-Cookie + X-Soys-New-Token）"));
                     }
                 } catch (Throwable t) {
-                    LogKit.warn("[HTTP-Over-MC] 离线令牌自动升级异常: " + t, t);
+                    log.warn(I18n.t("log.registry.token-upgrade-error", "离线令牌自动升级异常: {0}", t), t);
                 }
             }
             // 响应控制：ApiResponse 携带自定义状态码/响应头（302 跳转、Set-Cookie、错误状态码等），
@@ -423,13 +425,13 @@ public class ApiRegistry {
         } catch (InvocationTargetException e) {
             Throwable cause = e.getCause() == null ? e : e.getCause();
             String ref = AuthUtils.generateToken("err_", 6);
-            LogKit.warn("[HTTP-Over-MC] API 处理异常 " + meta.method.getName() + " (ref=" + ref + "): " + cause, cause);
+            log.warn(I18n.t("log.registry.api-handle-error", "API 处理异常 {0} (ref={1}): {2}", meta.method.getName(), ref, cause), cause);
             // 脱敏：不向外暴露内部异常信息，仅返回关联 ref 便于服务端定位
-            return AjaxResult.error(500, "服务器内部错误 (ref=" + ref + ")");
+            return AjaxResult.error(500, I18n.t("ajax.registry.internal-error", "服务器内部错误 (ref={0})", ref));
         } catch (Exception e) {
             String ref = AuthUtils.generateToken("err_", 6);
-            LogKit.warn("[HTTP-Over-MC] API 调用异常 " + meta.method.getName() + " (ref=" + ref + "): " + e, e);
-            return AjaxResult.error(500, "服务器内部错误 (ref=" + ref + ")");
+            log.warn(I18n.t("log.registry.api-invoke-error", "API 调用异常 {0} (ref={1}): {2}", meta.method.getName(), ref, e), e);
+            return AjaxResult.error(500, I18n.t("ajax.registry.internal-error", "服务器内部错误 (ref={0})", ref));
         }
     }
 

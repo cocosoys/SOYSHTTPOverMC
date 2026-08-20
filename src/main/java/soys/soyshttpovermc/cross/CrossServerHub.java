@@ -1,7 +1,9 @@
 package soys.soyshttpovermc.cross;
+import lombok.CustomLog;
 
 import soys.soyshttpovermc.link.McLink;
 import soys.soyshttpovermc.log.LogKit;
+import soys.soyshttpovermc.i18n.I18n;
 import soys.soyshttpovermc.proto.FrameProto;
 import soys.soyshttpovermc.proxy.ServerRegistry;
 import soys.soyshttpovermc.proxy.ServerTag;
@@ -40,6 +42,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * 仅网关（sniffer 开启的服）会真正把外部 HTTP 收进来并触发中继；其余子服仅作为“被调用方”存在，
  * 但任一服都可直接经 {@code CrossServerHttpClient} 调另一服（本枢纽统一转发）。
  */
+@CustomLog
 public class CrossServerHub {
 
     /** BungeeCord 插件消息主通道（用于发送 Forward 指令） */
@@ -93,9 +96,8 @@ public class CrossServerHub {
 
     /** 网关侧：把收到的请求分片原样经 BungeeCord Forward 发到目标服（目标会重组后服务）。 */
     public void relayRequestFragment(byte[] chunkBytes, String target) {
-        LogKit.info("[CrossServer] 网关侧 relayRequestFragment -> target=" + target
-                + " len=" + (chunkBytes == null ? -1 : chunkBytes.length)
-                + " bot=" + botName + " online=" + (Bukkit.getPlayerExact(botName) != null));
+        log.info(I18n.t("log.cross.relay", "[CrossServer] 网关侧 relayRequestFragment -> target={0} len={1} bot={2} online={3}", target,
+                chunkBytes == null ? -1 : chunkBytes.length, botName, Bukkit.getPlayerExact(botName) != null));
         sendBungeeForward(target, CHANNEL_FWD_REQ, chunkBytes);
     }
 
@@ -106,7 +108,7 @@ public class CrossServerHub {
         if (data == null) return;
         Player bot = Bukkit.getPlayerExact(botName);
         if (bot == null) {
-            LogKit.warn("[CrossServer] 无法转发到 " + target + "：Bot(" + botName + ") 未在线");
+            log.warn(I18n.t("log.cross.bot-offline", "[CrossServer] 无法转发到 {0}：Bot({1}) 未在线", target, botName));
             return;
         }
         try {
@@ -121,10 +123,9 @@ public class CrossServerHub {
             final byte[] pkt = bos.toByteArray();
             // sendPluginMessage 必须在主线程
             Bukkit.getScheduler().runTask(plugin, () -> bot.sendPluginMessage(plugin, BUNGEECORD_CHANNEL, pkt));
-            LogKit.info("[CrossServer] 已发送 Forward target=" + target + " ch=" + channel + " via bot=" + botName
-                    + " len=" + data.length);
+            log.info(I18n.t("log.cross.forward-sent", "[CrossServer] 已发送 Forward target={0} ch={1} via bot={2} len={3}", target, channel, botName, data.length));
         } catch (Throwable t) {
-            LogKit.warn("[CrossServer] 发送 Forward 失败 target=" + target + " ch=" + channel + ": " + t);
+            log.warn(I18n.t("log.cross.forward-fail", "[CrossServer] 发送 Forward 失败 target={0} ch={1}: {2}", target, channel, t));
         }
     }
 
@@ -152,9 +153,8 @@ public class CrossServerHub {
                     short len = in.readShort();
                     byte[] data = new byte[len < 0 ? 0 : len];
                     if (len > 0) in.readFully(data);
-                    LogKit.info("[CrossServer] 收到 BungeeCord 跨服转发 inner=" + inner
-                            + " player=" + (player == null ? "null" : player.getName())
-                            + " len=" + len);
+                    log.info(I18n.t("log.cross.forward-received", "[CrossServer] 收到 BungeeCord 跨服转发 inner={0} player={1} len={2}", inner,
+                            player == null ? "null" : player.getName(), len));
                     if (CHANNEL_FWD_REQ.equals(inner)) {
                         onForwardRequest(data);
                     } else if (CHANNEL_FWD_RESP.equals(inner)) {
@@ -163,7 +163,7 @@ public class CrossServerHub {
                         onDiscovery(data);
                     }
                 } catch (Throwable t) {
-                    LogKit.warn("[CrossServer] BungeeCord 跨服载荷解析失败: " + t);
+                    log.warn(I18n.t("log.cross.payload-parse-fail", "[CrossServer] BungeeCord 跨服载荷解析失败: {0}", t));
                 }
             }
         };
@@ -189,12 +189,12 @@ public class CrossServerHub {
             full = join(f.buffers);
             chunk = FrameProto.HttpRequestFrame.parseFrom(full);
         } catch (Exception e) {
-            LogKit.warn("[CrossServer] 转发请求重组失败 id=" + id);
+            log.warn(I18n.t("log.cross.reassemble-fail", "[CrossServer] 转发请求重组失败 id={0}", id));
             return;
         }
         String trace = chunk.getHeadersMap().get(HEADER_TRACE);
-        LogKit.info("[CrossServer] 收到跨服请求 id=" + id + " trace=" + trace
-                + " " + chunk.getMethod() + " " + chunk.getPath() + " -> 本服服务");
+        log.info(I18n.t("log.cross.request-received", "[CrossServer] 收到跨服请求 id={0} trace={1} {2} {3} -> 本服服务",
+                id, trace, chunk.getMethod(), chunk.getPath()));
         // 服务必须在异步线程（web.handle 可能触及 Bukkit），完成后回程响应（主线程 sendPluginMessage）
         final FrameProto.HttpRequestFrame req = chunk;
         Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> serveAndRespond(req, trace));
@@ -226,9 +226,9 @@ public class CrossServerHub {
                         .setFragmentIndex(i).setTotalFragments(n).build();
                 sendBungeeForward(dst, CHANNEL_FWD_RESP, c.toByteArray());
             }
-            LogKit.info("[CrossServer] 已回程响应 id=" + rid + " trace=" + trace + " frags=" + n + " -> " + dst);
+            log.info(I18n.t("log.cross.response-sent", "[CrossServer] 已回程响应 id={0} trace={1} frags={2} -> {3}", rid, trace, n, dst));
         } catch (Throwable t) {
-            LogKit.warn("[CrossServer] 跨服服务异常 id=" + req.getRequestId() + ": " + t, t);
+            log.warn(I18n.t("log.cross.serve-error", "[CrossServer] 跨服服务异常 id={0}: {1}", req.getRequestId(), t), t);
         }
     }
 
@@ -241,8 +241,8 @@ public class CrossServerHub {
         // 仅做轻量日志（解析失败不影响回程，直接透传）
         try {
             FrameProto.HttpResponseFrame peek = FrameProto.HttpResponseFrame.parseFrom(chunkBytes);
-            LogKit.info("[CrossServer] 收到跨服响应分片 id=" + peek.getRequestId()
-                    + " trace=" + peek.getHeadersMap().get(HEADER_TRACE));
+            log.info(I18n.t("log.cross.response-received", "[CrossServer] 收到跨服响应分片 id={0} trace={1}", peek.getRequestId(),
+                    peek.getHeadersMap().get(HEADER_TRACE)));
         } catch (Exception ignored) {
         }
         mcLink.onRawMessage(CHANNEL_FWD_RESP, chunkBytes);
@@ -254,8 +254,7 @@ public class CrossServerHub {
         ServerTag tag = ServerTag.decode(s);
         if (tag != null && !tag.getServerName().equals(localServerName)) {
             registry.register(tag);
-            LogKit.info("[CrossServer] 发现子服标签: " + tag.getServerName() + " (" + tag.getHost() + ":" + tag.getPort()
-                    + " bot=" + tag.getBotName() + ")");
+            log.info(I18n.t("log.cross.discovered", "[CrossServer] 发现子服标签: {0} ({1}:{2} bot={3})", tag.getServerName(), tag.getHost(), tag.getPort(), tag.getBotName()));
         }
     }
 

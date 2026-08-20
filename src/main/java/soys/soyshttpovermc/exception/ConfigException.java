@@ -18,4 +18,17 @@ public class ConfigException extends SoysHttpException {
     public ConfigException(String message, Throwable cause) {
         super(Module.CONFIG, "CONFIG_ERR", message, cause);
     }
+
+
+    public ConfigException(String code, String fmt, Object... args) {
+        super(Module.CONFIG, code, fmt, args);
+    }
+
+    public ConfigException(String fmt, Object... args) {
+        super(Module.CONFIG, "CONFIG_ERR", fmt, args);
+    }
+
+    public ConfigException(String code, String fmt, Throwable cause, Object... args) {
+        super(Module.CONFIG, code, fmt, cause, args);
+    }
 }

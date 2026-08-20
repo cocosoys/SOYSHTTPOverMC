@@ -6,6 +6,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.java.JavaPlugin;
 
+import soys.soyshttpovermc.i18n.I18n;
 import soys.soyshttpovermc.orm.YAML;
 import soys.soyshttpovermc.util.AjaxResult;
 import soys.thismyhomepages.config.HomeConfigEntity;
@@ -48,30 +49,30 @@ public class GiftServiceImpl implements IGiftService {
     @Override
     public AjaxResult claim(Player player) {
         if (player == null) {
-            return AjaxResult.unauthorized("请先进入游戏并登录后再领取礼包");
+            return AjaxResult.unauthorized(I18n.t("gift.claim.unauthorized", "请先进入游戏并登录后再领取礼包"));
         }
         if (!config.isEnabled()) {
-            return AjaxResult.error(403, "自定义主页功能未启用");
+            return AjaxResult.error(403, I18n.t("gift.claim.disabled", "自定义主页功能未启用"));
         }
         HomeConfigEntity hc = home.get();
         if (hc == null) {
-            return AjaxResult.error(500, "主页配置未加载");
+            return AjaxResult.error(500, I18n.t("gift.claim.no-config", "主页配置未加载"));
         }
         GiftConfigEntity gift = hc.getGift();
         if (gift == null || !gift.isEnabled()) {
-            return AjaxResult.error(403, "当前没有可领取的礼包");
+            return AjaxResult.error(403, I18n.t("gift.claim.no-gift", "当前没有可领取的礼包"));
         }
 
         // 时间窗口校验
         if (!isInTimeWindow(gift.getPeriodStart(), gift.getPeriodEnd())) {
-            return AjaxResult.error(403, "当前不在礼包领取时间范围内");
+            return AjaxResult.error(403, I18n.t("gift.claim.out-of-window", "当前不在礼包领取时间范围内"));
         }
 
         String mode = gift.getPeriodMode();
         String uuid = player.getUniqueId().toString();
         GiftClaimRecord rec = YAML.Pojo.get(GiftClaimRecord.class, uuid);
         if (rec != null && alreadyClaimed(rec, mode)) {
-            return AjaxResult.error(409, "你已经领取过礼包啦");
+            return AjaxResult.error(409, I18n.t("gift.claim.already-claimed", "你已经领取过礼包啦"));
         }
 
         // 发放物品 + 执行控制台指令
@@ -80,24 +81,24 @@ public class GiftServiceImpl implements IGiftService {
         GiftClaimRecord nr = new GiftClaimRecord(uuid, player.getName(),
                 String.valueOf(System.currentTimeMillis()), mode);
         YAML.Pojo.insert(nr);
-        return AjaxResult.success("领取成功，礼包已发放到你的背包");
+        return AjaxResult.success(I18n.t("gift.claim.success", "领取成功，礼包已发放到你的背包"));
     }
 
     @Override
     public AjaxResult status(Player player) {
         if (player == null) {
-            return AjaxResult.unauthorized("请先进入游戏");
+            return AjaxResult.unauthorized(I18n.t("gift.status.unauthorized", "请先进入游戏"));
         }
         if (!config.isEnabled()) {
-            return AjaxResult.error(403, "自定义主页功能未启用");
+            return AjaxResult.error(403, I18n.t("gift.status.disabled", "自定义主页功能未启用"));
         }
         HomeConfigEntity hc = home.get();
         if (hc == null) {
-            return AjaxResult.error(500, "主页配置未加载");
+            return AjaxResult.error(500, I18n.t("gift.status.no-config", "主页配置未加载"));
         }
         GiftConfigEntity gift = hc.getGift();
         if (gift == null || !gift.isEnabled()) {
-            return AjaxResult.error(403, "当前没有可领取的礼包");
+            return AjaxResult.error(403, I18n.t("gift.status.no-gift", "当前没有可领取的礼包"));
         }
 
         String uuid = player.getUniqueId().toString();
@@ -165,7 +166,7 @@ public class GiftServiceImpl implements IGiftService {
                 SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
                 return sdf.parse(timeStr).getTime();
             } catch (Exception e2) {
-                throw new IllegalArgumentException("无法解析时间字符串: " + timeStr);
+                throw new IllegalArgumentException(I18n.t("exception.gift.time-parse-fail", "无法解析时间字符串: {0}", timeStr));
             }
         }
     }

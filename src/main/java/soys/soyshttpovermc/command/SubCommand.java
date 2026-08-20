@@ -5,6 +5,7 @@ import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 
 import soys.soyshttpovermc.HttpOverMcPlugin;
+import soys.soyshttpovermc.i18n.I18n;
 
 import java.util.List;
 
@@ -74,6 +75,11 @@ public abstract class SubCommand {
     /** 统一前缀发送消息（[SOYSHTTPOverMC] 前缀绿色）。 */
     protected void msg(CommandSender sender, String text) {
         sender.sendMessage("§a[SOYSHTTPOverMC]§r " + text);
+    }
+
+    /** 按 i18n 键翻译后发送（带统一前缀）：key 缺失回退 {@code fallback}，占位符用 {@code args} 替换。 */
+    protected void msgT(CommandSender sender, String key, String fallback, Object... args) {
+        msg(sender, I18n.t(key, fallback, args));
     }
 
     /** 该 token 是否像“目标玩家”（@ 选择器或在线玩家名）。 */

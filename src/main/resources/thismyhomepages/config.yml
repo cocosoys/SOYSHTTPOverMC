@@ -2,3 +2,5 @@
 # 首页展示内容（标题/简介/QQ/礼包物品等）全部在 home.yml 中配置。
 enabled: true
 cache-seconds: 0
+homepage:
+  current: ""

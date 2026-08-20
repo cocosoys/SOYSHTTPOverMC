@@ -1,5 +1,7 @@
 package soys.soyshttpovermc.orm.executor;
+import lombok.CustomLog;
 
+import soys.soyshttpovermc.i18n.I18n;
 import soys.soyshttpovermc.log.LogKit;
 import soys.soyshttpovermc.orm.meta.FieldMeta;
 import soys.soyshttpovermc.orm.meta.PojoMeta;
@@ -33,6 +35,7 @@ import java.util.List;
  * <p>数据源：config.yml {@code storage.backends.{mysql,sqlite}}（优先级 mysql &gt; sqlite，
  * 与多后端主辅一致）。列名使用 {@link ColumnNameLower}（小写下划线）→ 与 YAML 端键名一致。</p>
  */
+@CustomLog
 public class SqlBackendExecutor implements IBackendExecutor {
 
     private static volatile SqlBackendExecutor instance;
@@ -49,12 +52,13 @@ public class SqlBackendExecutor implements IBackendExecutor {
         try {
             HikariDataSource ds = buildDataSource(plugin);
             if (ds == null) {
-                LogKit.warn("[HTTP-Over-MC] [ORM] 未启用 SQL 后端（storage.backends.mysql/sqlite），SQL.Pojo 不可用");
+                log.warn(I18n.t("log.orm.sql-not-enabled",
+                    "[ORM] 未启用 SQL 后端（storage.backends.mysql/sqlite），SQL.Pojo 不可用"));
                 return null;
             }
             return initDirect(ds, ds.getJdbcUrl().startsWith("jdbc:sqlite:") ? "sqlite" : "mysql");
         } catch (Throwable t) {
-            LogKit.warn("[HTTP-Over-MC] [ORM] SQL 后端初始化失败: " + t);
+            log.warn(I18n.t("log.orm.sql-init-failed", "[ORM] SQL 后端初始化失败: {0}", t));
             return null;
         }
     }
@@ -70,10 +74,11 @@ public class SqlBackendExecutor implements IBackendExecutor {
             e.available = true;
             e.dbName = name == null ? "sql" : name;
             instance = e;
-            LogKit.info("[HTTP-Over-MC] [ORM] SQL 后端已装配: " + e.dbName + "（dlz-db-core + HikariCP）");
+            log.info(I18n.t("log.orm.sql-assembled",
+                    "[ORM] SQL 后端已装配: {0}（dlz-db-core + HikariCP）", e.dbName));
             return e;
         } catch (Throwable t) {
-            LogKit.warn("[HTTP-Over-MC] [ORM] SQL 后端初始化失败: " + t);
+            log.warn(I18n.t("log.orm.sql-init-failed", "[ORM] SQL 后端初始化失败: {0}", t));
             return null;
         }
     }
@@ -149,7 +154,8 @@ public class SqlBackendExecutor implements IBackendExecutor {
         try {
             ex().update(ddl.toString());
         } catch (Throwable t) {
-            LogKit.warn("[HTTP-Over-MC] [ORM] 建表失败 " + meta.getTableName() + ": " + t.getMessage());
+            log.warn(I18n.t("log.orm.create-table-failed",
+                    "[ORM] 建表失败 {0}: {1}", meta.getTableName(), t.getMessage()));
             return;
         }
         // 缺列容忍式补列（旧表升级）
@@ -313,7 +319,7 @@ public class SqlBackendExecutor implements IBackendExecutor {
             List<ResultMap> list = ex().getList(sql, id);
             return list.isEmpty() ? null : rowToBean(beanClass, list.get(0));
         } catch (Throwable t) {
-            LogKit.warn("[HTTP-Over-MC] [ORM] getById 失败: " + t.getMessage());
+            log.warn(I18n.t("log.orm.get-by-id-failed", "[ORM] getById 失败: {0}", t.getMessage()));
             return null;
         }
     }
@@ -344,7 +350,7 @@ public class SqlBackendExecutor implements IBackendExecutor {
             for (ResultMap row : rows) out.add(rowToBean(beanClass, row));
             return out;
         } catch (Throwable t) {
-            LogKit.warn("[HTTP-Over-MC] [ORM] selectByTree 失败: " + t.getMessage());
+            log.warn(I18n.t("log.orm.select-by-tree-failed", "[ORM] selectByTree 失败: {0}", t.getMessage()));
             return java.util.Collections.emptyList();
         }
     }
@@ -426,7 +432,7 @@ public class SqlBackendExecutor implements IBackendExecutor {
             ex().update(sql, vals.toArray());
             return true;
         } catch (Throwable t) {
-            LogKit.warn("[HTTP-Over-MC] [ORM] upsert 失败: " + t.getMessage());
+            log.warn(I18n.t("log.orm.upsert-failed", "[ORM] upsert 失败: {0}", t.getMessage()));
             return false;
         }
     }
@@ -441,7 +447,7 @@ public class SqlBackendExecutor implements IBackendExecutor {
             ex().update("DELETE FROM `" + table(beanClass) + "` WHERE `" + meta.getIdField().columnName + "` = ?", id);
             return true;
         } catch (Throwable t) {
-            LogKit.warn("[HTTP-Over-MC] [ORM] deleteById 失败: " + t.getMessage());
+            log.warn(I18n.t("log.orm.delete-by-id-failed", "[ORM] deleteById 失败: {0}", t.getMessage()));
             return false;
         }
     }
@@ -478,7 +484,7 @@ public class SqlBackendExecutor implements IBackendExecutor {
             for (ResultMap row : rows) out.add(rowToBean(beanClass, row));
             return out;
         } catch (Throwable t) {
-            LogKit.warn("[HTTP-Over-MC] [ORM] search 失败: " + t.getMessage());
+            log.warn(I18n.t("log.orm.search-failed", "[ORM] search 失败: {0}", t.getMessage()));
             return java.util.Collections.emptyList();
         }
     }

@@ -18,4 +18,17 @@ public class TunnelException extends SoysHttpException {
     public TunnelException(String message, Throwable cause) {
         super(Module.TUNNEL, "TUNNEL_ERR", message, cause);
     }
+
+
+    public TunnelException(String code, String fmt, Object... args) {
+        super(Module.TUNNEL, code, fmt, args);
+    }
+
+    public TunnelException(String fmt, Object... args) {
+        super(Module.TUNNEL, "TUNNEL_ERR", fmt, args);
+    }
+
+    public TunnelException(String code, String fmt, Throwable cause, Object... args) {
+        super(Module.TUNNEL, code, fmt, cause, args);
+    }
 }

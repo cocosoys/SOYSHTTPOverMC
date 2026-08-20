@@ -1,5 +1,7 @@
 package soys.soyshttpovermc.storage.impl;
+import lombok.CustomLog;
 
+import soys.soyshttpovermc.i18n.I18n;
 import soys.soyshttpovermc.log.LogKit;
 import soys.soyshttpovermc.storage.DataStorage;
 import soys.soyshttpovermc.storage.SyncRecord;
@@ -28,6 +30,7 @@ import java.util.Map;
  *
  * <p>连接策略：单长连接 + 使用前有效性探测 + 对象锁串行化访问；keepAlive 定时防断连。</p>
  */
+@CustomLog
 public abstract class SqlStorage implements DataStorage {
 
     protected final JavaPlugin plugin;
@@ -67,8 +70,7 @@ public abstract class SqlStorage implements DataStorage {
         try {
             Class.forName(getDriverClass());
         } catch (ClassNotFoundException e) {
-            throw new IllegalStateException("未找到 JDBC 驱动 " + getDriverClass()
-                    + "，请确认服务端已提供该驱动或手动放入 libraries 目录");
+            throw new IllegalStateException(I18n.t("exception.storage.jdbc-driver-not-found", "未找到 JDBC 驱动 {0}，请确认服务端已提供该驱动或手动放入 libraries 目录", getDriverClass()));
         }
         synchronized (lock) {
             connection = createConnection();
@@ -85,7 +87,8 @@ public abstract class SqlStorage implements DataStorage {
                                 || msg.contains("exist") || msg.contains("重复")) {
                             continue; // 列已存在，预期情况
                         }
-                        LogKit.warn("[HTTP-Over-MC] [" + getType().getId() + "] 表结构迁移跳过: " + e.getMessage());
+                        log.warn(I18n.t("log.storage.schema-migration-skip",
+                            "[{0}] 表结构迁移跳过: {1}", getType().getId(), e.getMessage()));
                     }
                 }
             }
@@ -118,7 +121,8 @@ public abstract class SqlStorage implements DataStorage {
             try {
                 connection().isValid(3);
             } catch (SQLException e) {
-                LogKit.warn("[HTTP-Over-MC] [" + getType().getId() + "] 保活探测失败: " + e.getMessage());
+                log.warn(I18n.t("log.storage.keepalive-failed",
+                        "[{0}] 保活探测失败: {1}", getType().getId(), e.getMessage()));
             }
         }
     }

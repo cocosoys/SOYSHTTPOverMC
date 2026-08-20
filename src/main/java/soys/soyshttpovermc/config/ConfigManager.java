@@ -1,8 +1,10 @@
 package soys.soyshttpovermc.config;
+import lombok.CustomLog;
 
 import org.bukkit.plugin.java.JavaPlugin;
 
 import soys.soyshttpovermc.log.LogKit;
+import soys.soyshttpovermc.i18n.I18n;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -22,6 +24,7 @@ import java.util.jar.JarFile;
  *       （支持磁盘热替换编辑），非空时按相对数据目录/绝对路径处理；</li>
  * </ul>
  */
+@CustomLog
 public final class ConfigManager {
 
     private ConfigManager() {
@@ -83,7 +86,7 @@ public final class ConfigManager {
     public static void extractWebResources(JavaPlugin plugin, File pluginJar, File webDir) {
         webDir.mkdirs();
         if (pluginJar == null || !pluginJar.isFile()) {
-            LogKit.warn("[HTTP-Over-MC] 无法定位插件 jar，跳过 web 资源解压（回退 jar 内置）");
+            log.warn(I18n.t("log.config.no-plugin-jar", "无法定位插件 jar，跳过 web 资源解压（回退 jar 内置）"));
             return;
         }
         try (JarFile jf = new JarFile(pluginJar)) {
@@ -106,12 +109,12 @@ public final class ConfigManager {
                 extracted++;
             }
             if (extracted > 0) {
-                LogKit.info("[HTTP-Over-MC] web 资源已解压 " + extracted + " 个文件到: " + webDir.getAbsolutePath());
+                log.info(I18n.t("log.config.web-extracted", "web 资源已解压 {0} 个文件到: {1}", extracted, webDir.getAbsolutePath()));
             } else {
-                LogKit.info("[HTTP-Over-MC] web 目录已就绪（资源来自磁盘或 jar 内置）: " + webDir.getAbsolutePath());
+                log.info(I18n.t("log.config.web-ready", "web 目录已就绪（资源来自磁盘或 jar 内置）: {0}", webDir.getAbsolutePath()));
             }
         } catch (Exception e) {
-            LogKit.warn("[HTTP-Over-MC] web 资源解压失败（回退 jar 内置）: " + e.getMessage());
+            log.warn(I18n.t("log.config.web-extract-fail", "web 资源解压失败（回退 jar 内置）: {0}", e.getMessage()));
         }
     }
 
@@ -211,7 +214,7 @@ public final class ConfigManager {
             properties.load(in);
             return properties.getProperty(key);
         } catch (Exception e) {
-            LogKit.warn("[HTTP-Over-MC] 读取 server.properties 失败（键=" + key + "）: " + e.getMessage());
+            log.warn(I18n.t("log.config.server-properties-read-fail", "读取 server.properties 失败（键={0}）: {1}", key, e.getMessage()));
             return null;
         }
     }
@@ -233,7 +236,7 @@ public final class ConfigManager {
             if (!plugin.getDataFolder().isDirectory()) plugin.getDataFolder().mkdirs();
             writeText(f, bytesToHex(key));
         } catch (Exception e) {
-            LogKit.warn("[HTTP-Over-MC] 写入 token-secret.key 失败（本次密钥仅内存有效）: " + e.getMessage());
+            log.warn(I18n.t("log.config.secret-write-fail", "写入 token-secret.key 失败（本次密钥仅内存有效）: {0}", e.getMessage()));
         }
         return key;
     }

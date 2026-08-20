@@ -6,6 +6,7 @@ import org.bukkit.command.CommandSender;
 import org.bukkit.command.TabCompleter;
 
 import soys.soyshttpovermc.HttpOverMcPlugin;
+import soys.soyshttpovermc.i18n.I18n;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -52,7 +53,6 @@ public class SoysHttpCommand implements CommandExecutor, TabCompleter {
         register(new TokensSubCommand(plugin));
         register(new MigrateSub(plugin));
         register(new SyncSub(plugin));
-        register(new HomepageSubCommand(plugin));
     }
 
     /** 注册一个子指令（name 自动转小写作为匹配键）。 */
@@ -86,15 +86,16 @@ public class SoysHttpCommand implements CommandExecutor, TabCompleter {
             if (args.length > 1) {
                 SubCommand target = getSubCommands().get(args[1].toLowerCase());
                 if (target == null) {
-                    msg(sender, "§c未知子指令: " + args[1]);
+                    msgT(sender, "command.common.unknown-child", "§c未知子指令: {0}", args[1]);
                     sendUsage(sender);
                     return true;
                 }
                 if (target.requireOp() && !sender.isOp()) {
-                    msg(sender, "§c无权限（需 op）");
+                    msgT(sender, "command.common.no-op", "§c无权限（需 op）");
                     return true;
                 }
-                sender.sendMessage("§a§l[SOYSHTTPOverMC] §e/soyshttp " + target.name() + " §f详细用法：");
+                sender.sendMessage(I18n.t("command.common.detail-title",
+                        "§a§l[SOYSHTTPOverMC] §e/soyshttp {0} §f详细用法：", target.name()));
                 for (String line : target.detail().split("\n")) {
                     sender.sendMessage("  §7" + line);
                 }
@@ -105,12 +106,12 @@ public class SoysHttpCommand implements CommandExecutor, TabCompleter {
         }
         SubCommand sub = getSubCommands().get(args[0].toLowerCase());
         if (sub == null) {
-            msg(sender, "§c未知子指令: " + args[0]);
+            msgT(sender, "command.common.unknown-child", "§c未知子指令: {0}", args[0]);
             sendUsage(sender);
             return true;
         }
         if (sub.requireOp() && !sender.isOp()) {
-            msg(sender, "§c无权限（需 op）");
+            msgT(sender, "command.common.no-op", "§c无权限（需 op）");
             return true;
         }
         sub.execute(sender, label, args);
@@ -151,7 +152,7 @@ public class SoysHttpCommand implements CommandExecutor, TabCompleter {
     }
 
     private void sendUsage(CommandSender sender) {
-        sender.sendMessage("§a§l[SOYSHTTPOverMC] §f可用子指令：");
+        sender.sendMessage(I18n.t("command.common.help-title", "§a§l[SOYSHTTPOverMC] §f可用子指令："));
         for (SubCommand sub : getSubCommands().values()) {
             if (sub.requireOp() && !sender.isOp()) continue; // 非 op 不展示 op 指令
             String usage = sub.usage();
@@ -164,11 +165,16 @@ public class SoysHttpCommand implements CommandExecutor, TabCompleter {
             }
             sender.sendMessage("  §e" + cmd + " §7" + desc);
         }
-        sender.sendMessage("  §e/soyshttp help <子指令> §7查看子指令详细用法");
-        sender.sendMessage("  §7（shttp 为简写命令）");
+        sender.sendMessage(I18n.t("command.common.more-hint", "  §e/soyshttp help <子指令> §7查看子指令详细用法"));
+        sender.sendMessage(I18n.t("command.common.shortcut-hint", "  §7（shttp 为简写命令）"));
     }
 
     private void msg(CommandSender sender, String text) {
         sender.sendMessage("§a[SOYSHTTPOverMC]§r " + text);
+    }
+
+    /** 按 i18n 键翻译后发送（带统一前缀）：key 缺失回退 {@code fallback}，占位符用 {@code args} 替换。 */
+    private void msgT(CommandSender sender, String key, String fallback, Object... args) {
+        msg(sender, I18n.t(key, fallback, args));
     }
 }

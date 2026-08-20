@@ -1,5 +1,7 @@
 package soys.soyshttpovermc.web;
+import lombok.CustomLog;
 
+import soys.soyshttpovermc.i18n.I18n;
 import soys.soyshttpovermc.log.LogKit;
 
 import java.io.ByteArrayOutputStream;
@@ -26,6 +28,7 @@ import java.nio.charset.StandardCharsets;
  *
  * <p>大文件防护：任何来源超过 {@code maxBytes} 上限视为失败（回退默认），防单文件把内存打爆。</p>
  */
+@CustomLog
 public class HomePageResolver {
 
     /** 网络首页缓存存活时间（毫秒）。 */
@@ -98,12 +101,12 @@ public class HomePageResolver {
             conn.setRequestProperty("User-Agent", "SOYSHTTPOverMC/1.0");
             int status = conn.getResponseCode();
             if (status < 200 || status >= 300) {
-                LogKit.warn("[HTTP-Over-MC] 首页网络拉取失败: " + url + " status=" + status);
+                log.warn(I18n.t("log.web.home-fetch-fail", "首页网络拉取失败: {0} status={1}", url, status));
                 return null;
             }
             long len = conn.getContentLengthLong();
             if (len > maxBytes) {
-                LogKit.warn("[HTTP-Over-MC] 首页网络内容超过大文件上限，回退默认: " + url + " size=" + len);
+                log.warn(I18n.t("log.web.home-oversize", "首页网络内容超过大文件上限，回退默认: {0} size={1}", url, len));
                 return null;
             }
             byte[] body = toBytes(conn.getInputStream());
@@ -113,10 +116,10 @@ public class HomePageResolver {
             remoteBytes = body;
             remoteContentType = ct;
             remoteCachedAt = System.currentTimeMillis();
-            LogKit.info("[HTTP-Over-MC] 首页网络拉取成功: " + url + " (" + body.length + " B, ct=" + ct + ")");
+            log.info(I18n.t("log.web.home-fetch-ok", "首页网络拉取成功: {0} ({1} B, ct={2})", url, body.length, ct));
             return new Result("home.html", body, ct);
         } catch (Exception e) {
-            LogKit.warn("[HTTP-Over-MC] 首页网络拉取异常，回退默认首页: " + url + " -> " + e.getMessage());
+            log.warn(I18n.t("log.web.home-fetch-exception", "首页网络拉取异常，回退默认首页: {0} -> {1}", url, e.getMessage()));
             return null;
         } finally {
             if (conn != null) conn.disconnect();
@@ -127,18 +130,18 @@ public class HomePageResolver {
     private Result resolveFile(File f) {
         try {
             if (!f.isFile()) {
-                LogKit.warn("[HTTP-Over-MC] 首页绝对路径不存在，回退默认: " + f.getAbsolutePath());
+                log.warn(I18n.t("log.web.home-file-missing", "首页绝对路径不存在，回退默认: {0}", f.getAbsolutePath()));
                 return null;
             }
             if (maxBytes > 0 && f.length() > maxBytes) {
-                LogKit.warn("[HTTP-Over-MC] 首页文件超过大文件上限，回退默认: " + f.getAbsolutePath() + " size=" + f.length());
+                log.warn(I18n.t("log.web.home-file-oversize", "首页文件超过大文件上限，回退默认: {0} size={1}", f.getAbsolutePath(), f.length()));
                 return null;
             }
             byte[] body = readFile(f);
             if (body == null || body.length == 0) return null;
             return new Result(f.getName(), body, null);
         } catch (Exception e) {
-            LogKit.warn("[HTTP-Over-MC] 首页绝对路径读取失败，回退默认: " + f.getAbsolutePath() + " -> " + e.getMessage());
+            log.warn(I18n.t("log.web.home-file-read-fail", "首页绝对路径读取失败，回退默认: {0} -> {1}", f.getAbsolutePath(), e.getMessage()));
             return null;
         }
     }
@@ -171,7 +174,7 @@ public class HomePageResolver {
     private Result jarResource(String rel) {
         byte[] body = readJarResource(jarPrefix + "/" + rel);
         if (body == null || body.length == 0) {
-            LogKit.warn("[HTTP-Over-MC] 首页逻辑路径未命中，回退默认: " + spec + " (rel=" + rel + ")");
+            log.warn(I18n.t("log.web.home-logical-miss", "首页逻辑路径未命中，回退默认: {0} (rel={1})", spec, rel));
             return null;
         }
         return new Result(rel.substring(rel.lastIndexOf('/') + 1), body, null);

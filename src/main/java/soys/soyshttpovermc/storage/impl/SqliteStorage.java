@@ -1,5 +1,6 @@
 package soys.soyshttpovermc.storage.impl;
 
+import soys.soyshttpovermc.i18n.I18n;
 import soys.soyshttpovermc.storage.StorageType;
 
 import org.bukkit.configuration.ConfigurationSection;
@@ -38,7 +39,7 @@ public class SqliteStorage extends SqlStorage {
         this.databaseFile = new File(plugin.getDataFolder(), path);
         File parent = databaseFile.getParentFile();
         if (parent != null && !parent.exists() && !parent.mkdirs()) {
-            throw new IOException("无法创建数据目录: " + parent.getAbsolutePath());
+            throw new IOException(I18n.t("exception.storage.mkdir-data-dir", "无法创建数据目录: {0}", parent.getAbsolutePath()));
         }
         super.initialize();
     }

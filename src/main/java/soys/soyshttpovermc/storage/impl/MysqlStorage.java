@@ -1,5 +1,7 @@
 package soys.soyshttpovermc.storage.impl;
+import lombok.CustomLog;
 
+import soys.soyshttpovermc.i18n.I18n;
 import soys.soyshttpovermc.storage.StorageType;
 
 import org.bukkit.configuration.ConfigurationSection;
@@ -14,6 +16,7 @@ import java.sql.SQLException;
  * 配置仅需 url / username / password / keepalive-interval，url 直连。
  * DDL 使用 MySQL 5.6 兼容语法；驱动 8.x 优先、5.x 回退。
  */
+@CustomLog
 public class MysqlStorage extends SqlStorage {
 
     private String jdbcUrl;
@@ -35,14 +38,14 @@ public class MysqlStorage extends SqlStorage {
         ConfigurationSection section = plugin.getConfig()
                 .getConfigurationSection("storage.backends.mysql");
         if (section == null) {
-            throw new IllegalStateException("config.yml 中缺少 storage.backends.mysql 配置节");
+            throw new IllegalStateException(I18n.t("exception.storage.mysql.missing-config", "config.yml 中缺少 storage.backends.mysql 配置节"));
         }
         this.jdbcUrl = section.getString("url");
         if (jdbcUrl == null || jdbcUrl.trim().isEmpty()) {
-            throw new IllegalStateException("storage.backends.mysql.url 未配置，无法建立 MySQL 连接");
+            throw new IllegalStateException(I18n.t("exception.storage.mysql.url-not-configured", "storage.backends.mysql.url 未配置，无法建立 MySQL 连接"));
         }
         if (!jdbcUrl.toLowerCase().startsWith("jdbc:mysql:")) {
-            throw new IllegalStateException("storage.backends.mysql.url 不是合法的 MySQL JDBC 连接串");
+            throw new IllegalStateException(I18n.t("exception.storage.mysql.url-invalid", "storage.backends.mysql.url 不是合法的 MySQL JDBC 连接串"));
         }
         this.username = section.getString("username", "root");
         this.password = section.getString("password", "");
@@ -52,13 +55,14 @@ public class MysqlStorage extends SqlStorage {
         try {
             Class.forName(getDriverClass());
         } catch (ClassNotFoundException e) {
-            throw new IllegalStateException("未找到 MySQL JDBC 驱动，请确认服务端已提供该驱动", e);
+            throw new IllegalStateException(I18n.t("exception.storage.mysql.driver-not-found", "未找到 MySQL JDBC 驱动，请确认服务端已提供该驱动"), e);
         }
         // 通过 url 直接测试连接
         try (Connection test = connect(jdbcUrl, username, password)) {
-            LogKitInfo("MySQL 连接测试成功: " + maskUrl(jdbcUrl));
+            log.info(I18n.t("log.storage.mysql-connect-success",
+                    "MySQL 连接测试成功: {0}", maskUrl(jdbcUrl)));
         } catch (SQLException e) {
-            throw new IllegalStateException("MySQL 连接测试失败: " + e.getMessage(), e);
+            throw new IllegalStateException(I18n.t("exception.storage.mysql.connect-test-failed", "MySQL 连接测试失败: {0}", e.getMessage()), e);
         }
         super.initialize();
     }
@@ -116,9 +120,5 @@ public class MysqlStorage extends SqlStorage {
         } catch (Exception ignored) {
         }
         return url;
-    }
-
-    private static void LogKitInfo(String msg) {
-        soys.soyshttpovermc.log.LogKit.info("[HTTP-Over-MC] " + msg);
     }
 }

@@ -1,5 +1,7 @@
 package soys.soyshttpovermc.web;
+import lombok.CustomLog;
 
+import soys.soyshttpovermc.i18n.I18n;
 import soys.soyshttpovermc.log.LogKit;
 
 import org.bukkit.plugin.Plugin;
@@ -30,8 +32,7 @@ import java.util.jar.JarFile;
  *       → 实际访问地址 {@code /plugins/Foo/dashboard}；</li>
  *   <li><b>强制代理（无前缀）</b>：调用 {@code registerProxyPage} / {@code registerProxyResource}，
  *       以主插件 SOYSHTTPOverMC 名义代理登记，不加 {@code /plugins/<插件名>} 前缀
- *       （例如 {@code /dashboard}）；ownerPlugin 仍标记为真实插件，故插件卸载时仍会一并清理；
- *       {@code registerHome} 可强制覆盖内置首页 {@code /}；</li>
+ *       （例如 {@code /dashboard}）；ownerPlugin 仍标记为真实插件，故插件卸载时仍会一并清理；</li>
  *   <li><b>跳转</b>：{@code registerRedirect} / {@code registerProxyRedirect} 登记 302/301 跳转，
  *       访问 A 网址时浏览器自动跳转到 B 网址（可跳转站内路径或站外 URL）；</li>
  *   <li><b>内容来源</b>：{@code registerPage} 直接提供字节内容；{@code registerResource} 提供插件自有
@@ -41,6 +42,7 @@ import java.util.jar.JarFile;
  *       亦可调用 {@link #unregisterPlugin(String)} 显式卸载。</li>
  * </ul>
  */
+@CustomLog
 public class WebRegistry {
 
     /** 路由表：key = "GET <路径>"，value = 登记项 */
@@ -50,12 +52,8 @@ public class WebRegistry {
     /** 宿主插件名（SOYSHTTPOverMC 本体）：其登记不加 /plugins 前缀 */
     private final String hostName;
 
-    /** 首页注册表（全局共享，按名称切换首页） */
-    private final HomepageRegistry homepageRegistry;
-
     public WebRegistry(String hostName) {
         this.hostName = hostName == null ? "" : hostName;
-        this.homepageRegistry = new HomepageRegistry(this, this.hostName);
     }
 
     // ===== 普通登记（自动 /plugins/<插件名> 前缀） =====
@@ -117,37 +115,6 @@ public class WebRegistry {
         registerRes(owner, path, resourceClassLoader, resourcePath, contentType, true, false);
     }
 
-    /**
-     * 强制代理首页：以主插件名义覆盖内置门户首页 {@code /}（第三方自制首页）。
-     * 等价于 {@code registerProxyPage(owner, "/", content, contentType)}；WebRegistry 路由先于内置静态资源命中。
-     * <b>覆盖语义</b>：首页登记采用强制覆盖（force=true）——后注册者覆盖先注册者并打印强制登记日志。
-     */
-    public void registerHome(Plugin owner, byte[] content) {
-        registerHome(owner, content, "text/html; charset=utf-8");
-    }
-
-    /** 强制代理首页（显式 Content-Type）。 */
-    public void registerHome(Plugin owner, byte[] content, String contentType) {
-        if (content == null || content.length == 0) return;
-        register(owner, "/", content, contentType, true, true);
-    }
-
-    /**
-     * 按<b>来源</b>注册首页：source 支持 相对路径（如 dist/index.html、status/index.html）/
-     * 绝对路径（本地磁盘文件）/ 网络 URL（按需拉取+缓存+失败回退），与 {@code web.home} 语义一致；
-     * 请求时解析（文件热替换、URL 带 TTL 缓存）。强制覆盖语义同 {@link #registerHome(Plugin, byte[])}。
-     */
-    public void registerHomeFrom(String ownerPlugin, String source, String contentType) {
-        if (source == null || source.trim().isEmpty()) return;
-        String ownerName = ownerPlugin == null ? null : ownerPlugin;
-        String full = "/";
-        String ct = (contentType == null || contentType.isEmpty()) ? null : contentType;
-        if (!putEntry("GET " + full, new Entry(ownerName, full, ct, null, null, null, null, 0, null, source.trim()), true)) {
-            return;
-        }
-        LogKit.info("[HTTP-Over-MC] 登记首页(来源): GET / 插件=" + ownerName + " source=" + source.trim());
-    }
-
     // ===== 跳转登记（A 网址 → B 网址，302/301） =====
 
     /** 登记跳转（默认 302，路径自动补 /plugins/<插件名> 前缀）。访问 A 时浏览器自动跳转到 B。 */
@@ -177,14 +144,13 @@ public class WebRegistry {
     private boolean putEntry(String key, Entry e, boolean force) {
         Entry old = pages.get(key);
         if (old != null && !force) {
-            LogKit.warn("[HTTP-Over-MC] 拒绝重复登记: " + key
-                    + "（已由插件 " + old.ownerPlugin + " 登记；如需覆盖请用强制登记 force=true）");
+            log.warn(I18n.t("log.web.register-duplicate-denied", "拒绝重复登记: {0}（已由插件 {1} 登记；如需覆盖请用强制登记 force=true）",
+                    key, old.ownerPlugin));
             return false;
         }
         pages.put(key, e);
         if (old != null) {
-            LogKit.info("[HTTP-Over-MC] 插件 " + e.ownerPlugin + " 强制登记覆盖: " + key
-                    + "（原登记插件 " + old.ownerPlugin + "）");
+            log.info(I18n.t("log.web.register-force-overwrite", "插件 {0} 强制登记覆盖: {1}（原登记插件 {2}）", e.ownerPlugin, key, old.ownerPlugin));
         }
         return true;
     }
@@ -202,8 +168,8 @@ public class WebRegistry {
         if (!putEntry("GET " + full, new Entry(ownerName, full, null, null, null, null, toPath, statusCode, null), force)) {
             return;
         }
-        LogKit.info("[HTTP-Over-MC] 登记跳转: GET " + full + " → " + toPath + " (" + statusCode + ")"
-                + " 插件=" + ownerName + (proxy ? " (代理无前缀)" : ""));
+        log.info(I18n.t("log.web.register-redirect", "登记跳转: GET {0} → {1} ({2}) 插件={3}{4}", full, toPath, statusCode,
+                    ownerName, proxy ? " (代理无前缀)" : ""));
     }
 
     // ===== 目录批量登记（一行托管整个前端文件夹） =====
@@ -260,9 +226,9 @@ public class WebRegistry {
                 putEntry("GET " + full, new Entry(owner.getName(), full, null,
                         null, resourceClassLoader, "/" + name, null, 0, null), false);
             }
-            LogKit.info("[HTTP-Over-MC] 批量登记 jar 目录: " + owner.getName() + " root=" + resourceRoot + " base=" + basePath);
+            log.info(I18n.t("log.web.register-jar-dir", "批量登记 jar 目录: {0} root={1} base={2}", owner.getName(), resourceRoot, basePath));
         } catch (Exception ex) {
-            LogKit.warn("[HTTP-Over-MC] 批量登记 jar 目录失败: " + owner.getName() + " -> " + ex.getMessage());
+            log.warn(I18n.t("log.web.register-jar-dir-fail", "批量登记 jar 目录失败: {0} -> {1}", owner.getName(), ex.getMessage()));
         }
     }
 
@@ -289,17 +255,16 @@ public class WebRegistry {
         String key = "GET " + full;
         RegisteredNetworkPage old = networkPages.get(key);
         if (old != null && !force) {
-            LogKit.warn("[HTTP-Over-MC] 拒绝重复登记(网络页): " + key
-                    + "（已由插件 " + old.ownerPlugin + " 登记；如需覆盖请用强制登记 force=true）");
+            log.warn(I18n.t("log.web.register-netpage-duplicate-denied", "拒绝重复登记(网络页): {0}（已由插件 {1} 登记；如需覆盖请用强制登记 force=true）",
+                    key, old.ownerPlugin));
             return;
         }
         networkPages.put(key, new RegisteredNetworkPage(ownerPlugin, full, page));
         if (old != null) {
-            LogKit.info("[HTTP-Over-MC] 插件 " + ownerPlugin + " 强制登记覆盖(网络页): " + key
-                    + "（原登记插件 " + old.ownerPlugin + "）");
+            log.info(I18n.t("log.web.register-netpage-force-overwrite", "插件 {0} 强制登记覆盖(网络页): {1}（原登记插件 {2}）", ownerPlugin, key, old.ownerPlugin));
         }
-        LogKit.info("[HTTP-Over-MC] 登记网络页: " + key + " name=" + page.name()
-                + " 插件=" + ownerPlugin + " cacheTtl=" + page.cacheTtlSeconds() + "s");
+        log.info(I18n.t("log.web.register-netpage", "登记网络页: {0} name={1} 插件={2} cacheTtl={3}s", key, page.name(),
+                ownerPlugin, page.cacheTtlSeconds()));
     }
 
     /** 按方法 + 路径匹配网络页（精确 + .html 智能匹配）；未命中返回 null。 */
@@ -361,8 +326,8 @@ public class WebRegistry {
                 .filter(e -> pluginName.equals(e.getValue().ownerPlugin)).count();
         networkPages.entrySet().removeIf(e -> pluginName.equals(e.getValue().ownerPlugin));
         if (removed > 0 || netRemoved > 0) {
-            LogKit.info("[HTTP-Over-MC] 卸载网页（插件 " + pluginName + "）：共 " + removed + " 个"
-                    + (netRemoved > 0 ? "，网络页 " + netRemoved + " 个" : ""));
+            log.info(I18n.t("log.web.unregister", "卸载网页（插件 {0}）：共 {1} 个{2}", pluginName, removed,
+                    netRemoved > 0 ? "，网络页 " + netRemoved + " 个" : ""));
         }
         // 一并清理该插件的自定义错误页
         errorPages.entrySet().removeIf(e -> pluginName.equals(e.getValue().ownerPlugin));
@@ -377,7 +342,7 @@ public class WebRegistry {
     public void registerErrorPage(String ownerPlugin, int status, byte[] content) {
         if (content == null || content.length == 0 || status <= 0) return;
         errorPages.put(status, new ErrorPage(ownerPlugin, content));
-        LogKit.info("[HTTP-Over-MC] 已登记自定义错误页 status=" + status + " owner=" + ownerPlugin);
+        log.info(I18n.t("log.web.register-error-page", "已登记自定义错误页 status={0} owner={1}", status, ownerPlugin));
     }
 
     /** 查询自定义错误页（未注册返回 null）。 */
@@ -407,66 +372,17 @@ public class WebRegistry {
         return out;
     }
 
-    // ===== 首页管理（HomepageRegistry） =====
+    // ==================== 伺服层公共入口：安装站点首页（GET /） ====================
+    // 首页的多实例注册/切换/持久化属于上层业务（由 thismyhomepages 的 HomepageRegistry 负责），
+    // base 仅保留把指定内容安装到 GET / 路由的伺服能力；第三方可经此方法覆盖默认首页。
 
-    /** 获取首页注册表实例。 */
-    public HomepageRegistry getHomepageRegistry() {
-        return homepageRegistry;
-    }
-
-    /**
-     * 按名称注册首页到列表（不自动切换）。
-     * 注册后可通过 {@link #switchHomepage(String)} 切换。
-     *
-     * @param name        首页唯一名称（如 "default"、"event"）
-     * @param owner       归属插件
-     * @param content     首页 HTML 字节内容
-     * @param contentType Content-Type（如 "text/html; charset=utf-8"）
-     */
-    public void registerHomepage(String name, Plugin owner, byte[] content, String contentType) {
-        String ownerName = owner == null ? null : owner.getName();
-        homepageRegistry.register(name, ownerName, content, contentType);
-        LogKit.info("[HTTP-Over-MC] 登记首页: name=" + name + " 插件=" + ownerName);
-    }
-
-    /**
-     * 按名称注册首页（默认 Content-Type: text/html; charset=utf-8）。
-     *
-     * @see #registerHomepage(String, Plugin, byte[], String)
-     */
-    public void registerHomepage(String name, Plugin owner, byte[] content) {
-        registerHomepage(name, owner, content, "text/html; charset=utf-8");
-    }
-
-    /**
-     * 切换到指定名称的首页，立即更新站点首页 {@code GET /} 路由。
-     *
-     * @param name 首页名称
-     * @return true 切换成功；false 名称不存在
-     */
-    public boolean switchHomepage(String name) {
-        return homepageRegistry.switchTo(name);
-    }
-
-    /** 列出所有已注册的首页名称。 */
-    public List<String> getHomepageNames() {
-        return homepageRegistry.list();
-    }
-
-    /** 当前首页名称（可能为 null）。 */
-    public String getCurrentHomepageName() {
-        return homepageRegistry.getCurrentName();
-    }
-
-    // ==================== 内部：供 HomepageRegistry 切换首页时调用 ====================
-
-    /** 直接设置站点首页 {@code GET /} 路由（由 HomepageRegistry 在切换时调用）。 */
-    void setHomePage(String ownerPlugin, byte[] content, String contentType) {
+    /** 直接设置站点首页 {@code GET /} 路由（content 为空则忽略）。 */
+    public void setHomePage(String ownerPlugin, byte[] content, String contentType) {
         if (content == null || content.length == 0) return;
         String key = "GET /";
         String ct = (contentType == null || contentType.isEmpty()) ? "text/html; charset=utf-8" : contentType;
         putEntry(key, new Entry(ownerPlugin, "/", ct, content, null, null, null, 0, null), true);
-        LogKit.info("[HTTP-Over-MC] 切换首页: GET / current=" + (ownerPlugin == null ? "?" : ownerPlugin));
+        log.info(I18n.t("log.web.switch-home", "切换首页: GET / current={0}", ownerPlugin == null ? "?" : ownerPlugin));
     }
 
     /** 列出全部已登记项（Entry 原对象），按路径排序；供 /soyshttp pages 分类展示（区分页/资源/跳转）。 */
@@ -492,7 +408,7 @@ public class WebRegistry {
         if (!putEntry("GET " + full, new Entry(ownerName, full, ct, content, null, null, null, 0, null), force)) {
             return;
         }
-        LogKit.info("[HTTP-Over-MC] 登记网页: GET " + full + " 插件=" + ownerName + (proxy ? " (代理无前缀)" : ""));
+        log.info(I18n.t("log.web.register-page", "登记网页: GET {0} 插件={1}{2}", full, ownerName, proxy ? " (代理无前缀)" : ""));
     }
 
     private void registerRes(Plugin owner, String path, ClassLoader cl, String resource, String contentType, boolean proxy) {
@@ -508,7 +424,7 @@ public class WebRegistry {
         if (!putEntry("GET " + full, new Entry(ownerName, full, ct, null, cl, resource, null, 0, null), force)) {
             return;
         }
-        LogKit.info("[HTTP-Over-MC] 登记网页(资源): GET " + full + " 插件=" + ownerName + (proxy ? " (代理无前缀)" : ""));
+        log.info(I18n.t("log.web.register-resource", "登记网页(资源): GET {0} 插件={1}{2}", full, ownerName, proxy ? " (代理无前缀)" : ""));
     }
 
     /** 计算最终路径：非主插件且非代理 → 前置 /plugins/<插件名> */
@@ -534,7 +450,7 @@ public class WebRegistry {
                 putEntry("GET " + full, new Entry(ownerName, full, null, null, null, null, null, 0, f), false);
             }
         }
-        LogKit.info("[HTTP-Over-MC] 批量登记磁盘目录: " + ownerName + " base=" + basePath + " dir=" + dir.getAbsolutePath());
+        log.info(I18n.t("log.web.register-disk-dir", "批量登记磁盘目录: {0} base={1} dir={2}", ownerName, basePath, dir.getAbsolutePath()));
     }
 
     /** 拼接 web 路径片段（保证单层斜杠，根前缀 / 不产生双斜杠）。 */
@@ -581,25 +497,14 @@ public class WebRegistry {
         private final ClassLoader resCl;     // 资源类加载器（按需读 jar 内资源）
         private final String resource;
         private final File diskFile;         // 磁盘文件（登记目录用，惰性读取，支持热替换）
-        private final String sourceSpec;     // 首页来源（相对路径/绝对路径/网络 URL；null=普通来源）
 
         /** 磁盘文件（null=非磁盘来源）；供内容缓存做热替换失效（lastModified）与大文件加载器判定。 */
         public File getDiskFile() {
             return diskFile;
         }
 
-        /** 首页来源描述（registerHomeFrom；null=普通字节/资源来源）。 */
-        public String getSourceSpec() {
-            return sourceSpec;
-        }
-
         Entry(String ownerPlugin, String path, String contentType, byte[] content,
               ClassLoader resCl, String resource, String redirectTo, int redirectCode, File diskFile) {
-            this(ownerPlugin, path, contentType, content, resCl, resource, redirectTo, redirectCode, diskFile, null);
-        }
-
-        Entry(String ownerPlugin, String path, String contentType, byte[] content,
-              ClassLoader resCl, String resource, String redirectTo, int redirectCode, File diskFile, String sourceSpec) {
             this.ownerPlugin = ownerPlugin;
             this.path = path;
             this.contentType = contentType;
@@ -609,7 +514,6 @@ public class WebRegistry {
             this.redirectTo = redirectTo;
             this.redirectCode = redirectCode;
             this.diskFile = diskFile;
-            this.sourceSpec = sourceSpec;
         }
 
         public byte[] resolveBytes() {

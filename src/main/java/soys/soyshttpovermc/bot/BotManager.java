@@ -1,8 +1,10 @@
 package soys.soyshttpovermc.bot;
+import lombok.CustomLog;
 
 import soys.soyshttpovermc.exception.BotException;
 import soys.soyshttpovermc.link.McLink;
 import soys.soyshttpovermc.log.LogKit;
+import soys.soyshttpovermc.i18n.I18n;
 
 import org.bukkit.plugin.java.JavaPlugin;
 
@@ -20,6 +22,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * 主 Bot 的 RawMessageListener 由本管理器接管（构造后由 HttpOverMcPlugin 设置
  * {@code bot.setRawMessageListener(botManager::dispatch)}），从而在不破坏核心隧道的前提下扩展通道。
  */
+@CustomLog
 public class BotManager {
 
     private final JavaPlugin plugin;
@@ -67,7 +70,7 @@ public class BotManager {
         if (channel == null || channel.isEmpty() || listener == null) return;
         customListeners.put(channel, listener);
         mainBot.registerExtraChannel(channel);
-        LogKit.info("[HTTP-Over-MC] 已登记自定义通道监听: " + channel);
+        log.info(I18n.t("log.bot.channel-registered", "已登记自定义通道监听: {0}", channel));
     }
 
     /** 注销自定义通道监听（并向服务端发送 unregister）。 */
@@ -75,7 +78,7 @@ public class BotManager {
         if (channel == null || channel.isEmpty()) return;
         customListeners.remove(channel);
         mainBot.unregisterExtraChannel(channel);
-        LogKit.info("[HTTP-Over-MC] 已注销自定义通道监听: " + channel);
+        log.info(I18n.t("log.bot.channel-unregistered", "已注销自定义通道监听: {0}", channel));
     }
 
     /** 创建一个额外受管无头 Bot（独立通道 + 独立 McLink 隧道）并回连本服。若同名已存在则返回既有项。 */
@@ -97,7 +100,7 @@ public class BotManager {
         bot.connect();
         ManagedBot mb = new ManagedBot(name, channel, bot, link);
         bots.put(name, mb);
-        LogKit.info("[HTTP-Over-MC] 已添加受管 Bot: name=" + name + " channel=" + channel);
+        log.info(I18n.t("log.bot.added", "已添加受管 Bot: name={0} channel={1}", name, channel));
         return mb;
     }
 
@@ -113,12 +116,12 @@ public class BotManager {
     /** 踢出并断开一个额外受管 Bot（主 Bot 不可踢）。 */
     public void kickBot(String name) throws BotException {
         if(name.equals(plugin.getConfig().getString("bot.username"))){
-            throw new BotException("禁止踢出主bot "+plugin.getConfig().getString("bot.username"));
+            throw new BotException(I18n.t("exception.bot.kick-main-bot", "禁止踢出主bot {0}", plugin.getConfig().getString("bot.username")));
         }
         ManagedBot mb = bots.remove(name);
         if (mb != null) {
             mb.getBot().disconnect();
-            LogKit.info("[HTTP-Over-MC] 已踢出受管 Bot: " + name);
+            log.info(I18n.t("log.bot.kicked", "已踢出受管 Bot: {0}", name));
         }
     }
 
@@ -138,7 +141,7 @@ public class BotManager {
     /** 触发主 Bot 重新连接（被踢出游戏等特殊情况后恢复隧道；主通道与 McLink 引用保持不变）。 */
     public void reconnectMainBot() {
         mainBot.reconnect();
-        LogKit.info("[HTTP-Over-MC] 主 Bot 重新连接已触发: " + mainBot.getUsername());
+        log.info(I18n.t("log.bot.reconnect", "主 Bot 重新连接已触发: {0}", mainBot.getUsername()));
     }
 
     /** 该玩家名是否受本管理器托管的 Bot（主 Bot 或额外受管 Bot）——供登录插件集成器判断免登录对象。 */

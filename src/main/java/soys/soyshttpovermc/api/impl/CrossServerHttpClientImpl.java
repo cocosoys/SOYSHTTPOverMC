@@ -4,6 +4,7 @@ import soys.soyshttpovermc.HttpResponse;
 import soys.soyshttpovermc.HttpOverMcPlugin;
 import soys.soyshttpovermc.api.CrossServerHttpClient;
 import soys.soyshttpovermc.cross.CrossServerHub;
+import soys.soyshttpovermc.i18n.I18n;
 import soys.soyshttpovermc.link.McLink;
 import soys.soyshttpovermc.proto.FrameProto;
 
@@ -30,7 +31,7 @@ public class CrossServerHttpClientImpl implements CrossServerHttpClient {
     public HttpResponse callRemoteApi(String serverName, String method, String path,
                                       Map<String, String> headers, byte[] body) {
         if (serverName == null || serverName.isEmpty()) {
-            throw new IllegalArgumentException("serverName 不能为空");
+            throw new IllegalArgumentException(I18n.t("exception.cross.server-name-empty", "serverName 不能为空"));
         }
         String local = plugin.getServerName();
         String trace = CrossServerHub.newTraceId();
@@ -53,7 +54,7 @@ public class CrossServerHttpClientImpl implements CrossServerHttpClient {
             FrameProto.HttpResponseFrame resp = mcLink.request(req).get(30, TimeUnit.SECONDS);
             return toHttpResponse(resp);
         } catch (Exception e) {
-            throw new RuntimeException("跨服调用 " + serverName + " " + method + " " + path + " 失败: " + e.getMessage(), e);
+            throw new RuntimeException(I18n.t("exception.cross.call-fail", "跨服调用 {0} {1} {2} 失败: {3}", serverName, method, path, e.getMessage()), e);
         }
     }
 

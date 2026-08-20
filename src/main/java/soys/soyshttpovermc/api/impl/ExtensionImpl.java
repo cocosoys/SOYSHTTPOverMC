@@ -6,6 +6,7 @@ import soys.soyshttpovermc.command.SoysHttpCommand;
 import soys.soyshttpovermc.command.SubCommand;
 import soys.soyshttpovermc.exception.ApiException;
 import soys.soyshttpovermc.exception.ExceptionBus;
+import soys.soyshttpovermc.i18n.I18n;
 import soys.soyshttpovermc.gateway.policy.auth.bridge.spi.LoginProvider;
 import soys.soyshttpovermc.gateway.policy.auth.bridge.spi.LoginProviderFactory;
 
@@ -27,7 +28,7 @@ public class ExtensionImpl implements ExtensionApi {
             LoginProviderFactory.register(provider);
         } catch (Exception ex) {
             throw ExceptionBus.fire(new ApiException("E_REGISTER_LOGIN_PROVIDER",
-                    "注册登录插件提供者失败: " + ex.getMessage(), ex));
+                    I18n.t("exception.extension.login-provider-fail", "注册登录插件提供者失败: {0}", ex.getMessage()), ex));
         }
     }
 
@@ -36,7 +37,7 @@ public class ExtensionImpl implements ExtensionApi {
         SoysHttpCommand cmd = plugin.getCommandExecutor();
         if (cmd == null) {
             throw ExceptionBus.fire(new ApiException("E_REGISTER_SUB_COMMAND",
-                    "/soyshttp 命令尚未初始化（请在宿主 onEnable 完成后注册子指令）"));
+                    I18n.t("exception.extension.sub-command-uninit", "/soyshttp 命令尚未初始化（请在宿主 onEnable 完成后注册子指令）")));
         }
         cmd.registerSubCommand(subCommand);
     }
@@ -46,12 +47,12 @@ public class ExtensionImpl implements ExtensionApi {
         try {
             soys.soyshttpovermc.web.WebInterceptorRegistry reg = plugin.getWebInterceptorRegistry();
             if (reg == null) {
-                throw new IllegalStateException("请求拦截器注册中心尚未初始化（宿主未就绪）");
+                throw new IllegalStateException(I18n.t("exception.extension.interceptor-registry-uninit", "请求拦截器注册中心尚未初始化（宿主未就绪）"));
             }
             reg.register(interceptor);
         } catch (Exception ex) {
             throw ExceptionBus.fire(new ApiException("E_REGISTER_INTERCEPTOR",
-                    "注册请求拦截器失败: " + ex.getMessage(), ex));
+                    I18n.t("exception.extension.interceptor-register-fail", "注册请求拦截器失败: {0}", ex.getMessage()), ex));
         }
     }
 
@@ -60,12 +61,12 @@ public class ExtensionImpl implements ExtensionApi {
         try {
             soys.soyshttpovermc.gateway.GatewayFilter gw = plugin.getGateway();
             if (gw == null) {
-                throw new IllegalStateException("网关未启用，无法注入策略");
+                throw new IllegalStateException(I18n.t("exception.extension.policy-gateway-off", "网关未启用，无法注入策略"));
             }
             gw.addPluginPolicy(policy);
         } catch (Exception ex) {
             throw ExceptionBus.fire(new ApiException("E_REGISTER_POLICY",
-                    "注入插件策略失败: " + ex.getMessage(), ex));
+                    I18n.t("exception.extension.policy-inject-fail", "注入插件策略失败: {0}", ex.getMessage()), ex));
         }
     }
 }

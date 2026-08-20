@@ -1,5 +1,7 @@
 package soys.soyshttpovermc.storage;
+import lombok.CustomLog;
 
+import soys.soyshttpovermc.i18n.I18n;
 import soys.soyshttpovermc.log.LogKit;
 
 import java.util.Base64;
@@ -20,6 +22,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * </ul>
  * 读操作一律走主存储；黑名单查询带 5s 命中缓存（避免热点路径反复读库/读文件）。
  */
+@CustomLog
 public class RecordSyncStorage implements SyncStorage {
 
     private static final String T_BLACKLIST = "BLACKLIST";
@@ -82,7 +85,7 @@ public class RecordSyncStorage implements SyncStorage {
                 return true;
             }
         } catch (Exception e) {
-            LogKit.warn("[HTTP-Over-MC] 黑名单查询失败: " + e.getMessage());
+            log.warn(I18n.t("log.storage.blacklist-query-failed", "黑名单查询失败: {0}", e.getMessage()));
         }
         return false;
     }
@@ -137,7 +140,8 @@ public class RecordSyncStorage implements SyncStorage {
             if (b2 != null && b2.length >= 16) return b2;
             return localSecret;
         } catch (Exception e) {
-            LogKit.warn("[HTTP-Over-MC] 全局 JWT 密钥读写失败，回退本地密钥: " + e.getMessage());
+            log.warn(I18n.t("log.storage.jwt-secret-failed",
+                    "全局 JWT 密钥读写失败，回退本地密钥: {0}", e.getMessage()));
             return null;
         }
     }

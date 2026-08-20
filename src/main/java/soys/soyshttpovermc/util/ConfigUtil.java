@@ -1,17 +1,18 @@
 package soys.soyshttpovermc.util;
 
 import org.bukkit.configuration.ConfigurationSection;
+import org.bukkit.configuration.file.YamlConfiguration;
 
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
 /**
- * 配置工具类：提供 YAML → JSON 的自动转换方法。
- * <p>支持两种输入：</p>
+ * 配置工具类：提供 YAML ↔ JSON 的自动转换方法。
+ * <p>支持的转换方向：</p>
  * <ul>
- *   <li>{@link YamlConfiguration}（整个文件 → JSON）</li>
- *   <li>{@link ConfigurationSection}（子树 → JSON）</li>
+ *   <li>YAML → JSON：{@link #toJson(ConfigurationSection)} / {@link #toMap(ConfigurationSection)}</li>
+ *   <li>Map → ConfigurationSection：{@link #toSection(Map)} / {@link #toYaml(Map)}</li>
  * </ul>
  * <p>底层委托 {@link JsonWriter#write(Object)} 完成序列化，零外部依赖。</p>
  */
@@ -85,6 +86,73 @@ public final class ConfigUtil {
             }
         }
         // 基本类型、String、List<基本类型> 直接返回
+        return value;
+    }
+
+    // ==================== Map → ConfigurationSection ====================
+
+    /**
+     * 将 {@link Map} 实例转换为 {@link ConfigurationSection}。
+     * <p>嵌套的 {@link Map} 递归展开为子 Section；列表中的 {@link Map} 元素也递归展开。</p>
+     *
+     * @param map 源 Map（null 返回空 Section）
+     * @return 可读写的 {@link YamlConfiguration}（本质是一个 ConfigurationSection，也可直接落盘）
+     */
+    public static ConfigurationSection toSection(Map<String, Object> map) {
+        YamlConfiguration cfg = new YamlConfiguration();
+        if (map == null) {
+            return cfg;
+        }
+        applyMap(cfg, map);
+        return cfg;
+    }
+
+    /**
+     * 将 {@link Map} 实例转换为 {@link YamlConfiguration}（可直接 {@code save} 落盘为 YAML 文件）。
+     *
+     * @param map 源 Map（null 返回空 YamlConfiguration）
+     * @return YamlConfiguration
+     */
+    public static YamlConfiguration toYaml(Map<String, Object> map) {
+        return (YamlConfiguration) toSection(map);
+    }
+
+    private static void applyMap(ConfigurationSection cfg, Map<String, Object> map) {
+        for (Map.Entry<String, Object> e : map.entrySet()) {
+            String key = e.getKey();
+            Object value = mapScalar(e.getValue());
+            cfg.set(key, value);
+        }
+    }
+
+    /**
+     * 把 Map/List 递归转换成 Bukkit 可接受的 Java 树；标量原样返回。
+     */
+    @SuppressWarnings("unchecked")
+    private static Object mapScalar(Object value) {
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof Map) {
+            // 递归摊平嵌套 Map 为 键 → 标量/Map/List
+            java.util.Map<String, Object> sub = new java.util.LinkedHashMap<>();
+            for (Map.Entry<?, ?> e : ((Map<?, ?>) value).entrySet()) {
+                sub.put(String.valueOf(e.getKey()), mapScalar(e.getValue()));
+            }
+            return sub;
+        }
+        if (value instanceof List) {
+            List<?> list = (List<?>) value;
+            List<Object> out = new java.util.ArrayList<>(list.size());
+            for (Object item : list) {
+                out.add(mapScalar(item));
+            }
+            return out;
+        }
+        if (value instanceof ConfigurationSection) {
+            return mapScalar(toMap((ConfigurationSection) value));
+        }
+        // 标量 / String / 基础类型 直接返回
         return value;
     }
 }

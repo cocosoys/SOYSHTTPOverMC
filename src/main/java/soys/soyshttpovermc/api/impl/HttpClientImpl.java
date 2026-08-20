@@ -6,6 +6,7 @@ import soys.soyshttpovermc.HttpOverMcPlugin;
 import soys.soyshttpovermc.api.HttpClientApi;
 import soys.soyshttpovermc.exception.ExceptionBus;
 import soys.soyshttpovermc.exception.HttpClientException;
+import soys.soyshttpovermc.i18n.I18n;
 import soys.soyshttpovermc.proxy.ProxyPlatform;
 
 import org.bukkit.Bukkit;
@@ -83,7 +84,7 @@ public class HttpClientImpl implements HttpClientApi {
             return new HttpResponse(status, respHeaders, respBody);
         } catch (Exception ex) {
             // 对外请求失败属于明确异常：经总线结构化报错后抛出，便于调用方精准处理
-            throw ExceptionBus.fire(new HttpClientException("E_SEND", method + " " + url + " 失败: " + ex.getMessage(), ex));
+            throw ExceptionBus.fire(new HttpClientException("E_SEND", I18n.t("exception.httpclient.send-fail", "{0} {1} 失败: {2}", method, url, ex.getMessage()), ex));
         }
     }
 
@@ -107,7 +108,7 @@ public class HttpClientImpl implements HttpClientApi {
             return apiRegistry.dispatch(method, path,
                     headers == null ? Collections.<String, String>emptyMap() : headers, body);
         } catch (Exception ex) {
-            throw ExceptionBus.fire(new HttpClientException("E_LOCAL", "本地回环调用失败(" + method + " " + path + "): " + ex.getMessage(), ex));
+            throw ExceptionBus.fire(new HttpClientException("E_LOCAL", I18n.t("exception.httpclient.local-call-fail", "本地回环调用失败({0} {1}): {2}", method, path, ex.getMessage()), ex));
         }
     }
 

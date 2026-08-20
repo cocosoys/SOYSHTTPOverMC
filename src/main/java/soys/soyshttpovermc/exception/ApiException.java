@@ -18,4 +18,17 @@ public class ApiException extends SoysHttpException {
     public ApiException(String message, Throwable cause) {
         super(Module.API, "API_ERR", message, cause);
     }
+
+
+    public ApiException(String code, String fmt, Object... args) {
+        super(Module.API, code, fmt, args);
+    }
+
+    public ApiException(String fmt, Object... args) {
+        super(Module.API, "API_ERR", fmt, args);
+    }
+
+    public ApiException(String code, String fmt, Throwable cause, Object... args) {
+        super(Module.API, code, fmt, cause, args);
+    }
 }

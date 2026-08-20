@@ -1,6 +1,8 @@
 package soys.soyshttpovermc.gateway;
+import lombok.CustomLog;
 
 import soys.soyshttpovermc.log.LogKit;
+import soys.soyshttpovermc.i18n.I18n;
 
 import org.bukkit.configuration.ConfigurationSection;
 import soys.soyshttpovermc.gateway.policy.*;
@@ -19,7 +21,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
-import java.util.logging.Logger;
 
 /**
  * 安全策略链执行器（nginx 式网关的核心）：
@@ -36,6 +37,7 @@ import java.util.logging.Logger;
  * 新增凭证颁发器（登录插件接入）= 1) 继承 {@link CredentialIssuer}；2) {@link #ISSUER_REGISTRY}
  * 注册一行；3) issuers/ 放 yml。均无需改动链执行逻辑，/soyshttp reload 热重载。
  */
+@CustomLog
 public class GatewayFilter {
 
     /** 策略注册表：策略名（= policies 目录下的文件名）→ 工厂。新增策略在此注册。 */
@@ -44,7 +46,6 @@ public class GatewayFilter {
     static {
         REGISTRY.put("tls", TlsPolicy::new);
         REGISTRY.put("auth", AuthPolicy::new);
-//        REGISTRY.put("api-key", AuthPolicy::new); // 兼容旧名（旧 api-key.yml 仍可加载）
         REGISTRY.put("ip-allowlist", IpAllowlistPolicy::new);
         REGISTRY.put("rate-limit", RateLimitPolicy::new);
     }
@@ -66,7 +67,6 @@ public class GatewayFilter {
         ISSUER_REGISTRY.put(name, factory);
     }
 
-    private final Logger log;
     private volatile List<SecurityPolicy> policies = new ArrayList<>();
     private volatile List<CredentialIssuer> issuers = new ArrayList<>();
     /** 插件注入的附加策略（gateway/policies/ 之外由第三方贡献；reload 后保留） */
@@ -74,8 +74,7 @@ public class GatewayFilter {
     /** 网关统一的 API 前缀（gateway/config.yml api-prefix，默认 /api；始终生效） */
     private volatile String apiPrefix = "/api";
 
-    public GatewayFilter(Logger log) {
-        this.log = log;
+    public GatewayFilter() {
     }
 
     /** 网关统一的 API 前缀（auth 策略匹配 exempt/paths 时自动兼容逻辑路径）。 */
@@ -108,8 +107,7 @@ public class GatewayFilter {
                     String name = f.getName().substring(0, f.getName().length() - 4);
                     Supplier<SecurityPolicy> factory = REGISTRY.get(name);
                     if (factory == null) {
-                        LogKit.warn("[HTTP-Over-MC] 忽略未注册的策略文件: " + f.getName()
-                                + "（如需启用请在 GatewayFilter.REGISTRY 注册对应实现）");
+                        log.warn(I18n.t("log.gateway.policy-ignore", "忽略未注册的策略文件: {0}（如需启用请在 GatewayFilter.REGISTRY 注册对应实现）", f.getName()));
                         continue;
                     }
                     SecurityPolicy p = factory.get();
@@ -131,16 +129,17 @@ public class GatewayFilter {
         merged.addAll(pluginPolicies);
         merged.sort(Comparator.comparingInt(SecurityPolicy::order));
         policies = merged;
-        LogKit.info("[HTTP-Over-MC] 网关策略链已加载：" + (list.isEmpty() ? "无启用策略" : describe(list))
-                + (pluginPolicies.isEmpty() ? "" : " | 插件策略: " + describe(pluginPolicies))
-                + (issuerList.isEmpty() ? "" : " | 颁发器: " + describeIssuers(issuerList))
-                + " | api-prefix=" + apiPrefix);
+        log.info(I18n.t("log.gateway.chain-loaded", "网关策略链已加载：{0}{1}{2} | api-prefix={3}",
+                list.isEmpty() ? "无启用策略" : describe(list),
+                pluginPolicies.isEmpty() ? "" : " | 插件策略: " + describe(pluginPolicies),
+                issuerList.isEmpty() ? "" : " | 颁发器: " + describeIssuers(issuerList),
+                apiPrefix));
         if (LogKit.isDebugEnabled()) {
-            StringBuilder sb = new StringBuilder("[HTTP-Over-MC] 策略明细: ");
+            StringBuilder sb = new StringBuilder("策略明细: ");
             for (SecurityPolicy p : list) {
                 sb.append(p.name()).append('(').append(p.order()).append(p.isEnabled() ? ",enabled" : ",disabled").append(") ");
             }
-            LogKit.debug(sb.toString().trim());
+            log.debug(sb.toString().trim());
         }
     }
 
@@ -156,8 +155,7 @@ public class GatewayFilter {
             String name = f.getName().substring(0, f.getName().length() - 4);
             Supplier<CredentialIssuer> factory = ISSUER_REGISTRY.get(name);
             if (factory == null) {
-                LogKit.warn("[HTTP-Over-MC] 忽略未注册的颁发器文件: " + f.getName()
-                        + "（如需启用请在 GatewayFilter.ISSUER_REGISTRY 注册对应实现）");
+                log.warn(I18n.t("log.gateway.issuer-ignore", "忽略未注册的颁发器文件: {0}（如需启用请在 GatewayFilter.ISSUER_REGISTRY 注册对应实现）", f.getName()));
                 continue;
             }
             CredentialIssuer issuer = factory.get();
@@ -178,14 +176,12 @@ public class GatewayFilter {
             String name = f.getName().substring(0, f.getName().length() - 4);
             LoginProvider provider = LoginProviderFactory.get(name);
             if (provider == null) {
-                LogKit.warn("[HTTP-Over-MC] 忽略未注册的提供者文件: " + f.getName()
-                        + "（如需启用请在 LoginProviderFactory 注册对应实现）");
+                log.warn(I18n.t("log.gateway.provider-ignore", "忽略未注册的提供者文件: {0}（如需启用请在 LoginProviderFactory 注册对应实现）", f.getName()));
                 continue;
             }
             ConfigurationSection cfg = GatewayConfig.loadYml(f);
             provider.reload(cfg);
-            LogKit.info("[HTTP-Over-MC] 提供者配置已加载: " + name
-                    + (cfg == null ? "（空配置）" : ""));
+            log.info(I18n.t("log.gateway.provider-loaded", "提供者配置已加载: {0}{1}", name, cfg == null ? "（空配置）" : ""));
         }
     }
 
@@ -220,7 +216,7 @@ public class GatewayFilter {
                 PolicyResult r = p.check(ctx);
                 if (r != null && !r.isAllow()) return new Outcome(p, r);
             } catch (Exception e) {
-                LogKit.warn("[HTTP-Over-MC] 策略 " + p.name() + " 执行异常，按拒绝处理: " + e, e);
+                log.warn(I18n.t("log.gateway.policy-error", "策略 {0} 执行异常，按拒绝处理: {1}", p.name(), e), e);
                 return new Outcome(p, PolicyResult.deny(500, "Internal Server Error: policy " + p.name()));
             }
         }
@@ -283,7 +279,7 @@ public class GatewayFilter {
         merged.add(policy);
         merged.sort(Comparator.comparingInt(SecurityPolicy::order));
         policies = merged;
-        LogKit.info("[HTTP-Over-MC] 插件策略已注入: " + policy.name() + "(order=" + policy.order() + ")");
+        log.info(I18n.t("log.gateway.plugin-policy-injected", "插件策略已注入: {0}(order={1})", policy.name(), policy.order()));
     }
 
     /** 插件注入的策略列表（只读）。 */

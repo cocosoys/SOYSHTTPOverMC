@@ -6,6 +6,7 @@ import org.bukkit.plugin.java.JavaPlugin;
 
 import soys.soyshttpovermc.annotations.*;
 import soys.soyshttpovermc.api.ApiRequestContext;
+import soys.soyshttpovermc.i18n.I18n;
 import soys.soyshttpovermc.util.AjaxResult;
 import soys.thismyhomepages.config.HomeConfigEntity;
 import soys.thismyhomepages.spring.service.IGiftService;
@@ -46,7 +47,7 @@ public class HomeApiController {
     public AjaxResult config() {
         HomeConfigEntity hc = home.get();
         if (hc == null) {
-            return AjaxResult.error(500, "主页配置未加载");
+            return AjaxResult.error(500, I18n.t("gift.config.no-config", "主页配置未加载"));
         }
         return AjaxResult.success(exporter.export(hc));
     }

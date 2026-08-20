@@ -1,6 +1,8 @@
 package soys.soyshttpovermc;
+import lombok.CustomLog;
 
 import soys.soyshttpovermc.log.LogKit;
+import soys.soyshttpovermc.i18n.I18n;
 
 import soys.soyshttpovermc.command.SoysHttpCommand;
 import soys.soyshttpovermc.config.ConfigManager;
@@ -54,8 +56,8 @@ import soys.soyshttpovermc.gateway.policy.auth.issuer.SessionTokenIssuer;
 import javax.net.ssl.SSLEngine;
 import java.io.File;
 import java.util.function.Supplier;
-import java.util.logging.Logger;
 
+@CustomLog
 public class HttpOverMcPlugin extends JavaPlugin {
 
     private static HttpOverMcPlugin instance;
@@ -137,6 +139,11 @@ public class HttpOverMcPlugin extends JavaPlugin {
         return webRegistry;
     }
 
+    /** HTTP 前端处理器：提供首页来源解析等伺服原语（可能为 null，取决于启动时序）。 */
+    public WebFrontendHandler getFrontendHandler() {
+        return webFrontend;
+    }
+
     /** 网关策略链（含已启用的凭证颁发器） */
     public GatewayFilter getGateway() {
         return gateway;
@@ -181,7 +188,6 @@ public class HttpOverMcPlugin extends JavaPlugin {
     public void onEnable() {
         instance = this;
         saveDefaultConfig();
-        Logger log = getLogger();
 
         // 1) 读取核心运行参数（Bot 用户名 / 通道 / 本服地址 / 嗅探开关等）
         loadCoreConfig();
@@ -194,7 +200,9 @@ public class HttpOverMcPlugin extends JavaPlugin {
             LoginProviderFactory.register(new AuthMeLoginProvider());
         }
         // 3) 日志门面 + 级别过滤（config.yml 的 log.level，/soyshttp reload 热重载）
-        LogKit.init(log, getConfig().getString("log.level", "INFO"));
+        LogKit.init(getLogger(), getConfig().getString("log.level", "INFO"));
+        // 3.25) 国际化：从 <dataFolder>/language/ 加载默认 zh_cn 语言包到内存（须在日志就绪后装配）
+        soys.soyshttpovermc.i18n.I18n.init(getDataFolder());
         // 3.5) Web 内容缓存（常驻 pinned + LRU 存活释放 + 大文件加载抽象；须在日志就绪后装配）
         initWebCache();
         // 3.6) 请求级拦截器 / CORS 声明注册中心（供第三方 SPI 与 WebFrontendHandler 使用）
@@ -207,16 +215,16 @@ public class HttpOverMcPlugin extends JavaPlugin {
         //      配置缺失/为空时退回插件 dataFolder，保证向后兼容。
         File yamlOrmDir = resolveYamlOrmDir();
         soys.soyshttpovermc.orm.YAML.Pojo.init(yamlOrmDir);
-        LogKit.info("[HTTP-Over-MC] ORM(YAML) 已装配: dataDir=" + yamlOrmDir);
+        log.info(I18n.t("log.plugin.orm-yaml-ready", "ORM(YAML) 已装配: dataDir={0}", yamlOrmDir));
         // 3.9) ORM（SQL 后端，二期）装配：SQL.Pojo 基于 dlz-db-core + HikariCP；
         //     数据源来自 storage.backends.{mysql,sqlite}，失败自动降级（SQL.Pojo 不可用不影响运行）
         soys.soyshttpovermc.orm.executor.SqlBackendExecutor.init(this);
         // 4) 安全网关（独立配置目录 gateway/）+ TLS 上下文（MC 端口就地升级，无独立端口）
-        rebuildGateway(gatewayDir, log);
+        rebuildGateway(gatewayDir);
         // 4.5) AuthMe 网页登录接入（软依赖）：session-token 启用时建桥，AuthMe 在则建监听
         setupAuthIntegration();
         // 5) 注解式 API 框架 + 网页登记 + 事件监听 + 系统级 API
-        initApiFramework(gatewayDir, log);
+        initApiFramework(gatewayDir);
         // 6) 无头 Bot 回环连接本服 + McLink 隧道
         initBot();
         // 6.5) 对外集成门面（聚合 API 注册 / 网页登记 / 凭证 / 日志 / Bot / HTTP，供第三方插件接入）
@@ -231,13 +239,6 @@ public class HttpOverMcPlugin extends JavaPlugin {
         initSniffer(stats);
         // 9) 命令：/soyshttp reload | /soyshttp key <subject>
         initCommand();
-        // 9.5) 恢复持久化首页选择（在 MyHomePages.register 注册首页后执行）
-        String savedHomepage = getConfig().getString("homepage.current", null);
-        if (savedHomepage != null && !savedHomepage.isEmpty()) {
-            if (!webRegistry.switchHomepage(savedHomepage)) {
-                LogKit.info("[HTTP-Over-MC] 持久化首页 '" + savedHomepage + "' 不存在，保留当前首页");
-            }
-        }
         // 10) 就绪事件：第三方插件若先于本插件加载，可监听 SoysReadyEvent 做延迟注册
         try {
             getServer().getPluginManager().callEvent(new soys.soyshttpovermc.api.event.SoysReadyEvent(api));
@@ -288,12 +289,11 @@ public class HttpOverMcPlugin extends JavaPlugin {
             largeFileLoaderRegistry = new soys.soyshttpovermc.web.LargeFileLoaderRegistry(largeThreshold);
             webContentCache = new soys.soyshttpovermc.web.WebContentCache(
                     cacheMaxEntries, cacheMaxBytes, cacheTtlSeconds, pinned, largeFileLoaderRegistry);
-            LogKit.info("[HTTP-Over-MC] Web 内容缓存已装配: maxBytes=" + cacheMaxBytes
-                    + " maxEntries=" + cacheMaxEntries + " ttl=" + cacheTtlSeconds + "s"
-                    + " pinned=" + pinned + " largeThreshold=" + largeThreshold
-                    + " largeMax=" + largeFileMaxBytes);
+            log.info(I18n.t("log.plugin.web-cache-ready",
+                    "Web 内容缓存已装配: maxBytes={0} maxEntries={1} ttl={2}s pinned={3} largeThreshold={4} largeMax={5}",
+                    cacheMaxBytes, cacheMaxEntries, cacheTtlSeconds, pinned, largeThreshold, largeFileMaxBytes));
         } catch (Throwable t) {
-            LogKit.warn("[HTTP-Over-MC] Web 内容缓存装配失败（将按无缓存运行）: " + t);
+            log.warn(I18n.t("log.plugin.web-cache-fail", "Web 内容缓存装配失败（将按无缓存运行）: {0}", t));
             webContentCache = null;
             largeFileLoaderRegistry = null;
         }
@@ -311,7 +311,7 @@ public class HttpOverMcPlugin extends JavaPlugin {
             manager = new soys.soyshttpovermc.storage.StorageManager(this);
             manager.initialize();
         } catch (Throwable t) {
-            LogKit.warn("[HTTP-Over-MC] 存储后端初始化失败，降级为内存模式: " + t.getMessage());
+            log.warn(I18n.t("log.plugin.storage-init-fail", "存储后端初始化失败，降级为内存模式: {0}", t.getMessage()));
             manager = null;
         }
         this.storageManager = manager;
@@ -326,10 +326,10 @@ public class HttpOverMcPlugin extends JavaPlugin {
                 } catch (Throwable ignored) {
                 }
             }, 0L, 30L * 20L);
-            LogKit.info("[HTTP-Over-MC] 跨服同步存储已装配: serverId=" + storageServerId()
-                    + " 主=" + (manager == null ? "-" : manager.getPrimary().getType().getDisplayName()));
+            log.info(I18n.t("log.plugin.sync-storage-ready", "跨服同步存储已装配: serverId={0} 主={1}", storageServerId(),
+                    manager == null ? "-" : manager.getPrimary().getType().getDisplayName()));
         } else {
-            LogKit.info("[HTTP-Over-MC] 数据存储未启用（内存模式）");
+            log.info(I18n.t("log.plugin.storage-memory", "数据存储未启用（内存模式）"));
         }
     }
 
@@ -356,10 +356,10 @@ public class HttpOverMcPlugin extends JavaPlugin {
         if (s != null && s.isAvailable()) {
             byte[] global = s.loadOrCreateJwtSecret(local);
             if (global != null) {
-                LogKit.info("[HTTP-Over-MC] JWT 密钥来源：MySQL 集中下发（跨服统一，serverId=" + storageServerId() + "）");
+                log.info(I18n.t("log.plugin.jwt-secret-mysql", "JWT 密钥来源：MySQL 集中下发（跨服统一，serverId={0}）", storageServerId()));
                 return global;
             }
-            LogKit.warn("[HTTP-Over-MC] 从共享存储读取 JWT 密钥失败，回退本地文件密钥（跨服验签可能不一致）");
+            log.warn(I18n.t("log.plugin.jwt-secret-fallback", "从共享存储读取 JWT 密钥失败，回退本地文件密钥（跨服验签可能不一致）"));
         }
         return local;
     }
@@ -376,16 +376,16 @@ public class HttpOverMcPlugin extends JavaPlugin {
         botHideMode = getConfig().getString("bot.hide-mode", "hideplayer");
         if (!botUsername.startsWith(botNamePrefix)) {
             // 兼容旧默认名 __http_proxy__：允许但不建议；bot 专属保护按「受管 bot 名集合 + 前缀名」生效
-            LogKit.warn("[HTTP-Over-MC] bot.username 不以 bot.name-prefix(" + botNamePrefix
-                    + ") 开头：" + botUsername + "（建议使用前缀命名 bot 专属账号；"
-                    + "当前名称仍受 IP 白名单保护，但新账号请使用前缀）");
+            log.warn(I18n.t("log.plugin.bot-name-prefix",
+                    "bot.username 不以 bot.name-prefix({0}) 开头：{1}（建议使用前缀命名 bot 专属账号；当前名称仍受 IP 白名单保护，但新账号请使用前缀）",
+                    botNamePrefix, botUsername));
         }
         channel = getConfig().getString("channel", "httpproxy:main");
         // 群组服探测：经反射读 spigot.yml/paper.yml 判断是否位于 BungeeCord / Waterfall / Velocity 之后。
         // 影响无头 Bot 的握手转发兼容（后端 bungee:true / Velocity legacy 转发下需附加 host\0ip\0uuid 转发数据）与对外地址选择。
         this.proxyPlatform = ProxyDetector.detect(this);
-        LogKit.info("[HTTP-Over-MC] 运行拓扑探测: " + proxyPlatform
-                + (proxyPlatform == ProxyPlatform.STANDALONE ? "（独立服，Bot 直连）" : "（群组服，Bot 握手将附加转发兼容）"));
+        log.info(I18n.t("log.plugin.proxy-topology", "运行拓扑探测: {0}{1}", proxyPlatform,
+                proxyPlatform == ProxyPlatform.STANDALONE ? "（独立服，Bot 直连）" : "（群组服，Bot 握手将附加转发兼容）"));
         // 群组服服务器名（config.yml proxy.server-name；仅群组服下用于跨服路由/发现，独立服留空）
         this.serverName = getConfig().getString("proxy.server-name", "");
         // 群组服下 Bot 用户名须全局唯一（BungeeCord 共享单一玩家命名空间，且限制 ≤16 字符、仅 [a-zA-Z0-9_]），
@@ -400,7 +400,7 @@ public class HttpOverMcPlugin extends JavaPlugin {
                 if (sName.length() > budget) sName = sName.substring(0, budget);
                 botUsername = botNamePrefix + "_" + sName;
             }
-            LogKit.info("[HTTP-Over-MC] 群组服模式：Bot 采用全局唯一名 " + botUsername + "（本服=" + serverName + "）");
+            log.info(I18n.t("log.plugin.bot-unique-name", "群组服模式：Bot 采用全局唯一名 {0}（本服={1}）", botUsername, serverName));
         }
         // 群组服下 Bot 须经代理(BungeeCord / Velocity)连接，其 BungeeCord 频道 Forward 才能被代理跨服中继；
         // 直连后端的 Bot 不在代理玩家命名空间内，Forward 会被静默丢弃，导致跨服请求/发现全部失效。
@@ -463,11 +463,11 @@ public class HttpOverMcPlugin extends JavaPlugin {
      * 控制器类可写 @RequestMapping("/xxx") 为其下方法统一加类级前缀。同时登记网页登记处、
      * 事件监听器（调试日志 + 插件卸载自动卸载其名下 API/网页）与系统级 API。
      */
-    private void initApiFramework(File gatewayDir, Logger log) {
+    private void initApiFramework(File gatewayDir) {
         ConfigurationSection gwCfg = GatewayConfig.loadYml(new File(gatewayDir, "config.yml"));
         String apiPrefix = gwCfg == null ? "/api" : gwCfg.getString("api-prefix", "/api");
 
-        apiRegistry = new ApiRegistry(this, log);
+        apiRegistry = new ApiRegistry(this);
         apiRegistry.setPathPrefix(apiPrefix);
         // 玩家权限映射服务：会话令牌 → 玩家 → 游戏内 Bukkit 权限（细粒度）；
         // 未启用会话颁发器时回退开放（见 PlayerPermissionService）。与 auth 开关解耦，始终生效。
@@ -529,8 +529,7 @@ public class HttpOverMcPlugin extends JavaPlugin {
             }
         }
         if (issuer == null) {
-            LogKit.info("[HTTP-Over-MC] 未启用 session-token 颁发器，网页登录流程未启用"
-                    + "（如需启用，请在 gateway/issuers/session-token.yml 设 enabled: true）");
+            log.info(I18n.t("log.plugin.session-token-disabled", "未启用 session-token 颁发器，网页登录流程未启用（如需启用，请在 gateway/issuers/session-token.yml 设 enabled: true）"));
             return;
         }
         // JWT 签名密钥：MySQL 启用时从共享存储集中下发（meta 表，首个服初始化全局密钥，
@@ -553,10 +552,9 @@ public class HttpOverMcPlugin extends JavaPlugin {
                 : LoginProviderFactory.get(want.trim());
         if (loginProvider == null || !loginProvider.isAvailable()) {
             // 无登录插件：不阻断网页登录——切换为「免密码」模式（仅凭用户名签发令牌，见 AuthLoginBridge）
-            LogKit.warn("[HTTP-Over-MC] 登录插件提供者不可用"
-                    + (want == null || want.trim().isEmpty() ? "" : "（配置 login-provider=" + want + "）")
-                    + "：网页登录将进入【免密码模式】（仅输入用户名即可签发令牌，"
-                    + "令牌权限受 PlayerPermissionService 约束；建议接入 AuthMe 等登录插件）");
+            log.warn(I18n.t("log.plugin.login-provider-unavailable",
+                    "登录插件提供者不可用{0}：网页登录将进入【免密码模式】（仅输入用户名即可签发令牌，令牌权限受 PlayerPermissionService 约束；建议接入 AuthMe 等登录插件）",
+                    want == null || want.trim().isEmpty() ? "" : "（配置 login-provider=" + want + "）"));
             loginProvider = null;
             return;
         }
@@ -566,8 +564,7 @@ public class HttpOverMcPlugin extends JavaPlugin {
         }
         // 立即绑定校验器：离线网页登录不依赖真实玩家登录事件，必须随 bridge 创建/重建即绑定
         loginProvider.bind(authLoginBridge);
-        LogKit.info("[HTTP-Over-MC] 登录插件已接入: " + loginProvider.name()
-                + "（" + loginProvider.displayName() + "），网页登录密码校验可用");
+        log.info(I18n.t("log.plugin.login-provider-ready", "登录插件已接入: {0}（{1}），网页登录密码校验可用", loginProvider.name(), loginProvider.displayName()));
     }
 
     /** 启动无头 Bot 回环连接本服（目标即 Spigot 监听端口），并装配 McLink 隧道。
@@ -607,7 +604,7 @@ public class HttpOverMcPlugin extends JavaPlugin {
         try {
             boolean botDedicated = botManager != null && botManager.isManagedBot(player.getName());
             if (!botDedicated && !player.getName().startsWith(botNamePrefix)) {
-                LogKit.warn("[HTTP-Over-MC] 忽略非 Bot 的 botctl 请求: " + player.getName());
+                log.warn(I18n.t("log.plugin.ignore-botctl", "忽略非 Bot 的 botctl 请求: {0}", player.getName()));
                 return;
             }
             java.io.DataInputStream in = new java.io.DataInputStream(new java.io.ByteArrayInputStream(message));
@@ -620,13 +617,13 @@ public class HttpOverMcPlugin extends JavaPlugin {
             out.flush();
             final byte[] pkt = bos.toByteArray();
             Bukkit.getScheduler().runTask(this, () -> player.sendPluginMessage(this, "BungeeCord", pkt));
-            LogKit.info("[HTTP-Over-MC] 已代 Bot(" + player.getName() + ") 发 Connect 切到: " + target);
+            log.info(I18n.t("log.plugin.bot-connect", "已代 Bot({0}) 发 Connect 切到: {1}", player.getName(), target));
             // 服务端侧兜底登记跨服监听通道（Connect 切服后本服即目标服，立即生效）
             forceBotListen(player, CrossServerHub.CHANNEL_FWD_REQ);
             forceBotListen(player, CrossServerHub.CHANNEL_FWD_RESP);
             forceBotListen(player, CrossServerHub.CHANNEL_DISCOVERY);
         } catch (Throwable t) {
-            LogKit.warn("[HTTP-Over-MC] 处理 botctl 失败: " + t);
+            log.warn(I18n.t("log.plugin.botctl-fail", "处理 botctl 失败: {0}", t));
         }
     }
 
@@ -641,9 +638,9 @@ public class HttpOverMcPlugin extends JavaPlugin {
                 m = player.getClass().getMethod("addChannel", String.class);
             }
             m.invoke(player, ch);
-            LogKit.info("[HTTP-Over-MC] 已为 Bot 强制登记监听通道 " + ch + " -> " + player.getListeningPluginChannels());
+            log.info(I18n.t("log.plugin.force-listen", "已为 Bot 强制登记监听通道 {0} -> {1}", ch, player.getListeningPluginChannels()));
         } catch (Throwable t) {
-            LogKit.warn("[HTTP-Over-MC] 无法为 Bot 强制登记通道 " + ch + ": " + t);
+            log.warn(I18n.t("log.plugin.force-listen-fail", "无法为 Bot 强制登记通道 {0}: {1}", ch, t));
         }
     }
 
@@ -689,12 +686,11 @@ public class HttpOverMcPlugin extends JavaPlugin {
                 public void onJoin(org.bukkit.event.player.PlayerJoinEvent e) {
                     if (botName.equals(e.getPlayer().getName())) {
                         forceBotListen(e.getPlayer(), CrossServerHub.BUNGEECORD_CHANNEL);
-                        LogKit.info("[HTTP-Over-MC] 已为 Bot 强制登记 BungeeCord 监听通道(服务端兜底): " + botName);
+                        log.info(I18n.t("log.plugin.force-listen-bungee", "已为 Bot 强制登记 BungeeCord 监听通道(服务端兜底): {0}", botName));
                     }
                 }
             }, this);
-            LogKit.info("[HTTP-Over-MC] 跨服枢纽已启用: 本服=" + serverName + " host=" + mcHost + ":" + mcPort
-                    + " bot=" + botUsername);
+            log.info(I18n.t("log.plugin.cross-hub-ready", "跨服枢纽已启用: 本服={0} host={1}:{2} bot={3}", serverName, mcHost, mcPort, botUsername));
             startCrossServerDiscovery();
         }
         McMessageHandler handler = new McMessageHandler(this, botUsername, channel, requestScheduler, crossHub);
@@ -760,13 +756,15 @@ public class HttpOverMcPlugin extends JavaPlugin {
 
     /** 启动完成日志（汇总端口 / 通道 / 各模块状态）。 */
     private void logStartup(File webRoot) {
-        LogKit.info("HTTP-Over-MC 已启动（同端口嗅探 + 前端服务 + 安全网关 + 注解式API）: mc=" + mcHost + ":" + mcPort
-                + " 通道=" + channel + " 嗅探器=" + (snifferEnabled ? "开" : "关")
-                + " 网关=" + (gateway == null ? "关" : "开")
-                + " HTTPS=" + (getTlsEngineSupplier() == null ? "关" : "开")
-                + " API注册数=" + (apiRegistry == null ? 0 : apiRegistry.getRoutes().size())
-                + " webroot=" + (webRoot == null ? "(jar 内置)" : webRoot.getAbsolutePath())
-                + " | " + mcPort + " 三协议端口：MC / 明文 HTTP / HTTPS");
+        log.info(I18n.t("log.plugin.startup",
+                "HTTP-Over-MC 已启动（同端口嗅探 + 前端服务 + 安全网关 + 注解式API）: mc={0}:{1} 通道={2} 嗅探器={3} 网关={4} HTTPS={5} API注册数={6} webroot={7} | {8} 三协议端口：MC / 明文 HTTP / HTTPS",
+                mcHost, mcPort, channel,
+                snifferEnabled ? "开" : "关",
+                gateway == null ? "关" : "开",
+                getTlsEngineSupplier() == null ? "关" : "开",
+                apiRegistry == null ? 0 : apiRegistry.getRoutes().size(),
+                webRoot == null ? "(jar 内置)" : webRoot.getAbsolutePath(),
+                mcPort));
     }
 
     /**
@@ -774,7 +772,7 @@ public class HttpOverMcPlugin extends JavaPlugin {
      * 布局：gateway/config.yml（总开关）、gateway/https.yml（HTTPS 设置）、
      * gateway/policies/&lt;name&gt;.yml（每个策略一个文件）。
      */
-    private void rebuildGateway(File gatewayDir, Logger log) {
+    private void rebuildGateway(File gatewayDir) {
         gateway = null;
         tlsFactory = null;
         ConfigurationSection gwCfg = GatewayConfig.loadYml(new File(gatewayDir, "config.yml"));
@@ -784,15 +782,15 @@ public class HttpOverMcPlugin extends JavaPlugin {
         }
         boolean gatewayEnabled = gwCfg != null && gwCfg.getBoolean("enabled", true);
         if (gatewayEnabled) {
-            gateway = new GatewayFilter(log);
+            gateway = new GatewayFilter();
             gateway.reload(gatewayDir);
             ConfigurationSection https = GatewayConfig.loadYml(new File(gatewayDir, "https.yml"));
             if (https != null && https.getBoolean("enabled", true)) {
                 try {
-                    tlsFactory = new TlsContextFactory(log, getDataFolder(), https);
+                    tlsFactory = new TlsContextFactory(getDataFolder(), https);
                     tlsFactory.init();
                 } catch (Exception e) {
-                    LogKit.warn("[HTTP-Over-MC] TLS 初始化失败，HTTPS 功能禁用: " + e.getMessage());
+                    log.warn(I18n.t("log.plugin.tls-init-fail", "TLS 初始化失败，HTTPS 功能禁用: {0}", e.getMessage()));
                     tlsFactory = null;
                 }
             }
@@ -812,7 +810,7 @@ public class HttpOverMcPlugin extends JavaPlugin {
         // 重建多后端存储（主辅/镜像配置可能变更；StorageManager.initialize 内部先关闭旧的）
         initStorage();
         File gatewayDir = ConfigManager.ensureGatewayFiles(this);
-        rebuildGateway(gatewayDir, getLogger());
+        rebuildGateway(gatewayDir);
         // 网关重建后颁发器实例已换新，重新装配玩家权限映射服务（跟踪最新网关）
         if (apiRegistry != null) {
             PlayerPermissionService pps = new PlayerPermissionService(gateway);
@@ -858,6 +856,6 @@ public class HttpOverMcPlugin extends JavaPlugin {
             storageManager = null;
         }
         instance = null;
-        LogKit.info("HTTP-Over-MC 已关闭");
+        log.info(I18n.t("log.plugin.disabled", "HTTP-Over-MC 已关闭"));
     }
 }

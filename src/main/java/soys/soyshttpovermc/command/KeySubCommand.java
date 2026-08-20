@@ -9,6 +9,7 @@ import soys.soyshttpovermc.gateway.GatewayFilter;
 import soys.soyshttpovermc.gateway.policy.auth.issuer.CredentialIssuer;
 import soys.soyshttpovermc.gateway.policy.auth.issuer.IssuedCredential;
 import soys.soyshttpovermc.gateway.policy.auth.issuer.SessionTokenIssuer;
+import soys.soyshttpovermc.i18n.I18n;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -31,16 +32,18 @@ public class KeySubCommand extends SubCommand {
 
     @Override
     public String usage() {
-        return "/soyshttp key <subject> —— 服主手动颁发最高权限 key（免权限访问全部 API，请谨慎）";
+        return I18n.t("command.key.usage",
+                "/soyshttp key <subject> —— 服主手动颁发最高权限 key（免权限访问全部 API，请谨慎）");
     }
 
     @Override
     public String detail() {
-        return "/soyshttp key <subject> —— 为指定主体下发最高权限凭证（admin key，ak_ 前缀）。\n"
+        return I18n.t("command.key.detail",
+                "/soyshttp key <subject> —— 为指定主体下发最高权限凭证（admin key，ak_ 前缀）。\n"
                 + "  <subject>   主体标识（通常为玩家名或外部服务名）。\n"
                 + "会话令牌颁发器启用时，签发的 ak_ key 带 adm 标记，权限层直接放行，可免权限访问全部 API\n"
                 + "（仅用于可信外部服务，请勿外泄）；其它颁发器按普通凭证签发（不具最高权限）。\n"
-                + "Tab 补全在线玩家名；仅 op 可执行。";
+                + "Tab 补全在线玩家名；仅 op 可执行。");
     }
 
     @Override
@@ -56,13 +59,13 @@ public class KeySubCommand extends SubCommand {
     @Override
     public void execute(CommandSender sender, String label, String[] args) {
         if (args.length < 2) {
-            msg(sender, "用法: /soyshttp key <subject>");
+            msgT(sender, "command.key.usage-short", "用法: /soyshttp key <subject>");
             return;
         }
         String subject = args[1];
         GatewayFilter gateway = plugin.getGateway();
         if (gateway == null) {
-            msg(sender, "网关未启用，无法下发凭证");
+            msgT(sender, "command.key.gateway-off", "网关未启用，无法下发凭证");
             return;
         }
         int n = 0;
@@ -75,14 +78,15 @@ public class KeySubCommand extends SubCommand {
                     : issuer.issue(subject);
             n++;
             StringBuilder sb = new StringBuilder();
-            sb.append("已为 ").append(subject).append(" 下发凭证（").append(issuer.name()).append("）:");
+            sb.append(I18n.t("command.key.issued", "已为 {0} 下发凭证（{1}）:", subject, issuer.name()));
             if (c.getApiKey() != null) sb.append("\n  X-API-Key: ").append(c.getApiKey());
             if (c.getBearer() != null) sb.append("\n  Authorization: Bearer ").append(c.getBearer());
             if (c.getCookieName() != null) sb.append("\n  Cookie: ").append(c.getCookieName()).append('=').append(c.getCookieValue());
             int port = plugin.getMcPort();
             sb.append("\n  curl -sk https://").append(plugin.getMcHost()).append(":").append(port).append("/api/status -H \"X-API-Key: ").append(c.getApiKey()).append('"');
             if (issuer instanceof SessionTokenIssuer) {
-                sb.append("\n  ⚠ 该 key 为最高权限（adm），可免权限访问全部 API，请仅用于可信外部服务");
+                sb.append(I18n.t("command.key.admin-warn",
+                        "\n  ⚠ 该 key 为最高权限（adm），可免权限访问全部 API，请仅用于可信外部服务"));
             }
             msg(sender, sb.toString());
             // 触发凭证下发事件（供其他插件联动；同步事件，命令路径在主线程）
@@ -92,7 +96,8 @@ public class KeySubCommand extends SubCommand {
             }
         }
         if (n == 0) {
-            msg(sender, "未启用任何凭证颁发器（请在 gateway/issuers/ 下将对应 yml 的 enabled 设为 true）");
+            msgT(sender, "command.key.no-issuer",
+                    "未启用任何凭证颁发器（请在 gateway/issuers/ 下将对应 yml 的 enabled 设为 true）");
         }
     }
 }

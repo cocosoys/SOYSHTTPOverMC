@@ -1,5 +1,7 @@
 package soys.soyshttpovermc.storage.impl;
+import lombok.CustomLog;
 
+import soys.soyshttpovermc.i18n.I18n;
 import soys.soyshttpovermc.storage.DataStorage;
 import soys.soyshttpovermc.storage.StorageType;
 import soys.soyshttpovermc.storage.SyncRecord;
@@ -20,6 +22,7 @@ import java.util.Collection;
  * 零外部依赖，默认启用；所有记录写在同一个文件（默认 data/records.yml）的
  * {@code records: {key: {type, data, updated_at}}} 节点下，对象锁保证并发安全。
  */
+@CustomLog
 public class YamlStorage implements DataStorage {
 
     private static final String ROOT = "records";
@@ -50,10 +53,10 @@ public class YamlStorage implements DataStorage {
         this.file = new File(plugin.getDataFolder(), path);
         File parent = file.getParentFile();
         if (parent != null && !parent.exists() && !parent.mkdirs()) {
-            throw new IOException("无法创建数据目录: " + parent.getAbsolutePath());
+            throw new IOException(I18n.t("exception.storage.mkdir-data-dir", "无法创建数据目录: {0}", parent.getAbsolutePath()));
         }
         if (!file.exists() && !file.createNewFile()) {
-            throw new IOException("无法创建数据文件: " + file.getAbsolutePath());
+            throw new IOException(I18n.t("exception.storage.create-data-file", "无法创建数据文件: {0}", file.getAbsolutePath()));
         }
         synchronized (lock) {
             this.config = YamlConfiguration.loadConfiguration(file);
@@ -72,7 +75,8 @@ public class YamlStorage implements DataStorage {
                     config.save(file);
                 }
             } catch (IOException e) {
-                soys.soyshttpovermc.log.LogKit.warn("[HTTP-Over-MC] [YAML] 关闭时保存失败: " + e.getMessage());
+                log.warn(I18n.t("log.storage.yaml-shutdown-save-failed",
+                "[YAML] 关闭时保存失败: {0}", e.getMessage()));
             }
             available = false;
         }
@@ -172,7 +176,7 @@ public class YamlStorage implements DataStorage {
             try {
                 Files.copy(file.toPath(), backup.toPath(), StandardCopyOption.REPLACE_EXISTING);
             } catch (IOException e) {
-                soys.soyshttpovermc.log.LogKit.warn("[HTTP-Over-MC] [YAML] 备份失败: " + e.getMessage());
+                log.warn(I18n.t("log.storage.yaml-backup-failed", "[YAML] 备份失败: {0}", e.getMessage()));
             }
         }
         config.save(file);

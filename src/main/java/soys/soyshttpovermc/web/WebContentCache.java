@@ -1,5 +1,7 @@
 package soys.soyshttpovermc.web;
+import lombok.CustomLog;
 
+import soys.soyshttpovermc.i18n.I18n;
 import soys.soyshttpovermc.log.LogKit;
 
 import java.io.File;
@@ -26,6 +28,7 @@ import java.util.function.Supplier;
  * </ul>
  * 线程安全（同步区粒度小）；热替换：磁盘文件按 {@link File#lastModified()} 失效。
  */
+@CustomLog
 public class WebContentCache {
 
     /** LRU 缓存条目。 */
@@ -104,7 +107,7 @@ public class WebContentCache {
             b = safeLoad(loader);
             if (b != null) {
                 pinnedBytes.put(path, b);
-                LogKit.info("[HTTP-Over-MC] Web 缓存：常驻资源已加载 " + path + " (" + b.length + " B，不计入 max-bytes)");
+                log.info(I18n.t("log.web.cache-pinned-load", "Web 缓存：常驻资源已加载 {0} ({1} B，不计入 max-bytes)", path, b.length));
             }
             misses.incrementAndGet();
             return b;
@@ -116,7 +119,7 @@ public class WebContentCache {
             try {
                 return large.load(path, file);
             } catch (Exception e) {
-                LogKit.warn("[HTTP-Over-MC] Web 缓存：大文件加载失败 path=" + path + " loader=" + large.name() + ": " + e);
+                log.warn(I18n.t("log.web.cache-large-fail", "Web 缓存：大文件加载失败 path={0} loader={1}: {2}", path, large.name(), e));
                 return null;
             }
         }
@@ -190,7 +193,7 @@ public class WebContentCache {
         try {
             return loader == null ? null : loader.get();
         } catch (Throwable t) {
-            LogKit.warn("[HTTP-Over-MC] Web 缓存：资源加载异常: " + t);
+            log.warn(I18n.t("log.web.cache-load-exception", "Web 缓存：资源加载异常: {0}", t));
             return null;
         }
     }

@@ -35,6 +35,16 @@ public abstract class SoysHttpException extends RuntimeException {
         this.code = code;
     }
 
+    /** 格式化消息构造器：{@code new ApiException("用户 %s 已存在", name)}。 */
+    protected SoysHttpException(Module module, String code, String fmt, Object... args) {
+        this(module, code, String.format(fmt, args));
+    }
+
+    /** 格式化消息并携带根因：{@code new ApiException("读取 %s 失败", e, path)}。 */
+    protected SoysHttpException(Module module, String code, String fmt, Throwable cause, Object... args) {
+        this(module, code, String.format(fmt, args), cause);
+    }
+
     public Module getModule() { return module; }
 
     public String getCode() { return code; }

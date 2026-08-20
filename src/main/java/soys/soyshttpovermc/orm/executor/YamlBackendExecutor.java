@@ -1,5 +1,7 @@
 package soys.soyshttpovermc.orm.executor;
+import lombok.CustomLog;
 
+import soys.soyshttpovermc.i18n.I18n;
 import soys.soyshttpovermc.log.LogKit;
 import soys.soyshttpovermc.orm.convertor.BeanCodec;
 import soys.soyshttpovermc.orm.meta.FieldMeta;
@@ -35,6 +37,7 @@ import java.util.concurrent.ConcurrentHashMap;
  *   <li>写：对象锁 + 临时文件 rename 原子替换（同本项目 YamlStorage.flush 模式）。</li>
  * </ul>
  */
+@CustomLog
 public class YamlBackendExecutor implements IBackendExecutor {
 
     private static final Map<File, YamlBackendExecutor> INSTANCES = new ConcurrentHashMap<>();
@@ -87,7 +90,7 @@ public class YamlBackendExecutor implements IBackendExecutor {
             if (config == null) {
                 File file = fileOf(beanClass);
                 if (!file.getParentFile().exists() && !file.getParentFile().mkdirs()) {
-                    LogKit.warn("[HTTP-Over-MC] [ORM] 无法创建数据目录: " + file.getParentFile());
+                    log.warn(I18n.t("log.orm.mkdir-failed", "[ORM] 无法创建数据目录: {0}", file.getParentFile()));
                 }
                 config = file.isFile() ? YamlConfiguration.loadConfiguration(file) : new YamlConfiguration();
                 if (!config.isConfigurationSection(table)) {
@@ -113,7 +116,7 @@ public class YamlBackendExecutor implements IBackendExecutor {
     private void flush(YamlConfiguration config, File target) {
         try {
             if (!target.getParentFile().exists() && !target.getParentFile().mkdirs()) {
-                LogKit.warn("[HTTP-Over-MC] [ORM] 无法创建数据目录: " + target.getParentFile());
+                log.warn(I18n.t("log.orm.mkdir-failed", "[ORM] 无法创建数据目录: {0}", target.getParentFile()));
                 return;
             }
             File tmp = new File(target.getParentFile(), target.getName() + ".tmp");
@@ -121,7 +124,7 @@ public class YamlBackendExecutor implements IBackendExecutor {
             Files.move(tmp.toPath(), target.toPath(),
                     StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
         } catch (IOException | RuntimeException e) {
-            LogKit.warn("[HTTP-Over-MC] [ORM] YAML 落盘失败: " + e.getMessage());
+            log.warn(I18n.t("log.orm.yaml-flush-failed", "[ORM] YAML 落盘失败: {0}", e.getMessage()));
         }
     }
 
@@ -132,7 +135,7 @@ public class YamlBackendExecutor implements IBackendExecutor {
         if (id == null) return null;
         PojoMeta meta = PojoMeta.of(beanClass);
         if (!meta.hasId()) {
-            throw new IllegalArgumentException("实体 " + beanClass.getSimpleName() + " 未标注 @TableId");
+            throw new IllegalArgumentException(I18n.t("exception.orm.no-tableid-annotation", "实体 {0} 未标注 @TableId", beanClass.getSimpleName()));
         }
         ConfigurationSection root = getConfig(beanClass).getConfigurationSection(meta.getTableName());
         ConfigurationSection section = root == null ? null : root.getConfigurationSection(String.valueOf(id));
@@ -234,7 +237,7 @@ public class YamlBackendExecutor implements IBackendExecutor {
         PojoMeta meta = PojoMeta.of(beanClass);
         Object id = idOf(meta, bean);
         if (id == null) {
-            throw new IllegalArgumentException("实体 " + beanClass.getSimpleName() + " 主键(@TableId)未赋值，无法插入");
+            throw new IllegalArgumentException(I18n.t("exception.orm.tableid-not-assigned", "实体 {0} 主键(@TableId)未赋值，无法插入", beanClass.getSimpleName()));
         }
         synchronized (lock) {
             YamlConfiguration config = getConfig(beanClass);

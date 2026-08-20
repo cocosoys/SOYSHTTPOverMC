@@ -52,6 +52,11 @@ public class AjaxResult extends HashMap<String, Object> {
         return new AjaxResult(SUCCESS, msg, data);
     }
 
+    /** 格式化成功消息（String.format 风格），如 {@code successf("已更新 %s", id)}。 */
+    public static AjaxResult successf(String fmt, Object... args) {
+        return new AjaxResult(SUCCESS, String.format(fmt, args));
+    }
+
     // ===== 失败 =====
     public static AjaxResult error() {
         return new AjaxResult(ERROR, "操作失败");
@@ -65,17 +70,42 @@ public class AjaxResult extends HashMap<String, Object> {
         return new AjaxResult(code, msg);
     }
 
+    /** 格式化失败消息，如 {@code errorf("缺少参数 %s", name)}。 */
+    public static AjaxResult errorf(String fmt, Object... args) {
+        return new AjaxResult(ERROR, String.format(fmt, args));
+    }
+
+    /** 格式化指定码失败消息，如 {@code errorf(400, "参数 %s 不合法: %s", name, value)}。 */
+    public static AjaxResult errorf(int code, String fmt, Object... args) {
+        return new AjaxResult(code, String.format(fmt, args));
+    }
+
     // ===== 语义化 =====
     public static AjaxResult unauthorized(String msg) {
         return new AjaxResult(UNAUTHORIZED, msg == null ? "认证失败" : msg);
+    }
+
+    /** 格式化认证失败消息，如 {@code unauthorizedf("凭据无效: %s", token)}。 */
+    public static AjaxResult unauthorizedf(String fmt, Object... args) {
+        return new AjaxResult(UNAUTHORIZED, String.format(fmt, args));
     }
 
     public static AjaxResult forbidden(String msg) {
         return new AjaxResult(FORBIDDEN, msg == null ? "没有访问权限" : msg);
     }
 
+    /** 格式化无权限消息，如 {@code forbiddenf("API %s 需要 %s", api, perm)}。 */
+    public static AjaxResult forbiddenf(String fmt, Object... args) {
+        return new AjaxResult(FORBIDDEN, String.format(fmt, args));
+    }
+
     public static AjaxResult notFound(String msg) {
         return new AjaxResult(NOT_FOUND, msg == null ? "资源不存在" : msg);
+    }
+
+    /** 格式化资源不存在消息，如 {@code notFoundf("资源 %s 不存在", path)}。 */
+    public static AjaxResult notFoundf(String fmt, Object... args) {
+        return new AjaxResult(NOT_FOUND, String.format(fmt, args));
     }
 
     // ===== 访问器 =====

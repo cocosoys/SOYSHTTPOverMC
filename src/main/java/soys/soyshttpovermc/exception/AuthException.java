@@ -18,4 +18,16 @@ public class AuthException extends SoysHttpException {
     public AuthException(String message, Throwable cause) {
         super(Module.AUTH, "AUTH_ERR", message, cause);
     }
+
+    public AuthException(String code, String fmt, Object... args) {
+        super(Module.AUTH, code, fmt, args);
+    }
+
+    public AuthException(String fmt, Object... args) {
+        super(Module.AUTH, "AUTH_ERR", fmt, args);
+    }
+
+    public AuthException(String code, String fmt, Throwable cause, Object... args) {
+        super(Module.AUTH, code, fmt, cause, args);
+    }
 }

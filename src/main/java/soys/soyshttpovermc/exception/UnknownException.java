@@ -18,4 +18,17 @@ public class UnknownException extends SoysHttpException {
     public UnknownException(String message, Throwable cause) {
         super(Module.UNKNOWN, "E_UNKNOWN", message, cause);
     }
+
+
+    public UnknownException(String code, String fmt, Object... args) {
+        super(Module.UNKNOWN, code, fmt, args);
+    }
+
+    public UnknownException(String fmt, Object... args) {
+        super(Module.UNKNOWN, "E_UNKNOWN", fmt, args);
+    }
+
+    public UnknownException(String code, String fmt, Throwable cause, Object... args) {
+        super(Module.UNKNOWN, code, fmt, cause, args);
+    }
 }

@@ -1,5 +1,6 @@
 package soys.soyshttpovermc.orm.executor;
 
+import soys.soyshttpovermc.i18n.I18n;
 import soys.soyshttpovermc.orm.query.ConditionTree;
 import soys.soyshttpovermc.orm.query.Page;
 
@@ -43,6 +44,6 @@ public interface IBackendExecutor {
      * 二期实现（YAML=全量扫描 LIKE；SQL=LIKE 查询）。当前未实现，调用抛 UnsupportedOperationException。
      */
     default <T> List<T> search(Class<T> beanClass, String keyword, String... fields) {
-        throw new UnsupportedOperationException("跨端搜索配置文件通道预留中（二期实现），请稍候");
+        throw new UnsupportedOperationException(I18n.t("exception.orm.search-reserved", "跨端搜索配置文件通道预留中（二期实现），请稍候"));
     }
 }

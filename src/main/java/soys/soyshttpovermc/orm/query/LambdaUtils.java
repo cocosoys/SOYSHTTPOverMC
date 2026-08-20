@@ -1,5 +1,7 @@
 package soys.soyshttpovermc.orm.query;
 
+import soys.soyshttpovermc.i18n.I18n;
+
 import java.lang.invoke.SerializedLambda;
 import java.lang.reflect.Method;
 
@@ -26,12 +28,12 @@ public final class LambdaUtils {
             String implMethod = lambda.getImplMethodName();
             String field = methodToField(implMethod);
             if (field == null) {
-                throw new IllegalArgumentException("无法从 Lambda 提取字段名: " + implMethod
-                        + "（请使用 getter/is 方法引用，如 User::getName）");
+                throw new IllegalArgumentException(I18n.t("exception.orm.lambda-extract-fail",
+                            "无法从 Lambda 提取字段名: {0}（请使用 getter/is 方法引用，如 User::getName）", implMethod));
             }
             return field;
         } catch (ReflectiveOperationException e) {
-            throw new IllegalArgumentException("Lambda 字段名提取失败: " + e.getMessage(), e);
+            throw new IllegalArgumentException(I18n.t("exception.orm.lambda-extract-error", "Lambda 字段名提取失败: {0}", e.getMessage()), e);
         }
     }
 
