@@ -1,0 +1,33 @@
+# ==== pages.yml —— 手动注册网页资源 / 跳转（可选，默认空） ====
+# 每次服务器启动与 /soyshttp reload 时重新装配；全部使用【强制登记】，可覆盖核心或其它插件已注册的同路径页面。
+#
+# 支持两种自动注册写法 pages.page 与 pages.auto：
+#
+# ◆ pages.page —— 显式页面（resource + 可选 nicknames / description）
+#     "/路径":
+#       nicknames:          # 昵称路由（别名 URL 路径）：访问昵称同样命中本页面
+#         - "主页"
+#       description: "..."  # 界面说明：/soyshttp pages 展示时自动拼接 “ —— ”+description
+#       resource: <来源>    # 单个文件/资源；【不支持目录】按扩展名推断 Content-Type（.html 为 text/html）
+#                             · 相对插件数据目录：  "web/notice.html"
+#                             · 绝对磁盘路径：     "D:/sites/my-html/notice.html"
+#                             · jar 内置资源：     "/dist/xxx.html"
+#
+# ◆ pages.auto —— 平价注册：键 = URL 路径，值 = 来源
+#     "/路径": <来源>
+#       · 单文件/资源：如上（按扩展名推断类型）
+#       · 目录：递归注册该文件夹下【所有 .html】文件，按相对路径挂载；配合键 "/" 即“写 / 注册文件夹下所有 html”
+#       · 值以反引号包裹 => 登记 302 网络跳转： "/path": "`https://外部目标/`"（也可跳转站内路径）
+#
+# 修改后请执行 /soyshttp reload 或重启服务器生效。
+pages:
+  page:
+    "/":
+      nicknames:
+        - "主页"
+      description: "首页，可通过 '/主页' 昵称访问"
+      resource: "dist/index.html"
+  auto:
+    # "/notice": "web/notice.html"
+     "/": "dist/"
+    # "/link/mcmod": "`https://www.mcmod.cn/`"

@@ -12,7 +12,7 @@ import java.util.List;
 
 /**
  * /soyshttp migrate &lt;来源&gt; &lt;目标&gt; [overwrite] —— 在任意两个存储后端之间迁移全量数据
- * （照抄 SOYSOceanBox 的 /soceanboxadmin migrate）。异步执行，完成后回执迁移记录数。
+ * 异步执行，完成后回执迁移记录数。
  */
 public class MigrateSub extends SubCommand {
 

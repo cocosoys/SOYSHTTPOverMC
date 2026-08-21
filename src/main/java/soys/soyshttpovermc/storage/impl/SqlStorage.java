@@ -21,7 +21,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * SQL 存储后端的公共实现（照抄 SOYSOceanBox 的 SqlStorage）：
+ * SQL 存储后端的公共实现：
  * SQLite 与 MySQL 共用同一套表结构与 CRUD，子类只需提供驱动类名、连接创建方式、
  * 建表语句与容忍式迁移语句（方言）。
  *

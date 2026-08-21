@@ -15,10 +15,6 @@ import soys.soyshttpovermc.i18n.I18n;
  * （TRACE=FINEST / DEBUG=FINE / INFO=INFO / WARN=WARNING / ERROR=SEVERE），避免走
  * {@code ConsoleCommandSender#sendMessage} —— 那会被聊天相关监听器捕获而产生副作用。</p>
  *
- * <p>着色方案：继承 Bukkit {@link Color} 调色板，插件标签（{@code [HTTP-Over-MC]}）用
- * 渐变色点缀，{@code [类名] + 消息} 用级别色（DEBUG/TRACE=青、INFO=绿、WARN=黄、ERROR=红）；
- * 上色经 {@link StringColor}/{@link Color} 完成，{@link Color#ENABLE_ANSI} 关闭时退化为纯文本。</p>
- *
  * <p>两种用法并存：</p>
  * <ul>
  *   <li><b>Lombok 实例写法（推荐）</b>：给类加 {@code @CustomLog}，生成 {@code static final LogKit log}，
@@ -72,16 +68,6 @@ public class LogKit {
         }
     }
 
-    private static Color colorFor(int tier) {
-        switch (tier) {
-            case 5:
-            case 4:  return Color.AQUA;
-            case 2:  return Color.YELLOW;
-            case 1:  return Color.RED;
-            default: return Color.GREEN;
-        }
-    }
-
     // ========= 实例（@CustomLog 注入用） =========
 
     protected final String prefix;
@@ -98,21 +84,27 @@ public class LogKit {
 
     /**
      * 组装带色前缀与类名的整行日志：插件标签用渐变色点缀，消息用级别色。
-     * 仅在全局日志级别调到 DEBUG 及以上（{@link #isDebugEnabled()}）时才打印类名（短类名），
-     * 方便调试溯源；INFO/WARN/ERROR 下保持输出简洁、不打印类名。
+     * 仅在全局日志级别调到 DEBUG 及以上（{@link #isDebugEnabled()}）时才打印类名：
+     * DEBUG 打印短类名；TRACE 打印<b>完整类名（含包路径）+ 线程名</b>，便于精确定位来源与线程上下文；
+     * INFO/WARN/ERROR 下保持输出简洁、不打印类名。
      */
     protected String formatMessage(String rawMessage, int tier) {
         if (rawMessage == null) rawMessage = "null";
         StringBuilder sb = new StringBuilder();
-        if (prefix != null && !prefix.isEmpty()) {
-            sb.append(StringColor.gradient(prefix, Color.AQUA, Color.LIGHT_PURPLE)).append(' ');
-        }
-        sb.append(Color.fg(colorFor(tier)));
+//        if (prefix != null && !prefix.isEmpty()) {
+//            sb.append(StringColor.gradient(prefix, Color.AQUA, Color.LIGHT_PURPLE)).append(' ');
+//        }
+//        sb.append(Color.fg(colorFor(tier)));
         if (isDebugEnabled()) {
-            sb.append('[').append(sourceClass.getSimpleName()).append("] ");
+            if (tier == 5) { // TRACE：完整类名（含包路径）+ 线程名，便于精确定位日志来源与线程上下文
+                sb.append('[').append(Thread.currentThread().getName()).append("] ")
+                        .append('[').append(sourceClass.getName()).append("] ");
+            } else {
+                sb.append('[').append(sourceClass.getSimpleName()).append("] ");
+            }
         }
         sb.append(rawMessage);
-        sb.append(Color.reset());
+//        sb.append(Color.reset());
         return sb.toString();
     }
 

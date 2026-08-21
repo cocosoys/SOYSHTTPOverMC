@@ -3,7 +3,7 @@ package soys.soyshttpovermc.storage;
 import java.util.Collection;
 
 /**
- * 数据存储后端抽象（照抄 SOYSOceanBox 的 DataStorage，数据面为通用 {@link SyncRecord}）。
+ * 数据存储后端抽象（数据面为通用 {@link SyncRecord}）。
  * <ul>
  *   <li>方法可能在异步线程被调用，实现需保证线程安全；</li>
  *   <li>任何失败以异常上报，由 {@link StorageManager} 统一降级/镜像处理；</li>

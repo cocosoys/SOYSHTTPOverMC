@@ -3,7 +3,7 @@
 本章讲解如何把数据持久化。本插件提供两套互补的存储能力：
 
 - **ORM（对象关系映射）**：用一套注解同时读写 **YAML 文件**与 **SQL 数据库**，API 表面完全一致；
-- **StorageManager（主辅镜像协调器）**：面向“原生记录（`SyncRecord`）”的多后端主辅镜像，照抄自 SOYSOceanBox 的设计。
+- **StorageManager（主辅镜像协调器）**：面向“原生记录（`SyncRecord`）”的多后端主辅镜像。
 
 两者解决不同层次的问题：ORM 让你像操作 Java 对象一样读写业务实体；StorageManager 负责跨后端一致性与热备。
 

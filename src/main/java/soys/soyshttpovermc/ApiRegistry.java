@@ -259,8 +259,8 @@ public class ApiRegistry {
                 registered.add(new ApiInfo(method, path, apiName, permission, cls.getName(), ownerName));
                 log.infoT("log.registry.register",
                         "注册 API: {0} 名称={1} 插件={2}{3}{4}", key, apiName, ownerName,
-                        proxy ? " (代理无前缀)" : "",
-                        permission.isEmpty() ? "" : " 权限=" + permission);
+                        proxy ? I18n.t("log.registry.label.proxy-no-prefix", " (代理无前缀)") : "",
+                        permission.isEmpty() ? "" : I18n.t("log.registry.label.permission", " 权限={0}", permission));
             }
         }
         if (n == 0) {

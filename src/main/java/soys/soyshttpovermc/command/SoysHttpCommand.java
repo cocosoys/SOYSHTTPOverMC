@@ -16,6 +16,8 @@ import java.util.Map;
 
 import static soys.soyshttpovermc.util.StringListUtil.matchByPrefix;
 
+import soys.soyshttpovermc.util.StringListUtil;
+
 /**
  * /soyshttp 命令执行器（从 {@code HttpOverMcPlugin} 抽离）：
  * 本类仅负责<b>分发</b>与<b>op 校验</b>与<b>help 聚合</b>（tab 补全），具体逻辑下放到各 {@link SubCommand} 子类。
@@ -53,6 +55,7 @@ public class SoysHttpCommand implements CommandExecutor, TabCompleter {
         register(new ApiSubCommand(plugin));
         register(new TokensSubCommand(plugin));
         register(new LangSubCommand(plugin));
+        register(new LogLevelSubCommand(plugin));
         register(new MigrateSub(plugin));
         register(new SyncSub(plugin));
     }
@@ -80,16 +83,26 @@ public class SoysHttpCommand implements CommandExecutor, TabCompleter {
             return false;
         }
         if (args.length == 0) {
-            sendUsage(sender);
+            sendUsage(sender, 1);
             return true;
         }
-        // /soyshttp help [子指令] —— 帮助：无参数列总览；带子指令名展示该子指令详细用法
+        // /soyshttp help [页码|子指令] —— 帮助：无参数列总览（分页）；数值=页码；子指令名=详细用法
         if (args[0].equalsIgnoreCase("help")) {
             if (args.length > 1) {
+                if (isNumeric(args[1])) {
+                    int p = 1;
+                    try {
+                        p = Integer.parseInt(args[1]);
+                    } catch (NumberFormatException ignored) {
+                        // 超长数字：走默认第 1 页
+                    }
+                    sendUsage(sender, p);
+                    return true;
+                }
                 SubCommand target = getSubCommands().get(args[1].toLowerCase());
                 if (target == null) {
                     msgT(sender, "command.common.unknown-child", "§c未知子指令: {0}", args[1]);
-                    sendUsage(sender);
+                    sendUsage(sender, 1);
                     return true;
                 }
                 if (target.requireOp() && !sender.isOp()) {
@@ -103,13 +116,13 @@ public class SoysHttpCommand implements CommandExecutor, TabCompleter {
                 }
                 return true;
             }
-            sendUsage(sender);
+            sendUsage(sender, 1);
             return true;
         }
         SubCommand sub = getSubCommands().get(args[0].toLowerCase());
         if (sub == null) {
             msgT(sender, "command.common.unknown-child", "§c未知子指令: {0}", args[0]);
-            sendUsage(sender);
+            sendUsage(sender, 1);
             return true;
         }
         if (sub.requireOp() && !sender.isOp()) {
@@ -153,8 +166,12 @@ public class SoysHttpCommand implements CommandExecutor, TabCompleter {
         return Collections.emptyList();
     }
 
-    private void sendUsage(CommandSender sender) {
-        sender.sendMessage(I18n.t("command.common.help-title", "§a§l[SOYSHTTPOverMC] §f可用子指令："));
+    /**
+     * 汇总输出全部可用子指令（分页：页眉 + 内容 + 页尾，每页默认 {@link StringListUtil#DEFAULT_PAGE_SIZE} 条；
+     * 页号自动夹到合法区间，越界不报错）。页眉/页尾格式由 static final 常量统一控制。
+     */
+    private void sendUsage(CommandSender sender, int page) {
+        List<String> content = new ArrayList<>();
         for (SubCommand sub : getSubCommands().values()) {
             if (sub.requireOp() && !sender.isOp()) continue; // 非 op 不展示 op 指令
             String usage = sub.usage();
@@ -165,10 +182,33 @@ public class SoysHttpCommand implements CommandExecutor, TabCompleter {
                 cmd = usage.substring(0, idx);
                 desc = usage.substring(idx + 4);
             }
-            sender.sendMessage("  §e" + cmd + " §7" + desc);
+            content.add("  §e" + cmd + " §7" + desc);
         }
-        sender.sendMessage(I18n.t("command.common.more-hint", "  §e/soyshttp help <子指令> §7查看子指令详细用法"));
-        sender.sendMessage(I18n.t("command.common.shortcut-hint", "  §7（shttp 为简写命令）"));
+        int totalItems = content.size();
+        int size = StringListUtil.DEFAULT_PAGE_SIZE;
+        int totalPages = Math.max(1, (totalItems + size - 1) / size);
+        int cur = Math.max(1, Math.min(page, totalPages));
+
+        String header = I18n.t(HELP_HEADER_KEY, "§a§l[SOYSHTTPOverMC] §f可用子指令：");
+        String footer = I18n.t(HELP_FOOTER_KEY,
+                "  §7· 第 {0}/{1} 页 · 共 {2} 条 · /soyshttp help <页码> 翻页 / /soyshttp help <子指令> 看详情 ·",
+                cur, totalPages, totalItems);
+        for (String line : StringListUtil.page(header, content, footer, cur, size).lines) {
+            sender.sendMessage(line);
+        }
+    }
+
+    /** 页眉 i18n 键（帮助分页展露时统一静态控制）。 */
+    private static final String HELP_HEADER_KEY = "command.common.help-title";
+    /** 页尾 i18n 键（帮助分页展露时统一静态控制）。 */
+    private static final String HELP_FOOTER_KEY = "command.common.help-footer";
+
+    private static boolean isNumeric(String s) {
+        if (s == null || s.isEmpty()) return false;
+        for (int i = 0; i < s.length(); i++) {
+            if (!Character.isDigit(s.charAt(i))) return false;
+        }
+        return true;
     }
 
     private void msg(CommandSender sender, String text) {

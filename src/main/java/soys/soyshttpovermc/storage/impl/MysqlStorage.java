@@ -11,7 +11,7 @@ import java.sql.Connection;
 import java.sql.SQLException;
 
 /**
- * MySQL 存储后端（照抄 SOYSOceanBox 的 MysqlStorage）：
+ * MySQL 存储后端：
  * 启用后自动成为主存储（优先级最高），可跨服共享数据。
  * 配置仅需 url / username / password / keepalive-interval，url 直连。
  * DDL 使用 MySQL 5.6 兼容语法；驱动 8.x 优先、5.x 回退。

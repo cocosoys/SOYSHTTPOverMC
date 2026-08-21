@@ -28,3 +28,4 @@ log.homepage.unregister-all: "[ihomepages] 注销全部首页: {0} 个"
 
 mhp.disabled: "[ihomepages] 已在 config.yml 中禁用（enabled: false），跳过注册。"
 mhp.registered: "[ihomepages] 已注册自定义主页：/ + /api/homepage/{config,live,gift/claim,gift/status}"
+mhp.host-missing: "[ihomepages] 未找到 SOYSHTTPOverMC 宿主插件，跳过自定义主页注册"

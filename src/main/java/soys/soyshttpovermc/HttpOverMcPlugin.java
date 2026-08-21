@@ -2,10 +2,10 @@ package soys.soyshttpovermc;
 import lombok.CustomLog;
 
 import soys.soyshttpovermc.log.LogKit;
-import soys.soyshttpovermc.log.StringColor;
 
 import soys.soyshttpovermc.command.SoysHttpCommand;
 import soys.soyshttpovermc.config.ConfigManager;
+import soys.soyshttpovermc.config.ManualPagesConfig;
 import soys.soyshttpovermc.event.ApiLifecycleListener;
 import soys.soyshttpovermc.event.GatewayEventListener;
 
@@ -41,6 +41,7 @@ import soys.soyshttpovermc.proxy.ProxyDetector;
 import soys.soyshttpovermc.proxy.ProxyPlatform;
 import soys.soyshttpovermc.proxy.ServerRegistry;
 import soys.soyshttpovermc.proxy.ServerTag;
+import soys.soyshttpovermc.i18n.I18n;
 import soys.soyshttpovermc.cross.CrossServerHub;
 import soys.soyshttpovermc.web.RequestStats;
 import soys.soyshttpovermc.web.WebFrontendHandler;
@@ -97,6 +98,8 @@ public class HttpOverMcPlugin extends JavaPlugin {
     private volatile LoginProvider loginProvider;
     /** 前端处理器（/soyshttp reload 后向其热替换登录桥） */
     private WebFrontendHandler webFrontend;
+    /** 前端磁盘根（web.root 解析结果；核心网页登记、reload 复用） */
+    private File webRootDir;
     /** 登录窗口认证服务（/soyshttp reload 后向其热替换登录桥） */
     private AuthServiceImpl authService;
     /** 当前运行拓扑：独立服 / BungeeCord(Waterfall) / Velocity（群组服探测结果，影响 Bot 握手转发兼容与对外地址） */
@@ -186,14 +189,30 @@ public class HttpOverMcPlugin extends JavaPlugin {
 
     @Override
     public void onEnable() {
+        // 0) EULA 使用/开发协议校验：运行时把内置 EULA.yml（简中/繁中/英文/日文/韩文 条款）复制到配置目录，
+        //    读取其中的 eula 标志；未同意则禁用插件并提示用户在 EULA.yml 阅读并填写 eula: true
+        if (!loadEulaAccepted()) {
+            promptEulaDisabled();
+            getServer().getPluginManager().disablePlugin(this);
+            return;
+        }
+
         instance = this;
         saveDefaultConfig();
 
+        // 0.5) 国际化：尽早加载 config.yml language 指定的语言包（务必先于任何中文日志；
+        //      否则 EULA 之后、原 3.25 之前的启动日志（bot 前缀校验 / 拓扑探测 / web 目录 / 登录提供者）
+        //      在切换为 en_us 时仍会以中文兜底输出）
+        soys.soyshttpovermc.i18n.I18n.init(getDataFolder(), getConfig().getString("language", ""));
+
         // 1) 读取核心运行参数（Bot 用户名 / 通道 / 本服地址 / 嗅探开关等）
         loadCoreConfig();
+        // 1.5) 数据贡献（upload）：同意后将本服 IP:端口 匿名 POST 上报为数据统计（异步，失败不影响运行）
+        handleUploadContribution();
         // 2) 生成 gateway/ 默认配置 + 解析前端资源目录（留空解压 jar 内置面板到配置目录 web/）
         File gatewayDir = ConfigManager.ensureGatewayFiles(this);
-        File webRoot = ConfigManager.resolveWebRoot(this, getFile(), getConfig().getString("web.root", ""));
+        webRootDir = ConfigManager.resolveWebRoot(this, getFile(), getConfig().getString("web.root", ""));
+        File webRoot = webRootDir;
         // 2.5) 登录插件抽象工厂：配置上下文 + 注册软依赖提供者（AuthMe 存在才加载其 SPI 类，防 NoClassDefFoundError）
         LoginProviderFactory.configure(new LoginProviderContext(this));
         if (getServer().getPluginManager().getPlugin("AuthMe") != null) {
@@ -201,8 +220,8 @@ public class HttpOverMcPlugin extends JavaPlugin {
         }
         // 3) 日志门面 + 级别过滤（config.yml 的 log.level，/soyshttp reload 热重载）
         LogKit.init(getLogger(), getConfig().getString("log.level", "INFO"));
-        // 3.25) 国际化：从 <dataFolder>/language/ 加载默认 zh_cn 语言包到内存（须在日志就绪后装配）
-        soys.soyshttpovermc.i18n.I18n.init(getDataFolder());
+        // 3.25) 国际化：加载 config.yml language 指定的语言包到内存（须在日志就绪后装配；语言经 /soyshttp lang 持久化）
+        soys.soyshttpovermc.i18n.I18n.init(getDataFolder(), getConfig().getString("language", ""));
         // 3.5) Web 内容缓存（常驻 pinned + LRU 存活释放 + 大文件加载抽象；须在日志就绪后装配）
         initWebCache();
         // 3.6) 请求级拦截器 / CORS 声明注册中心（供第三方 SPI 与 WebFrontendHandler 使用）
@@ -229,6 +248,9 @@ public class HttpOverMcPlugin extends JavaPlugin {
         initBot();
         // 6.5) 对外集成门面（聚合 API 注册 / 网页登记 / 凭证 / 日志 / Bot / HTTP，供第三方插件接入）
         initApiImpl();
+
+        // 6.75) 静态可打开界面纳入【统一注册通道】：装配 pages.yml 手动登记（强制注册，可覆盖核心/第三方已注册页）。
+        ManualPagesConfig.register(this, webRegistry);
 
         // 7) 统计 / 状态 API / 前端处理器 / 通道消息处理（返回统计实例供嗅探器复用）
         RequestStats stats = initFrontend(webRoot);
@@ -301,7 +323,7 @@ public class HttpOverMcPlugin extends JavaPlugin {
     }
 
     /**
-     * 装配多后端数据存储（照抄 SOYSOceanBox：storage.backends.{yaml,sqlite,mysql} + 主辅 + 镜像）：
+     * 装配多后端数据存储（storage.backends.{yaml,sqlite,mysql} + 主辅 + 镜像）：
      * 初始化全部启用的后端并选出主存储；语义层（RecordSyncStorage）桥接跨服同步数据
      * （黑名单/审计/心跳/密钥）到主辅存储；keepAlive 由 StorageManager 内部定时；
      * 实例心跳在此定时。无任何可用后端 → 降级内存模式（不影响插件运行）。
@@ -365,6 +387,85 @@ public class HttpOverMcPlugin extends JavaPlugin {
         return local;
     }
 
+    /** 输出 EULA 未同意时的禁用提示（服务器启动阶段打印，引导用户阅读 EULA.yml 并填写 eula: true）。 */
+    private void promptEulaDisabled() {
+        getLogger().severe("==============================SOYSHTTPOverMC==============================");
+        getLogger().severe("【简体中文】SOYSHTTPOverMC 尚未启用！");
+        getLogger().severe("【简体中文】您尚未同意《使用与开发协议》（EULA）。");
+        getLogger().severe("【简体中文】请阅读 plugins/SOYSHTTPOverMC/EULA.yml 中的协议条款");
+        getLogger().severe("【简体中文】并将 eula: false 改为 eula: true 后重启服务器。");
+        getLogger().severe("【简体中文】郑重提示：禁止使用本插件从事违法犯罪活动，包括但不限于");
+        getLogger().severe("【简体中文】建设/跳转黄赌毒网址、投放恐怖分子言论、破坏他人计算机系统等。");
+
+        getLogger().severe("【English】SOYSHTTPOverMC is not enabled!");
+        getLogger().severe("【English】You have not agreed to the End‑User License Agreement (EULA).");
+        getLogger().severe("【English】Please read the agreement in plugins/SOYSHTTPOverMC/EULA.yml");
+        getLogger().severe("【English】change eula: false to eula: true then restart your server.");
+        getLogger().severe("【English】Important Notice: Do NOT use this plugin for illegal or criminal activities, including but not limited to");
+        getLogger().severe("【English】hosting/redirecting porn,gambling,drug sites, spreading terrorist content, damaging third‑party computer systems.");
+
+        getLogger().severe("【繁體中文】SOYSHTTPOverMC 尚未啟用！");
+        getLogger().severe("【繁體中文】您尚未同意《使用與開發協議》（EULA）。");
+        getLogger().severe("【繁體中文】請閱讀 plugins/SOYSHTTPOverMC/EULA.yml 中的協議條款");
+        getLogger().severe("【繁體中文】並將 eula: false 改為 eula: true 後重啟伺服器。");
+        getLogger().severe("【繁體中文】鄭重提示：禁止使用本外掛從事違法犯罪活動，包括但不限於");
+        getLogger().severe("【繁體中文】建立/跳轉黃賭毒網址、發布恐怖主義言論、破壞他人電腦系統等。");
+
+        getLogger().severe("==============================SOYSHTTPOverMC==============================");
+    }
+
+    /**
+     * 确保 EULA.yml 已复制到配置目录并读取是否已同意协议。
+     * 首次运行经 {@code saveResource("EULA.yml", false)} 把内置协议（简繁英日韩）复制到配置目录；
+     * 之后读取其中的 {@code eula} 标志：{@code eula: true} 视为已同意。读取失败一律按未同意处理。
+     */
+    private boolean loadEulaAccepted() {
+        try {
+            File eulaFile = new File(getDataFolder(), "EULA.yml");
+            if (!eulaFile.isFile()) {
+                saveResource("EULA.yml", false);
+            }
+            org.bukkit.configuration.file.YamlConfiguration yml =
+                    org.bukkit.configuration.file.YamlConfiguration.loadConfiguration(eulaFile);
+            return yml.getBoolean("eula", false);
+        } catch (Throwable t) {
+            log.warnT("log.plugin.eula-read-fail", "读取 EULA.yml 失败，按未同意处理: {0}", t.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * 数据贡献（config.yml upload）：同意后把当前服务器地址（IP:端口）匿名 POST 上报给
+     * cocosoys 数据服务器做统计；仅携带地址与端口，不会暴露给第三方。异步执行，失败不影响插件运行。
+     */
+    private void handleUploadContribution() {
+        if (!getConfig().getBoolean("upload.enabled", false)) {
+            return;
+        }
+        final String serverUrl = getConfig().getString("upload.server", "https://api.cocosoys.com/report");
+        final String address = mcHost + ":" + mcPort;
+        getServer().getScheduler().runTaskAsynchronously(this, () -> {
+            java.net.HttpURLConnection conn = null;
+            try {
+                java.net.URL url = new java.net.URL(serverUrl);
+                conn = (java.net.HttpURLConnection) url.openConnection();
+                conn.setRequestMethod("POST");
+                conn.setDoOutput(true);
+                conn.setConnectTimeout(5000);
+                conn.setReadTimeout(5000);
+                conn.setRequestProperty("Content-Type", "application/json");
+                String body = "{\"server\":\"" + address + "\"}";
+                conn.getOutputStream().write(body.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                int code = conn.getResponseCode();
+                log.infoT("log.plugin.upload-done", "数据贡献已上报: {0} -> HTTP {1}", address, code);
+            } catch (Throwable t) {
+                log.warnT("log.plugin.upload-fail", "数据贡献上报失败（不影响插件运行）: {0}", t.getMessage());
+            } finally {
+                if (conn != null) conn.disconnect();
+            }
+        });
+    }
+
     /** 从 config.yml 读取核心运行参数（Bot 用户名 / 通道 / 本服地址 / 嗅探开关与上限）。 */
     private void loadCoreConfig() {
         botUsername = getConfig().getString("bot.username", "__http_proxy__");
@@ -386,7 +487,9 @@ public class HttpOverMcPlugin extends JavaPlugin {
         // 影响无头 Bot 的握手转发兼容（后端 bungee:true / Velocity legacy 转发下需附加 host\0ip\0uuid 转发数据）与对外地址选择。
         this.proxyPlatform = ProxyDetector.detect(this);
         log.infoT("log.plugin.proxy-topology", "运行拓扑探测: {0}{1}", proxyPlatform,
-                proxyPlatform == ProxyPlatform.STANDALONE ? "（独立服，Bot 直连）" : "（群组服，Bot 握手将附加转发兼容）");
+                proxyPlatform == ProxyPlatform.STANDALONE
+                        ? I18n.t("log.plugin.proxy-standalone-suffix", "（独立服，Bot 直连）")
+                        : I18n.t("log.plugin.proxy-bungee-suffix", "（群组服，Bot 握手将附加转发兼容）"));
         // 群组服服务器名（config.yml proxy.server-name；仅群组服下用于跨服路由/发现，独立服留空）
         this.serverName = getConfig().getString("proxy.server-name", "");
         // 群组服下 Bot 用户名须全局唯一（BungeeCord 共享单一玩家命名空间，且限制 ≤16 字符、仅 [a-zA-Z0-9_]），
@@ -758,14 +861,14 @@ public class HttpOverMcPlugin extends JavaPlugin {
     /** 启动彩虹 Banner（立体方块字体，逐行彩虹渐变着色）。 */
     private void printStartupBanner() {
         String[] lines = {
-                "█   █ █████ █████ █████      ███ █   █ █████ █████      █   █  ███",
-                "█   █   █     █  █   █      █   █ █   █ █    █   █      ██ ██ █",
-                "█████   █     █  █████  ───  █   █ █   █ █████ █████  ───  █ █ █ █",
-                "█   █   █     █  █         █   █  █ █  █    █ █       █   █ █",
-                "█   █   █     █  █          ███     █  █████ █  █       █   █  ███"
+                "█   █ █████ █████ ████       ███  █   █ ████  ████      █   █  ███",
+                "█   █   █     █  █   █      █   █ █   █ █     █   █     ██ ██ █",
+                "█████   █     █  █████  ─── █   █ █   █ █████ ████  ─── █ █ █ █",
+                "█   █   █     █  █          █   █  █ █  █     █ █       █   █ █",
+                "█   █   █     █  █           ███    █   █████ █  █      █   █  ███"
         };
         for (String line : lines) {
-            log.info(StringColor.rainbow(line));
+            log.info(line);
         }
     }
 
@@ -775,11 +878,11 @@ public class HttpOverMcPlugin extends JavaPlugin {
         log.infoT("log.plugin.startup",
                 "HTTP-Over-MC 已启动（同端口嗅探 + 前端服务 + 安全网关 + 注解式API）: mc={0}:{1} 通道={2} 嗅探器={3} 网关={4} HTTPS={5} API注册数={6} webroot={7} | {8} 三协议端口：MC / 明文 HTTP / HTTPS",
                 mcHost, mcPort, channel,
-                snifferEnabled ? "开" : "关",
-                gateway == null ? "关" : "开",
-                getTlsEngineSupplier() == null ? "关" : "开",
+                snifferEnabled ? I18n.t("log.plugin.on", "开") : I18n.t("log.plugin.off", "关"),
+                gateway == null ? I18n.t("log.plugin.off", "关") : I18n.t("log.plugin.on", "开"),
+                getTlsEngineSupplier() == null ? I18n.t("log.plugin.off", "关") : I18n.t("log.plugin.on", "开"),
                 apiRegistry == null ? 0 : apiRegistry.getRoutes().size(),
-                webRoot == null ? "(jar 内置)" : webRoot.getAbsolutePath(),
+                webRoot == null ? I18n.t("log.plugin.webroot-builtin", "(jar 内置)") : webRoot.getAbsolutePath(),
                 mcPort);
     }
 
@@ -838,6 +941,7 @@ public class HttpOverMcPlugin extends JavaPlugin {
         if (authService != null) {
             authService.setBridge(authLoginBridge);
         }
+        ManualPagesConfig.register(this, webRegistry);
     }
 
     @Override

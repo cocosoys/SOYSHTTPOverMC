@@ -4,40 +4,34 @@ import org.bukkit.command.CommandSender;
 
 import soys.soyshttpovermc.HttpOverMcPlugin;
 import soys.soyshttpovermc.i18n.I18n;
+import soys.soyshttpovermc.util.StringListUtil;
 import soys.soyshttpovermc.web.WebRegistry;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 /**
- * /soyshttp pages —— 查看已登记的网页。
+ * /soyshttp pages [all] [页码] —— 查看已登记的网页（分页展示，默认每页 {@link StringListUtil#DEFAULT_PAGE_SIZE} 条）。
  *
  * <ul>
- *   <li>无参数 {@code /shttp pages}：仅展示<b>可打开界面</b>（.html 页 + 跳转入口，含内置与第三方插件登记），
- *       不罗列 .js / .css / .vue / 图片等纯静态资源，避免刷屏；</li>
- *   <li>带参数 {@code /shttp pages all}（亦可 {@code resources} / {@code *}）：展示<b>全部登记项</b>
- *       （页 + 资源 + 跳转），并标注每项种类（页/资源/跳转→目标），便于排查资源未加载等问题。</li>
+ *   <li>无参数 {@code /shttp pages}：仅展示<b>可打开界面</b>（.html 页 + 跳转入口），
+ *       不罗列 .js / .css / .vue / 图片等纯静态资源，避免刷屏；
+ *       （核心内置页 /login、/status、/news 在启动时已纳入注册通道，故与第三方插件登记项一同列出，非命令硬编码）</li>
+ *   <li>带 {@code all}（亦可 {@code resources} / {@code *}）：展示<b>全部登记项</b>（页 + 资源 + 跳转）。</li>
+ *   <li>带页码：翻页查看后续项；登记项存在 description 时自动追加 “ —— ”+description，昵称以 (昵称: ...) 标注。</li>
  * </ul>
  */
 public class PagesSubCommand extends SubCommand {
 
-    /** 内置可打开界面（.html 页），owner 标记为内置。路径 → 说明（i18n 键）。 */
-    private static final String[][] BUILTIN_PAGES = {
-            {"/", "command.pages.builtin.root-home"},
-            {"/login", "command.pages.builtin.login-page"},
-            {"/login.html", "command.pages.builtin.login-page-html"},
-            {"/status", "command.pages.builtin.status-panel"},
-            {"/news", "command.pages.builtin.news-page"},
-    };
-
-    /** 内置纯静态资源（脚本/图标），默认不展示，仅在 {@code pages all} 时列出。路径 → 说明（i18n 键）。 */
-    private static final String[][] BUILTIN_RESOURCES = {
-            {"/soys-auth.js", "command.pages.builtin.auth-js"},
-            {"/favicon.ico", "command.pages.builtin.favicon"},
-    };
-
     /** “查看全部”的别名参数（忽略大小写）。 */
     private static final List<String> ALL_ARGS = Arrays.asList("all", "resources", "*");
+    /** 每页行数（页眉/内容/页尾由 static final 统一静态控制，默认见 {@link StringListUtil#DEFAULT_PAGE_SIZE}）。 */
+    private static final int PAGE_SIZE = StringListUtil.DEFAULT_PAGE_SIZE;
+    private static final String HEADER_KEY = "command.pages.title-default";
+    private static final String HEADER_ALL_KEY = "command.pages.title-all";
+    private static final String FOOTER_KEY = "command.pages.footer";
 
     public PagesSubCommand(HttpOverMcPlugin plugin) {
         super(plugin);
@@ -51,15 +45,17 @@ public class PagesSubCommand extends SubCommand {
     @Override
     public String usage() {
         return I18n.t("command.pages.usage",
-                "/soyshttp pages [all] —— 查看已登记界面（默认仅 UI 页；all 含全部资源/脚本）");
+                "/soyshttp pages [all] [页码] —— 查看已登记界面（默认仅 UI 页；all 含全部资源/脚本）");
     }
 
     @Override
     public String detail() {
         return I18n.t("command.pages.detail",
-                "/soyshttp pages [all] —— 查看已登记的网页。\n"
-                + "  无参数    仅列出可打开界面（.html 页 + 跳转入口），隐藏 .js/.css/.vue/图片等纯资源。\n"
-                + "  all       列出全部登记项（含资源/脚本），并标注种类 [页]/[资源]/[跳转→目标]。\n"
+                "/soyshttp pages [all] [页码] —— 查看已登记的网页（分页展示）。\n"
+                + "  无参数       仅列出可打开界面（.html 页 + 跳转入口），隐藏 .js/.css/.vue/图片等纯资源。\n"
+                + "  all          列出全部登记项（含资源/脚本），并标注种类 [页]/[资源]/[跳转→目标]。\n"
+                + "  页码         翻页查看（每页 10 条，如 /soyshttp pages 2）。\n"
+                + "登记项含说明时自动追加 “ —— ”+说明；昵称路由以 (昵称: ...) 标注。\n"
                 + "别名：resources、* 与 all 等价。");
     }
 
@@ -70,45 +66,78 @@ public class PagesSubCommand extends SubCommand {
             msgT(sender, "command.pages.uninit", "网页登记处未初始化");
             return;
         }
-        boolean all = args.length > 1 && ALL_ARGS.contains(args[1].toLowerCase());
+        boolean all = false;
+        int page = 1;
+        for (int i = 1; i < args.length; i++) {
+            String a = args[i].toLowerCase();
+            if (ALL_ARGS.contains(a)) {
+                all = true;
+            } else if (isNumeric(a)) {
+                try {
+                    page = Integer.parseInt(a);
+                } catch (NumberFormatException ignored) {
+                    // 超长数字：忽略，维持默认页
+                }
+            }
+        }
 
-        if (all) {
-            msgT(sender, "command.pages.title-all", "§a全部已登记项（内置 + 第三方；含页/资源/跳转）:");
-            printBuiltin(sender, BUILTIN_PAGES);
-            printBuiltin(sender, BUILTIN_RESOURCES);
-            printRegistry(sender, reg, true);
+        List<String> content = new ArrayList<>();
+        for (WebRegistry.Entry e : reg.listEntries()) {
+            if (!all && !e.isNavigable()) continue;
+            String owner = e.ownerPlugin == null ? "?" : e.ownerPlugin;
+            String line = "  §e" + e.path + " §7(owner=" + owner + ") [" + e.kindLabel() + "]";
+            if (e.description != null && !e.description.isEmpty()) {
+                line += " §7—— " + e.description;
+            }
+            if (e.nicknames != null && !e.nicknames.isEmpty()) {
+                line += " §7(昵称: " + String.join(" / ", e.nicknames) + ")";
+            }
+            content.add(line);
+        }
+        if (content.isEmpty()) {
+            sender.sendMessage(I18n.t("command.pages.empty-thirdparty", "  §7（无第三方插件登记的网页）"));
             return;
         }
 
-        msgT(sender, "command.pages.title-default", "§a可打开界面（.html 页 + 跳转，内置 + 第三方）:");
-        printBuiltin(sender, BUILTIN_PAGES);
-        printRegistry(sender, reg, false);
-        sender.sendMessage(I18n.t("command.pages.all-hint",
-                "  §7（查看全部资源/脚本请输入 §f/shttp pages all§7）"));
+        int size = PAGE_SIZE;
+        int totalItems = content.size();
+        int totalPages = Math.max(1, (totalItems + size - 1) / size);
+        int cur = Math.max(1, Math.min(page, totalPages));
+
+        String header = I18n.t(all ? HEADER_ALL_KEY : HEADER_KEY,
+                all ? "§a全部已登记项（含页/资源/跳转）:" : "§a可打开界面（.html 页 + 跳转，内置 + 第三方）:");
+        String footer = I18n.t(FOOTER_KEY,
+                "  §7· 第 {0}/{1} 页 · 共 {2} 条 · /soyshttp pages {3}页码 翻页 ·",
+                cur, totalPages, totalItems, all ? "all " : "");
+        for (String line : StringListUtil.page(header, content, footer, cur, size).lines) {
+            sender.sendMessage(line);
+        }
+        printHome(sender, reg);
+    }
+
+    /** 首页 "/" 若已在注册表中（核心默认登记 / 第三方）则上方列表已展示；否则补一行静态解析源提示。 */
+    private void printHome(CommandSender sender, WebRegistry reg) {
+        for (WebRegistry.Entry e : reg.listEntries()) {
+            if ("/".equals(e.path)) return;
+        }
+        String home = plugin.getConfig().getString("web.home", "");
+        String src = (home == null || home.trim().isEmpty()) ? "默认 index.html" : home.trim();
+        sender.sendMessage(I18n.t("command.pages.home-hint",
+                "  §e/ §7—— 首页（静态解析源:" + src + "）"));
+    }
+
+    private static boolean isNumeric(String s) {
+        if (s == null || s.isEmpty()) return false;
+        for (int i = 0; i < s.length(); i++) {
+            if (!Character.isDigit(s.charAt(i))) return false;
+        }
+        return true;
     }
 
     @Override
     public List<String> tabComplete(CommandSender sender, String[] args) {
         if (args.length == 2) return Arrays.asList("all");
-        return java.util.Collections.emptyList();
-    }
-
-    private void printBuiltin(CommandSender sender, String[][] items) {
-        for (String[] p : items) {
-            sender.sendMessage("  §e" + p[0] + " §7—— " + I18n.t(p[1], p[1]));
-        }
-    }
-
-    private void printRegistry(CommandSender sender, WebRegistry reg, boolean all) {
-        int shown = 0;
-        for (WebRegistry.Entry e : reg.listEntries()) {
-            if (!all && !e.isNavigable()) continue;
-            String owner = e.ownerPlugin == null ? "?" : e.ownerPlugin;
-            sender.sendMessage("  §e" + e.path + " §7(owner=" + owner + ") [" + e.kindLabel() + "]");
-            shown++;
-        }
-        if (shown == 0) {
-            sender.sendMessage(I18n.t("command.pages.empty-thirdparty", "  §7（无第三方插件登记的网页）"));
-        }
+        if (args.length == 3) return Arrays.asList("2", "3", "4", "5");
+        return Collections.emptyList();
     }
 }

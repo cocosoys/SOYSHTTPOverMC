@@ -83,7 +83,8 @@ public class AuthMeLoginProvider implements LoginProvider, Listener {
 
     @Override
     public String description() {
-        return "账号密码离线校验 + 玩家登录自动签发令牌 + Bot 免登录内存热装填";
+        return I18n.t("provider.authme.description",
+                "账号密码离线校验 + 玩家登录自动签发令牌 + Bot 免登录内存热装填");
     }
 
     @Override
@@ -294,7 +295,9 @@ public class AuthMeLoginProvider implements LoginProvider, Listener {
 
             log.infoT("log.authme.handle-status", "AuthMe 底层校验句柄: dataSource={0} passwordSecurity={1}（离线纯数据库密码校验{2}）",
                     authMeDataSource != null, authMePasswordSecurity != null,
-                    authMeDataSource != null && authMePasswordSecurity != null ? "已启用" : "不可用，将回退 AuthMeApi");
+                    authMeDataSource != null && authMePasswordSecurity != null
+                            ? I18n.t("provider.authme.status-enabled", "已启用")
+                            : I18n.t("provider.authme.status-fallback", "不可用，将回退 AuthMeApi"));
         } catch (Throwable t) {
             log.warnT("log.authme.init-fail", "AuthMe 底层句柄初始化失败: {0}", t);
         }

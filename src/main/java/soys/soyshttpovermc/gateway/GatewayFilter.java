@@ -130,12 +130,12 @@ public class GatewayFilter {
         merged.sort(Comparator.comparingInt(SecurityPolicy::order));
         policies = merged;
         log.infoT("log.gateway.chain-loaded", "网关策略链已加载：{0}{1}{2} | api-prefix={3}",
-                list.isEmpty() ? "无启用策略" : describe(list),
-                pluginPolicies.isEmpty() ? "" : " | 插件策略: " + describe(pluginPolicies),
-                issuerList.isEmpty() ? "" : " | 颁发器: " + describeIssuers(issuerList),
+                list.isEmpty() ? I18n.t("log.gateway.no-policy", "无启用策略") : describe(list),
+                pluginPolicies.isEmpty() ? "" : I18n.t("log.gateway.plugin-policy-suffix", " | 插件策略: {0}", describe(pluginPolicies)),
+                issuerList.isEmpty() ? "" : I18n.t("log.gateway.issuer-suffix", " | 颁发器: {0}", describeIssuers(issuerList)),
                 apiPrefix);
         if (LogKit.isDebugEnabled()) {
-            StringBuilder sb = new StringBuilder("策略明细: ");
+            StringBuilder sb = new StringBuilder(I18n.t("log.gateway.policy-detail-prefix", "策略明细: "));
             for (SecurityPolicy p : list) {
                 sb.append(p.name()).append('(').append(p.order()).append(p.isEnabled() ? ",enabled" : ",disabled").append(") ");
             }

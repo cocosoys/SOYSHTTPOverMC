@@ -54,8 +54,13 @@ public final class I18n {
 
     // ==================== 初始化 ====================
 
-    /** 初始化默认语言环境：补齐 language 目录 + 内置中文包，加载进内存。 */
+    /** 初始化默认语言环境：补齐 language 目录 + 内置中文包，加载进内存（语言取系统属性 soys.i18n.language，默认 zh_cn）。 */
     public static void init(File dataFolder) {
+        init(dataFolder, System.getProperty("soys.i18n.language", ""));
+    }
+
+    /** 初始化默认语言环境并加载指定语言包（code 为空则回退系统属性 / zh_cn）。 */
+    public static void init(File dataFolder, String code) {
         if (dataFolder == null) return;
         File dir = new File(dataFolder, "language");
         if (!dir.exists() && !dir.mkdirs()) {
@@ -65,8 +70,9 @@ public final class I18n {
         }
         languageDir = dir;
         ensureDefaultResource(dir, "zh_cn.yml");
-        String code = System.getProperty("soys.i18n.language", "zh_cn");
-        load(code);
+        ensureDefaultResource(dir, "en_us.yml");
+        String c = (code == null || code.isEmpty()) ? System.getProperty("soys.i18n.language", "zh_cn") : code;
+        load(c);
     }
 
     /** 加载默认作用域的语言包（磁盘 {@code language/<code>.yml}）。 */

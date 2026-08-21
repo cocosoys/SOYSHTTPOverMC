@@ -6,13 +6,18 @@
 
     <groupId>soys.soyshttpovermc</groupId>
     <artifactId>SOYSHTTPOverMC</artifactId>
-    <version>1.0.0</version>
+    <!-- CI-Friendly 版本：默认 1.0.0，发布时用 -Drevision=<git tag> 覆盖。
+         plugin.yml 的 version 取 ${project.version}，构建时随之自动同步。 -->
+    <version>${revision}</version>
     <packaging>jar</packaging>
 
     <name>SOYSHTTPOverMC</name>
 
     <properties>
         <java.version>1.8</java.version>
+        <!-- 发布版本基准：默认 1.0.0；打 tag 后构建时用 -Drevision=<git 标签去 v> 覆盖，
+             例如 git tag v1.3.0 后执行 mvn -o package -Drevision=1.3.0 即可。 -->
+        <revision>1.0.0</revision>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <mcprotocollib.version>1.12.2-2</mcprotocollib.version>
         <protobuf.version>3.25.3</protobuf.version>

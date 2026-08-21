@@ -18,7 +18,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 
 /**
- * YAML 文件存储后端（照抄 SOYSOceanBox 的 YamlStorage）：
+ * YAML 文件存储后端：
  * 零外部依赖，默认启用；所有记录写在同一个文件（默认 data/records.yml）的
  * {@code records: {key: {type, data, updated_at}}} 节点下，对象锁保证并发安全。
  */

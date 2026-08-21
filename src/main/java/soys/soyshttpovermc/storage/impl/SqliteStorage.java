@@ -13,7 +13,7 @@ import java.sql.SQLException;
 import java.sql.Statement;
 
 /**
- * SQLite 存储后端（照抄 SOYSOceanBox 的 SqliteStorage）：
+ * SQLite 存储后端：
  * 单文件数据库，无需额外服务，适合需要 SQL 查询能力但不想部署 MySQL 的场景。
  * Spigot 1.12.2 内置 org.sqlite.JDBC（provided，不打进 jar）。
  */

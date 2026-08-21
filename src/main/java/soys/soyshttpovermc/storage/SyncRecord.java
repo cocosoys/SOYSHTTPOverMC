@@ -3,7 +3,7 @@ package soys.soyshttpovermc.storage;
 import java.io.Serializable;
 
 /**
- * 通用同步记录（多后端存储的数据单元，照抄 SOYSOceanBox 的「玩家档案」形态但抽象为 key-value）：
+ * 通用同步记录（多后端存储的数据单元）：
  * 跨服同步数据（令牌黑名单 / 签发审计 / 实例心跳 / 全局密钥等）统一以
  * {@code key -> {type, data(JSON), updatedAt}} 记录存储，YAML 文件 / SQLite / MySQL 三后端同构。
  *

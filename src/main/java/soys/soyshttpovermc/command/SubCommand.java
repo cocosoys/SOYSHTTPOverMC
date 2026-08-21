@@ -72,9 +72,13 @@ public abstract class SubCommand {
         return java.util.Collections.emptyList();
     }
 
-    /** 统一前缀发送消息（[SOYSHTTPOverMC] 前缀绿色）。 */
+    /** 统一前缀发送消息；玩家显示绿色前缀，控制台输出纯文本避免 § 被转成 ANSI 乱码。 */
     protected void msg(CommandSender sender, String text) {
-        sender.sendMessage("§a[SOYSHTTPOverMC]§r " + text);
+        if (sender instanceof org.bukkit.entity.Player) {
+            sender.sendMessage("§a[SOYSHTTPOverMC]§r " + text);
+        } else {
+            sender.sendMessage("[SOYSHTTPOverMC] " + text);
+        }
     }
 
     /** 按 i18n 键翻译后发送（带统一前缀）：key 缺失回退 {@code fallback}，占位符用 {@code args} 替换。 */

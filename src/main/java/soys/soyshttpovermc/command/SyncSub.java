@@ -10,7 +10,7 @@ import java.util.List;
 
 /**
  * /soyshttp sync —— 将主存储全量数据覆盖同步到所有辅助存储
- * （照抄 SOYSOceanBox 的 /soceanboxadmin sync）。⚠️ 多实例共享同一 MySQL 主库时请勿互相同步。
+ * ⚠️ 多实例共享同一 MySQL 主库时请勿互相同步。
  */
 public class SyncSub extends SubCommand {
 

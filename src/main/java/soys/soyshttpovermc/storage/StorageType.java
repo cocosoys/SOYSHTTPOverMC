@@ -1,7 +1,9 @@
 package soys.soyshttpovermc.storage;
 
+import soys.soyshttpovermc.i18n.I18n;
+
 /**
- * 存储后端类型（照抄 SOYSOceanBox）：
+ * 存储后端类型：
  * priority 决定主存储选取——所有已启用后端中 priority 最高者作为主存储（承担全部读操作），
  * 其余作为辅助存储被镜像写入（热备份）。固定优先级 MYSQL > SQLITE > YAML。
  */
@@ -30,7 +32,7 @@ public enum StorageType {
     }
 
     public String getDisplayName() {
-        return displayName;
+        return I18n.t("storage.type." + id, displayName);
     }
 
     /** 按 id 解析（忽略大小写）；未匹配返回 null。 */

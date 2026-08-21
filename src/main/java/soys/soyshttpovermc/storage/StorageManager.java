@@ -22,7 +22,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 /**
- * 存储协调器（照抄 SOYSOceanBox 的 StorageManager）。
+ * 存储协调器。
  *
  * <p><b>主辅模型</b>：所有已启用后端中优先级最高者（MYSQL &gt; SQLITE &gt; YAML）成为主存储，
  * 承担全部读操作；其余后端作为辅助存储，写入时被镜像同步（热备份 / 降级方案）。
@@ -105,7 +105,9 @@ public class StorageManager {
 
         log.infoT("log.storage.primary", "主存储: {0}{1}",
                 primary.getType().getDisplayName(),
-                (secondaries.isEmpty() ? "，无辅助存储" : "，辅助存储: " + describeSecondaries()));
+                (secondaries.isEmpty()
+                        ? I18n.t("log.storage.no-secondary", "，无辅助存储")
+                        : I18n.t("log.storage.secondaries", "，辅助存储: {0}", describeSecondaries())));
 
         startKeepAliveTask();
 
@@ -219,7 +221,7 @@ public class StorageManager {
         return sb.toString();
     }
 
-    // ===== 配置读取（config.yml storage 段，照抄 SOYSOceanBox ConfigManager） =====
+    // ===== 配置读取（config.yml storage 段） =====
 
     public boolean isBackendEnabled(String backendId) {
         return plugin.getConfig().getBoolean("storage.backends." + backendId + ".enabled", false);
