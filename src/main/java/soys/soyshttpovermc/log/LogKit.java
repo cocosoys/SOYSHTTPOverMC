@@ -3,10 +3,21 @@ package soys.soyshttpovermc.log;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
+import org.bukkit.Bukkit;
+
+import soys.soyshttpovermc.i18n.I18n;
+
 /**
  * 统一日志门面：全插件日志一律经此类打印，支持运行时级别过滤与热重载。
  *
- * <p>级别（由高到低过滤，默认 INFO）：OFF &gt; ERROR &gt; WARN &gt; INFO &gt; DEBUG &gt; TRACE。</p>
+ * <p>级别（由高到低过滤，默认 INFO）：OFF &gt; ERROR &gt; WARN &gt; INFO &gt; DEBUG &gt; TRACE。
+ * 打印走 {@link Bukkit#getLogger()} 的 {@code log(...)}，以 JUL {@link Level} 表示严重级
+ * （TRACE=FINEST / DEBUG=FINE / INFO=INFO / WARN=WARNING / ERROR=SEVERE），避免走
+ * {@code ConsoleCommandSender#sendMessage} —— 那会被聊天相关监听器捕获而产生副作用。</p>
+ *
+ * <p>着色方案：继承 Bukkit {@link Color} 调色板，插件标签（{@code [HTTP-Over-MC]}）用
+ * 渐变色点缀，{@code [类名] + 消息} 用级别色（DEBUG/TRACE=青、INFO=绿、WARN=黄、ERROR=红）；
+ * 上色经 {@link StringColor}/{@link Color} 完成，{@link Color#ENABLE_ANSI} 关闭时退化为纯文本。</p>
  *
  * <p>两种用法并存：</p>
  * <ul>
@@ -16,22 +27,14 @@ import java.util.logging.Logger;
  *   <li><b>静态控制层</b>：{@link #setLevel} / {@link #levelName} / {@link #isDebugEnabled} /
  *       {@link #init} 维护全局级别（{@code /soyshttp reload} 热重载），供宿主配置与检查。</li>
  * </ul>
- *
- * <p>级别状态为静态、实例方法打印时读取静态级别做过滤，故热重载对所有 {@code log} 实例即时生效。</p>
- * <p>消息格式由调用方给定（规范为 {@code [HTTP-Over-MC] [模块] 内容}），本类不追加前缀，
- * 避免与既有消息重复；Bukkit 日志本身已带 {@code [SOYSHTTPOverMC]} 插件名。</p>
  */
-import soys.soyshttpovermc.i18n.I18n;
-import org.bukkit.Bukkit;
-
 public class LogKit {
-    public static boolean ENABLE_ANSI = true;
 
     // ========= 静态控制层：全局级别状态 + 热重载 =========
     private static volatile int tierIndex = 3; // INFO
     private static final String[] TIER_NAMES = {"OFF", "ERROR", "WARN", "INFO", "DEBUG", "TRACE"};
 
-    /** 初始化（宿主启动时调用；第一个参数为旧式 JUL Logger，本实现以控制台直出，忽略该参数，仅兼容旧签名）。 */
+    /** 初始化（宿主启动时调用；第一个参数仅兼容旧签名，级别判断以 JUL Level 映射为准）。 */
     public static synchronized void init(Object unusedLogger, String levelName) {
         setLevel(levelName);
     }
@@ -56,14 +59,30 @@ public class LogKit {
         return tierIndex >= 4;
     }
 
-    // ========= 实例桥（@CustomLog 注入用） =========
+    // ========= 层次 → JUL Level / 级别色映射 =========
 
-    private static final String ANSI_RESET = "\u001B[0m";
-    private static final String ANSI_GRAY = "\u001B[38;2;128;128;128m";
-    private static final String ANSI_CYAN = "\u001B[38;2;0;255;255m";
-    private static final String ANSI_GREEN = "\u001B[38;2;80;255;120m";
-    private static final String ANSI_YELLOW = "\u001B[38;2;255;220;0m";
-    private static final String ANSI_RED = "\u001B[38;2;255;60;60m";
+    private static Level levelFor(int tier) {
+        switch (tier) {
+            case 5:  return Level.FINEST;   // TRACE
+            case 4:  return Level.FINE;     // DEBUG
+            case 2:  return Level.WARNING;  // WARN
+            case 1:  return Level.SEVERE;   // ERROR
+            case 0:  return Level.OFF;      // OFF（不打印）
+            default: return Level.INFO;
+        }
+    }
+
+    private static Color colorFor(int tier) {
+        switch (tier) {
+            case 5:
+            case 4:  return Color.AQUA;
+            case 2:  return Color.YELLOW;
+            case 1:  return Color.RED;
+            default: return Color.GREEN;
+        }
+    }
+
+    // ========= 实例（@CustomLog 注入用） =========
 
     protected final String prefix;
     protected final Class<?> sourceClass;
@@ -73,47 +92,27 @@ public class LogKit {
         this.sourceClass = sourceClass;
     }
 
-    private String ansiFg(int r, int g, int b) {
-        if (!ENABLE_ANSI) return "";
-        return String.format("\u001B[38;2;%d;%d;%dm", r, g, b);
+    private Logger logger() {
+        return Bukkit.getLogger();
     }
 
-    public String gradient(String text, int r1, int g1, int b1, int r2, int g2, int b2) {
-        if (!ENABLE_ANSI || text == null || text.isEmpty()) return text;
-        StringBuilder sb = new StringBuilder();
-        int len = text.length();
-        for (int i = 0; i < len; i++) {
-            float t = (float) i / Math.max(len - 1, 1);
-            int r = (int) (r1 * (1 - t) + r2 * t);
-            int g = (int) (g1 * (1 - t) + g2 * t);
-            int b = (int) (b1 * (1 - t) + b2 * t);
-            sb.append(ansiFg(r, g, b)).append(text.charAt(i)).append(ANSI_RESET);
-        }
-        return sb.toString();
-    }
-
-    protected String formatMessage(String rawMessage, boolean isDebugLevel, String levelColor) {
+    /**
+     * 组装带色前缀与类名的整行日志：插件标签用渐变色点缀，消息用级别色。
+     * 仅在全局日志级别调到 DEBUG 及以上（{@link #isDebugEnabled()}）时才打印类名（短类名），
+     * 方便调试溯源；INFO/WARN/ERROR 下保持输出简洁、不打印类名。
+     */
+    protected String formatMessage(String rawMessage, int tier) {
         if (rawMessage == null) rawMessage = "null";
         StringBuilder sb = new StringBuilder();
-
-        if (ENABLE_ANSI) sb.append(levelColor);
         if (prefix != null && !prefix.isEmpty()) {
-            sb.append(prefix);
-            if (ENABLE_ANSI) sb.append(ANSI_RESET);
-            sb.append(" ");
+            sb.append(StringColor.gradient(prefix, Color.AQUA, Color.LIGHT_PURPLE)).append(' ');
         }
-
-        // debug/trace 打短名，info/warn/error 打全限定类名，便于错误快速溯源；
-        // 此前缀在当前方法中于 i18n 转译完成后追加，故不会污染翻译 key。
-        String clsName = isDebugLevel ? sourceClass.getSimpleName() : sourceClass.getName();
-        if (ENABLE_ANSI) sb.append(levelColor);
-        sb.append("[").append(clsName).append("]");
-        if (ENABLE_ANSI) sb.append(ANSI_RESET);
-        sb.append(" ");
-
-        if (ENABLE_ANSI) sb.append(levelColor);
+        sb.append(Color.fg(colorFor(tier)));
+        if (isDebugEnabled()) {
+            sb.append('[').append(sourceClass.getSimpleName()).append("] ");
+        }
         sb.append(rawMessage);
-        if (ENABLE_ANSI) sb.append(ANSI_RESET);
+        sb.append(Color.reset());
         return sb.toString();
     }
 
@@ -121,71 +120,75 @@ public class LogKit {
         return tierIndex >= minTier;
     }
 
-    private void print(String color, boolean debugLevel, String i18nKey, String fmt, Object... args) {
+    private void print(int tier, String i18nKey, String fmt, Object... args) {
+        print(tier,i18nKey,fmt,null,args);
+    }
+
+    private void print(int tier, String i18nKey, String fmt, Throwable throwable, Object... args) {
         String msg = I18n.resolve(i18nKey, fmt, args);
-        Bukkit.getConsoleSender().sendMessage(formatMessage(msg, debugLevel, color));
+        if(throwable==null){
+            logger().log(levelFor(tier), formatMessage(msg, tier));
+        }else{
+            logger().log(levelFor(tier), formatMessage(msg, tier), throwable);
+        }
     }
 
     public void trace(String fmt, Object... args) {
-        if (enabled(5)) print(ANSI_CYAN, true, null, fmt, args);
+        if (enabled(5)) print(5, null, fmt, args);
     }
 
     public void debug(String fmt, Object... args) {
-        if (enabled(4)) print(ANSI_CYAN, true, null, fmt, args);
+        if (enabled(4)) print(4, null, fmt, args);
     }
 
     public void info(String fmt, Object... args) {
-        if (enabled(3)) print(ANSI_GREEN, false, null, fmt, args);
+        if (enabled(3)) print(3, null, fmt, args);
     }
 
     public void warn(String fmt, Object... args) {
-        if (enabled(2)) print(ANSI_YELLOW, false, null, fmt, args);
+        if (enabled(2)) print(2, null, fmt, args);
     }
 
     public void error(String fmt, Object... args) {
-        if (enabled(1)) print(ANSI_RED, false, null, fmt, args);
+        if (enabled(1)) print(1, null, fmt, args);
     }
 
     public void error(Throwable throwable, String fmt, Object... args) {
-        if (!enabled(1)) return;
-        print(ANSI_RED, false, null, fmt, args);
-        if (throwable != null) throwable.printStackTrace();
+        if (enabled(1)) print(1, null, fmt, throwable, args);
     }
 
     // ========= i18n 版方法（*T：key 首参，命中语言表翻译，未命中回退 fallback） =========
 
     public void traceT(String i18nKey, String fallback, Object... args) {
-        if (enabled(5)) print(ANSI_CYAN, true, i18nKey, fallback, args);
+        if (enabled(5)) print(5, i18nKey, fallback, args);
     }
 
     public void debugT(String i18nKey, String fallback, Object... args) {
-        if (enabled(4)) print(ANSI_CYAN, true, i18nKey, fallback, args);
+        if (enabled(4)) print(4, i18nKey, fallback, args);
     }
 
     public void infoT(String i18nKey, String fallback, Object... args) {
-        if (enabled(3)) print(ANSI_GREEN, false, i18nKey, fallback, args);
+        if (enabled(3)) print(3, i18nKey, fallback, args);
     }
 
     public void warnT(String i18nKey, String fallback, Object... args) {
-        if (enabled(2)) print(ANSI_YELLOW, false, i18nKey, fallback, args);
+        if (enabled(2)) print(2, i18nKey, fallback, args);
     }
 
     public void errorT(String i18nKey, String fallback, Object... args) {
-        if (enabled(1)) print(ANSI_RED, false, i18nKey, fallback, args);
+        if (enabled(1)) print(1, i18nKey, fallback, args);
     }
 
     public void errorT(Throwable throwable, String i18nKey, String fallback, Object... args) {
-        if (!enabled(1)) return;
-        print(ANSI_RED, false, i18nKey, fallback, args);
-        if (throwable != null) throwable.printStackTrace();
+        if (enabled(1)) print(1, i18nKey, fallback, throwable, args);
     }
 
     // ========= 便捷单参（消息原样，不做占位符替换） =========
-    public void trace(String msg) { print(ANSI_CYAN, true, null, msg); }
-    public void debug(String msg) { print(ANSI_CYAN, true, null, msg); }
-    public void info(String msg) { print(ANSI_GREEN, false, null, msg); }
-    public void warn(String msg) { print(ANSI_YELLOW, false, null, msg); }
-    public void error(String msg) { print(ANSI_RED, false, null, msg); }
+    public void trace(String msg) { print(5, null, msg); }
+    public void debug(String msg) { print(4, null, msg); }
+    public void info(String msg) { print(3, null, msg); }
+    public void warn(String msg) { print(2, null, msg); }
+    public void error(String msg) { print(1, null, msg); }
     public void error(String msg, Throwable throwable) { error(throwable, msg); }
 
     // ========= Lombok 两个重载工厂 =========

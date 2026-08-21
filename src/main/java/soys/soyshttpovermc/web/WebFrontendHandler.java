@@ -221,7 +221,7 @@ public class WebFrontendHandler {
 
     /**
      * 解析任意首页来源描述（相对路径/绝对路径/网络 URL）为字节与 Content-Type。
-     * <p>供上层业务（如 thismyhomepages 的来源型首页）复用框架的 {@code web.home} 解析语义
+     * <p>供上层业务（如 ihomepages 的来源型首页）复用框架的 {@code web.home} 解析语义
      * （相对路径按本服务 web.root → jar /dist/ 顺序、绝对路径读磁盘、URL 拉取并按 TTL 缓存）；
      * 未配置/解析失败返回 null。这是框架对外暴露的「解析 web.home」原语，不含任何注册语义。</p>
      */

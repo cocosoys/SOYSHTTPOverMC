@@ -2,7 +2,7 @@ package soys.soyshttpovermc;
 import lombok.CustomLog;
 
 import soys.soyshttpovermc.log.LogKit;
-import soys.soyshttpovermc.i18n.I18n;
+import soys.soyshttpovermc.log.StringColor;
 
 import soys.soyshttpovermc.command.SoysHttpCommand;
 import soys.soyshttpovermc.config.ConfigManager;
@@ -230,15 +230,16 @@ public class HttpOverMcPlugin extends JavaPlugin {
         // 6.5) 对外集成门面（聚合 API 注册 / 网页登记 / 凭证 / 日志 / Bot / HTTP，供第三方插件接入）
         initApiImpl();
 
-        // 6.6) 自定义主页插件 thismyhomepages（子包内嵌，未来可整体抽离为独立插件）
-        soys.thismyhomepages.MyHomePages.register(this);
-
         // 7) 统计 / 状态 API / 前端处理器 / 通道消息处理（返回统计实例供嗅探器复用）
         RequestStats stats = initFrontend(webRoot);
         // 8) 在 Spigot 自身监听端口安装三协议嗅探器（MC / 明文 HTTP / HTTPS）
         initSniffer(stats);
         // 9) 命令：/soyshttp reload | /soyshttp key <subject>
         initCommand();
+        // 9.5) 自定义主页插件 ihomepages（子包内嵌，未来可整体抽离为独立插件）。
+        //      必须在 initCommand() 之后：其 registerSubCommand 需要宿主命令已初始化，否则注册失败抛异常
+        //      （如 E_REGISTER_SUB_COMMAND - 命令尚未初始化），导致插件启用中断、banner 无法打印。
+        soys.ihomepages.MyHomePages.register(this);
         // 10) 就绪事件：第三方插件若先于本插件加载，可监听 SoysReadyEvent 做延迟注册
         try {
             getServer().getPluginManager().callEvent(new soys.soyshttpovermc.api.event.SoysReadyEvent(api));
@@ -754,8 +755,23 @@ public class HttpOverMcPlugin extends JavaPlugin {
         return command;
     }
 
+    /** 启动彩虹 Banner（立体方块字体，逐行彩虹渐变着色）。 */
+    private void printStartupBanner() {
+        String[] lines = {
+                "█   █ █████ █████ █████      ███ █   █ █████ █████      █   █  ███",
+                "█   █   █     █  █   █      █   █ █   █ █    █   █      ██ ██ █",
+                "█████   █     █  █████  ───  █   █ █   █ █████ █████  ───  █ █ █ █",
+                "█   █   █     █  █         █   █  █ █  █    █ █       █   █ █",
+                "█   █   █     █  █          ███     █  █████ █  █       █   █  ███"
+        };
+        for (String line : lines) {
+            log.info(StringColor.rainbow(line));
+        }
+    }
+
     /** 启动完成日志（汇总端口 / 通道 / 各模块状态）。 */
     private void logStartup(File webRoot) {
+        printStartupBanner();
         log.infoT("log.plugin.startup",
                 "HTTP-Over-MC 已启动（同端口嗅探 + 前端服务 + 安全网关 + 注解式API）: mc={0}:{1} 通道={2} 嗅探器={3} 网关={4} HTTPS={5} API注册数={6} webroot={7} | {8} 三协议端口：MC / 明文 HTTP / HTTPS",
                 mcHost, mcPort, channel,

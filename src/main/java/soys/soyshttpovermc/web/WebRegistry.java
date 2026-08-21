@@ -373,7 +373,7 @@ public class WebRegistry {
     }
 
     // ==================== 伺服层公共入口：安装站点首页（GET /） ====================
-    // 首页的多实例注册/切换/持久化属于上层业务（由 thismyhomepages 的 HomepageRegistry 负责），
+    // 首页的多实例注册/切换/持久化属于上层业务（由 ihomepages 的 HomepageRegistry 负责），
     // base 仅保留把指定内容安装到 GET / 路由的伺服能力；第三方可经此方法覆盖默认首页。
 
     /** 直接设置站点首页 {@code GET /} 路由（content 为空则忽略）。 */

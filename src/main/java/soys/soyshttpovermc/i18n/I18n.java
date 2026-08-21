@@ -41,7 +41,7 @@ public final class I18n {
     /** 当前语言代码（当前仅中文 zh_cn）。 */
     private static volatile String lang = "zh_cn";
     /** 默认（无前缀）语言包：本插件自身消息。 */
-    private static volatile ILanguageBundle current = new YamlLanguageBundle("zh_cn");
+    private static volatile ILanguageBundle current = new YamlLanguageBundle(lang);
     /** 插件作用域：插件名 → I18nScope。 */
     private static volatile Map<String, I18nScope> pluginScopes = new LinkedHashMap<>();
     /** 无头作用域：单独列表（按注册顺序）。 */
@@ -184,6 +184,24 @@ public final class I18n {
     /** 当前语言代码。 */
     public static String languageCode() {
         return lang;
+    }
+
+    /** 列出磁盘语言目录中可用的语言代码（*.yml 去扩展名，按名称排序）；目录未就绪时仅含内置中文。 */
+    public static List<String> availableLanguages() {
+        if (languageDir == null || !languageDir.isDirectory()) {
+            return Collections.singletonList("zh_cn");
+        }
+        File[] files = languageDir.listFiles((d, n) -> n.toLowerCase().endsWith(".yml"));
+        if (files == null || files.length == 0) {
+            return Collections.emptyList();
+        }
+        List<String> codes = new ArrayList<>(files.length);
+        for (File f : files) {
+            String n = f.getName();
+            codes.add(n.substring(0, n.length() - 4));
+        }
+        Collections.sort(codes);
+        return codes;
     }
 
     // ==================== 统一转译决策（底层函数入口） ====================

@@ -29,6 +29,7 @@ import static soys.soyshttpovermc.util.StringListUtil.matchByPrefix;
  *   <li>{@code pages} —— 查看已注册的界面（默认仅 .html 页 + 跳转；{@code pages all} 含全部资源/脚本）；</li>
  *   <li>{@code api} —— 查看已注册的注解式 API 端点（方法/路径/owner/权限）；</li>
  *   <li>{@code tokens} —— 查询所有已颁发的会话令牌；</li>
+ *   <li>{@code lang [语言代码]} —— 查看/切换当前语言（language/ 目录语言包）；</li>
  *   <li>{@code help [子指令]} —— 查看全部子指令，或某子指令的详细用法（参数/示例/注意）。</li>
  * </ul>
  * 另支持简写 {@code /shttp}（plugin.yml 注册别名命令，共用本执行器）。
@@ -51,6 +52,7 @@ public class SoysHttpCommand implements CommandExecutor, TabCompleter {
         register(new PagesSubCommand(plugin));
         register(new ApiSubCommand(plugin));
         register(new TokensSubCommand(plugin));
+        register(new LangSubCommand(plugin));
         register(new MigrateSub(plugin));
         register(new SyncSub(plugin));
     }
