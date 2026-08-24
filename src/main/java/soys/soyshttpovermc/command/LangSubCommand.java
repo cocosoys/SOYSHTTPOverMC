@@ -39,6 +39,10 @@ public class LangSubCommand extends SubCommand {
                 + "/soyshttp lang <代码> —— 切换到指定语言（需 language/<代码>.yml 存在）。\n"
                 + "/soyshttp lang sources —— 列出当前全部语言源及其提供的翻译条数。\n"
                 + "/soyshttp lang sources on/off <索引> —— 启用/停用指定来源的翻译。\n"
+                + "/soyshttp lang sources download <索引> —— 将网络来源翻译下载到本地缓存（离线可用）。\n"
+                + "/soyshttp lang sources update <索引> —— 更新本地网络翻译（本地不存在则自动下载）。\n"
+                + "/soyshttp lang sources remove <索引> —— 删除本地网络翻译并从内存卸载。\n"
+                + "/soyshttp lang sources info <索引> —— 查看来源详细信息。\n"
                 + "例子：/soyshttp lang en_us");
     }
 
@@ -68,8 +72,8 @@ public class LangSubCommand extends SubCommand {
             return;
         }
         if (I18n.load(code)) {
-            plugin.getConfig().set("language.current", code);
-            plugin.saveConfig(); // 持久化语言切换，重启后仍按此语言加载
+            plugin.getLanguageConfig().set("language.current", code);
+            plugin.saveLanguageConfig(); // 持久化语言切换到 language.yml，重启后仍按此语言加载
             log.infoT("command.lang.switched-log", "[lang] 已切换语言为: {0}", code);
             msgT(sender, "command.lang.switched", "已切换语言为：{0}", code);
         } else {
@@ -77,7 +81,7 @@ public class LangSubCommand extends SubCommand {
         }
     }
 
-    /** 处理语言源子参数：列出来源（含条数）或 on/off 指定索引。 */
+    /** 处理语言源子参数：列出来源或对指定索引执行 on/off/download/update/remove/info。 */
     private void handleSources(CommandSender sender, String[] args) {
         if (args.length < 3) {
             List<LanguageSourceInfo> infos = I18n.languageSourcesInfo();
@@ -95,14 +99,11 @@ public class LangSubCommand extends SubCommand {
                     "[#{0}] {1} {2}（语言:{3}，{4} 条）", i.index(), status, i.name(), langDisp, i.count()));
         }
             msg(sender, I18n.t("command.lang.sources-hint",
-                    "使用 /soyshttp lang sources on/off <索引> 启用/停用某来源"));
+                    "使用 /soyshttp lang sources on/off/download/update/remove/info <索引> 管理来源"));
             return;
         }
         String action = args[2].toLowerCase();
-        if (!"on".equals(action) && !"off".equals(action)) {
-            msgT(sender, "command.lang.sources-unknown", "§c未知操作: {0}（可用 on/off）", args[2]);
-            return;
-        }
+        // 无需索引的操作（暂无）—— 所有操作均需索引
         if (args.length < 4) {
             msgT(sender, "command.lang.sources-index", "§c请指定来源索引：/soyshttp lang sources {0} <索引>", action);
             return;
@@ -114,16 +115,56 @@ public class LangSubCommand extends SubCommand {
             msgT(sender, "command.lang.sources-bad-index", "§c无效索引: {0}", args[3]);
             return;
         }
-        boolean enable = "on".equals(action);
-        if (I18n.setLanguageSourceEnabled(idx, enable)) {
-            if (enable) {
-                msgT(sender, "command.lang.sources-enabled", "已启用来源 #{0}", idx);
-            } else {
-                msgT(sender, "command.lang.sources-disabled", "已停用来源 #{0}", idx);
+        switch (action) {
+            case "on": {
+                if (I18n.setLanguageSourceEnabled(idx, true)) {
+                    msgT(sender, "command.lang.sources-enabled", "已启用来源 #{0}", idx);
+                } else {
+                    msgT(sender, "command.lang.sources-out-of-range", "§c索引越界（当前共 {0} 个来源，有效索引 0~{1}）",
+                            I18n.languageSourceCount(), Math.max(0, I18n.languageSourceCount() - 1));
+                }
+                break;
             }
-        } else {
-            msgT(sender, "command.lang.sources-out-of-range", "§c索引越界（当前共 {0} 个来源，有效索引 0~{1}）",
-                    I18n.languageSourceCount(), Math.max(0, I18n.languageSourceCount() - 1));
+            case "off": {
+                if (I18n.setLanguageSourceEnabled(idx, false)) {
+                    msgT(sender, "command.lang.sources-disabled", "已停用来源 #{0}", idx);
+                } else {
+                    msgT(sender, "command.lang.sources-out-of-range", "§c索引越界（当前共 {0} 个来源，有效索引 0~{1}）",
+                            I18n.languageSourceCount(), Math.max(0, I18n.languageSourceCount() - 1));
+                }
+                break;
+            }
+            case "download": {
+                String result = I18n.downloadNetworkSource(idx);
+                msg(sender, result);
+                break;
+            }
+            case "update": {
+                String result = I18n.updateNetworkSource(idx);
+                msg(sender, result);
+                break;
+            }
+            case "remove": {
+                String result = I18n.removeNetworkSourceLocal(idx);
+                msg(sender, result);
+                break;
+            }
+            case "info": {
+                String result = I18n.networkSourceInfo(idx);
+                if (result == null) {
+                    msgT(sender, "command.lang.sources-out-of-range", "§c索引越界（当前共 {0} 个来源，有效索引 0~{1}）",
+                            I18n.languageSourceCount(), Math.max(0, I18n.languageSourceCount() - 1));
+                } else {
+                    for (String line : result.split("\n")) {
+                        msg(sender, line);
+                    }
+                }
+                break;
+            }
+            default:
+                msgT(sender, "command.lang.sources-unknown",
+                        "§c未知操作: {0}（可用 on/off/download/update/remove/info）", args[2]);
+                break;
         }
     }
 
@@ -135,7 +176,7 @@ public class LangSubCommand extends SubCommand {
             return c;
         }
         if (args.length == 3 && "sources".equalsIgnoreCase(args[1])) {
-            return java.util.Arrays.asList("on", "off");
+            return java.util.Arrays.asList("on", "off", "download", "update", "remove", "info");
         }
         return Collections.emptyList();
     }

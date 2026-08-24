@@ -81,6 +81,32 @@ final class LanguageSource {
         this.enabled = enabled;
     }
 
+    /** 是否为网络来源（http/https URL）。 */
+    boolean isUrl() {
+        return url;
+    }
+
+    /** 解析后的 source（{0} 占位符已替换为指定语言代码）。 */
+    String resolvedSource(String code) {
+        return resolved(code);
+    }
+
+    /** 仅网络源：拉取翻译文本（UTF-8）；非网络源或失败返回 null。 */
+    String fetchText(String code) {
+        if (!url) return null;
+        return fetch(resolved(code));
+    }
+
+    /** 从本地文件加载翻译键值（供网络源本地缓存读取）。 */
+    Map<String, String> loadLocal(File file) {
+        if (file == null || !file.isFile()) return null;
+        try {
+            return parse(YamlConfiguration.loadConfiguration(file));
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
     /** 该来源是否适用于要加载的语言代码（指定语言源仅匹配自身语言；模板源对任意语言生效）。 */
     boolean appliesToLanguage(String code) {
         if (code == null) return false;

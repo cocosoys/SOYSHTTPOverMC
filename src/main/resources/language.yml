@@ -1,3 +1,4 @@
+
 # ============================================================================
 #  国际化：插件界面与日志所用语言环境。
 # ----------------------------------------------------------------------------
@@ -18,8 +19,12 @@
 #   source      = 相对/绝对文件或文件夹（文件夹按 <目录>/<语言代码>.yml 约定取对应语言文件）、
 #                  或网络文件 URL（网络 URL 可反引号包裹以免歧义）。相对路径以本插件数据目录为基准。
 #   ⚠️ 语言必须可识别：language 为空 且 source 不含 {0} → 书写错误，注册被拒绝。
-#   可用 /soyshttp lang sources 列出各来源（名称/语言/条数），用 /soyshttp lang sources off <索引> 停用
-#   （运行时内存生效；/soyshttp reload 会按本段重新注册，停用状态重置）。
+#   可用 /soyshttp lang sources 列出各来源（名称/语言/条数），
+#   用 /soyshttp lang sources on/off <索引> 启用/停用某来源（运行时内存生效；/soyshttp reload 会按本段重新注册），
+#   用 /soyshttp lang sources download <索引> 将网络来源翻译下载到 lang/network/<name>/lang/<当前语言>.yml，
+#   用 /soyshttp lang sources update <索引> 更新本地网络翻译（本地不存在则自动下载），
+#   用 /soyshttp lang sources remove <索引> 删除本地网络翻译并从内存卸载，
+#   用 /soyshttp lang sources info <索引> 查看来源详细信息。
 language:
   current: "zh_cn"
   rule: "internationalization"

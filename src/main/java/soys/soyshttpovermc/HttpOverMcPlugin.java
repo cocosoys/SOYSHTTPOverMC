@@ -135,6 +135,8 @@ public class HttpOverMcPlugin extends JavaPlugin {
     private soys.soyshttpovermc.storage.SyncStorage syncStorage = null;
     /** 多后端存储协调器（YAML/SQLite/MySQL 主辅+镜像；null=内存模式）。 */
     private soys.soyshttpovermc.storage.StorageManager storageManager = null;
+    /** language.yml 配置（独立于 config.yml 的国际化配置：current/rule/sources）。 */
+    private org.bukkit.configuration.file.YamlConfiguration languageConfig;
 
     /** 供其他插件获取本插件实例（接入注解式 API / 监听网关事件 / 下发凭证） */
     public static HttpOverMcPlugin getInstance() {
@@ -154,6 +156,22 @@ public class HttpOverMcPlugin extends JavaPlugin {
     /** HTTP 前端处理器：提供首页来源解析等伺服原语（可能为 null，取决于启动时序）。 */
     public WebFrontendHandler getFrontendHandler() {
         return webFrontend;
+    }
+
+    /** language.yml 配置（国际化：current/rule/sources）；reload 时重新加载。 */
+    public org.bukkit.configuration.file.YamlConfiguration getLanguageConfig() {
+        return languageConfig;
+    }
+
+    /** 持久化 language.yml（切换语言 / 修改语言源后调用）。 */
+    public void saveLanguageConfig() {
+        if (languageConfig != null) {
+            try {
+                languageConfig.save(new java.io.File(getDataFolder(), "language.yml"));
+            } catch (java.io.IOException e) {
+                log.warnT("log.i18n.save-config-fail", "保存 language.yml 失败: {0}", e.getMessage());
+            }
+        }
     }
 
     /**
@@ -489,16 +507,21 @@ public class HttpOverMcPlugin extends JavaPlugin {
     }
 
     /**
-     * 装配国际化环境（config.yml language 段）：设置加载策略（clear/overlay）、
+     * 装配国际化环境（language.yml：current/rule/sources）：设置加载策略（clear/overlay）、
      * 注册配置声明的额外语言源，并以 language.current 指定的语言加载默认语言包。
      * 在启动早期（0.5，日志就绪前）与完成态（3.25，日志就绪后）各调用一次，幂等。
      */
     private void initLanguageConfig() {
-        String current = getConfig().getString("language.current", getConfig().getString("language", ""));
-        String rule = getConfig().getString("language.rule", "");
+        File langFile = new java.io.File(getDataFolder(), "language.yml");
+        if (!langFile.isFile()) {
+            saveResource("language.yml", false);
+        }
+        languageConfig = org.bukkit.configuration.file.YamlConfiguration.loadConfiguration(langFile);
+        String current = languageConfig.getString("language.current", languageConfig.getString("language", "zh_cn"));
+        String rule = languageConfig.getString("language.rule", "");
         I18n.setLanguageRule(rule);
         I18n.clearLanguageSources();
-        List<?> sources = getConfig().getList("language.sources");
+        List<?> sources = languageConfig.getList("language.sources");
         if (sources != null) {
             for (Object item : sources) {
                 if (!(item instanceof Map)) continue;

@@ -46,17 +46,18 @@ public class HelpSubCommand extends SubCommand {
 
     @Override
     public String usage() {
-        return "/soyshttp help [子指令|页码] —— " + I18n.t("command.common.help-item", "显示本帮助页面");
+        return I18n.t("command.help.usage", "/soyshttp help [子指令|页码] —— 显示本帮助页面");
     }
 
     @Override
     public String detail() {
-        return "显示全部子指令总览（分页），或某子指令的详细用法。\n"
+        return I18n.t("command.help.detail",
+                "显示全部子指令总览（分页），或某子指令的详细用法。\n"
                 + "用法：\n"
                 + "  /soyshttp help            列出全部可用子指令（第 1 页）\n"
                 + "  /soyshttp help <页码>     翻页查看（如 /soyshttp help 2）\n"
                 + "  /soyshttp help <子指令>   查看该子指令的参数 / 示例 / 注意事项\n"
-                + "提示：隐藏子指令（仅注册）不会出现在本列表中，但仍可直接 /soyshttp <子指令> 执行。";
+                + "提示：隐藏子指令（仅注册）不会出现在本列表中，但仍可直接 /soyshttp <子指令> 执行。");
     }
 
     @Override

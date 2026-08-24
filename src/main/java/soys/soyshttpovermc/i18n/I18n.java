@@ -112,7 +112,14 @@ public final class I18n {
         }
         for (LanguageSource src : languageSources) {
             if (!src.enabled() || !src.appliesToLanguage(c)) continue;
-            Map<String, String> m = src.load(c);
+            Map<String, String> m;
+            // 网络源优先从本地缓存加载（离线可用、避免重复网络请求）
+            if (src.isUrl()) {
+                File cache = networkLangFile(src.name(), c);
+                m = (cache != null && cache.isFile()) ? src.loadLocal(cache) : src.load(c);
+            } else {
+                m = src.load(c);
+            }
             if (m != null) {
                 compiled.putAll(m);
                 anyLoaded = true;
@@ -258,6 +265,168 @@ public final class I18n {
     /** 启用指定索引的语言源（便捷方法，见 {@link #setLanguageSourceEnabled}）。 */
     public static boolean enableLanguageSource(int index) {
         return setLanguageSourceEnabled(index, true);
+    }
+
+    // ==================== 网络源本地化管理 ====================
+
+    /** 网络翻译本地缓存根目录：<dataFolder>/lang/network/。 */
+    private static File networkRoot() {
+        if (languageDir == null || languageDir.getParentFile() == null) return null;
+        return new File(languageDir.getParentFile(), "lang" + File.separator + "network");
+    }
+
+    /** 指定网络源的本地缓存目录：<dataFolder>/lang/network/<safeName>/。 */
+    private static File networkSourceDir(String name) {
+        String safe = (name == null || name.isEmpty()) ? "unnamed" : name.replaceAll("[^\\w.-]", "_");
+        return new File(networkRoot(), safe);
+    }
+
+    /** 指定网络源指定语言的本地翻译文件：<dir>/lang/<code>.yml。 */
+    private static File networkLangFile(String name, String code) {
+        File root = networkSourceDir(name);
+        if (root == null) return null;
+        return new File(new File(root, "lang"), code + ".yml");
+    }
+
+    /** 指定网络源的本地 config.yml（记录名称/介绍/语言）。 */
+    private static File networkConfigFile(String name) {
+        return new File(networkSourceDir(name), "config.yml");
+    }
+
+    /** 取出指定索引的语言源（越界返回 null）。 */
+    private static LanguageSource getLanguageSource(int index) {
+        List<LanguageSource> list = languageSources;
+        if (index < 0 || index >= list.size()) return null;
+        return list.get(index);
+    }
+
+    /**
+     * 将网络来源的翻译下载到本地缓存（{@code lang/network/<name>/lang/<当前语言>.yml}），
+     * 并在 {@code lang/network/<name>/config.yml} 中记录名称/介绍/语言。
+     * 下载后自动重载使本地翻译生效（后续加载优先走本地缓存，离线可用）。
+     *
+     * @return 操作结果消息（成功含条数，失败含原因）
+     */
+    public static String downloadNetworkSource(int index) {
+        LanguageSource s = getLanguageSource(index);
+        if (s == null) return "§c索引越界（当前共 " + languageSourceCount() + " 个来源）";
+        if (!s.isUrl()) return "§c来源 #" + index + "（" + s.name() + "）不是网络来源，无法下载";
+        String code = lang;
+        if (!s.appliesToLanguage(code)) return "§c来源 #" + index + " 不适用于当前语言 " + code;
+        String text = s.fetchText(code);
+        if (text == null || text.isEmpty()) return "§c网络获取失败: " + s.resolvedSource(code);
+
+        // 保存翻译文件
+        File langFile = networkLangFile(s.name(), code);
+        if (langFile == null) return "§c缓存目录未就绪";
+        langFile.getParentFile().mkdirs();
+        try {
+            java.nio.file.Files.write(langFile.toPath(), text.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        } catch (IOException e) {
+            return "§c保存翻译文件失败: " + e.getMessage();
+        }
+
+        // 保存 config.yml
+        File configFile = networkConfigFile(s.name());
+        YamlConfiguration cfg = new YamlConfiguration();
+        cfg.set("name", s.name());
+        cfg.set("description", s.description());
+        cfg.set("language", s.language().isEmpty() ? code : s.language());
+        cfg.set("source", s.raw());
+        try {
+            cfg.save(configFile);
+        } catch (IOException e) {
+            log.warnT("log.i18n.network-config-save-fail", "[i18n] 保存网络源 config.yml 失败: {0}", e.getMessage());
+        }
+
+        // 重载使本地翻译生效
+        load(lang);
+
+        // 统计条数
+        int count = 0;
+        Map<String, String> m = s.loadLocal(langFile);
+        if (m != null) count = m.size();
+        log.infoT("log.i18n.network-downloaded",
+                "[i18n] 网络源 #{0}({1}) 翻译已下载到本地: {2} ({3} 条)",
+                index, s.name(), langFile.getAbsolutePath(), count);
+        return "已下载来源 #" + index + "（" + s.name() + "）的 " + code + " 翻译到本地（" + count + " 条）";
+    }
+
+    /**
+     * 更新本地网络翻译（重新从网络拉取覆盖本地文件）。
+     * 若本地缓存不存在则自动执行下载。
+     *
+     * @return 操作结果消息
+     */
+    public static String updateNetworkSource(int index) {
+        LanguageSource s = getLanguageSource(index);
+        if (s == null) return "§c索引越界（当前共 " + languageSourceCount() + " 个来源）";
+        if (!s.isUrl()) return "§c来源 #" + index + "（" + s.name() + "）不是网络来源，无法更新";
+        String code = lang;
+        if (!s.appliesToLanguage(code)) return "§c来源 #" + index + " 不适用于当前语言 " + code;
+        File langFile = networkLangFile(s.name(), code);
+        if (langFile == null || !langFile.isFile()) {
+            return downloadNetworkSource(index);
+        }
+        return downloadNetworkSource(index);
+    }
+
+    /**
+     * 删除本地网络翻译缓存并从内存中卸载（停用该源 + 重载）。
+     * 仅删除本地缓存文件，不影响 language.yml 中注册的源配置（下次 reload 会重新注册并恢复启用）。
+     *
+     * @return 操作结果消息
+     */
+    public static String removeNetworkSourceLocal(int index) {
+        LanguageSource s = getLanguageSource(index);
+        if (s == null) return "§c索引越界（当前共 " + languageSourceCount() + " 个来源）";
+        String code = lang;
+        File langFile = networkLangFile(s.name(), code);
+        boolean deleted = false;
+        if (langFile != null && langFile.isFile()) {
+            deleted = langFile.delete();
+        }
+        // 停用该源使其从内存中卸载
+        s.setEnabled(false);
+        // 重载使变更生效
+        load(lang);
+        log.infoT("log.i18n.network-removed",
+                "[i18n] 网络源 #{0}({1}) 本地翻译已删除并从内存卸载",
+                index, s.name());
+        return deleted
+                ? "已删除来源 #" + index + "（" + s.name() + "）的本地 " + code + " 翻译并从内存卸载"
+                : "来源 #" + index + "（" + s.name() + "）无本地缓存，已从内存卸载";
+    }
+
+    /**
+     * 查看指定来源的详细信息（名称/介绍/语言/原始 source/是否网络源/是否启用/本地缓存状态）。
+     *
+     * @return 多行信息字符串；索引越界返回 null
+     */
+    public static String networkSourceInfo(int index) {
+        LanguageSource s = getLanguageSource(index);
+        if (s == null) return null;
+        StringBuilder sb = new StringBuilder();
+        sb.append("§a== ").append(s.name()).append(" (").append(s.description()).append(") ==");
+        sb.append("\n§7索引: §f").append(index);
+        sb.append("\n§7名称: §f").append(s.name());
+        sb.append("\n§7介绍: §f").append(s.description());
+        sb.append("\n§7语言: §f").append(s.language().isEmpty() ? "模板源（适配任意语言）" : s.language());
+        sb.append("\n§7来源: §f").append(s.raw());
+        sb.append("\n§7类型: §f").append(s.isUrl() ? "网络来源" : "本地来源");
+        sb.append("\n§7状态: §f").append(s.enabled() ? "启用" : "停用");
+        if (s.isUrl()) {
+            File cache = networkLangFile(s.name(), lang);
+            if (cache != null && cache.isFile()) {
+                Map<String, String> m = s.loadLocal(cache);
+                sb.append("\n§7本地缓存: §a存在§7 (").append(m == null ? 0 : m.size()).append(" 条)");
+                sb.append("\n§7缓存路径: §f").append(cache.getAbsolutePath());
+            } else {
+                sb.append("\n§7本地缓存: §e无（加载时从网络获取）");
+            }
+            sb.append("\n§7解析URL: §f").append(s.resolvedSource(lang));
+        }
+        return sb.toString();
     }
 
     /** 取出当前默认语言包的全部键值（供覆盖策略起步）。 */
