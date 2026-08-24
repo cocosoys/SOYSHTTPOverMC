@@ -120,7 +120,7 @@ public class PagesSubCommand extends SubCommand {
         for (WebRegistry.Entry e : reg.listEntries()) {
             if ("/".equals(e.path)) return;
         }
-        String home = plugin.getConfig().getString("web.home", "");
+        String home = plugin.webConfig("web.home", "");
         String src = (home == null || home.trim().isEmpty()) ? "默认 index.html" : home.trim();
         sender.sendMessage(I18n.t("command.pages.home-hint",
                 "  §e/ §7—— 首页（静态解析源:" + src + "）"));

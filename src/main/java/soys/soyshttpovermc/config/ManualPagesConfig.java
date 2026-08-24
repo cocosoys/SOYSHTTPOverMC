@@ -53,23 +53,24 @@ public final class ManualPagesConfig {
     /** 从头登记 pages.yml（文件缺失时先落内置默认）。返回登记成功的网页/跳转数（含目录内逐文件）。 */
     public static int register(JavaPlugin plugin, WebRegistry reg) {
         if (reg == null) return 0;
-        File file = new File(plugin.getDataFolder(), "pages.yml");
-        if (!file.isFile()) {
-            if (plugin.getResource("pages.yml") != null) {
-                plugin.saveResource("pages.yml", false);
-            }
-            if (!file.isFile()) return 0;
-        }
-        YamlConfiguration cfg = YamlConfiguration.loadConfiguration(file);
+        YamlConfiguration cfg = loadConfig(plugin);
+        if (cfg == null) return 0;
         ConfigurationSection pages = cfg.getConfigurationSection("pages");
         if (pages == null) return 0;
 
         int total = 0;
-        boolean hasNew = false;
+
+        // 加载优先级：先 auto（平铺自动注册），后 page（显式页面），使 page 段可覆盖 auto 段已登记的同路径页面。
+        ConfigurationSection autoSec = pages.getConfigurationSection("auto");
+        if (autoSec != null) {
+            total += applyAutoMap(plugin, reg, autoSec);
+        } else if (!pages.contains("page")) {
+            // 旧版兼容：pages 下平铺键值（无 page/auto 段）仍按 auto 处理
+            total += applyAutoMap(plugin, reg, pages);
+        }
 
         ConfigurationSection pageSec = pages.getConfigurationSection("page");
         if (pageSec != null) {
-            hasNew = true;
             for (String key : pageSec.getKeys(false)) {
                 String url = normalizeUrl(key);
                 try {
@@ -80,19 +81,27 @@ public final class ManualPagesConfig {
             }
         }
 
-        ConfigurationSection autoSec = pages.getConfigurationSection("auto");
-        if (autoSec != null) {
-            hasNew = true;
-            total += applyAutoMap(plugin, reg, autoSec);
-        } else if (!hasNew) {
-            // 旧版兼容：pages 下平铺键值（无 page/auto 段）仍按 auto 处理
-            total += applyAutoMap(plugin, reg, pages);
-        }
-
         if (total > 0) {
             log.infoT("log.pages.registered", "pages.yml 已登记 {0} 个网页", total);
         }
         return total;
+    }
+
+    /**
+     * 确保 pages.yml 存在（缺失时落内置默认）并读取。
+     * 统一入口：外部模块（web.* 配置、ihomepage 写 web.home）与 {@link #register} 共用同一配置源。
+     *
+     * @return pages.yml 的配置对象；文件落盘失败返回 null
+     */
+    public static YamlConfiguration loadConfig(JavaPlugin plugin) {
+        File file = new File(plugin.getDataFolder(), "pages.yml");
+        if (!file.isFile()) {
+            if (plugin.getResource("pages.yml") != null) {
+                plugin.saveResource("pages.yml", false);
+            }
+            if (!file.isFile()) return null;
+        }
+        return YamlConfiguration.loadConfiguration(file);
     }
 
     /** 解析 page 段单条为 PageItem（resource / nicknames / description）。 */

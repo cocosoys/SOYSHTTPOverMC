@@ -144,7 +144,8 @@ public class SoysHttpCommand implements CommandExecutor, TabCompleter {
         List<String[]> rows = new ArrayList<>();
         for (SubCommand sub : getSubCommands().values()) {
             if (sub.isHide()) continue;                      // 隐藏子指令不进帮助列表
-            String usage=sub.usage().replaceFirst("/soyshttp "+sub.name()+" —— ","");
+            String usage=sub.usage().replaceFirst(sub.usage().substring(sub.usage().lastIndexOf(" —— ")),"");
+//            String usage=sub.usage().replaceFirst("/soyshttp "+sub.name()+" —— ","");
             rows.add(new String[]{sub.name(), usage});
         }
 

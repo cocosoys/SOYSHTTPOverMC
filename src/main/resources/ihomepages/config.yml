@@ -1,6 +1,0 @@
-# ihomepages 逻辑配置：仅控制本功能是否启用及缓存等逻辑参数。
-# 首页展示内容（标题/简介/QQ/礼包物品等）全部在 home.yml 中配置。
-enabled: true
-cache-seconds: 0
-homepage:
-  current: ""

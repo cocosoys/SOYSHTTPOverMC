@@ -493,6 +493,7 @@ log.pages.page-resource-dir: "pages.page resource does not support directories (
 log.pages.register-fail: "pages.yml registration failed {0}: {1}"
 log.pages.register-redirect: "pages.yml registered redirect: GET {0} -> {1}"
 log.pages.registered: "pages.yml registered {0} web page(s)"
+log.pages.save-home-fail: "Failed to save pages.yml web.home: {0}"
 log.pages.source-empty: "pages.yml entry missing content source: {0}"
 log.pages.source-unreadable: "pages.yml source unreadable, skipped: {0}"
 web.entry.kind-page: "page"

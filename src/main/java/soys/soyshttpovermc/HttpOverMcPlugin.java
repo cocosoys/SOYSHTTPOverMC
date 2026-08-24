@@ -137,6 +137,8 @@ public class HttpOverMcPlugin extends JavaPlugin {
     private soys.soyshttpovermc.storage.StorageManager storageManager = null;
     /** language.yml 配置（独立于 config.yml 的国际化配置：current/rule/sources）。 */
     private org.bukkit.configuration.file.YamlConfiguration languageConfig;
+    /** pages.yml 配置（web.* 前端资源段 + pages.page/auto 手动登记；web.home 等均自此读取）。 */
+    private org.bukkit.configuration.file.YamlConfiguration pagesConfig;
 
     /** 供其他插件获取本插件实例（接入注解式 API / 监听网关事件 / 下发凭证） */
     public static HttpOverMcPlugin getInstance() {
@@ -171,6 +173,43 @@ public class HttpOverMcPlugin extends JavaPlugin {
             } catch (java.io.IOException e) {
                 log.warnT("log.i18n.save-config-fail", "保存 language.yml 失败: {0}", e.getMessage());
             }
+        }
+    }
+
+    /**
+     * 加载 pages.yml（web.* 前端资源 + pages.page/auto 手动登记）到内存。缺失时落内置默认。
+     * onEnable 启动早期与 /soyshttp reload 时各调用一次，重载后 web.* 与手动登记页随之刷新。
+     */
+    public void loadPagesConfig() {
+        pagesConfig = soys.soyshttpovermc.config.ManualPagesConfig.loadConfig(this);
+    }
+
+    /** pages.yml 配置对象（web.* 段 / pages 段统一在此；可能为 null=文件落盘失败）。 */
+    public org.bukkit.configuration.file.YamlConfiguration getPagesConfig() {
+        return pagesConfig;
+    }
+
+    /** 读取 pages.yml web.* 配置项（如 web.home / web.root / web.cache.max-bytes）。缺省返回默认值。 */
+    public String webConfig(String path, String def) {
+        if (pagesConfig == null) return def;
+        String v = pagesConfig.getString(path, def);
+        return v == null ? def : v;
+    }
+
+    /**
+     * 写入 pages.yml 的 {@code web.home} 并持久化（将首页位置同步到框架配置；由 ihomepage 等模块调用）。
+     * 仅落盘，不主动触发 reload——调用方按需决定是否 reload（应用需重建 WebFrontendHandler 或 setHomeSpec）。
+     */
+    public void setWebHome(String value) {
+        if (pagesConfig == null) {
+            loadPagesConfig();
+            if (pagesConfig == null) return;
+        }
+        pagesConfig.set("web.home", value == null ? "" : value);
+        try {
+            pagesConfig.save(new java.io.File(getDataFolder(), "pages.yml"));
+        } catch (java.io.IOException e) {
+            log.warnT("log.pages.save-home-fail", "保存 pages.yml web.home 失败: {0}", e.getMessage());
         }
     }
 
@@ -247,11 +286,13 @@ public class HttpOverMcPlugin extends JavaPlugin {
 
         // 1) 读取核心运行参数（Bot 用户名 / 通道 / 本服地址 / 嗅探开关等）
         loadCoreConfig();
+        // 1.25) pages.yml（web.* 前端资源 + pages.page/auto 手动登记；web.home 等自此读取）
+        loadPagesConfig();
         // 1.5) 数据贡献（upload）：同意后将本服 IP:端口 匿名 POST 上报为数据统计（异步，失败不影响运行）
         handleUploadContribution();
         // 2) 生成 gateway/ 默认配置 + 解析前端资源目录（留空解压 jar 内置面板到配置目录 web/）
         File gatewayDir = ConfigManager.ensureGatewayFiles(this);
-        webRootDir = ConfigManager.resolveWebRoot(this, getFile(), getConfig().getString("web.root", ""));
+        webRootDir = ConfigManager.resolveWebRoot(this, getFile(), webConfig("web.root", ""));
         File webRoot = webRootDir;
         // 2.5) 登录插件抽象工厂：配置上下文 + 注册软依赖提供者（AuthMe 存在才加载其 SPI 类，防 NoClassDefFoundError）
         LoginProviderFactory.configure(new LoginProviderContext(this));
@@ -298,10 +339,9 @@ public class HttpOverMcPlugin extends JavaPlugin {
         initSniffer(stats);
         // 9) 命令：/soyshttp reload | /soyshttp key <subject>
         initCommand();
-        // 9.5) 自定义主页插件 ihomepages（子包内嵌，未来可整体抽离为独立插件）。
-        //      必须在 initCommand() 之后：其 registerSubCommand 需要宿主命令已初始化，否则注册失败抛异常
-        //      （如 E_REGISTER_SUB_COMMAND - 命令尚未初始化），导致插件启用中断、banner 无法打印。
-        soys.ihomepages.MyHomePages.register(this);
+        // 9.5) 自定义主页插件 ihomepages 已抽离为独立插件（softdepend: [SOYSHTTPOverMC]，
+        //      随服务端独立加载），不再由本插件内嵌调用；其通过本插件的 API 门面（SoysHttpOverMcApi）
+        //      注册子指令 / 控制器 / reload 钩子，并在 pages.yml 写入 web.home。
         // 10) 就绪事件：第三方插件若先于本插件加载，可监听 SoysReadyEvent 做延迟注册
         try {
             getServer().getPluginManager().callEvent(new soys.soyshttpovermc.api.event.SoysReadyEvent(api));
@@ -328,17 +368,21 @@ public class HttpOverMcPlugin extends JavaPlugin {
         return dir;
     }
 
-    /** 装配 Web 内容缓存（config.yml web.cache.* / web.large-file-*）。 */
+    /** 装配 Web 内容缓存（pages.yml web.cache.* / web.large-file-*）。 */
     private void initWebCache() {
         try {
-            long cacheMaxBytes = getConfig().getLong("web.cache.max-bytes", 16L * 1024 * 1024);
-            int cacheMaxEntries = Math.max(1, getConfig().getInt("web.cache.max-entries", 1024));
-            long cacheTtlSeconds = getConfig().getLong("web.cache.ttl-seconds", 60);
+            long cacheMaxBytes = Long.parseLong(webConfig("web.cache.max-bytes", null));
+            int cacheMaxEntries = webConfig("web.cache.max-entries", null) == null
+                    ? 1024 : Math.max(1, Integer.parseInt(webConfig("web.cache.max-entries", null)));
+            long cacheTtlSeconds = Long.parseLong(webConfig("web.cache.ttl-seconds", null));
             java.util.Set<String> pinned = new java.util.LinkedHashSet<>(
-                    getConfig().getStringList("web.cache.pinned"));
+                    pagesConfig == null ? java.util.Collections.emptyList()
+                            : pagesConfig.getStringList("web.cache.pinned"));
             // 大文件阈值默认 = max-bytes（即超过缓存上限大小的文件视为大文件，走加载器、不缓存）
-            long largeThreshold = getConfig().getLong("web.large-file-threshold", cacheMaxBytes);
-            largeFileMaxBytes = getConfig().getLong("web.large-file-max-bytes", 128L * 1024 * 1024);
+            long largeThreshold = webConfig("web.large-file-threshold", null) == null
+                    ? cacheMaxBytes : Long.parseLong(webConfig("web.large-file-threshold", null));
+            largeFileMaxBytes = webConfig("web.large-file-max-bytes", null) == null
+                    ? 128L * 1024 * 1024 : Long.parseLong(webConfig("web.large-file-max-bytes", null));
             largeFileLoaderRegistry = new soys.soyshttpovermc.web.LargeFileLoaderRegistry(largeThreshold);
             webContentCache = new soys.soyshttpovermc.web.WebContentCache(
                     cacheMaxEntries, cacheMaxBytes, cacheTtlSeconds, pinned, largeFileLoaderRegistry);
@@ -839,7 +883,7 @@ public class HttpOverMcPlugin extends JavaPlugin {
 
         WebFrontendHandler web = new WebFrontendHandler(
                 webRoot == null ? null : webRoot.getAbsolutePath(),
-                getConfig().getString("web.home", ""),
+                webConfig("web.home", ""),
                 apiRegistry, webRegistry,
                 webContentCache, largeFileMaxBytes, corsRegistry, webInterceptorRegistry);
         webFrontend = web;
@@ -1002,8 +1046,10 @@ public class HttpOverMcPlugin extends JavaPlugin {
     /** /soyshttp reload：热重载日志级别 + 网关策略与 TLS 配置（gateway/ 目录）+ 存储后端，无需重启服务器 */
     public void reloadHttpConfig() {
         reloadConfig();
-        // 语言策略 / 额外语言源 / 当前语言可在此热重载（config.yml language 段）
+        // 语言策略 / 额外语言源 / 当前语言可在此热重载（language.yml 段）
         initLanguageConfig();
+        // pages.yml（web.* + pages.page/auto）重新加载
+        loadPagesConfig();
         String levelRaw = getConfig().getString("log.level", "INFO");
         LogKit.setLevel(levelRaw); // 日志级别热重载
         // 重建多后端存储（主辅/镜像配置可能变更；StorageManager.initialize 内部先关闭旧的）
@@ -1021,9 +1067,13 @@ public class HttpOverMcPlugin extends JavaPlugin {
         if (authService != null) {
             authService.setBridge(authLoginBridge);
         }
+        // 重新登记 pages.yml 手动页（强制注册，page 后置可覆盖 auto）与 web.home 热替换
+        if (webRegistry != null) {
+            ManualPagesConfig.register(this, webRegistry);
+        }
         // 首页（web.home）热替换：reload 后即时把最新 web.home 应用到运行中的 WebFrontendHandler
         if (webFrontend != null) {
-            webFrontend.setHomeSpec(getConfig().getString("web.home", ""));
+            webFrontend.setHomeSpec(webConfig("web.home", ""));
         }
         // 通知其它插件随 reload 一起刷新（两种自动检测机制：钩子 + Bukkit 事件）
         for (ReloadHttpConfigHandler h : new java.util.ArrayList<>(reloadHooks)) {
