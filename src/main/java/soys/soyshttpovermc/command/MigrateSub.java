@@ -1,13 +1,12 @@
 package soys.soyshttpovermc.command;
+import soys.soyshttpovermc.enums.StorageType;
 
 import soys.soyshttpovermc.HttpOverMcPlugin;
 import soys.soyshttpovermc.i18n.I18n;
 import soys.soyshttpovermc.storage.StorageManager;
-import soys.soyshttpovermc.storage.StorageType;
 
 import org.bukkit.command.CommandSender;
 
-import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -33,12 +32,12 @@ public class MigrateSub extends SubCommand {
     @Override
     public String usage() {
         return I18n.t("command.migrate.usage",
-                "/soyshttp migrate <来源> <目标> [overwrite] —— 在 yaml/sqlite/mysql 后端间迁移全量数据");
+                "/soyshttp migrate <来源> <目标> [overwrite] —— 在 " + backendNames() + " 后端间迁移全量数据");
     }
 
     @Override
     public String detail() {
-        return usage() + "\n  来源/目标: yaml | sqlite | mysql（须已启用）\n"
+        return usage() + "\n  来源/目标: " + backendNames() + "（须已启用）\n"
                 + "  追加 overwrite 先清空目标后端再写入（默认不清空，按 key 覆盖）\n"
                 + "  示例: /soyshttp migrate yaml mysql —— 把 yaml 数据迁入 mysql";
     }
@@ -58,7 +57,7 @@ public class MigrateSub extends SubCommand {
         StorageType from = StorageType.fromId(args[1]);
         StorageType to = StorageType.fromId(args[2]);
         if (from == null || to == null) {
-            msgT(sender, "command.migrate.unknown-backend", "§c未知后端（可选: yaml / sqlite / mysql）");
+            msgT(sender, "command.migrate.unknown-backend", "§c未知后端（可选: " + backendNames() + "）");
             return;
         }
         if (from == to) {
@@ -81,10 +80,23 @@ public class MigrateSub extends SubCommand {
 
     @Override
     public List<String> tabComplete(CommandSender sender, String[] args) {
-        List<String> backends = Arrays.asList("yaml", "sqlite", "mysql");
         if (args.length == 2 || args.length == 3) {
+            List<String> backends = new java.util.ArrayList<>(StorageType.values().length);
+            for (StorageType t : StorageType.values()) {
+                backends.add(t.getId());
+            }
             return backends;
         }
         return java.util.Collections.emptyList();
+    }
+
+    /** 全部后端 ID 的斜杠拼接（如 "yaml/sqlite/mysql"），供提示文本复用，避免散落硬编码。 */
+    private static String backendNames() {
+        StringBuilder sb = new StringBuilder();
+        for (StorageType t : StorageType.values()) {
+            if (sb.length() > 0) sb.append('/');
+            sb.append(t.getId());
+        }
+        return sb.toString();
     }
 }

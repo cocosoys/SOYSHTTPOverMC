@@ -1,9 +1,10 @@
 package soys.soyshttpovermc.storage.impl;
+import soys.soyshttpovermc.enums.StorageType;
 import lombok.CustomLog;
 
 import soys.soyshttpovermc.i18n.I18n;
 import soys.soyshttpovermc.storage.DataStorage;
-import soys.soyshttpovermc.storage.StorageType;
+
 import soys.soyshttpovermc.storage.SyncRecord;
 
 import org.bukkit.configuration.ConfigurationSection;
@@ -19,13 +20,19 @@ import java.util.Collection;
 
 /**
  * YAML 文件存储后端：
- * 零外部依赖，默认启用；所有记录写在同一个文件（默认 data/records.yml）的
- * {@code records: {key: {type, data, updated_at}}} 节点下，对象锁保证并发安全。
+ * 零外部依赖，默认启用；所有记录写在 {@code storage.backends.yaml.file} 指定<b>文件夹</b>下的
+ * {@code records.yml}（默认 data/records.yml）的 {@code records: {key: {type, data, updated_at}}}
+ * 节点下，对象锁保证并发安全。
+ * <p>{@code file} 现在表示<b>存放各类 yml 表的文件夹</b>（KV 记录文件 records.yml + ORM 各实体表
+ * 同处一目录），兼容旧式 {@code file: data/records.yml} 写法（取其父目录作为存储文件夹）。</p>
  */
 @CustomLog
 public class YamlStorage implements DataStorage {
 
     private static final String ROOT = "records";
+
+    /** KV 记录固定文件名（位于 file 指定文件夹内）。 */
+    private static final String RECORDS_FILE = "records.yml";
 
     private final JavaPlugin plugin;
     private final Object lock = new Object();
@@ -44,17 +51,44 @@ public class YamlStorage implements DataStorage {
         return StorageType.YAML;
     }
 
+    /**
+     * 解析 YAML 存储<b>文件夹</b>：{@code storage.backends.yaml.file} 现在应配置为一个文件夹路径，
+     * 用于集中存放各类 yml 表（KV 记录文件 records.yml + ORM 各实体 &lt;表名&gt;.yml）。
+     * <ul>
+     *   <li>配置以 {@code .yml}/{@code .yaml} 结尾 → 视为旧式「单文件」写法，取其<b>父目录</b>作为存储文件夹（向后兼容）；</li>
+     *   <li>配置以分隔符结尾或不含扩展名 → 视为文件夹，原样作为存储文件夹（去尾随分隔符）；</li>
+     *   <li>配置为空 → 退回插件 dataFolder。</li>
+     * </ul>
+     */
+    public static File resolveDir(JavaPlugin plugin, String fileCfg) {
+        File dataFolder = plugin.getDataFolder();
+        if (fileCfg == null || fileCfg.trim().isEmpty()) {
+            return dataFolder;
+        }
+        String p = fileCfg.trim();
+        File target = new File(dataFolder, p);
+        String lower = p.toLowerCase();
+        if (lower.endsWith(".yml") || lower.endsWith(".yaml")) {
+            File parent = target.getParentFile();
+            return parent == null ? dataFolder : parent;
+        }
+        // 作为文件夹：去尾随分隔符后原样使用
+        return new File(target.getPath());
+    }
+
     @Override
     public void initialize() throws Exception {
         ConfigurationSection section = plugin.getConfig().getConfigurationSection("storage.backends.yaml");
-        String path = section == null ? "data/records.yml" : section.getString("file", "data/records.yml");
+        String fileCfg = section == null ? null : section.getString("file", "data");
         this.backupOnSave = section != null && section.getBoolean("backup-on-save", false);
 
-        this.file = new File(plugin.getDataFolder(), path);
-        File parent = file.getParentFile();
-        if (parent != null && !parent.exists() && !parent.mkdirs()) {
-            throw new IOException(I18n.t("exception.storage.mkdir-data-dir", "无法创建数据目录: {0}", parent.getAbsolutePath()));
+        // file 现在表示【文件夹】，记录文件固定为该目录下的 records.yml；
+        // 兼容旧式 file: data/records.yml（取其父目录）。
+        File dir = resolveDir(plugin, fileCfg);
+        if (!dir.exists() && !dir.mkdirs()) {
+            throw new IOException(I18n.t("exception.storage.mkdir-data-dir", "无法创建数据目录: {0}", dir.getAbsolutePath()));
         }
+        this.file = new File(dir, RECORDS_FILE);
         if (!file.exists() && !file.createNewFile()) {
             throw new IOException(I18n.t("exception.storage.create-data-file", "无法创建数据文件: {0}", file.getAbsolutePath()));
         }

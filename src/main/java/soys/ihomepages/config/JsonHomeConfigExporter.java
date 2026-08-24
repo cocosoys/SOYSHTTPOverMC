@@ -2,6 +2,7 @@ package soys.ihomepages.config;
 import lombok.CustomLog;
 
 import soys.soyshttpovermc.api.HttpClientApi;
+import soys.soyshttpovermc.web.MimeTypes;
 import soys.ihomepages.spring.entity.GiftCommand;
 import soys.ihomepages.spring.entity.GiftConfigEntity;
 import soys.ihomepages.spring.entity.GiftItem;
@@ -182,16 +183,9 @@ public class JsonHomeConfigExporter implements IHomeConfigExporter {
         }
     }
 
-    /** 根据文件扩展名猜测 MIME 类型 */
+    /** 根据文件扩展名猜测 MIME 类型（未知回退图片 PNG，供图标 Data URI）。 */
     private String guessMimeType(String path) {
-        String lower = path.toLowerCase();
-        if (lower.endsWith(".png")) return "image/png";
-        if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) return "image/jpeg";
-        if (lower.endsWith(".gif")) return "image/gif";
-        if (lower.endsWith(".webp")) return "image/webp";
-        if (lower.endsWith(".svg")) return "image/svg+xml";
-        if (lower.endsWith(".ico")) return "image/x-icon";
-        if (lower.endsWith(".bmp")) return "image/bmp";
-        return "image/png"; // 默认
+        String t = MimeTypes.forPath(path);
+        return MimeTypes.OCTET_STREAM.equals(t) ? MimeTypes.forExt("png") : t;
     }
 }

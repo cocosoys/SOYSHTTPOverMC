@@ -60,13 +60,13 @@ public interface WebInterceptor {
 
         /** 便捷：短路返回纯文本（兼容旧用法；新代码建议用 {@link #stopJson} 保持统一 JSON 信封）。 */
         public static Outcome stopText(int status, String text) {
-            return new Outcome(status, "text/plain; charset=utf-8",
+            return new Outcome(status, MimeTypes.forExt("txt"),
                     text == null ? new byte[0] : text.getBytes(java.nio.charset.StandardCharsets.UTF_8), null);
         }
 
         /** 便捷：短路返回 JSON 信封（{@code {code,msg,data}}，与全局业务响应格式一致）。 */
         public static Outcome stopJson(int status, AjaxResult body) {
-            return new Outcome(status, "application/json; charset=utf-8",
+            return new Outcome(status, MimeTypes.forExt("json"),
                     (body == null ? AjaxResult.error(status, "") : body).toJson()
                             .getBytes(java.nio.charset.StandardCharsets.UTF_8), null);
         }

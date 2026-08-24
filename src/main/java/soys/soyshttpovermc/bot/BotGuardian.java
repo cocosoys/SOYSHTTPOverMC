@@ -1,8 +1,8 @@
 package soys.soyshttpovermc.bot;
 import lombok.CustomLog;
 
-import soys.soyshttpovermc.log.LogKit;
 import soys.soyshttpovermc.i18n.I18n;
+import soys.soyshttpovermc.enums.BotHideMode;
 
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -32,21 +32,16 @@ import java.util.Set;
 @CustomLog
 public class BotGuardian implements Listener {
 
-    /** 隐藏模式：hideplayer=hidePlayer 方案（当前实现）；playerinfo-remove=PacketPlayOutPlayerInfo 方案（预留）。 */
-    public static final String MODE_HIDEPLAYER = "hideplayer";
-    public static final String MODE_PLAYERINFO_REMOVE = "playerinfo-remove";
-
     private final BotManager botManager;
     private final String namePrefix;
     private final Set<String> allowedIps;
-    private final String hideMode;
+    private final BotHideMode hideMode;
 
     public BotGuardian(BotManager botManager, String namePrefix, Set<String> allowedIps, String hideMode) {
         this.botManager = botManager;
         this.namePrefix = namePrefix == null ? "" : namePrefix;
         this.allowedIps = allowedIps == null ? Collections.emptySet() : new HashSet<>(allowedIps);
-        String mode = hideMode == null ? MODE_HIDEPLAYER : hideMode.trim();
-        this.hideMode = MODE_PLAYERINFO_REMOVE.equals(mode) ? MODE_PLAYERINFO_REMOVE : MODE_HIDEPLAYER;
+        this.hideMode = BotHideMode.from(hideMode);
     }
 
     /** 是否 bot 专属账号名：受管 Bot 名，或以配置前缀开头的任意名称。 */
@@ -120,7 +115,7 @@ public class BotGuardian implements Listener {
     /** 按 hide-mode 执行隐藏。 */
     private void hide(Player viewer, Player target) {
         try {
-            if (MODE_PLAYERINFO_REMOVE.equals(hideMode)) {
+            if (hideMode == BotHideMode.PLAYERINFO_REMOVE) {
                 sendPlayerInfoRemove(target);
                 return;
             }

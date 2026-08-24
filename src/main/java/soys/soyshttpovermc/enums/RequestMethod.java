@@ -1,4 +1,4 @@
-package soys.soyshttpovermc.annotations;
+package soys.soyshttpovermc.enums;
 
 /**
  * HTTP 请求方法枚举（仿 Spring 的 {@code org.springframework.web.bind.annotation.RequestMethod}）。

@@ -1,4 +1,5 @@
 package soys.soyshttpovermc;
+import soys.soyshttpovermc.enums.ProxyPlatform;
 import lombok.CustomLog;
 
 import soys.soyshttpovermc.log.LogKit;
@@ -14,10 +15,13 @@ import org.bukkit.Bukkit;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import soys.soyshttpovermc.api.SoysHttpOverMcApi;
+import soys.soyshttpovermc.api.ReloadHttpConfigHandler;
+import soys.soyshttpovermc.api.event.HttpConfigReloadEvent;
 import soys.soyshttpovermc.api.impl.SoysHttpOverMcApiImpl;
 import soys.soyshttpovermc.bot.BotGuardian;
 import soys.soyshttpovermc.bot.BotManager;
 import soys.soyshttpovermc.web.WebRegistry;
+import soys.soyshttpovermc.web.MimeTypes;
 import soys.soyshttpovermc.spring.controller.StatusController;
 import soys.soyshttpovermc.spring.controller.SystemController;
 import soys.soyshttpovermc.spring.impl.StatusServiceImpl;
@@ -38,10 +42,11 @@ import soys.soyshttpovermc.mc.McMessageHandler;
 import soys.soyshttpovermc.mc.RequestScheduler;
 import soys.soyshttpovermc.mc.SocketSniffer;
 import soys.soyshttpovermc.proxy.ProxyDetector;
-import soys.soyshttpovermc.proxy.ProxyPlatform;
+
 import soys.soyshttpovermc.proxy.ServerRegistry;
 import soys.soyshttpovermc.proxy.ServerTag;
 import soys.soyshttpovermc.i18n.I18n;
+import soys.soyshttpovermc.enums.BotHideMode;
 import soys.soyshttpovermc.cross.CrossServerHub;
 import soys.soyshttpovermc.web.RequestStats;
 import soys.soyshttpovermc.web.WebFrontendHandler;
@@ -56,6 +61,8 @@ import soys.soyshttpovermc.gateway.policy.auth.issuer.SessionTokenIssuer;
 
 import javax.net.ssl.SSLEngine;
 import java.io.File;
+import java.util.List;
+import java.util.Map;
 import java.util.function.Supplier;
 
 @CustomLog
@@ -84,8 +91,8 @@ public class HttpOverMcPlugin extends JavaPlugin {
     private String botNamePrefix = "__bot__";
     /** bot 专属账号允许登录的 IP 白名单（config.yml bot.allowed-login-ips，默认 127.0.0.1） */
     private java.util.Set<String> allowedLoginIps = java.util.Collections.singleton("127.0.0.1");
-    /** Bot 隐藏方式（config.yml bot.hide-mode：hideplayer | playerinfo-remove[预留]） */
-    private String botHideMode = "hideplayer";
+    /** Bot 隐藏方式（config.yml bot.hide-mode：hideplayer | playerinfo-remove[预留]）。 */
+    private BotHideMode botHideMode = BotHideMode.HIDEPLAYER;
     private String mcHost;
     private int mcPort;
     private boolean snifferEnabled;
@@ -98,6 +105,8 @@ public class HttpOverMcPlugin extends JavaPlugin {
     private volatile LoginProvider loginProvider;
     /** 前端处理器（/soyshttp reload 后向其热替换登录桥） */
     private WebFrontendHandler webFrontend;
+    /** 热重载钩子（其它插件经门面注册，/soyshttp reload 时随本插件一起刷新自身配置） */
+    private final java.util.List<ReloadHttpConfigHandler> reloadHooks = new java.util.ArrayList<>();
     /** 前端磁盘根（web.root 解析结果；核心网页登记、reload 复用） */
     private File webRootDir;
     /** 登录窗口认证服务（/soyshttp reload 后向其热替换登录桥） */
@@ -147,6 +156,14 @@ public class HttpOverMcPlugin extends JavaPlugin {
         return webFrontend;
     }
 
+    /**
+     * 注册热重载钩子：其它插件（或提供 /soyshttp 子指令的模块）实现 {@link ReloadHttpConfigHandler} 后注册，
+     * 执行 {@code /soyshttp reload} 时会随本插件一同刷新自身配置（自动检测机制之一）。
+     */
+    public void registerReloadHook(ReloadHttpConfigHandler handler) {
+        if (handler != null) reloadHooks.add(handler);
+    }
+
     /** 网关策略链（含已启用的凭证颁发器） */
     public GatewayFilter getGateway() {
         return gateway;
@@ -182,6 +199,11 @@ public class HttpOverMcPlugin extends JavaPlugin {
         return authLoginBridge;
     }
 
+    /** 主 Bot（内部回环隧道）是否就绪（已连接且已 REGISTER 主通道）；未启用 Bot 或关闭中返回 false。 */
+    public boolean isBotReady() {
+        return bot != null && bot.isReady();
+    }
+
     /** 网关事件调试日志是否开启（gateway/config.yml 的 debug-events） */
     public boolean isDebugEventsEnabled() {
         return debugEventsEnabled;
@@ -200,10 +222,10 @@ public class HttpOverMcPlugin extends JavaPlugin {
         instance = this;
         saveDefaultConfig();
 
-        // 0.5) 国际化：尽早加载 config.yml language 指定的语言包（务必先于任何中文日志；
+        // 0.5) 国际化：尽早加载 config.yml language.current 指定的语言包（务必先于任何中文日志；
         //      否则 EULA 之后、原 3.25 之前的启动日志（bot 前缀校验 / 拓扑探测 / web 目录 / 登录提供者）
         //      在切换为 en_us 时仍会以中文兜底输出）
-        soys.soyshttpovermc.i18n.I18n.init(getDataFolder(), getConfig().getString("language", ""));
+        initLanguageConfig();
 
         // 1) 读取核心运行参数（Bot 用户名 / 通道 / 本服地址 / 嗅探开关等）
         loadCoreConfig();
@@ -220,8 +242,8 @@ public class HttpOverMcPlugin extends JavaPlugin {
         }
         // 3) 日志门面 + 级别过滤（config.yml 的 log.level，/soyshttp reload 热重载）
         LogKit.init(getLogger(), getConfig().getString("log.level", "INFO"));
-        // 3.25) 国际化：加载 config.yml language 指定的语言包到内存（须在日志就绪后装配；语言经 /soyshttp lang 持久化）
-        soys.soyshttpovermc.i18n.I18n.init(getDataFolder(), getConfig().getString("language", ""));
+        // 3.25) 国际化：加载 config.yml language.current 指定的语言包到内存（须在日志就绪后装配；语言经 /soyshttp lang 持久化）
+        initLanguageConfig();
         // 3.5) Web 内容缓存（常驻 pinned + LRU 存活释放 + 大文件加载抽象；须在日志就绪后装配）
         initWebCache();
         // 3.6) 请求级拦截器 / CORS 声明注册中心（供第三方 SPI 与 WebFrontendHandler 使用）
@@ -272,26 +294,16 @@ public class HttpOverMcPlugin extends JavaPlugin {
     }
 
     /**
-     * 解析 ORM（YAML 后端）实体数据存放目录：取 config.yml {@code storage.backends.yaml.file}
-     * 的父目录（即 KV 子系统 records.yml 所在的文件夹），使 {@code @TableName("x")} 生成的
-     * {@code x.yml} 与 KV 文件落在同一目录。
-     * <ul>
-     *   <li>配置缺失 / 为空 → 退回插件 {@code getDataFolder()}（向后兼容旧行为）；</li>
-     *   <li>配置为纯文件名（无目录部分）→ 父目录即 {@code getDataFolder()}；</li>
-     *   <li>目标目录不存在 → 自动 {@code mkdirs()}。</li>
-     * </ul>
+     * 解析 ORM（YAML 后端）实体数据存放目录：取自 config.yml {@code storage.backends.yaml.file}
+     * 所指定的<b>文件夹</b>（与 KV 子系统 records.yml 同处一目录），使 {@code @TableName("x")} 生成的
+     * {@code x.yml} 与 KV 记录文件落在同一目录。
+     * <p>复用 {@link soys.soyshttpovermc.storage.impl.YamlStorage#resolveDir} 的语义：
+     * 配置以 {@code .yml/.yaml} 结尾视为旧式单文件（取其父目录），否则原样作为文件夹；
+     * 配置缺失/为空 → 退回插件 {@code getDataFolder()}。</p>
      */
     private File resolveYamlOrmDir() {
-        File dataFolder = getDataFolder();
-        String fileCfg = getConfig().getString("storage.backends.yaml.file", "data/records.yml");
-        if (fileCfg == null || fileCfg.trim().isEmpty()) {
-            return dataFolder;
-        }
-        File target = new File(dataFolder, fileCfg.trim());
-        File dir = target.getParentFile();
-        if (dir == null) {
-            dir = dataFolder;
-        }
+        String fileCfg = getConfig().getString("storage.backends.yaml.file", "data");
+        File dir = soys.soyshttpovermc.storage.impl.YamlStorage.resolveDir(this, fileCfg);
         if (!dir.exists()) {
             dir.mkdirs();
         }
@@ -442,6 +454,16 @@ public class HttpOverMcPlugin extends JavaPlugin {
         if (!getConfig().getBoolean("upload.enabled", false)) {
             return;
         }
+        uploadContribution();
+    }
+
+    /** 手动上报入口（/soyshttp report）：不依赖 upload.enabled 开关，立即异步 POST 当前地址。
+     *  与自动上报共用同一段发送逻辑 {@link #uploadContribution()}。 */
+    public void reportContribution() {
+        uploadContribution();
+    }
+
+    private void uploadContribution() {
         final String serverUrl = getConfig().getString("upload.server", "https://api.cocosoys.com/report");
         final String address = mcHost + ":" + mcPort;
         getServer().getScheduler().runTaskAsynchronously(this, () -> {
@@ -453,7 +475,7 @@ public class HttpOverMcPlugin extends JavaPlugin {
                 conn.setDoOutput(true);
                 conn.setConnectTimeout(5000);
                 conn.setReadTimeout(5000);
-                conn.setRequestProperty("Content-Type", "application/json");
+                conn.setRequestProperty("Content-Type", MimeTypes.forExt("json"));
                 String body = "{\"server\":\"" + address + "\"}";
                 conn.getOutputStream().write(body.getBytes(java.nio.charset.StandardCharsets.UTF_8));
                 int code = conn.getResponseCode();
@@ -466,6 +488,37 @@ public class HttpOverMcPlugin extends JavaPlugin {
         });
     }
 
+    /**
+     * 装配国际化环境（config.yml language 段）：设置加载策略（clear/overlay）、
+     * 注册配置声明的额外语言源，并以 language.current 指定的语言加载默认语言包。
+     * 在启动早期（0.5，日志就绪前）与完成态（3.25，日志就绪后）各调用一次，幂等。
+     */
+    private void initLanguageConfig() {
+        String current = getConfig().getString("language.current", getConfig().getString("language", ""));
+        String rule = getConfig().getString("language.rule", "");
+        I18n.setLanguageRule(rule);
+        I18n.clearLanguageSources();
+        List<?> sources = getConfig().getList("language.sources");
+        if (sources != null) {
+            for (Object item : sources) {
+                if (!(item instanceof Map)) continue;
+                Map<?, ?> m = (Map<?, ?>) item;
+                String name = stringOf(m.get("name"));
+                String desc = stringOf(m.get("description"));
+                String lang = stringOf(m.get("language"));
+                String source = stringOf(m.get("source"));
+                if (source == null || source.trim().isEmpty()) continue;
+                I18n.registerLanguageSource(this, name, desc, lang, source);
+            }
+        }
+        I18n.init(getDataFolder(), current);
+    }
+
+    /** 从 Object 安全取值（null 返回 null，比 String.valueOf 更安全）。 */
+    private static String stringOf(Object v) {
+        return v == null ? null : String.valueOf(v);
+    }
+
     /** 从 config.yml 读取核心运行参数（Bot 用户名 / 通道 / 本服地址 / 嗅探开关与上限）。 */
     private void loadCoreConfig() {
         botUsername = getConfig().getString("bot.username", "__http_proxy__");
@@ -475,7 +528,7 @@ public class HttpOverMcPlugin extends JavaPlugin {
         allowedLoginIps = (ips == null || ips.isEmpty())
                 ? java.util.Collections.singleton("127.0.0.1")
                 : new java.util.LinkedHashSet<>(ips);
-        botHideMode = getConfig().getString("bot.hide-mode", "hideplayer");
+        botHideMode = BotHideMode.from(getConfig().getString("bot.hide-mode", BotHideMode.HIDEPLAYER.configName()));
         if (!botUsername.startsWith(botNamePrefix)) {
             // 兼容旧默认名 __http_proxy__：允许但不建议；bot 专属保护按「受管 bot 名集合 + 前缀名」生效
             log.warnT("log.plugin.bot-name-prefix",
@@ -692,7 +745,7 @@ public class HttpOverMcPlugin extends JavaPlugin {
         bot.setRawMessageListener(botManager::dispatch);
         // Bot 专属账号守卫：登录 IP 白名单（防抢注 bot 名）+ 进服对真实玩家隐藏
         getServer().getPluginManager().registerEvents(
-                new BotGuardian(botManager, botNamePrefix, allowedLoginIps, botHideMode), this);
+                new BotGuardian(botManager, botNamePrefix, allowedLoginIps, botHideMode.configName()), this);
         // 自动重连次数（0=不自动重连；默认尝试 3 次，连不上或被踢出则放弃）
         bot.setMaxReconnectAttempts(getConfig().getInt("bot.reconnect-attempts", 3));
         bot.connect();
@@ -909,7 +962,9 @@ public class HttpOverMcPlugin extends JavaPlugin {
                     tlsFactory = new TlsContextFactory(getDataFolder(), https);
                     tlsFactory.init();
                 } catch (Exception e) {
-                    log.warnT("log.plugin.tls-init-fail", "TLS 初始化失败，HTTPS 功能禁用: {0}", e.getMessage());
+                    log.errorT(e, "log.plugin.tls-init-fail",
+                            "TLS 初始化失败，已禁用 HTTPS（客户端经 HTTPS 访问将被当作 MC 流量断开）。原因: {0}，详见堆栈",
+                            e.getMessage());
                     tlsFactory = null;
                 }
             }
@@ -924,6 +979,8 @@ public class HttpOverMcPlugin extends JavaPlugin {
     /** /soyshttp reload：热重载日志级别 + 网关策略与 TLS 配置（gateway/ 目录）+ 存储后端，无需重启服务器 */
     public void reloadHttpConfig() {
         reloadConfig();
+        // 语言策略 / 额外语言源 / 当前语言可在此热重载（config.yml language 段）
+        initLanguageConfig();
         String levelRaw = getConfig().getString("log.level", "INFO");
         LogKit.setLevel(levelRaw); // 日志级别热重载
         // 重建多后端存储（主辅/镜像配置可能变更；StorageManager.initialize 内部先关闭旧的）
@@ -941,6 +998,22 @@ public class HttpOverMcPlugin extends JavaPlugin {
         if (authService != null) {
             authService.setBridge(authLoginBridge);
         }
+        // 首页（web.home）热替换：reload 后即时把最新 web.home 应用到运行中的 WebFrontendHandler
+        if (webFrontend != null) {
+            webFrontend.setHomeSpec(getConfig().getString("web.home", ""));
+        }
+        // 通知其它插件随 reload 一起刷新（两种自动检测机制：钩子 + Bukkit 事件）
+        for (ReloadHttpConfigHandler h : new java.util.ArrayList<>(reloadHooks)) {
+            try {
+                h.onReload();
+            } catch (Throwable t) {
+                log.warnT("log.plugin.reload-hook-fail", "热重载钩子执行失败，已跳过: {0}", t.getMessage());
+            }
+        }
+        try {
+            getServer().getPluginManager().callEvent(new HttpConfigReloadEvent());
+        } catch (Throwable ignored) {
+        }
         ManualPagesConfig.register(this, webRegistry);
     }
 
@@ -953,13 +1026,22 @@ public class HttpOverMcPlugin extends JavaPlugin {
             sniffer.uninstall();
         }
         if (botManager != null) {
-            botManager.disconnectAll();
+            try {
+                botManager.disconnectAll();
+            } catch (Throwable t) {
+                log.warnT("log.plugin.disconnect-all-fail", "关闭全部 Bot 连接时出错: {0}", String.valueOf(t));
+            }
         }
         if (requestScheduler != null) {
             requestScheduler.shutdown();
         }
         if (bot != null) {
-            bot.disconnect();
+            try {
+                bot.disconnect();
+            } catch (Throwable t) {
+                // 防御：packetlib 触发断线事件时偶发 NoClassDefFoundError，不应中断后续资源清理
+                log.warnT("log.plugin.bot-disconnect-fail", "主 Bot 断开时出错: {0}", String.valueOf(t));
+            }
         }
         if (syncStorage != null) {
             try {

@@ -1,11 +1,11 @@
 package soys.soyshttpovermc.storage.impl;
+import soys.soyshttpovermc.enums.StorageType;
 import lombok.CustomLog;
 
 import soys.soyshttpovermc.i18n.I18n;
 import soys.soyshttpovermc.log.LogKit;
 import soys.soyshttpovermc.storage.DataStorage;
 import soys.soyshttpovermc.storage.SyncRecord;
-import soys.soyshttpovermc.storage.StorageType;
 
 import org.bukkit.plugin.java.JavaPlugin;
 

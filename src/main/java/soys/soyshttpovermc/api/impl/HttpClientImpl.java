@@ -1,4 +1,5 @@
 package soys.soyshttpovermc.api.impl;
+import soys.soyshttpovermc.enums.ProxyPlatform;
 
 import soys.soyshttpovermc.ApiRegistry;
 import soys.soyshttpovermc.HttpResponse;
@@ -7,7 +8,6 @@ import soys.soyshttpovermc.api.HttpClientApi;
 import soys.soyshttpovermc.exception.ExceptionBus;
 import soys.soyshttpovermc.exception.HttpClientException;
 import soys.soyshttpovermc.i18n.I18n;
-import soys.soyshttpovermc.proxy.ProxyPlatform;
 
 import org.bukkit.Bukkit;
 import org.bukkit.plugin.Plugin;

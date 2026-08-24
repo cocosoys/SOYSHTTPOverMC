@@ -1,4 +1,5 @@
 package soys.soyshttpovermc;
+import soys.soyshttpovermc.enums.RequestMethod;
 import lombok.CustomLog;
 
 import soys.soyshttpovermc.log.LogKit;

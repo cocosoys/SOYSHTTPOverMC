@@ -1,4 +1,4 @@
-package soys.soyshttpovermc.bot;
+package soys.soyshttpovermc.enums;
 
 /**
  * 逻辑队列层级（单物理 Bot 隧道下的处理优先级）。

@@ -1,4 +1,5 @@
 package soys.soyshttpovermc.storage;
+import soys.soyshttpovermc.enums.StorageType;
 
 /**
  * 跨服同步数据存储抽象（多数据库后端）。

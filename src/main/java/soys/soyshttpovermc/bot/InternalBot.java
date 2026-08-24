@@ -5,6 +5,7 @@ import lombok.Data;
 import lombok.Getter;
 import soys.soyshttpovermc.log.LogKit;
 import soys.soyshttpovermc.i18n.I18n;
+import soys.soyshttpovermc.enums.BotState;
 
 import com.github.steveice10.mc.protocol.MinecraftProtocol;
 import com.github.steveice10.mc.protocol.data.SubProtocol;
@@ -86,8 +87,6 @@ public class InternalBot {
     private RawMessageListener listener;
     /** Bot 发包/心跳线程（daemon：不阻止 JVM/服务器卸载退出） */
     private ScheduledExecutorService sender = newSender();
-    /** 关闭标志：onDisable 后不再自动重连（避免僵尸重连） */
-    private volatile boolean closed = false;
     /** 周期重注册任务句柄（避免重复调度） */
     private ScheduledFuture<?> reRegTask = null;
     /** 额外需登记的监听通道（群组服跨服 fwd-req/fwd-resp/discovery），供服务端侧把对应通道消息投递给本 Bot。 */
@@ -97,8 +96,11 @@ public class InternalBot {
     /** 已连续失败（连接失败 / 断开 / 被踢）次数 */
     private volatile int reconnectAttempts = 0;
 
-    private volatile boolean registered = false;
-    private volatile boolean inGame = false;
+    /**
+     * Bot 连接生命周期状态（统一状态机，替代原先分散的 closed/registered/inGame 布尔组合）：
+     * {@link BotState#CLOSED} 表示 onDisable 后不再自动重连（避免僵尸重连）。
+     */
+    private volatile BotState state = BotState.DISCONNECTED;
 
     /** daemon 单线程调度器（发包串行 + 周期重注册）。 */
     private static ScheduledExecutorService newSender() {
@@ -155,10 +157,11 @@ public class InternalBot {
 
     /** 隧道是否就绪：Bot 已连接且已 REGISTER 自定义通道 */
     public boolean isReady() {
-        return registered && session != null && session.isConnected();
+        return state == BotState.READY && session != null && session.isConnected();
     }
 
     public void connect() {
+        state = BotState.CONNECTING;
         MinecraftProtocol protocol = new MinecraftProtocol(getUsername());
         // 握手 host：群组服转发模式（后端 bungee:true / Velocity legacy 转发）下附加转发数据，
         // 格式与 BungeeCord ServerConnector 一致：host + "\0" + ip + "\0" + uuid（3 段，NULL 字节 \0 分隔）。
@@ -201,9 +204,7 @@ public class InternalBot {
     }
 
     public void disconnect() {
-        closed = true;
-        registered = false;
-        inGame = false;
+        state = BotState.CLOSED;
         if (reRegTask != null) {
             try { reRegTask.cancel(true); } catch (Throwable ignored) {}
             reRegTask = null;
@@ -220,8 +221,7 @@ public class InternalBot {
      */
     public void reconnect() {
         log.infoT("log.bot.reconnecting", "Bot 重新连接 user={0}", getUsername());
-        registered = false;
-        inGame = false;
+        state = BotState.DISCONNECTED;
         if (session != null && session.isConnected()) {
             try {
                 session.disconnect("HTTP-Over-MC reconnect");
@@ -247,7 +247,7 @@ public class InternalBot {
 
     private boolean waitUntilRegistered() {
         long deadline = System.currentTimeMillis() + 15000;
-        while (!registered && System.currentTimeMillis() < deadline) {
+        while (state != BotState.READY && System.currentTimeMillis() < deadline) {
             try {
                 Thread.sleep(20);
             } catch (InterruptedException e) {
@@ -255,14 +255,14 @@ public class InternalBot {
                 break;
             }
         }
-        return registered;
+        return state == BotState.READY;
     }
 
     private void registerChannel() {
-        if (registered || session == null || !session.isConnected()) {
+        if (state == BotState.READY || session == null || !session.isConnected()) {
             return;
         }
-        registered = true;
+        state = BotState.READY;
         final Session s = session;
         sender.submit(() -> {
             s.send(new ClientPluginMessagePacket(REGISTER_CHANNEL, getChannel().getBytes(StandardCharsets.UTF_8)));
@@ -323,7 +323,7 @@ public class InternalBot {
     /** 延迟自动重连（网络抖动 / 代理未就绪 / 被踢），保证隧道自愈；插件关闭后不再重连。
      *  连续失败（连不上或被踢）累计超过 {@code bot.reconnect-attempts} 则放弃，等待人工 /soyshttp reconnect。 */
     private void scheduleReconnect(long delayTicks) {
-        if (closed) return;
+        if (state == BotState.CLOSED) return;
         if (maxReconnectAttempts > 0 && ++reconnectAttempts > maxReconnectAttempts) {
             log.warnT("log.bot.reconnect-limit",
                     "Bot 自动重连已达上限({0} 次)，放弃重连 user={1}（可执行 /soyshttp reconnect 手动恢复）",
@@ -390,7 +390,7 @@ public class InternalBot {
         synchronized (extraChannels) {
             changed = extraChannels.add(ch);
         }
-        if (changed && registered && session != null && session.isConnected()) {
+        if (changed && state == BotState.READY && session != null && session.isConnected()) {
             final Session s = session;
             sender.submit(() -> {
                 try {
@@ -431,8 +431,6 @@ public class InternalBot {
 
         @Override
         public void disconnected(DisconnectedEvent event) {
-            registered = false;
-            inGame = false;
             Throwable cause = event.getCause();
             log.warnT("log.bot.disconnected", "Bot 断开连接: reason={0}{1}", event.getReason(),
                     cause != null ? " | cause=" + cause : " | cause=null");
@@ -440,7 +438,10 @@ public class InternalBot {
                 cause.printStackTrace();
             }
             // 自动重连（非主动关闭）：覆盖代理未就绪 / 网络抖动 / 被踢，保证隧道自愈
-            scheduleReconnect(60L);
+            if (state != BotState.CLOSED) {
+                state = BotState.DISCONNECTED;
+                scheduleReconnect(60L);
+            }
         }
 
         @Override
@@ -451,8 +452,8 @@ public class InternalBot {
 
                 if (s.getPacketProtocol() instanceof MinecraftProtocol) {
                     MinecraftProtocol mp = (MinecraftProtocol) s.getPacketProtocol();
-                    if (!inGame && mp.getSubProtocol() == SubProtocol.GAME) {
-                        inGame = true;
+                    if (state == BotState.CONNECTING && mp.getSubProtocol() == SubProtocol.GAME) {
+                        state = BotState.IN_GAME;
                         log.infoT("log.bot.game-enter", "Bot 进入 GAME，开始登记通道");
                         registerChannel();
                     }

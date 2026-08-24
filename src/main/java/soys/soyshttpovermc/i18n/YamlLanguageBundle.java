@@ -21,6 +21,17 @@ public class YamlLanguageBundle implements ILanguageBundle {
         this.code = code == null || code.isEmpty() ? "unknown" : code.toLowerCase();
     }
 
+    /** 直接以已有键值构造语言包（合并/覆盖场景用）。 */
+    public YamlLanguageBundle(String code, Map<String, String> entries) {
+        this(code);
+        this.messages = new HashMap<>(entries == null ? Collections.emptyMap() : entries);
+    }
+
+    /** 返回当前内存键值（副本）。 */
+    public Map<String, String> entries() {
+        return new HashMap<>(messages);
+    }
+
     /**
      * 从文件加载语言包到内存。
      *

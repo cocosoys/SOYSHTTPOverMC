@@ -29,5 +29,5 @@ pages:
       resource: "dist/index.html"
   auto:
     # "/notice": "web/notice.html"
-     "/": "dist/"
-    # "/link/mcmod": "`https://www.mcmod.cn/`"
+    "/": "dist/"
+    "/link/mcmod": "`https://www.mcmod.cn/`"

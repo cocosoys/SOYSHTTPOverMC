@@ -62,4 +62,10 @@ public interface SoysHttpOverMcApi {
 
     /** 能力组 9：跨服调用（群组服下插件间经隧道调用另一子服 API） */
     CrossServerHttpClient getCrossServer();
+
+    /**
+     * 注册热重载钩子：提供 /soyshttp 子指令的其它插件实现 {@link ReloadHttpConfigHandler} 后注册，
+     * 执行 {@code /soyshttp reload} 时会随本插件一同刷新自身配置（自动检测机制之一）。
+     */
+    void registerReloadHook(ReloadHttpConfigHandler handler);
 }

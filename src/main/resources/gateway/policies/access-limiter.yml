@@ -1,0 +1,10 @@
+# API/网页访问限制器策略（order 31）：按 scope（ip | key | path）将每个固定窗口内的访问次数
+# 限制在 limit 以内，超出 → 429 + Retry-After，等待窗口刷新后再开放。
+# 被动刷新：无后台定时任务，仅在本策略被访问时检测窗口是否已过、是则重置计数。默认关闭。
+enabled: false
+path-patterns:         # 限定的路径范围
+  - name: "ip访问限制"
+    description: "所有用户的ip仅能访问50次网页，200次api，一小时后刷新次数"
+    scope: ip                # ip | key | path（按 IP / API-Key / 请求路径 维度限流）
+    limit: 50                # 每个窗口内允许的最大访问次数
+    window-seconds: 3600     # 窗口时长（秒），默认 1 小时

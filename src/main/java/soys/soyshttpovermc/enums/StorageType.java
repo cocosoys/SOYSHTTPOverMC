@@ -1,4 +1,4 @@
-package soys.soyshttpovermc.storage;
+package soys.soyshttpovermc.enums;
 
 import soys.soyshttpovermc.i18n.I18n;
 

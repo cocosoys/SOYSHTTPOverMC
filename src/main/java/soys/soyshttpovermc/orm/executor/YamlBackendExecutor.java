@@ -1,8 +1,11 @@
 package soys.soyshttpovermc.orm.executor;
 import lombok.CustomLog;
 
+import org.bukkit.configuration.ConfigurationSection;
+import org.bukkit.configuration.file.YamlConfiguration;
+
+import soys.soyshttpovermc.enums.StorageType;
 import soys.soyshttpovermc.i18n.I18n;
-import soys.soyshttpovermc.log.LogKit;
 import soys.soyshttpovermc.orm.convertor.BeanCodec;
 import soys.soyshttpovermc.orm.meta.FieldMeta;
 import soys.soyshttpovermc.orm.meta.PojoMeta;
@@ -59,7 +62,7 @@ public class YamlBackendExecutor implements IBackendExecutor {
 
     @Override
     public String name() {
-        return "yaml";
+        return StorageType.YAML.getId();
     }
 
     // ===== 文件视图 =====

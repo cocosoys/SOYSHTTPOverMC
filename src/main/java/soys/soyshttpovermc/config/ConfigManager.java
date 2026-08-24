@@ -39,6 +39,7 @@ public final class ConfigManager {
         saveDefaultFile(plugin, "gateway/policies/ip-allowlist.yml");
         saveDefaultFile(plugin, "gateway/policies/auth.yml");
         saveDefaultFile(plugin, "gateway/policies/rate-limit.yml");
+        saveDefaultFile(plugin, "gateway/policies/access-limiter.yml");
         saveDefaultFile(plugin, "gateway/issuers/session-token.yml");
         return gwDir;
     }

@@ -1,4 +1,5 @@
 package soys.soyshttpovermc.gateway.policy.auth.login;
+import soys.soyshttpovermc.enums.LoginMode;
 
 /**
  * 默认登录模式策略：

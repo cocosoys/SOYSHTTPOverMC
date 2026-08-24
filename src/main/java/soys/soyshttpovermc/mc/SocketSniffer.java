@@ -1,4 +1,6 @@
 package soys.soyshttpovermc.mc;
+import soys.soyshttpovermc.enums.RequestMethod;
+import soys.soyshttpovermc.enums.SnifferChannelState;
 import lombok.CustomLog;
 
 import soys.soyshttpovermc.log.LogKit;
@@ -17,7 +19,6 @@ import io.netty.util.ReferenceCountUtil;
 import org.bukkit.Bukkit;
 import org.bukkit.plugin.java.JavaPlugin;
 
-import soys.soyshttpovermc.annotations.RequestMethod;
 import soys.soyshttpovermc.api.event.GatewayAccessDeniedEvent;
 import soys.soyshttpovermc.api.event.GatewayRequestEvent;
 import soys.soyshttpovermc.api.event.GatewayRequestServedEvent;
@@ -30,6 +31,7 @@ import soys.soyshttpovermc.i18n.I18n;
 import soys.soyshttpovermc.proto.FrameProto;
 import soys.soyshttpovermc.util.HttpFrames;
 import soys.soyshttpovermc.web.RequestStats;
+import soys.soyshttpovermc.web.MimeTypes;
 import soys.soyshttpovermc.api.ApiRequestContext;
 
 import javax.net.ssl.SSLEngine;
@@ -86,10 +88,6 @@ public class SocketSniffer {
     }
 
     private static final String[] METHODS = RequestMethod.toList();
-    private static final int CLASSIFY_HTTP = 1;
-    private static final int CLASSIFY_MC = 2;
-    private static final int CLASSIFY_TLS = 3;
-    private static final int CLASSIFY_UNKNOWN = 0;
 
     /** 低于此字节数的响应体不压缩（压缩收益低于开销）。 */
     private static final int COMPRESS_THRESHOLD = 512;
@@ -235,12 +233,10 @@ public class SocketSniffer {
     // ===== 子连接处理器：嗅探首包决定 HTTP / TLS / MC =====
     private class HttpSnifferHandler extends ChannelInboundHandlerAdapter {
         private ByteBuf buffer;
-        private boolean decided = false;
-        private boolean isHttp = false;
-        private boolean mcMode = false;
+        /** 连接类型状态（首包分类结果；keep-alive 复用会重置回 {@link SnifferChannelState#UNKNOWN}）。 */
+        private SnifferChannelState state = SnifferChannelState.UNKNOWN;
+        /** 当前请求是否已处理（keep-alive 时等待下一请求 / 空闲关闭，见 onKeepAliveDone 重置）。 */
         private boolean httpHandled = false;
-        /** true=连接已就地升级为 TLS（后续收到的都是解密后的明文 HTTP） */
-        private boolean tlsMode = false;
         /** keep-alive 空闲关闭任务（有则连接处于 keep-alive 等待下一请求状态）。 */
         private ScheduledFuture<?> idleFuture;
 
@@ -258,7 +254,7 @@ public class SocketSniffer {
 
         @Override
         public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
-            if (mcMode) {
+            if (state == SnifferChannelState.MC) {
                 ctx.fireExceptionCaught(cause);
             } else {
                 ctx.close();
@@ -267,7 +263,7 @@ public class SocketSniffer {
 
         @Override
         public void channelRead(ChannelHandlerContext ctx, Object msg) {
-            if (mcMode) {
+            if (state == SnifferChannelState.MC) {
                 ctx.fireChannelRead(msg);
                 return;
             }
@@ -291,33 +287,32 @@ public class SocketSniffer {
             // 收到新数据 → 连接仍有活动，取消空闲关闭（keep-alive 等待中时）。
             cancelIdle();
 
-            if (!decided) {
-                int c = classify(buffer);
-                if (c == CLASSIFY_HTTP) {
-                    decided = true;
-                    isHttp = true;
-                } else if (c == CLASSIFY_TLS) {
-                    decided = true;
-                    isHttp = true;
-                    tlsMode = true;
-                    upgradeToTls(ctx);
-                    return;
-                } else if (c == CLASSIFY_MC) {
-                    switchToMc(ctx);
-                    return;
-                } else {
-                    if (buffer.readableBytes() > 64 * 1024) {
+            if (state == SnifferChannelState.UNKNOWN) {
+                SnifferChannelState c = classify(buffer);
+                switch (c) {
+                    case HTTP_TLS:
+                        state = SnifferChannelState.HTTP_TLS;
+                        upgradeToTls(ctx);
+                        return;
+                    case MC:
                         switchToMc(ctx);
-                    }
-                    return;
+                        return;
+                    case HTTP_PLAIN:
+                        state = SnifferChannelState.HTTP_PLAIN;
+                        break;
+                    default:
+                        if (buffer.readableBytes() > 64 * 1024) {
+                            switchToMc(ctx);
+                        }
+                        return;
                 }
             }
 
-            if (isHttp) {
+            if (state.isHttp()) {
                 RequestParsed parsed = tryParseHttp(buffer);
                 if (parsed == null) {
                     if (buffer.readableBytes() > maxBodyBytes + 1024 * 1024) {
-                        writeRaw(ctx, "Payload Too Large", 413, tlsMode);
+                        writeRaw(ctx, "Payload Too Large", 413, state.isTls());
                     }
                     return; // 等待更多数据
                 }
@@ -326,7 +321,7 @@ public class SocketSniffer {
                 httpHandled = true;
                 // keep-alive：暂停读取，待响应写完再恢复（避免并发解析同一条连接的下一条请求）
                 ctx.channel().config().setAutoRead(false);
-                final boolean tls = tlsMode;
+                final boolean tls = state.isTls();
                 try {
                     executor.submit(() -> handleHttp(ctx, parsed, tls));
                 } catch (java.util.concurrent.RejectedExecutionException e) {
@@ -342,18 +337,32 @@ public class SocketSniffer {
             }
         }
 
-        /** 就地 TLS 升级：管道最前插入 SslHandler 并重放缓冲的 ClientHello 首包。 */
+        /** 就地 TLS 升级：管道最前插入 SslHandler 并重放缓冲的 ClientHello 首包；监听握手结果并打日志。 */
         private void upgradeToTls(ChannelHandlerContext ctx) {
             SSLEngine engine = tlsEngineSupplier.get();
-            SslHandler ssl = new SslHandler(engine);
+            final SslHandler ssl = new SslHandler(engine);
             ctx.pipeline().addFirst("http-over-mc-ssl", ssl);
+            final Object remote = ctx.channel().remoteAddress();
+            ssl.handshakeFuture().addListener(f -> {
+                if (f.isSuccess()) {
+                    javax.net.ssl.SSLSession s = ssl.engine().getSession();
+                    log.infoT("log.tls.handshake-success",
+                            "TLS 握手成功 (remote={0}, protocol={1}, cipher={2})",
+                            remote, s.getProtocol(), s.getCipherSuite());
+                } else {
+                    Throwable cause = f.cause();
+                    log.warnT("log.tls.handshake-fail",
+                            "TLS 握手失败 (remote={0}): {1}",
+                            remote, cause == null ? f.toString() : cause.toString());
+                }
+            });
             ByteBuf replay = buffer;
             buffer = null;
             ctx.pipeline().fireChannelRead(replay);
         }
 
         private void switchToMc(ChannelHandlerContext ctx) {
-            mcMode = true;
+            state = SnifferChannelState.MC;
             ByteBuf copy = buffer;
             buffer = null;
             ctx.fireChannelRead(copy);
@@ -388,20 +397,20 @@ public class SocketSniffer {
     }
 
     /** 嗅探分类：依据首包前几个字节判断为明文 HTTP / TLS / MC */
-    private int classify(ByteBuf buf) {
+    private SnifferChannelState classify(ByteBuf buf) {
         int len = buf.readableBytes();
-        if (len == 0) return CLASSIFY_UNKNOWN;
+        if (len == 0) return SnifferChannelState.UNKNOWN;
         int idx = buf.readerIndex();
         byte b0 = buf.getByte(idx);
 
         if (tlsEngineSupplier != null && b0 == 0x16) {
-            if (len < 3) return CLASSIFY_UNKNOWN;
+            if (len < 3) return SnifferChannelState.UNKNOWN;
             byte b1 = buf.getByte(idx + 1);
             byte b2 = buf.getByte(idx + 2);
-            if (b1 == 0x03 && (b2 == 0x01 || b2 == 0x03)) return CLASSIFY_TLS;
+            if (b1 == 0x03 && (b2 == 0x01 || b2 == 0x02 || b2 == 0x03)) return SnifferChannelState.HTTP_TLS;
         }
 
-        if (b0 < 'A' || b0 > 'Z') return CLASSIFY_MC;
+        if (b0 < 'A' || b0 > 'Z') return SnifferChannelState.MC;
 
         int i = 0;
         StringBuilder tok = new StringBuilder();
@@ -409,17 +418,17 @@ public class SocketSniffer {
         for (; i < len && i < 16; i++) {
             byte b = buf.getByte(idx + i);
             if (b == ' ') { tokenComplete = true; break; }
-            if (b < 'A' || b > 'Z') return CLASSIFY_MC;
+            if (b < 'A' || b > 'Z') return SnifferChannelState.MC;
             tok.append((char) b);
         }
         if (!tokenComplete) {
-            return CLASSIFY_UNKNOWN;
+            return SnifferChannelState.UNKNOWN;
         }
         boolean known = false;
         for (String m : METHODS) {
             if (m.equals(tok.toString())) { known = true; break; }
         }
-        if (!known) return CLASSIFY_MC;
+        if (!known) return SnifferChannelState.MC;
 
         int j = i + 1;
         int k = j;
@@ -429,9 +438,9 @@ public class SocketSniffer {
             if (buf.getByte(idx + k) == '\n') { foundNewline = true; break; }
         }
         String line = buf.toString(idx + j, Math.max(0, k - j), StandardCharsets.US_ASCII);
-        if (line.contains(" HTTP/")) return CLASSIFY_HTTP;
-        if (foundNewline) return CLASSIFY_MC;
-        return CLASSIFY_UNKNOWN;
+        if (line.contains(" HTTP/")) return SnifferChannelState.HTTP_PLAIN;
+        if (foundNewline) return SnifferChannelState.MC;
+        return SnifferChannelState.UNKNOWN;
     }
 
     /** 尝试从缓冲区解析完整 HTTP 请求；不完整返回 null */
@@ -545,7 +554,7 @@ public class SocketSniffer {
             code = resp.getStatusCode();
             byte[] body = resp.getBody().toByteArray();
             String contentType = resp.getHeadersMap().get("Content-Type");
-            if (contentType == null) contentType = "application/octet-stream";
+            if (contentType == null) contentType = MimeTypes.OCTET_STREAM;
 
             // ETag + 304（仅 GET 200 且有响应体）
             String etag = null;
@@ -639,7 +648,7 @@ public class SocketSniffer {
     private void onKeepAliveDone(ChannelHandlerContext ctx) {
         try {
             HttpSnifferHandler h = (HttpSnifferHandler) ctx.handler();
-            h.decided = false;
+            h.state = SnifferChannelState.UNKNOWN;
             h.httpHandled = false;
             h.releaseBuffer();
             h.idleFuture = idleExecutor.schedule(() -> {
@@ -660,7 +669,7 @@ public class SocketSniffer {
         byte[] body = HttpFrames.jsonError(code, bodyText).getBody().toByteArray();
         StringBuilder sb = new StringBuilder();
         sb.append(statusLine(code));
-        sb.append("Content-Type: application/json; charset=utf-8\r\n");
+        sb.append("Content-Type: ").append(MimeTypes.forExt("json")).append("\r\n");
         sb.append("Content-Length: ").append(body.length).append("\r\n");
         sb.append("Connection: close\r\n");
         sb.append("\r\n");
@@ -692,7 +701,7 @@ public class SocketSniffer {
         for (Map.Entry<String, String> h : res.getHeaders().entrySet()) {
             sb.append(h.getKey()).append(": ").append(h.getValue()).append("\r\n");
         }
-        sb.append("Content-Type: application/json; charset=utf-8\r\n");
+        sb.append("Content-Type: ").append(MimeTypes.forExt("json")).append("\r\n");
         sb.append("Content-Length: ").append(body.length).append("\r\n");
         sb.append("Connection: close\r\n\r\n");
         ByteBuf out = Unpooled.buffer(sb.length() + body.length);

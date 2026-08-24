@@ -1,7 +1,8 @@
 package soys.soyshttpovermc.http;
+import soys.soyshttpovermc.enums.BotTier;
 
 import soys.soyshttpovermc.bot.BotRuleController;
-import soys.soyshttpovermc.bot.BotTier;
+
 import soys.soyshttpovermc.cross.CrossServerHub;
 import soys.soyshttpovermc.link.McLink;
 import soys.soyshttpovermc.proto.FrameProto;
@@ -27,7 +28,7 @@ public class HttpMcTranslator {
     }
 
     /**
-     * 拆解跨服路径前缀：群组服下把 {@code /server/<name>/<rest>}（新）或 {@code /srv/<name>/<rest>}（兼容别名）
+     * 拆解跨服路径前缀：群组服下把 {@code /server/<name>/<rest>}
      * 拆为 {@code [name, "/<rest>"]}；独立服（localServerName 为空）或无前缀时返回 {@code [null, path]}。
      */
     private String[] splitCrossPath(String path) {
@@ -37,7 +38,6 @@ public class HttpMcTranslator {
         }
         String prefix = null;
         if (realPath.startsWith("/server/")) prefix = "/server/";
-        else if (realPath.startsWith("/srv/")) prefix = "/srv/";
         if (prefix == null) return new String[]{null, realPath};
         int base = prefix.length();
         int i = realPath.indexOf('/', base);
@@ -63,14 +63,14 @@ public class HttpMcTranslator {
      * 把一次 HTTP 请求转换为 HttpRequestFrame，经由 McLink 发往服务端，
      * 阻塞等待对应的 HttpResponseFrame 返回（30s 超时保护）。
      * 规则控制器按请求头决定逻辑队列 tier，并以内部头 X-SOYS-TIER 携带，供服务端按优先级入队。
-     * 群组服下：解析跨服路径前缀 {@code /server/<server>/...}（新）或 {@code /srv/<server>/...}（兼容别名）
+     * 群组服下：解析跨服路径前缀 {@code /server/<server>/...}
      * 设置目标服（X-Soys-Target-Server），并注入来源服（X-Soys-Source-Server）与链路追踪（X-Soys-Trace-Id）头。
      * 独立服（localServerName 为空）不解析此前缀，路径原样本地处理（特性关闭）。
      */
     public FrameProto.HttpResponseFrame translate(String method, String path, Map<String, String> headers, byte[] body)
             throws Exception {
         BotTier tier = ruleController.selectTier(headers);
-        // 跨服路由（仅群组服参与）：/server/<server>/<rest>（新前缀）或 /srv/<server>/<rest>（兼容别名）
+        // 跨服路由（仅群组服参与）：/server/<server>/<rest>（前缀）
         // -> target=<server>，path 重写为 /<rest>。独立服(localServerName 为空)下不解析此前缀，
         // 路径原样走本地处理（即"单服模式该特性默认关闭"）。
         String[] split = splitCrossPath(path);

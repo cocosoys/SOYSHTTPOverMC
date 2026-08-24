@@ -22,8 +22,11 @@ import java.security.cert.Certificate;
 import java.security.cert.CertificateFactory;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.util.ArrayList;
-import java.util.List;
+import java.util.Arrays;
 import java.util.Base64;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
 /**
  * TLS 上下文工厂：为 MC 端口就地 TLS 升级提供服务端 SSLEngine（每个连接一个，线程安全）。
@@ -41,7 +44,7 @@ public class TlsContextFactory {
     private final File dataFolder;
     private final ConfigurationSection https;
     private SSLContext sslContext;
-    private String minTls = "TLSv1.2";
+    private final List<String> enabledProtocols = new ArrayList<>();
 
     public TlsContextFactory(File dataFolder, ConfigurationSection https) {
         this.dataFolder = dataFolder;
@@ -49,12 +52,16 @@ public class TlsContextFactory {
     }
 
     public void init() throws Exception {
-        minTls = https.getString("min-tls", "TLSv1.2");
         String keystore = https.getString("keystore", "");
         String cert = https.getString("cert", "");
         String key = https.getString("key", "");
         String storePass = https.getString("keystore-pass", "");
         String keyPass = https.getString("key-pass", storePass);
+
+        // 协议范围：优先 enabled-protocols 列表；否则兼容旧 min-tls（作为最低允许协议过滤）；二者皆无则全开 TLS1.0~1.3
+        List<String> conf = https.getStringList("enabled-protocols");
+        enabledProtocols.clear();
+        enabledProtocols.addAll(conf.isEmpty() ? defaultProtocols(https.getString("min-tls", "")) : conf);
 
         KeyManagerFactory kmf;
         if (!keystore.trim().isEmpty()) {
@@ -65,22 +72,56 @@ public class TlsContextFactory {
             kmf = generateSelfSigned();
         }
         try {
-            sslContext = SSLContext.getInstance(minTls);
+            // 使用通用 TLS 上下文（涵盖所有已注册的 TLS 协议），由 newServerEngine 按需筛选启用范围
+            sslContext = SSLContext.getInstance("TLS");
         } catch (Exception e) {
-            log.warnT("log.tls.min-tls-fallback", "不支持 min-tls={0}，回退 TLSv1.2: {1}", minTls, e.getMessage());
-            minTls = "TLSv1.2";
-            sslContext = SSLContext.getInstance(minTls);
+            log.warnT("log.tls.ctx-fail", "创建 TLS 上下文失败: {0}", e.getMessage());
+            throw e;
         }
         sslContext.init(kmf.getKeyManagers(), null, null);
-        log.infoT("log.tls.context-ready", "TLS 上下文就绪 (min={0}, 服务端模式)", minTls);
+        log.infoT("log.tls.context-ready", "TLS 上下文就绪 (服务端模式, protocols={0})", String.join(",", enabledProtocols));
     }
 
     /** 每个新 TLS 连接调用一次，返回已配置为服务端模式的新引擎（线程安全）。 */
     public SSLEngine newServerEngine() {
         SSLEngine e = sslContext.createSSLEngine();
         e.setUseClientMode(false);
-        e.setEnabledProtocols(new String[]{minTls});
+        // 仅启用 JVM 真正支持的协议；开放多协议协商（TLS1.0~TLS1.3），兼容旧客户端握手
+        Set<String> supported = new HashSet<>(Arrays.asList(e.getSupportedProtocols()));
+        List<String> enabled = new ArrayList<>(enabledProtocols.size());
+        for (String p : enabledProtocols) {
+            if (supported.contains(p)) {
+                enabled.add(p);
+            }
+        }
+        if (!enabled.isEmpty()) {
+            e.setEnabledProtocols(enabled.toArray(new String[enabled.size()]));
+        }
         return e;
+    }
+
+    /** 默认协议范围：自 minTls 起开放全部更高版本的 TLS；minTls 为空/未知则全开 TLS1.0~1.3。 */
+    private static List<String> defaultProtocols(String minTls) {
+        String[] all = {"TLSv1.3", "TLSv1.2", "TLSv1.1", "TLSv1"};
+        int floor = protocolIndex(minTls);
+        List<String> out = new ArrayList<>(all.length);
+        for (String p : all) {
+            if (protocolIndex(p) >= floor) {
+                out.add(p);
+            }
+        }
+        return out;
+    }
+
+    private static int protocolIndex(String p) {
+        if (p == null) return 1;
+        switch (p) {
+            case "TLSv1.3": return 4;
+            case "TLSv1.2": return 3;
+            case "TLSv1.1": return 2;
+            case "TLSv1": return 1;
+            default: return 1; // 未知协议 → 一律放开
+        }
     }
 
     // ===== 证书源 1：PKCS12 keystore =====

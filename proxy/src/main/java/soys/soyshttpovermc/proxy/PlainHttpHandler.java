@@ -232,14 +232,13 @@ public class PlainHttpHandler extends ChannelInboundHandlerAdapter {
     /**
      * 解析目标子服：
      * <ul>
-     *   <li>{@code /server/<name>/...} 或 {@code /srv/<name>/...} → 该子服（跨服转发）；</li>
+     *   <li>{@code /server/<name>/...} → 该子服（跨服转发）；</li>
      *   <li>其余路径（含主页 "/"）：home-server 为具体子服名 → 路由到该子服；home-server=self → 返回 null（自托管）。</li>
      * </ul>
      */
     private ServerInfo resolveServer(String path) {
         String prefix = null;
         if (path.startsWith("/server/")) prefix = "/server/";
-        else if (path.startsWith("/srv/")) prefix = "/srv/";
         if (prefix != null) {
             int base = prefix.length();
             int i = path.indexOf('/', base);

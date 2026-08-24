@@ -29,6 +29,12 @@ public final class HomepageState {
         return YamlConfiguration.loadConfiguration(f).getString("homepage.current", null);
     }
 
+    /** 加载 ihomepage config.yml 全量配置（文件不存在返回空配置，不抛异常）。 */
+    public YamlConfiguration loadConfig() {
+        File f = configFile();
+        return f.isFile() ? YamlConfiguration.loadConfiguration(f) : new YamlConfiguration();
+    }
+
     /** 写入持久化的当前首页名（覆盖）。 */
     public void saveCurrent(String name) {
         try {

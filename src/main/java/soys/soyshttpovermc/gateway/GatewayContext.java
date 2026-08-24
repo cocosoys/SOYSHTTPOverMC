@@ -27,7 +27,7 @@ public class GatewayContext {
     }
 
     /**
-     * @param path    <b>策略匹配用</b>路径：群组服下已剥掉跨服前缀（{@code /server/<name>/} 或 {@code /srv/<name>/}），
+     * @param path    <b>策略匹配用</b>路径：群组服下已剥掉跨服前缀（{@code /server/<name>/}），
      *                否则 {@code /server/x/api/**} 会绕过 {@code paths: [/api/*]} 这类保护规则。
      * @param rawPath 客户端原始请求路径（用于重定向 Location、日志溯源等需保持原样的场合）。
      */

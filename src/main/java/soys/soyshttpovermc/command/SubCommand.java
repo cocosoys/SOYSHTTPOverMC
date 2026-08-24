@@ -18,6 +18,7 @@ import java.util.List;
  *     <ul>
  *       <li>{@link #name()} —— 子指令名（小写，如 {@code "reload"}）；</li>
  *       <li>{@link #requireOp()} —— 是否需要 op（默认 true，可覆写）；</li>
+ *       <li>{@code hide} —— 是否隐藏（默认 false；置 true 后仅注册、不进 /help 列表与 tab 补全，但仍可显式执行）；</li>
  *       <li>{@link #usage()} —— 单行用法提示（如 {@code "/soyshttp reload —— 热重载配置与网关"}）；</li>
  *       <li>{@link #execute(CommandSender, String, String[])} —— 业务逻辑；
  *           {@code args} 为完整命令参数（{@code args[0]} 即子指令名本身），与旧 handler 一致。</li>
@@ -37,6 +38,18 @@ public abstract class SubCommand {
 
     /** 插件实例（子类按需取 BotManager / WebRegistry / getMcHost 等）。 */
     protected final HttpOverMcPlugin plugin;
+
+    /**
+     * 是否隐藏：隐藏子指令<b>仍会被注册、仍可被显式执行</b>（如 {@code /soyshttp <name>}），
+     * 但<b>不</b>出现在 /help 总览列表与 tab 补全候选中（仅注册、不暴露）。默认 false（可见）。
+     * 子类在构造器内写 {@code hide = true;} 即可生效；外部用 {@link #isHide()} 读取。
+     */
+    protected boolean hide = false;
+
+    /** @return 是否隐藏（仅注册、不进 help 列表与 tab 补全）。 */
+    public boolean isHide() {
+        return hide;
+    }
 
     protected SubCommand(HttpOverMcPlugin plugin) {
         this.plugin = plugin;

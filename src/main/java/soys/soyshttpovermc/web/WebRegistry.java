@@ -454,7 +454,7 @@ public class WebRegistry {
     public void setHomePage(String ownerPlugin, byte[] content, String contentType) {
         if (content == null || content.length == 0) return;
         String key = "GET /";
-        String ct = (contentType == null || contentType.isEmpty()) ? "text/html; charset=utf-8" : contentType;
+        String ct = (contentType == null || contentType.isEmpty()) ? MimeTypes.forExt("html") : contentType;
         putEntry(key, new Entry(ownerPlugin, "/", ct, content, null, null, null, 0, null), true);
         log.infoT("log.web.switch-home", "切换首页: GET / current={0}", ownerPlugin == null ? "?" : ownerPlugin);
     }
@@ -651,8 +651,8 @@ public class WebRegistry {
 
         /** 是否为可在浏览器直接打开的 HTML 页（.html 后缀或 text/html 类型或站点首页 /）。 */
         public boolean isHtmlPage() {
-            if (path.equals("/") || path.endsWith(".html")) return true;
-            return effectiveContentType().startsWith("text/html");
+            if (path.equals("/") || MimeTypes.isHtmlPath(path)) return true;
+            return MimeTypes.isHtmlType(effectiveContentType());
         }
 
         /** 是否归类为“可打开界面”：HTML 页或跳转入口（点击即可到达某 UI）。脚本/图片/字体等纯资源返回 false。 */

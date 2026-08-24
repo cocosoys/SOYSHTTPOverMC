@@ -23,6 +23,8 @@ import com.zaxxer.hikari.HikariDataSource;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.plugin.java.JavaPlugin;
 
+import soys.soyshttpovermc.enums.StorageType;
+
 import java.lang.reflect.Field;
 import java.sql.Date;
 import java.util.ArrayList;
@@ -56,7 +58,8 @@ public class SqlBackendExecutor implements IBackendExecutor {
                     "[ORM] 未启用 SQL 后端（storage.backends.mysql/sqlite），SQL.Pojo 不可用");
                 return null;
             }
-            return initDirect(ds, ds.getJdbcUrl().startsWith("jdbc:sqlite:") ? "sqlite" : "mysql");
+            return initDirect(ds, ds.getJdbcUrl().startsWith("jdbc:sqlite:")
+                    ? StorageType.SQLITE.getId() : StorageType.MYSQL.getId());
         } catch (Throwable t) {
             log.warnT("log.orm.sql-init-failed", "[ORM] SQL 后端初始化失败: {0}", t);
             return null;

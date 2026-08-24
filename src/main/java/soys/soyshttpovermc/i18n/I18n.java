@@ -1,8 +1,10 @@
 package soys.soyshttpovermc.i18n;
 import lombok.CustomLog;
 
+import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.plugin.java.JavaPlugin;
 
+import soys.soyshttpovermc.enums.LanguagePolicy;
 import soys.soyshttpovermc.log.LogKit;
 
 import java.io.File;
@@ -10,6 +12,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -48,6 +51,10 @@ public final class I18n {
     private static volatile List<I18nScope> headlessScopes = new ArrayList<>();
     /** 磁盘语言目录（{@code <dataFolder>/language/}）。 */
     private static volatile File languageDir;
+    /** 当前语言加载策略（默认国际化为基底 en_us + 叠加目标语言）。 */
+    private static volatile LanguagePolicy languagePolicy = LanguagePolicy.INTERNATIONALIZATION;
+    /** 额外语言源（其他插件/配置注册）。 */
+    private static volatile List<LanguageSource> languageSources = new ArrayList<>();
 
     private I18n() {
     }
@@ -75,22 +82,200 @@ public final class I18n {
         load(c);
     }
 
-    /** 加载默认作用域的语言包（磁盘 {@code language/<code>.yml}）。 */
+    /** 加载默认作用域的语言包（磁盘 {@code language/<code>.yml} + 已注册的额外语言源，按当前策略合并）。 */
     public static boolean load(String code) {
         if (code == null || code.isEmpty() || languageDir == null) return false;
-        File file = new File(languageDir, code.toLowerCase() + ".yml");
-        if (!file.isFile()) {
+        String c = code.toLowerCase();
+        File file = new File(languageDir, c + ".yml");
+
+        // 起步表因策略而异：
+        //   OVERLAY            —— 保留既有内存键值（不清空，覆盖同键）；
+        //   INTERNATIONALIZATION —— 以 en_us 为基底（先加载一次 en_us，再加目标语言保底）；
+        //   CLEAR              —— 从空表起步（清空重载）。
+        Map<String, String> compiled;
+        switch (languagePolicy) {
+            case OVERLAY:
+                compiled = currentEntries();
+                break;
+            case INTERNATIONALIZATION:
+                compiled = loadFileEntries("en_us");
+                break;
+            default:
+                compiled = new HashMap<>();
+        }
+
+        boolean anyLoaded = false;
+        if (file.isFile()) {
+            YamlConfiguration cfg = YamlConfiguration.loadConfiguration(file);
+            putAll(compiled, cfg);
+            anyLoaded = true;
+        }
+        for (LanguageSource src : languageSources) {
+            if (!src.enabled() || !src.appliesToLanguage(c)) continue;
+            Map<String, String> m = src.load(c);
+            if (m != null) {
+                compiled.putAll(m);
+                anyLoaded = true;
+            }
+        }
+        if (!anyLoaded) {
             log.warnT("log.i18n.file-not-found", "[i18n] 默认语言文件不存在: {0}，保持当前语言", file.getAbsolutePath());
             return false;
         }
-        YamlLanguageBundle bundle = new YamlLanguageBundle(code);
-        if (bundle.load(file)) {
-            lang = code.toLowerCase();
-            current = bundle;
-            log.infoT("log.i18n.bundle-loaded", "[i18n] 默认语言包已加载: {0} ({1} 条)", lang, bundle.messagesSize());
-            return true;
+        lang = c;
+        current = new YamlLanguageBundle(c, compiled);
+        log.infoT("log.i18n.bundle-loaded", "[i18n] 默认语言包已加载: {0} ({1} 条)", lang, compiled.size());
+        return true;
+    }
+
+    /** 读取磁盘 {code}.yml 到键值表（供国际化策略取 en_us 基底；文件不存在返回空表）。 */
+    private static Map<String, String> loadFileEntries(String code) {
+        Map<String, String> m = new HashMap<>();
+        File f = new File(languageDir, code + ".yml");
+        if (f.isFile()) {
+            putAll(m, YamlConfiguration.loadConfiguration(f));
         }
-        return false;
+        return m;
+    }
+
+    // ==================== 语言源注册 / 加载策略 ====================
+
+    /** 设置语言加载策略（{@link LanguagePolicy} 对应配置字符串；null/未知回退默认国际化）。 */
+    public static void setLanguageRule(String rule) {
+        languagePolicy = LanguagePolicy.from(rule);
+    }
+
+    /** 设置语言加载策略（枚举直接指定）。 */
+    public static void setLanguagePolicy(LanguagePolicy policy) {
+        languagePolicy = policy == null ? LanguagePolicy.INTERNATIONALIZATION : policy;
+    }
+
+    /** 当前语言加载策略（枚举值）。 */
+    public static LanguagePolicy languagePolicy() {
+        return languagePolicy;
+    }
+
+    /** 当前语言加载策略（配置字符串形式）。 */
+    public static String languageRule() {
+        return languagePolicy.configName();
+    }
+
+    /**
+     * 注册一个额外语言源（其他插件/配置提供）。每个来源必须能唯一识别它所翻译的语言，二者取其一：
+     * <ul>
+     *   <li><b>指定语言</b>：{@code language} 非空 → 来源仅绑定该语言，{@code source} 不做任何占位符处理；</li>
+     *   <li><b>语言模板</b>：{@code language} 为空 → {@code source} 必须含 {@code {0}} 占位符，加载时替换为当前语言代码。</li>
+     * </ul>
+     * 若 {@code language} 为空且 {@code source} 不含 {@code {0}}，则无法识别翻译语言，属书写错误，注册会被拒绝并返回 {@code false}。
+     *
+     * <p>{@code source} 可为相对/绝对文件或文件夹、网络文件；网络 URL 可用反引号包裹（此处自动去除）。
+     * 相对路径以 {@code owner} 数据目录为基准。注册后立即按当前策略重载当前语言，使新源生效。</p>
+     *
+     * @param owner       注册插件（解析相对路径的基准目录；可为 null，此时以工作目录为基准）
+     * @param name        来源名称（配置/HUD 展示用；可为 null）
+     * @param description 来源描述（可为 null）
+     * @param language    绑定的语言代码（如 {@code zh_cn}）；空串 = 语言模板源（source 须含 {@code {0}}）
+     * @param source      来源路径/URL 描述
+     * @return 是否注册成功（书写错误/路径为空返回 false）
+     */
+    public static boolean registerLanguageSource(JavaPlugin owner, String name, String description, String language, String source) {
+        String srcTrim = source == null ? "" : source.trim();
+        if (srcTrim.isEmpty()) return false;
+        String langTrim = language == null ? "" : language.trim();
+        // 语言不可识别即书写错误：language 为空且 source 不含语言占位符
+        if (langTrim.isEmpty() && !srcTrim.contains(LanguageSource.PLACEHOLDER)) {
+            log.warnT("log.i18n.source-bad-language",
+                    "[i18n] 语言源书写错误，已拒绝: {0} —— language 为空时 source 必须包含语言占位符 {1}",
+                    name == null ? srcTrim : name, LanguageSource.PLACEHOLDER);
+            return false;
+        }
+        // 去除反引号包裹（配置里 URL 常反引号包裹以免歧义）
+        String src = stripBackticks(srcTrim);
+        File base = (owner != null && owner.getDataFolder() != null) ? owner.getDataFolder() : null;
+        LanguageSource ns = new LanguageSource(name, description, langTrim, src, base);
+        List<LanguageSource> list = new ArrayList<>(languageSources);
+        list.add(ns);
+        languageSources = list;
+        log.infoT("log.i18n.source-registered",
+                "[i18n] 已注册语言源: {0}（language={1}，source={2}）", ns.name(), ns.language(), ns.raw());
+        // 语言目录已就绪时立即重载，使新源生效
+        if (languageDir != null) load(lang);
+        return true;
+    }
+
+    /** 去除首尾反引号（仅当整串被一对反引号包裹时）。 */
+    private static String stripBackticks(String s) {
+        if (s.length() >= 2 && s.charAt(0) == '`' && s.charAt(s.length() - 1) == '`') {
+            return s.substring(1, s.length() - 1);
+        }
+        return s;
+    }
+
+    /** 清空全部已注册的语言源（配置重载/重新初始化时调用）。 */
+    public static void clearLanguageSources() {
+        languageSources = new ArrayList<>();
+    }
+
+    /** 当前已注册的语言源数量（调试用）。 */
+    public static int languageSourceCount() {
+        return languageSources.size();
+    }
+
+    /**
+     * 列出当前全部已注册语言源的信息（索引 / 原始路径 / 是否启用 / 当前语言下提供的条数）。
+     * 供 {@code /soyshttp lang sources} 展示；索引固定为注册顺序（停用不改变索引，可据此再次启用）。
+     */
+    public static List<LanguageSourceInfo> languageSourcesInfo() {
+        List<LanguageSourceInfo> out = new ArrayList<>(languageSources.size());
+        int i = 0;
+        for (LanguageSource s : languageSources) {
+            Map<String, String> m = s.enabled() ? s.load(lang) : null;
+            out.add(new LanguageSourceInfo(i, s.name(), s.description(), s.language(), s.raw(), s.enabled(), m == null ? 0 : m.size()));
+            i++;
+        }
+        return out;
+    }
+
+    /**
+     * 启用 / 停用指定索引的语言源（索引即注册顺序，见 {@link #languageSourcesInfo}）。
+     * 变更后立即重载当前语言使生效。索引越界返回 false。
+     */
+    public static boolean setLanguageSourceEnabled(int index, boolean enabled) {
+        List<LanguageSource> list = languageSources;
+        if (index < 0 || index >= list.size()) return false;
+        LanguageSource s = list.get(index);
+        if (s.enabled() == enabled) return true;
+        s.setEnabled(enabled);
+        if (languageDir != null) load(lang);
+        return true;
+    }
+
+    /** 停用指定索引的语言源（便捷方法，见 {@link #setLanguageSourceEnabled}）。 */
+    public static boolean disableLanguageSource(int index) {
+        return setLanguageSourceEnabled(index, false);
+    }
+
+    /** 启用指定索引的语言源（便捷方法，见 {@link #setLanguageSourceEnabled}）。 */
+    public static boolean enableLanguageSource(int index) {
+        return setLanguageSourceEnabled(index, true);
+    }
+
+    /** 取出当前默认语言包的全部键值（供覆盖策略起步）。 */
+    private static Map<String, String> currentEntries() {
+        if (current instanceof YamlLanguageBundle) {
+            return ((YamlLanguageBundle) current).entries();
+        }
+        return new HashMap<>();
+    }
+
+    /** 把 YAML 配置平铺进目标 Map（叶子键写入，忽略中间节点）。 */
+    private static void putAll(Map<String, String> target, org.bukkit.configuration.file.YamlConfiguration cfg) {
+        for (String key : cfg.getKeys(true)) {
+            Object v = cfg.get(key);
+            if (v != null && !(v instanceof org.bukkit.configuration.ConfigurationSection)) {
+                target.put(key, String.valueOf(v));
+            }
+        }
     }
 
     // ==================== 插件作用域注册 ====================
@@ -312,6 +497,64 @@ public final class I18n {
             return true;
         } catch (IOException e) {
             return false;
+        }
+    }
+
+    // ==================== 语言源信息 ====================
+
+    /** 已注册语言源的快照信息（供 {@code /soyshttp lang sources} 展示）。 */
+    public static final class LanguageSourceInfo {
+        private final int index;
+        private final String name;
+        private final String description;
+        private final String language;
+        private final String raw;
+        private final boolean enabled;
+        private final int count;
+
+        LanguageSourceInfo(int index, String name, String description, String language, String raw, boolean enabled, int count) {
+            this.index = index;
+            this.name = name == null ? "" : name;
+            this.description = description == null ? "" : description;
+            this.language = language == null ? "" : language;
+            this.raw = raw;
+            this.enabled = enabled;
+            this.count = count;
+        }
+
+        /** 注册顺序索引（供 on/off 指定目标）。 */
+        public int index() {
+            return index;
+        }
+
+        /** 来源名称。 */
+        public String name() {
+            return name;
+        }
+
+        /** 来源描述。 */
+        public String description() {
+            return description;
+        }
+
+        /** 绑定的语言代码；空串 = 模板源（任意语言）。 */
+        public String language() {
+            return language;
+        }
+
+        /** 原始路径/URL 描述。 */
+        public String raw() {
+            return raw;
+        }
+
+        /** 是否启用。 */
+        public boolean enabled() {
+            return enabled;
+        }
+
+        /** 当前语言下该来源提供的翻译条数。 */
+        public int count() {
+            return count;
         }
     }
 }

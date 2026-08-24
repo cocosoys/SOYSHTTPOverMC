@@ -164,7 +164,7 @@ public class HttpClassifier extends ChannelInboundHandlerAdapter {
      * <ul>
      *   <li>home-server=self → PlainHttpHandler 的 "/" 等自托管静态页；</li>
      *   <li>home-server=具体子服 → PlainHttpHandler 的 "/" 路由到该子服后端；</li>
-     *   <li>/server/&lt;name&gt;/... 与 /srv/&lt;name&gt;/... 始终路由到对应子服后端。</li>
+     *   <li>/server/&lt;name&gt;/... 始终路由到对应子服后端。</li>
      * </ul>
      * 后端连接由 PlainHttpHandler 为<b>每条客户端连接新建一条独立 TLS 客户端连接</b>(secure=true)，
      * 并以 {@link ProxyConfig#getConnectionSpacingMs()} 串行最小间隔建连，消除微秒级密集建连触发的

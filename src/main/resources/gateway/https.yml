@@ -9,4 +9,7 @@ key: ""                  # PEM 私钥路径（可选，PKCS8）
 keystore: ""             # 或 PKCS12 keystore 路径（可选，优先于 cert/key）
 keystore-pass: ""
 key-pass: ""
-min-tls: TLSv1.2
+# 启用的 TLS 协议版本（列表）。留空 = 全开 TLSv1.0 ~ TLSv1.3（JVM 不支持的自动跳过），兼容各种旧客户端。
+# 若本列表为空且仍配置了旧键 min-tls，则以 min-tls 作为最低允许协议。
+# 支持：TLSv1.3 / TLSv1.2 / TLSv1.1 / TLSv1
+enabled-protocols: []

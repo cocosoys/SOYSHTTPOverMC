@@ -1,4 +1,4 @@
-package soys.soyshttpovermc.proxy;
+package soys.soyshttpovermc.enums;
 
 /**
  * 当前后端所在的运行拓扑。

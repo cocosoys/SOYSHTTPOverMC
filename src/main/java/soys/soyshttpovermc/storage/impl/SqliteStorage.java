@@ -1,7 +1,7 @@
 package soys.soyshttpovermc.storage.impl;
+import soys.soyshttpovermc.enums.StorageType;
 
 import soys.soyshttpovermc.i18n.I18n;
-import soys.soyshttpovermc.storage.StorageType;
 
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.plugin.java.JavaPlugin;

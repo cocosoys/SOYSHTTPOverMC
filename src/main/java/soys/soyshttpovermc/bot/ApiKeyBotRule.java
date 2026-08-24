@@ -1,4 +1,5 @@
 package soys.soyshttpovermc.bot;
+import soys.soyshttpovermc.enums.BotTier;
 
 import soys.soyshttpovermc.gateway.policy.auth.util.AuthUtils;
 

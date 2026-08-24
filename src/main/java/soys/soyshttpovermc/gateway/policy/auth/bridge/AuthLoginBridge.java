@@ -1,10 +1,11 @@
 package soys.soyshttpovermc.gateway.policy.auth.bridge;
+import soys.soyshttpovermc.enums.LoginMode;
 
 import soys.soyshttpovermc.gateway.policy.auth.util.AuthUtils;
 import soys.soyshttpovermc.gateway.policy.auth.issuer.CredentialPresentation;
 import soys.soyshttpovermc.gateway.policy.auth.issuer.SessionTokenIssuer;
 import soys.soyshttpovermc.gateway.policy.auth.login.DefaultLoginModePolicy;
-import soys.soyshttpovermc.gateway.policy.auth.login.LoginMode;
+
 import soys.soyshttpovermc.gateway.policy.auth.login.LoginModePolicy;
 import soys.soyshttpovermc.gateway.policy.auth.bridge.spi.LoginProvider;
 import soys.soyshttpovermc.i18n.I18n;

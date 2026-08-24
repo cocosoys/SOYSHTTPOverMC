@@ -11,6 +11,9 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public final class MimeTypes {
 
+    /** 未知扩展名/无法推断时的默认二进制流类型。 */
+    public static final String OCTET_STREAM = "application/octet-stream";
+
     private static final Map<String, String> MAP = new ConcurrentHashMap<>();
 
     static {
@@ -56,12 +59,32 @@ public final class MimeTypes {
 
     /** 返回扩展名对应的 Content-Type；未知返回默认二进制流 */
     public static String forPath(String path) {
+        if (path == null) return OCTET_STREAM;
         int dot = path.lastIndexOf('.');
         if (dot >= 0 && dot < path.length() - 1) {
             String ext = path.substring(dot + 1).toLowerCase();
             String t = MAP.get(ext);
             if (t != null) return t;
         }
-        return "application/octet-stream";
+        return OCTET_STREAM;
+    }
+
+    /** 返回纯扩展名（不含点，如 {@code "html"}）对应的 Content-Type；未知返回 {@link #OCTET_STREAM}。 */
+    public static String forExt(String ext) {
+        if (ext == null || ext.isEmpty()) return OCTET_STREAM;
+        String t = MAP.get(ext.toLowerCase());
+        return t == null ? OCTET_STREAM : t;
+    }
+
+    /** 该路径是否指向 HTML 页（以 .html / .htm 结尾），供分支/路由判断统一使用。 */
+    public static boolean isHtmlPath(String path) {
+        if (path == null) return false;
+        String p = path.toLowerCase();
+        return p.endsWith(".html") || p.endsWith(".htm");
+    }
+
+    /** 该 Content-Type 是否为 HTML（text/html 前缀）。 */
+    public static boolean isHtmlType(String contentType) {
+        return contentType != null && contentType.startsWith("text/html");
     }
 }

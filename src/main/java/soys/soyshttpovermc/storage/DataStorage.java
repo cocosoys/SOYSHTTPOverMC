@@ -1,4 +1,5 @@
 package soys.soyshttpovermc.storage;
+import soys.soyshttpovermc.enums.StorageType;
 
 import java.util.Collection;
 

@@ -94,7 +94,7 @@
 3. （可选）代理装 `SOYSHTTPOverMC-Proxy.jar`，`plugins/SOYSHTTPOverMC-Proxy/proxy.yml` 设 `enabled: true`、
    `home-server: self`（代理自身托管静态页）或某子服名（`/` 与无前缀 `/api/...` 路由到它）；
    代理监听端口由 BungeeCord 的 `config.yml` 决定（如 25577），**无需关心具体端口号**；
-4. 跨服访问：`/server/<子服名>/...`（兼容旧写法 `/srv/<子服名>/...`）。
+4. 跨服访问：`/server/<子服名>/...`。
 
 ### 配置速览
 

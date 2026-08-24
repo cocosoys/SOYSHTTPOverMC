@@ -41,8 +41,8 @@ public class WebFrontendHandler {
     private final String webRootCanonical;
     private final ApiRegistry apiRegistry; // 注解式 API 注册表（可为 null）
     private final WebRegistry webRegistry; // 插件登记网页（可为 null）
-    /** 首页解析器（web.home；null=未配置/禁用，走默认 index.html） */
-    private final HomePageResolver homeResolver;
+    /** 首页解析器（web.home；null=未配置/禁用，走默认 index.html）；setHomeSpec 可热替换 */
+    private HomePageResolver homeResolver;
     /** Web 内容存活缓存（常驻 pinned + LRU + 大文件加载器），null=禁用缓存 */
     private final WebContentCache webContent;
     /** 大文件安全上限（超过直接 413；防单文件把内存打爆，默认 128MB） */
@@ -85,6 +85,15 @@ public class WebFrontendHandler {
     }
 
     /**
+     * 热替换首页来源（web.home）：reload 或 ihomepage 切换主页时调用，重建内部解析器使新来源即时生效，
+     * 无需重建整个前端处理器。
+     */
+    public void setHomeSpec(String homeSpec) {
+        this.homeResolver = (homeSpec == null || homeSpec.trim().isEmpty())
+                ? null : new HomePageResolver(homeSpec, this.webRoot, this.webRootCanonical, this.largeFileMaxBytes);
+    }
+
+    /**
      * 处理一次请求，返回完整（单分片）HttpResponseFrame。
      * 调用方负责按 32000 字节上限分片发回客户端。
      * <p>外层包装：CORS 预检/附加 + 请求级拦截器（可改写 path/headers 或短路）；
@@ -111,7 +120,7 @@ public class WebFrontendHandler {
                         FrameProto.HttpResponseFrame stop = FrameProto.HttpResponseFrame.newBuilder()
                                 .setStatusCode(oc.status())
                                 .putHeaders("Content-Type",
-                                        oc.contentType() == null ? "text/plain; charset=utf-8" : oc.contentType())
+                                        oc.contentType() == null ? MimeTypes.forExt("txt") : oc.contentType())
                                 .putAllHeaders(oc.headers())
                                 .setBody(ByteString.copyFrom(oc.body() == null ? new byte[0] : oc.body()))
                                 .setFragmentIndex(0)
@@ -162,7 +171,7 @@ public class WebFrontendHandler {
             if (ico != null) {
                 return FrameProto.HttpResponseFrame.newBuilder()
                         .setStatusCode(200)
-                        .putHeaders("Content-Type", "image/x-icon")
+                        .putHeaders("Content-Type", MimeTypes.forExt("ico"))
                         .setBody(ByteString.copyFrom(ico))
                         .setFragmentIndex(0)
                         .setTotalFragments(1)
@@ -170,7 +179,7 @@ public class WebFrontendHandler {
             }
             return FrameProto.HttpResponseFrame.newBuilder()
                     .setStatusCode(204)
-                    .putHeaders("Content-Type", "image/x-icon")
+                    .putHeaders("Content-Type", MimeTypes.forExt("ico"))
                     .setBody(ByteString.EMPTY)
                     .setFragmentIndex(0)
                     .setTotalFragments(1)
@@ -293,7 +302,7 @@ public class WebFrontendHandler {
         if (page404 != null) {
             return FrameProto.HttpResponseFrame.newBuilder()
                     .setStatusCode(404)
-                    .putHeaders("Content-Type", "text/html; charset=utf-8")
+                    .putHeaders("Content-Type", MimeTypes.forExt("html"))
                     .setBody(ByteString.copyFrom(page404))
                     .setFragmentIndex(0)
                     .setTotalFragments(1)
@@ -303,7 +312,7 @@ public class WebFrontendHandler {
         if (custom != null) {
             return FrameProto.HttpResponseFrame.newBuilder()
                     .setStatusCode(404)
-                    .putHeaders("Content-Type", "text/html; charset=utf-8")
+                    .putHeaders("Content-Type", MimeTypes.forExt("html"))
                     .setBody(ByteString.copyFrom(custom))
                     .setFragmentIndex(0)
                     .setTotalFragments(1)
@@ -318,7 +327,7 @@ public class WebFrontendHandler {
         if (custom != null) {
             return FrameProto.HttpResponseFrame.newBuilder()
                     .setStatusCode(500)
-                    .putHeaders("Content-Type", "text/html; charset=utf-8")
+                    .putHeaders("Content-Type", MimeTypes.forExt("html"))
                     .setBody(ByteString.copyFrom(custom))
                     .setFragmentIndex(0)
                     .setTotalFragments(1)
@@ -485,7 +494,7 @@ public class WebFrontendHandler {
     private static FrameProto.HttpResponseFrame jsonResponse(int code, String json, Map<String, String> extra) {
         FrameProto.HttpResponseFrame.Builder b = FrameProto.HttpResponseFrame.newBuilder()
                 .setStatusCode(code)
-                .putHeaders("Content-Type", "application/json; charset=utf-8")
+                .putHeaders("Content-Type", MimeTypes.forExt("json"))
                 .setBody(ByteString.copyFrom(json.getBytes(StandardCharsets.UTF_8)))
                 .setFragmentIndex(0)
                 .setTotalFragments(1);

@@ -6,6 +6,7 @@ import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import soys.soyshttpovermc.web.WebRegistry;
+import soys.soyshttpovermc.web.MimeTypes;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -127,8 +128,7 @@ public final class ManualPagesConfig {
             log.warnT("log.pages.source-unreadable", "pages.yml 来源不可读，已跳过: {0}", source);
             return 0;
         }
-        String ct = source.toLowerCase(java.util.Locale.ROOT).endsWith(".html")
-                ? "text/html; charset=utf-8" : null;
+        String ct = MimeTypes.isHtmlPath(source) ? MimeTypes.forExt("html") : null;
         reg.registerProxyPage(plugin, url, bytes, ct, true, it.description, it.nicknames);
         return 1;
     }
@@ -168,8 +168,7 @@ public final class ManualPagesConfig {
             log.warnT("log.pages.source-unreadable", "pages.yml 来源不可读，已跳过: {0}", source);
             return 0;
         }
-        String ct = source.toLowerCase(java.util.Locale.ROOT).endsWith(".html")
-                ? "text/html; charset=utf-8" : null;
+        String ct = MimeTypes.isHtmlPath(source) ? MimeTypes.forExt("html") : null;
         reg.registerProxyPage(plugin, url, bytes, ct, true);
         return 1;
     }
@@ -188,7 +187,7 @@ public final class ManualPagesConfig {
             String pageUrl = joinUrl(url, rel);
             byte[] bytes = readFile(f);
             if (bytes == null || bytes.length == 0) continue;
-            reg.registerProxyPage(plugin, pageUrl, bytes, "text/html; charset=utf-8", true);
+            reg.registerProxyPage(plugin, pageUrl, bytes, MimeTypes.forExt("html"), true);
         }
         return htmls.size();
     }
@@ -199,7 +198,7 @@ public final class ManualPagesConfig {
         for (File c : children) {
             if (c.isDirectory()) {
                 collectHtml(c, out);
-            } else if (c.isFile() && c.getName().toLowerCase(java.util.Locale.ROOT).endsWith(".html")) {
+            } else if (c.isFile() && MimeTypes.isHtmlPath(c.getName())) {
                 out.add(c);
             }
         }

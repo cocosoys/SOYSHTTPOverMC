@@ -1,4 +1,5 @@
 package soys.soyshttpovermc.annotations;
+import soys.soyshttpovermc.enums.RequestMethod;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;

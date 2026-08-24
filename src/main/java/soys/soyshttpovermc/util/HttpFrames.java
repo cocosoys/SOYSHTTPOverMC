@@ -1,6 +1,7 @@
 package soys.soyshttpovermc.util;
 
 import soys.soyshttpovermc.proto.FrameProto;
+import soys.soyshttpovermc.web.MimeTypes;
 
 import com.google.protobuf.ByteString;
 
@@ -29,7 +30,7 @@ public final class HttpFrames {
     public static FrameProto.HttpResponseFrame json(int statusCode, AjaxResult ar, Map<String, String> extra) {
         FrameProto.HttpResponseFrame.Builder b = FrameProto.HttpResponseFrame.newBuilder()
                 .setStatusCode(statusCode)
-                .putHeaders("Content-Type", "application/json; charset=utf-8")
+                .putHeaders("Content-Type", MimeTypes.forExt("json"))
                 .setBody(ByteString.copyFrom(ar.toJson().getBytes(StandardCharsets.UTF_8)))
                 .setFragmentIndex(0)
                 .setTotalFragments(1);

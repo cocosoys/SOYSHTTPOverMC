@@ -4,6 +4,7 @@ import lombok.CustomLog;
 import soys.soyshttpovermc.link.McLink;
 import soys.soyshttpovermc.log.LogKit;
 import soys.soyshttpovermc.i18n.I18n;
+import soys.soyshttpovermc.enums.CrossChannelKind;
 import soys.soyshttpovermc.proto.FrameProto;
 import soys.soyshttpovermc.proxy.ServerRegistry;
 import soys.soyshttpovermc.proxy.ServerTag;
@@ -48,11 +49,11 @@ public class CrossServerHub {
     /** BungeeCord 插件消息主通道（用于发送 Forward 指令） */
     public static final String BUNGEECORD_CHANNEL = "BungeeCord";
     /** 跨服请求转发通道（网关→目标，目标在此服务） */
-    public static final String CHANNEL_FWD_REQ = "httpproxy:fwd-req";
+    public static final String CHANNEL_FWD_REQ = CrossChannelKind.FWD_REQ.channel();
     /** 跨服响应回程通道（目标→源，源在此完成 McLink future） */
-    public static final String CHANNEL_FWD_RESP = "httpproxy:fwd-resp";
+    public static final String CHANNEL_FWD_RESP = CrossChannelKind.FWD_RESP.channel();
     /** 服务器标签发现广播通道 */
-    public static final String CHANNEL_DISCOVERY = "httpproxy:discovery";
+    public static final String CHANNEL_DISCOVERY = CrossChannelKind.DISCOVERY.channel();
 
     /** 路由/关联内部头（均经 headers 承载，避免改动 FrameProto） */
     public static final String HEADER_TARGET = "X-Soys-Target-Server";
@@ -155,11 +156,12 @@ public class CrossServerHub {
                     if (len > 0) in.readFully(data);
                     log.infoT("log.cross.forward-received", "[CrossServer] 收到 BungeeCord 跨服转发 inner={0} player={1} len={2}", inner,
                             player == null ? "null" : player.getName(), len);
-                    if (CHANNEL_FWD_REQ.equals(inner)) {
+                    CrossChannelKind kind = CrossChannelKind.fromName(inner);
+                    if (kind == CrossChannelKind.FWD_REQ) {
                         onForwardRequest(data);
-                    } else if (CHANNEL_FWD_RESP.equals(inner)) {
+                    } else if (kind == CrossChannelKind.FWD_RESP) {
                         onForwardResponse(data);
-                    } else if (CHANNEL_DISCOVERY.equals(inner)) {
+                    } else if (kind == CrossChannelKind.DISCOVERY) {
                         onDiscovery(data);
                     }
                 } catch (Throwable t) {

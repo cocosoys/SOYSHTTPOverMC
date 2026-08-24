@@ -48,6 +48,7 @@ public class GatewayFilter {
         REGISTRY.put("auth", AuthPolicy::new);
         REGISTRY.put("ip-allowlist", IpAllowlistPolicy::new);
         REGISTRY.put("rate-limit", RateLimitPolicy::new);
+        REGISTRY.put("access-limiter", AccessLimiterPolicy::new);
     }
 
     /** 凭证颁发器注册表：颁发器名（= issuers 目录下的文件名）→ 工厂。登录插件在此注册。 */

@@ -1,0 +1,42 @@
+# ============================================================================
+#  国际化：插件界面与日志所用语言环境。
+# ----------------------------------------------------------------------------
+# language.current —— 当前语言代码（需存在 language/<代码>.yml，内置 zh_cn / en_us）。
+#   可由 /soyshttp lang <代码> 切换，并自动持久化到此处；重启后生效，无需重新切换。
+# language.rule —— 语言加载策略：
+#   internationalization = 国际化策略（默认）：以 en_us 为基底，每次重载先加载一次 en_us，
+#                          再叠加目标语言（含额外语言源），目标语言文件不齐全的翻译项由 en_us 保底；
+#   clear                = 清空当前语言实例后再重新加载；
+#   overlay              = 不清空，将新加载内容对既有同键做覆盖、其余保持不变
+#   例：既有 test.testname1="test1"、test.testname2="test2"；新加载内容仅含 test.testname1="test3"，
+#       则覆盖后 test.testname1="test3"、test.testname2 保持 "test2" 不变。
+# language.sources —— 额外语言源（其他插件/管理员提供），列表形式，每条含 name/description/language/source：
+#   name        = 来源名称（展示用）
+#   description = 来源描述
+#   language    = 绑定的语言代码（非空则仅加载到该语言，source 不做占位符处理）；
+#                  为空则 source 必须含 {0} 语言占位符（加载时替换为当前语言代码）。
+#   source      = 相对/绝对文件或文件夹（文件夹按 <目录>/<语言代码>.yml 约定取对应语言文件）、
+#                  或网络文件 URL（网络 URL 可反引号包裹以免歧义）。相对路径以本插件数据目录为基准。
+#   ⚠️ 语言必须可识别：language 为空 且 source 不含 {0} → 书写错误，注册被拒绝。
+#   可用 /soyshttp lang sources 列出各来源（名称/语言/条数），用 /soyshttp lang sources off <索引> 停用
+#   （运行时内存生效；/soyshttp reload 会按本段重新注册，停用状态重置）。
+language:
+  current: "zh_cn"
+  rule: "internationalization"
+  sources:
+#    - name: "测试源1"
+#      description: "来源于xxx文件"
+#      language: "zh_cn"
+#      source: "test/zh_cn1.yml"
+#    - name: "测试源2"
+#      description: "来源于xxx文件夹，reload时自动从中寻找是否存在语言文件并读取"
+#      language: ""
+#      source: "test/{0}.yml"
+#    - name: "测试网络源1"
+#      description: "来源于xxx网络"
+#      language: "zh_cn"
+#      source: "https://www.baidu.com/abcdefghijklnmopqrstuvwxyz"
+#    - name: "测试网络源2"
+#      description: "来源于xxx网络"
+#      language: ""
+#      source: "https://www.baidu.com/abcdefghijklnmopqrstuvwxyz?language={0}.yml"

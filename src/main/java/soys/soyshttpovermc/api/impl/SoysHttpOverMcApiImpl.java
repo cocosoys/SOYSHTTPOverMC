@@ -11,6 +11,7 @@ import soys.soyshttpovermc.api.ExtensionApi;
 import soys.soyshttpovermc.api.HttpClientApi;
 import soys.soyshttpovermc.api.ApiToolkitApi;
 import soys.soyshttpovermc.api.SoysHttpOverMcApi;
+import soys.soyshttpovermc.api.ReloadHttpConfigHandler;
 import soys.soyshttpovermc.api.WebPageApi;
 import soys.soyshttpovermc.bot.BotManager;
 import soys.soyshttpovermc.gateway.GatewayFilter;
@@ -32,20 +33,21 @@ public class SoysHttpOverMcApiImpl implements SoysHttpOverMcApi {
     private final HttpClientImpl httpClient;
     private final ExtensionImpl extension;
     private final CrossServerHttpClientImpl crossServer;
+    private final soys.soyshttpovermc.HttpOverMcPlugin hostPlugin;
 
     public SoysHttpOverMcApiImpl(Plugin hostPlugin, ApiRegistry apiRegistry,
                                  WebRegistry webRegistry, GatewayFilter gateway, BotManager botManager,
                                  soys.soyshttpovermc.web.LargeFileLoaderRegistry largeFileLoaderRegistry,
                                  soys.soyshttpovermc.web.CorsRegistry corsRegistry) {
+        this.hostPlugin = (soys.soyshttpovermc.HttpOverMcPlugin) hostPlugin;
         this.apiRegistration = new ApiRegistrationImpl(apiRegistry);
         this.webPage = new WebPageImpl(webRegistry, largeFileLoaderRegistry, corsRegistry);
         this.authCredential = new AuthCredentialImpl(gateway);
         this.toolkit = new ApiToolkitImpl(hostPlugin);
         this.botManagement = new BotManagementImpl(botManager);
-        this.httpClient = new HttpClientImpl((soys.soyshttpovermc.HttpOverMcPlugin) hostPlugin, apiRegistry);
-        this.extension = new ExtensionImpl((soys.soyshttpovermc.HttpOverMcPlugin) hostPlugin);
-        this.crossServer = new CrossServerHttpClientImpl((soys.soyshttpovermc.HttpOverMcPlugin) hostPlugin,
-                ((soys.soyshttpovermc.HttpOverMcPlugin) hostPlugin).getMcLink());
+        this.httpClient = new HttpClientImpl(this.hostPlugin, apiRegistry);
+        this.extension = new ExtensionImpl(this.hostPlugin);
+        this.crossServer = new CrossServerHttpClientImpl(this.hostPlugin, this.hostPlugin.getMcLink());
     }
 
     @Override public ApiRegistrationApi getApiRegistration() { return apiRegistration; }
@@ -63,4 +65,8 @@ public class SoysHttpOverMcApiImpl implements SoysHttpOverMcApi {
     @Override public ExtensionApi getExtension() { return extension; }
 
     @Override public CrossServerHttpClient getCrossServer() { return crossServer; }
+
+    @Override public void registerReloadHook(ReloadHttpConfigHandler handler) {
+        hostPlugin.registerReloadHook(handler);
+    }
 }

@@ -1,4 +1,5 @@
 package soys.soyshttpovermc.proxy;
+import soys.soyshttpovermc.enums.ProxyPlatform;
 
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.plugin.java.JavaPlugin;

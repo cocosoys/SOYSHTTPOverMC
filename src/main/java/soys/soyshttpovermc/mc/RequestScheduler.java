@@ -1,7 +1,7 @@
 package soys.soyshttpovermc.mc;
+import soys.soyshttpovermc.enums.BotTier;
 import lombok.CustomLog;
 
-import soys.soyshttpovermc.bot.BotTier;
 import soys.soyshttpovermc.i18n.I18n;
 import soys.soyshttpovermc.log.LogKit;
 import soys.soyshttpovermc.proto.FrameProto;

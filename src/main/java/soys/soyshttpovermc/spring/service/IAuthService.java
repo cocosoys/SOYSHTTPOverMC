@@ -1,4 +1,5 @@
 package soys.soyshttpovermc.spring.service;
+import soys.soyshttpovermc.enums.LoginMode;
 
 import soys.soyshttpovermc.gateway.policy.auth.issuer.CredentialPresentation;
 import soys.soyshttpovermc.util.AjaxResult;
