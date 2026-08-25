@@ -39,16 +39,12 @@ jobs:
       - name: Build main plugin (Spigot)
         run: mvn -B clean package -DskipTests
 
-      - name: Build proxy plugin (BungeeCord)
-        run: mvn -B -f proxy/pom.xml clean package -DskipTests
-
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
           name: soyshttpovermc-jars
           path: |
             target/SOYSHTTPOverMC.jar
-            proxy/target/SOYSHTTPOverMC-Proxy.jar
           if-no-files-found: error
 
       - name: Get tag version
@@ -78,9 +74,7 @@ jobs:
 
             ### 📦 下载
             - `SOYSHTTPOverMC.jar` —— Bukkit/Spigot 后端插件（单服或群组服子服，放各子服 plugins/）
-            - `SOYSHTTPOverMC-Proxy.jar` —— BungeeCord 端代理插件（群组服可选，放代理 plugins/）
           files: |
             target/SOYSHTTPOverMC.jar
-            proxy/target/SOYSHTTPOverMC-Proxy.jar
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
