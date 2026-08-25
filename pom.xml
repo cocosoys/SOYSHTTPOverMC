@@ -6,8 +6,6 @@
 
     <groupId>soys.soyshttpovermc</groupId>
     <artifactId>SOYSHTTPOverMC</artifactId>
-    <!-- CI-Friendly 版本：默认 1.0.0，发布时用 -Drevision=<git tag> 覆盖。
-         plugin.yml 的 version 取 ${project.version}，构建时随之自动同步。 -->
     <version>${revision}</version>
     <packaging>jar</packaging>
 
@@ -15,26 +13,16 @@
 
     <properties>
         <java.version>1.8</java.version>
-        <!-- 发布版本基准：默认 1.0.0；打 tag 后构建时用 -Drevision=<git 标签去 v> 覆盖，
-             例如 git tag v1.3.0 后执行 mvn -o package -Drevision=1.3.0 即可。 -->
         <revision>1.0.0</revision>
-        <!-- 打包版本：默认取 revision。为 plugin.yml 的 version 提供独立旋钮——可经
-             -DpackageVersion=... 单独覆盖（不改变 jar 的 Maven 坐标版本 revision）。
-             直接跑 mvn -o packageVersion -Drevision=<tag>（或 -DpackageVersion=<tag>）
-             即可快速把 plugin.yml 的 version 同步为该版本，无需整包构建。 -->
-        <plugin.version>${revision}</plugin.version>
+        <effectiveVersion>${revision}</effectiveVersion>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <mcprotocollib.version>1.12.2-2</mcprotocollib.version>
         <protobuf.version>3.25.3</protobuf.version>
-
-        <!-- git commit id plugin 内部变量 -->
-        <git.commit.id.describe></git.commit.id.describe>
     </properties>
 
     <build>
         <finalName>SOYSHTTPOverMC</finalName>
         <plugins>
-            <!-- ========== 新增：git‑commit‑id‑plugin 读取本地Git Tag ========== -->
             <plugin>
                 <groupId>pl.project13.maven</groupId>
                 <artifactId>git-commit-id-plugin</artifactId>
@@ -60,29 +48,6 @@
             </plugin>
 
             <plugin>
-                <groupId>org.codehaus.mojo</groupId>
-                <artifactId>properties-maven-plugin</artifactId>
-                <version>1.2.1</version>
-                <executions>
-                    <execution>
-                        <phase>initialize</phase>
-                        <goals>
-                            <goal>set-system-properties</goal>
-                        </goals>
-                        <configuration>
-                            <skip>${maven.revision!=null}</skip>
-                            <properties>
-                                <property>
-                                    <name>plugin.version</name>
-                                    <value>${git.commit.id.describe}</value>
-                                </property>
-                            </properties>
-                        </configuration>
-                    </execution>
-                </executions>
-            </plugin>
-
-            <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
                 <version>3.8.1</version>
@@ -91,6 +56,7 @@
                     <target>${java.version}</target>
                 </configuration>
             </plugin>
+
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-shade-plugin</artifactId>
@@ -108,20 +74,11 @@
                             <transformers>
                                 <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
                             </transformers>
-                            <!-- 注意：opennbt 必须用 GitHub "GeyserMC/OpenNBT" 的 1.0 tag 旧版
-                                 （含 com.github.steveice10.opennbt.tag.builtin.* 与 NBTIO），
-                                 已被本地 mvn install 覆盖到 .m2 的 opennbt:1.0。
-                                 Maven Central / JitPack 上同名 opennbt:1.0 是重构后的新版
-                                 （扁平 tag + NBTIOUtils），与 MCProtocolLib 1.12.2-2 不兼容，
-                                 会导致 Bot 登录时 ClassNotFoundException。无需 relocation。 -->
                         </configuration>
                     </execution>
                 </executions>
             </plugin>
-            <!-- 资源过滤：保留文本占位符替换（plugin.yml 等），但排除二进制资源，
-                 否则 maven-resources-plugin 以文本编码读取 .eot/.ttf 等会抛 MalformedInputException。
-                 注意：显式配置 nonFilteredFileExtensions 会覆盖 Maven 内置默认列表，故需把
-                 内置默认（jpg/jpeg/gif/bmp/png）一并列出。 -->
+
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-resources-plugin</artifactId>
@@ -146,30 +103,9 @@
                     </nonFilteredFileExtensions>
                 </configuration>
             </plugin>
-            <plugin>
-                <groupId>org.codehaus.mojo</groupId>
-                <artifactId>properties-maven-plugin</artifactId>
-                <version>1.2.1</version>
-                <executions>
-                    <execution>
-                        <phase>initialize</phase>
-                        <goals>
-                            <goal>set-system-properties</goal>
-                        </goals>
-                        <configuration>
-                            <properties>
-                                <property>
-                                    <name>plugin.version</name>
-                                    <value>${git.commit.id.describe}</value>
-                                </property>
-                            </properties>
-                        </configuration>
-                    </execution>
-                </executions>
-            </plugin>
         </plugins>
+
         <resources>
-            <!-- 仅plugin.yml开启占位符过滤 -->
             <resource>
                 <directory>src/main/resources</directory>
                 <filtering>true</filtering>
@@ -177,7 +113,6 @@
                     <include>plugin.yml</include>
                 </includes>
             </resource>
-            <!-- 其余全部资源关闭过滤 -->
             <resource>
                 <directory>src/main/resources</directory>
                 <filtering>false</filtering>
@@ -188,6 +123,20 @@
         </resources>
     </build>
 
+    <profiles>
+        <profile>
+            <id>local-build</id>
+            <activation>
+                <property>
+                    <name>!revision</name>
+                </property>
+            </activation>
+            <properties>
+                <effectiveVersion>${git.commit.id.describe}</effectiveVersion>
+            </properties>
+        </profile>
+    </profiles>
+
     <repositories>
         <repository>
             <id>spigot-repo</id>
@@ -197,20 +146,16 @@
             <id>jitpack.io</id>
             <url>https://jitpack.io</url>
         </repository>
-        <!-- 直连 Maven Central(https)，绕过 alimaven 镜像缺失 protobuf-maven-plugin 的问题 -->
         <repository>
             <id>central-direct</id>
             <name>Maven Central (direct)</name>
             <url>https://repo1.maven.org/maven2/</url>
         </repository>
-        <!-- AuthMe 发布仓库（5.4.0 等版本托管于此，不在 Maven Central） -->
         <repository>
             <id>codemc</id>
             <name>CodeMC</name>
             <url>https://repo.codemc.io/repository/maven-public/</url>
         </repository>
-        <!-- Velocity API 发布仓库（com.velocitypowered:velocity-api 不在 Maven Central，
-             由 PaperMC 代为托管；群组服伴随插件模块亦依赖此仓库） -->
         <repository>
             <id>papermc</id>
             <name>PaperMC</name>
@@ -244,7 +189,6 @@
                 </exclusion>
             </exclusions>
         </dependency>
-        <!-- MCProtocolLib 的传递依赖（本环境需显式声明以便从 jitpack.io / central 解析） -->
         <dependency>
             <groupId>com.github.steveice10</groupId>
             <artifactId>packetlib</artifactId>
@@ -272,9 +216,6 @@
             <artifactId>opennbt</artifactId>
             <version>1.0</version>
         </dependency>
-        <!-- 关键：嗅探器要挂到 Spigot 自己的 Netty pipeline 上，必须复用 Spigot 运行时的 netty
-             （同一 Class 对象），否则 io.netty.buffer.ByteBuf 的 instanceof 会因类加载器不同而失败。
-             因此 netty 设为 provided（不打进 jar），运行时直接取 Spigot 自带的 4.1.24.Final。 -->
         <dependency>
             <groupId>io.netty</groupId>
             <artifactId>netty-all</artifactId>
@@ -286,25 +227,18 @@
             <artifactId>protobuf-java</artifactId>
             <version>${protobuf.version}</version>
         </dependency>
-        <!-- Lombok：编译期注解处理（@Data 等），provided 不打进 jar（运行时不需要） -->
         <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
             <version>1.18.36</version>
             <scope>provided</scope>
         </dependency>
-        <!-- AuthMe 5.4.0：软依赖登录插件接入（provided：编译期校验 API，运行时由 AuthMe 插件自身提供类，
-             因此不打进 jar；无 AuthMe 时本插件仍可正常运行，仅在 onEnable 自判 AuthMe 是否加载） -->
         <dependency>
             <groupId>fr.xephi</groupId>
             <artifactId>authme</artifactId>
             <version>5.4.0</version>
             <scope>provided</scope>
         </dependency>
-        <!-- MySQL Connector/J：跨服同步数据存储（config.yml mysql 段启用时使用）。
-             compile + shade 打入 jar：Spigot 1.12.2 仅内置 5.x 驱动（com.mysql.jdbc.*，连 MySQL 8 有认证兼容问题），
-             自带 8.x（com.mysql.cj.*，与服务端 5.x 包名不同，无冲突）确保 MySQL 8 直连可用。
-             排除其传递的 protobuf（X DevAPI 用，本项目不用，避免与 FrameProto 的 protobuf 版本纠缠）。 -->
         <dependency>
             <groupId>mysql</groupId>
             <artifactId>mysql-connector-java</artifactId>
@@ -316,34 +250,27 @@
                 </exclusion>
             </exclusions>
         </dependency>
-        <!-- SQLite JDBC：多后端存储的 SQLite 后端（storage.backends.sqlite 启用时使用）。
-             provided：Spigot 1.12.2 服务端已内置 org.sqlite.JDBC，不打进 jar。 -->
         <dependency>
             <groupId>org.xerial</groupId>
             <artifactId>sqlite-jdbc</artifactId>
             <version>3.36.0.3</version>
             <scope>provided</scope>
         </dependency>
-        <!-- ===== dlz-db-core（全量移入）运行依赖 ===== -->
-        <!-- HikariCP：dlz 自带连接池（SQL 后端二期数据源），shade 进 jar（Spigot 无 HikariCP） -->
         <dependency>
             <groupId>com.zaxxer</groupId>
             <artifactId>HikariCP</artifactId>
             <version>4.0.3</version>
         </dependency>
-        <!-- slf4j-api：dlz 的 lombok @Slf4j 与 MDC 运行期需要（无绑定实现时 NOP 静默，项目日志走 LogKit） -->
         <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-api</artifactId>
             <version>1.7.12</version>
         </dependency>
-        <!-- swagger-annotations：dlz PojoCache 运行时反射读 @ApiModel（表注释），shade 进 jar -->
         <dependency>
             <groupId>io.swagger</groupId>
             <artifactId>swagger-annotations</artifactId>
             <version>1.5.20</version>
         </dependency>
-        <!-- dom4j：dlz SqlHolder 依赖（SQL 执行链路必然加载 → 必须 shade 进 jar；排除其传递依赖避免引入多余库） -->
         <dependency>
             <groupId>dom4j</groupId>
             <artifactId>dom4j</artifactId>
@@ -371,23 +298,10 @@
                 </exclusion>
             </exclusions>
         </dependency>
-        <!-- 群组服（BungeeCord / Waterfall / Velocity）支持：
-             仅编译期签名，provided 不打进 jar，后端 Spigot 独立运行不受影响；
-             运行期经反射探测代理类，不在 classpath 时自动降级为独立服。
-             后端侧探测纯反射 + Bukkit 配置 API，无需直接引用代理类型；
-             BungeeCord 类型（及其传递依赖 brigadier SNAPSHOT）留待后续可选的
-             「代理侧伴随插件」模块单独声明，避免污染主插件构建图。 -->
         <dependency>
             <groupId>com.velocitypowered</groupId>
             <artifactId>velocity-api</artifactId>
             <version>3.0.0</version>
-            <scope>provided</scope>
-        </dependency>
-
-        <dependency>
-            <groupId>org.projectlombok</groupId>
-            <artifactId>lombok</artifactId>
-            <version>1.18.34</version>
             <scope>provided</scope>
         </dependency>
     </dependencies>

@@ -1,5 +1,5 @@
 name: SOYSHTTPOverMC
-version: '${plugin.version}'
+version: '${effectiveVersion}'
 main: com.github.cocosoys.mc.soyshttpovermc.HttpOverMcPlugin
 author: SOYS
 description: Mount HTTP over the MC join channel (HTTP-Over-MC tunnel)
