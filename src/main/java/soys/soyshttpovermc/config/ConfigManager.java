@@ -12,6 +12,7 @@ import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.Enumeration;
+import java.util.Map;
 import java.util.Properties;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
@@ -42,6 +43,50 @@ public final class ConfigManager {
         saveDefaultFile(plugin, "gateway/policies/access-limiter.yml");
         saveDefaultFile(plugin, "gateway/issuers/session-token.yml");
         return gwDir;
+    }
+
+    // ============ 配置装配中心：各配置文件类（config 包）的统一初始化门面，由 HttpOverMcPlugin 调用 ============
+
+    /**
+     * 集中初始化 language.yml 配置：装载 LanguageConfig + 应用为 I18n 当前语言环境（加载策略 / 语言源 / 语言包）。
+     * onEnable 早期（日志就绪前）与完成态（日志就绪后）各调用一次国际化的装载效果，幂等。
+     *
+     * @return 已装载的 LanguageConfig（HttpOverMcPlugin 持有，供 lang 命令等读写）
+     */
+    public static LanguageConfig initLanguageConfig(JavaPlugin plugin) {
+        LanguageConfig cfg = LanguageConfig.load(plugin);
+        I18n.setLanguageRule(cfg.rule());
+        I18n.clearLanguageSources();
+        java.util.List<?> sources = cfg.sources();
+        if (sources != null) {
+            for (Object item : sources) {
+                if (!(item instanceof Map)) continue;
+                Map<?, ?> m = (Map<?, ?>) item;
+                String name = stringOf(m.get("name"));
+                String desc = stringOf(m.get("description"));
+                String lang = stringOf(m.get("language"));
+                String source = stringOf(m.get("source"));
+                if (source == null || source.trim().isEmpty()) continue;
+                I18n.registerLanguageSource(plugin, name, desc, lang, source);
+            }
+        }
+        I18n.init(plugin.getDataFolder(), cfg.current());
+        return cfg;
+    }
+
+    /** 集中初始化 pages.yml 配置（web.* 前端资源段 + pages.page/auto 手动登记读源）。 */
+    public static PagesConfig initPagesConfig(JavaPlugin plugin) {
+        return PagesConfig.load(plugin);
+    }
+
+    /** 集中初始化 EULA 协议配置（确保 EULA.yml 落盘并返回是否已同意）。 */
+    public static EulaConfig initEulaConfig(JavaPlugin plugin) {
+        return EulaConfig.load(plugin);
+    }
+
+    /** 从 Object 安全取值（null 返回 null，比 String.valueOf 更安全）。 */
+    private static String stringOf(Object v) {
+        return v == null ? null : String.valueOf(v);
     }
 
     /** 从 jar 资源复制默认配置到数据目录（已存在则不覆盖）。 */

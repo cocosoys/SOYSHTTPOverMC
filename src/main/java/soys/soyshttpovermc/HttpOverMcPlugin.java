@@ -1,4 +1,5 @@
 package soys.soyshttpovermc;
+import soys.soyshttpovermc.config.PagesConfig;
 import soys.soyshttpovermc.enums.ProxyPlatform;
 import lombok.CustomLog;
 
@@ -6,7 +7,6 @@ import soys.soyshttpovermc.log.LogKit;
 
 import soys.soyshttpovermc.command.SoysHttpCommand;
 import soys.soyshttpovermc.config.ConfigManager;
-import soys.soyshttpovermc.config.ManualPagesConfig;
 import soys.soyshttpovermc.event.ApiLifecycleListener;
 import soys.soyshttpovermc.event.GatewayEventListener;
 
@@ -61,8 +61,6 @@ import soys.soyshttpovermc.gateway.policy.auth.issuer.SessionTokenIssuer;
 
 import javax.net.ssl.SSLEngine;
 import java.io.File;
-import java.util.List;
-import java.util.Map;
 import java.util.function.Supplier;
 
 @CustomLog
@@ -135,10 +133,12 @@ public class HttpOverMcPlugin extends JavaPlugin {
     private soys.soyshttpovermc.storage.SyncStorage syncStorage = null;
     /** 多后端存储协调器（YAML/SQLite/MySQL 主辅+镜像；null=内存模式）。 */
     private soys.soyshttpovermc.storage.StorageManager storageManager = null;
-    /** language.yml 配置（独立于 config.yml 的国际化配置：current/rule/sources）。 */
-    private org.bukkit.configuration.file.YamlConfiguration languageConfig;
-    /** pages.yml 配置（web.* 前端资源段 + pages.page/auto 手动登记；web.home 等均自此读取）。 */
-    private org.bukkit.configuration.file.YamlConfiguration pagesConfig;
+    /** language.yml 配置封装（current/rule/sources 读写；由 ConfigManager.initLanguageConfig 装配）。 */
+    private soys.soyshttpovermc.config.LanguageConfig languageConfig;
+    /** pages.yml 配置封装（web.* 读写；由 ConfigManager.initPagesConfig 装配）。 */
+    private soys.soyshttpovermc.config.PagesConfig pagesConfig;
+    /** EULA 协议配置封装（是否已同意；onEnable 最早阶段由 ConfigManager.initEulaConfig 装配）。 */
+    private soys.soyshttpovermc.config.EulaConfig eulaConfig;
 
     /** 供其他插件获取本插件实例（接入注解式 API / 监听网关事件 / 下发凭证） */
     public static HttpOverMcPlugin getInstance() {
@@ -160,40 +160,32 @@ public class HttpOverMcPlugin extends JavaPlugin {
         return webFrontend;
     }
 
-    /** language.yml 配置（国际化：current/rule/sources）；reload 时重新加载。 */
+    /** language.yml 配置对象（国际化：current/rule/sources）；reload 时由 ConfigManager 重新装配。 */
     public org.bukkit.configuration.file.YamlConfiguration getLanguageConfig() {
-        return languageConfig;
+        return languageConfig == null ? null : languageConfig.raw();
     }
 
     /** 持久化 language.yml（切换语言 / 修改语言源后调用）。 */
     public void saveLanguageConfig() {
-        if (languageConfig != null) {
-            try {
-                languageConfig.save(new java.io.File(getDataFolder(), "language.yml"));
-            } catch (java.io.IOException e) {
-                log.warnT("log.i18n.save-config-fail", "保存 language.yml 失败: {0}", e.getMessage());
-            }
-        }
+        if (languageConfig != null) languageConfig.save(this);
     }
 
     /**
-     * 加载 pages.yml（web.* 前端资源 + pages.page/auto 手动登记）到内存。缺失时落内置默认。
+     * 重新装配 pages.yml（web.* 前端资源 + pages.page/auto 手动登记）。缺失时落内置默认。
      * onEnable 启动早期与 /soyshttp reload 时各调用一次，重载后 web.* 与手动登记页随之刷新。
      */
     public void loadPagesConfig() {
-        pagesConfig = soys.soyshttpovermc.config.ManualPagesConfig.loadConfig(this);
+        pagesConfig = soys.soyshttpovermc.config.ConfigManager.initPagesConfig(this);
     }
 
     /** pages.yml 配置对象（web.* 段 / pages 段统一在此；可能为 null=文件落盘失败）。 */
     public org.bukkit.configuration.file.YamlConfiguration getPagesConfig() {
-        return pagesConfig;
+        return pagesConfig == null ? null : pagesConfig.raw();
     }
 
     /** 读取 pages.yml web.* 配置项（如 web.home / web.root / web.cache.max-bytes）。缺省返回默认值。 */
     public String webConfig(String path, String def) {
-        if (pagesConfig == null) return def;
-        String v = pagesConfig.getString(path, def);
-        return v == null ? def : v;
+        return pagesConfig == null ? def : pagesConfig.web(path, def);
     }
 
     /**
@@ -201,16 +193,8 @@ public class HttpOverMcPlugin extends JavaPlugin {
      * 仅落盘，不主动触发 reload——调用方按需决定是否 reload（应用需重建 WebFrontendHandler 或 setHomeSpec）。
      */
     public void setWebHome(String value) {
-        if (pagesConfig == null) {
-            loadPagesConfig();
-            if (pagesConfig == null) return;
-        }
-        pagesConfig.set("web.home", value == null ? "" : value);
-        try {
-            pagesConfig.save(new java.io.File(getDataFolder(), "pages.yml"));
-        } catch (java.io.IOException e) {
-            log.warnT("log.pages.save-home-fail", "保存 pages.yml web.home 失败: {0}", e.getMessage());
-        }
+        if (pagesConfig == null) loadPagesConfig();
+        if (pagesConfig != null) pagesConfig.setWebHome(this, value);
     }
 
     /**
@@ -270,8 +254,9 @@ public class HttpOverMcPlugin extends JavaPlugin {
     public void onEnable() {
         // 0) EULA 使用/开发协议校验：运行时把内置 EULA.yml（简中/繁中/英文/日文/韩文 条款）复制到配置目录，
         //    读取其中的 eula 标志；未同意则禁用插件并提示用户在 EULA.yml 阅读并填写 eula: true
-        if (!loadEulaAccepted()) {
-            promptEulaDisabled();
+        eulaConfig = soys.soyshttpovermc.config.ConfigManager.initEulaConfig(this);
+        if (!eulaConfig.isAccepted()) {
+            soys.soyshttpovermc.config.EulaConfig.promptDisabled(getLogger());
             getServer().getPluginManager().disablePlugin(this);
             return;
         }
@@ -331,7 +316,7 @@ public class HttpOverMcPlugin extends JavaPlugin {
         initApiImpl();
 
         // 6.75) 静态可打开界面纳入【统一注册通道】：装配 pages.yml 手动登记（强制注册，可覆盖核心/第三方已注册页）。
-        ManualPagesConfig.register(this, webRegistry);
+        PagesConfig.Manual.register(this, webRegistry);
 
         // 7) 统计 / 状态 API / 前端处理器 / 通道消息处理（返回统计实例供嗅探器复用）
         RequestStats stats = initFrontend(webRoot);
@@ -461,53 +446,6 @@ public class HttpOverMcPlugin extends JavaPlugin {
         return local;
     }
 
-    /** 输出 EULA 未同意时的禁用提示（服务器启动阶段打印，引导用户阅读 EULA.yml 并填写 eula: true）。 */
-    private void promptEulaDisabled() {
-        getLogger().severe("==============================SOYSHTTPOverMC==============================");
-        getLogger().severe("【简体中文】SOYSHTTPOverMC 尚未启用！");
-        getLogger().severe("【简体中文】您尚未同意《使用与开发协议》（EULA）。");
-        getLogger().severe("【简体中文】请阅读 plugins/SOYSHTTPOverMC/EULA.yml 中的协议条款");
-        getLogger().severe("【简体中文】并将 eula: false 改为 eula: true 后重启服务器。");
-        getLogger().severe("【简体中文】郑重提示：禁止使用本插件从事违法犯罪活动，包括但不限于");
-        getLogger().severe("【简体中文】建设/跳转黄赌毒网址、投放恐怖分子言论、破坏他人计算机系统等。");
-
-        getLogger().severe("【English】SOYSHTTPOverMC is not enabled!");
-        getLogger().severe("【English】You have not agreed to the End‑User License Agreement (EULA).");
-        getLogger().severe("【English】Please read the agreement in plugins/SOYSHTTPOverMC/EULA.yml");
-        getLogger().severe("【English】change eula: false to eula: true then restart your server.");
-        getLogger().severe("【English】Important Notice: Do NOT use this plugin for illegal or criminal activities, including but not limited to");
-        getLogger().severe("【English】hosting/redirecting porn,gambling,drug sites, spreading terrorist content, damaging third‑party computer systems.");
-
-        getLogger().severe("【繁體中文】SOYSHTTPOverMC 尚未啟用！");
-        getLogger().severe("【繁體中文】您尚未同意《使用與開發協議》（EULA）。");
-        getLogger().severe("【繁體中文】請閱讀 plugins/SOYSHTTPOverMC/EULA.yml 中的協議條款");
-        getLogger().severe("【繁體中文】並將 eula: false 改為 eula: true 後重啟伺服器。");
-        getLogger().severe("【繁體中文】鄭重提示：禁止使用本外掛從事違法犯罪活動，包括但不限於");
-        getLogger().severe("【繁體中文】建立/跳轉黃賭毒網址、發布恐怖主義言論、破壞他人電腦系統等。");
-
-        getLogger().severe("==============================SOYSHTTPOverMC==============================");
-    }
-
-    /**
-     * 确保 EULA.yml 已复制到配置目录并读取是否已同意协议。
-     * 首次运行经 {@code saveResource("EULA.yml", false)} 把内置协议（简繁英日韩）复制到配置目录；
-     * 之后读取其中的 {@code eula} 标志：{@code eula: true} 视为已同意。读取失败一律按未同意处理。
-     */
-    private boolean loadEulaAccepted() {
-        try {
-            File eulaFile = new File(getDataFolder(), "EULA.yml");
-            if (!eulaFile.isFile()) {
-                saveResource("EULA.yml", false);
-            }
-            org.bukkit.configuration.file.YamlConfiguration yml =
-                    org.bukkit.configuration.file.YamlConfiguration.loadConfiguration(eulaFile);
-            return yml.getBoolean("eula", false);
-        } catch (Throwable t) {
-            log.warnT("log.plugin.eula-read-fail", "读取 EULA.yml 失败，按未同意处理: {0}", t.getMessage());
-            return false;
-        }
-    }
-
     /**
      * 数据贡献（config.yml upload）：同意后把当前服务器地址（IP:端口）匿名 POST 上报给
      * cocosoys 数据服务器做统计；仅携带地址与端口，不会暴露给第三方。异步执行，失败不影响插件运行。
@@ -551,39 +489,12 @@ public class HttpOverMcPlugin extends JavaPlugin {
     }
 
     /**
-     * 装配国际化环境（language.yml：current/rule/sources）：设置加载策略（clear/overlay）、
-     * 注册配置声明的额外语言源，并以 language.current 指定的语言加载默认语言包。
+     * 装配国际化环境（language.yml）：经 {@link soys.soyshttpovermc.config.ConfigManager#initLanguageConfig}
+     * 设置加载策略（clear/overlay）、注册配置声明的额外语言源，并以 language.current 指定的语言加载默认语言包。
      * 在启动早期（0.5，日志就绪前）与完成态（3.25，日志就绪后）各调用一次，幂等。
      */
     private void initLanguageConfig() {
-        File langFile = new java.io.File(getDataFolder(), "language.yml");
-        if (!langFile.isFile()) {
-            saveResource("language.yml", false);
-        }
-        languageConfig = org.bukkit.configuration.file.YamlConfiguration.loadConfiguration(langFile);
-        String current = languageConfig.getString("language.current", languageConfig.getString("language", "zh_cn"));
-        String rule = languageConfig.getString("language.rule", "");
-        I18n.setLanguageRule(rule);
-        I18n.clearLanguageSources();
-        List<?> sources = languageConfig.getList("language.sources");
-        if (sources != null) {
-            for (Object item : sources) {
-                if (!(item instanceof Map)) continue;
-                Map<?, ?> m = (Map<?, ?>) item;
-                String name = stringOf(m.get("name"));
-                String desc = stringOf(m.get("description"));
-                String lang = stringOf(m.get("language"));
-                String source = stringOf(m.get("source"));
-                if (source == null || source.trim().isEmpty()) continue;
-                I18n.registerLanguageSource(this, name, desc, lang, source);
-            }
-        }
-        I18n.init(getDataFolder(), current);
-    }
-
-    /** 从 Object 安全取值（null 返回 null，比 String.valueOf 更安全）。 */
-    private static String stringOf(Object v) {
-        return v == null ? null : String.valueOf(v);
+        languageConfig = soys.soyshttpovermc.config.ConfigManager.initLanguageConfig(this);
     }
 
     /** 从 config.yml 读取核心运行参数（Bot 用户名 / 通道 / 本服地址 / 嗅探开关与上限）。 */
@@ -1069,7 +980,7 @@ public class HttpOverMcPlugin extends JavaPlugin {
         }
         // 重新登记 pages.yml 手动页（强制注册，page 后置可覆盖 auto）与 web.home 热替换
         if (webRegistry != null) {
-            ManualPagesConfig.register(this, webRegistry);
+            PagesConfig.Manual.register(this, webRegistry);
         }
         // 首页（web.home）热替换：reload 后即时把最新 web.home 应用到运行中的 WebFrontendHandler
         if (webFrontend != null) {
@@ -1087,7 +998,7 @@ public class HttpOverMcPlugin extends JavaPlugin {
             getServer().getPluginManager().callEvent(new HttpConfigReloadEvent());
         } catch (Throwable ignored) {
         }
-        ManualPagesConfig.register(this, webRegistry);
+        PagesConfig.Manual.register(this, webRegistry);
     }
 
     @Override
