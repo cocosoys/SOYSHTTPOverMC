@@ -1,0 +1,197 @@
+package com.github.cocosoys.mc.soyshttpovermc.mc;
+import com.github.cocosoys.mc.soyshttpovermc.enums.BotTier;
+import lombok.CustomLog;
+
+import com.github.cocosoys.mc.soyshttpovermc.cross.CrossServerHub;
+
+import org.bukkit.Bukkit;
+import org.bukkit.entity.Player;
+import org.bukkit.plugin.java.JavaPlugin;
+import org.bukkit.plugin.messaging.PluginMessageListener;
+
+import com.github.cocosoys.mc.soyshttpovermc.proto.FrameProto;
+
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+
+/**
+ * 服务端侧：接收来自虚拟 Bot 的 PluginMessage，解析 HttpRequestFrame，
+ * 路由为静态资源 / 动态接口（替代第一版的可读回显），证明隧道端到端打通。
+ * 安全规则：只处理来自虚拟 Bot 的消息。支持大请求多分片重组（与客户端 McLink 对称）。
+ *
+ * 本次重构：重组完成后不再同步处理，而是按请求携带的 tier（X-SOYS-TIER 头）提交给
+ * {@link RequestScheduler} 的对应逻辑队列，由 worker 线程按优先级处理；本回调线程只做
+ * 解析/重组/入队，不执行 web.handle，从而避免重活阻塞入站与主线程。
+ * 分片重组表（pending）增加 TTL 淘汰与分片数上限，防止半截分片堆积导致内存耗尽。
+ */
+@CustomLog
+public class McMessageHandler implements PluginMessageListener {
+
+    private final JavaPlugin plugin;
+    private final String botUsername;
+    private final String channel;
+    private final RequestScheduler scheduler;
+    /** 跨服枢纽（独立服为 null；群组服下用于把指向其他服的请求中继出去） */
+    private final CrossServerHub hub;
+
+    private final Map<Long, PendingReq> pending = new ConcurrentHashMap<>();
+    /** 单次请求最大分片数（防 pending.buffers 超大分配），超过则丢弃 */
+    private static final int MAX_FRAGMENTS = 4096;
+    /** 分片重组超时（毫秒）：超过未补齐即淘汰，防内存堆积 */
+    private static final long FRAGMENT_TTL_MS = 30_000;
+
+    public McMessageHandler(JavaPlugin plugin, String botUsername, String channel, RequestScheduler scheduler, CrossServerHub hub) {
+        this.plugin = plugin;
+        this.botUsername = botUsername;
+        this.channel = channel;
+        this.scheduler = scheduler;
+        this.hub = hub;
+        // 分片 pending 表 TTL 淘汰（自调度：仅在存在 pending 时周期性运行，空闲不驻留定时任务）
+        ensureSweepScheduled();
+    }
+
+    /** 自调度标志：避免空闲时重复挂定时任务。 */
+    private final java.util.concurrent.atomic.AtomicBoolean sweepScheduled = new java.util.concurrent.atomic.AtomicBoolean(false);
+
+    /** 确保分片淘汰任务已挂起（CAS 防重复；空闲即停）。 */
+    private void ensureSweepScheduled() {
+        if (sweepScheduled.compareAndSet(false, true)) {
+            Bukkit.getScheduler().runTaskLaterAsynchronously(plugin, this::sweepFragments, 200L);
+        }
+    }
+
+    @Override
+    public void onPluginMessageReceived(String ch, Player player, byte[] message) {
+        if (!channel.equals(ch)) {
+            return;
+        }
+        // 安全规则：忽略所有非虚拟 Bot 发来的该通道消息，防止伪造请求
+        if (!botUsername.equals(player.getName())) {
+            return;
+        }
+        try {
+            FrameProto.HttpRequestFrame chunk = FrameProto.HttpRequestFrame.parseFrom(message);
+
+            // 关键修复：见原实现说明——强制把 Bot 加入 listening 集合，保证响应可达。
+            if (!player.getListeningPluginChannels().contains(channel)) {
+                ensureListening(player, channel);
+                log.infoT("log.mc.force-listen", "已为 Bot 强制登记监听通道 {0} -> listening={1}", channel,
+                        player.getListeningPluginChannels());
+            }
+
+            // 跨服中继：若本请求指向其他服（请求头携带 X-Soys-Target-Server 且非本服），逐分片转发到目标服。
+            if (hub != null && hub.isCrossServer(chunk)) {
+                log.infoT("log.mc.cross-server-route", "[CrossServer] 网关侧命中跨服路由 target={0} id={1}",
+                        chunk.getHeadersMap().get(CrossServerHub.HEADER_TARGET), chunk.getRequestId());
+                hub.relayRequestFragment(message, chunk.getHeadersMap().get(CrossServerHub.HEADER_TARGET));
+                return;
+            }
+
+            long id = chunk.getRequestId();
+            int rawTotal = chunk.getTotalFragments();
+            final int total = rawTotal < 1 ? 1 : rawTotal;
+            if (total > MAX_FRAGMENTS) {
+                log.warnT("log.mc.fragments-oversize", "分片数超限，丢弃请求 id={0} total={1}", id, total);
+                return;
+            }
+            PendingReq pr = pending.computeIfAbsent(id, k -> new PendingReq(total));
+            int idx = Math.min(chunk.getFragmentIndex(), total - 1);
+            pr.buffers[idx] = chunk.getBody().toByteArray();
+            pr.lastTouch = System.currentTimeMillis();
+            if (++pr.received < total) {
+                ensureSweepScheduled(); // 存在未完成分片：确保淘汰任务在跑
+                return; // 等待更多分片
+            }
+            pending.remove(id);
+
+            // 重组出原始请求帧（chunk body 是原始请求帧序列化的一个分片）
+            byte[] full = join(pr.buffers);
+            FrameProto.HttpRequestFrame req = FrameProto.HttpRequestFrame.parseFrom(full);
+
+            // 按规则控制器写入的 tier 头决定逻辑队列（默认 COMMON）
+            BotTier tier = BotTier.COMMON;
+            String tierName = req.getHeadersMap().get("X-SOYS-TIER");
+            if (tierName != null) {
+                try {
+                    tier = BotTier.valueOf(tierName);
+                } catch (IllegalArgumentException ignored) {
+                }
+            }
+            // 去掉内部头，避免泄漏给业务 handler
+            Map<String, String> clean = new java.util.HashMap<>(req.getHeadersMap());
+            clean.remove("X-SOYS-TIER");
+
+            // 提交到对应 tier 队列，由 RequestScheduler 按优先级异步处理（不再同步执行 web.handle）
+            scheduler.submit(tier, player, id, req.getMethod(), req.getPath(), clean, req.getBody().toByteArray());
+        } catch (Exception e) {
+            log.warnT("log.mc.process-fail", "处理消息失败: {0}", e);
+        }
+    }
+
+    /** 分片 pending 表定时淘汰：超过 TTL 未补齐的请求直接丢弃（客户端侧会 30s 超时回 502）。
+     *  自调度：有 pending 才续排下一次，空闲时不定驻定时任务（避免常驻线程空转）。 */
+    private void sweepFragments() {
+        try {
+            long now = System.currentTimeMillis();
+            boolean removed = false;
+            for (Map.Entry<Long, PendingReq> en : pending.entrySet()) {
+                if (now - en.getValue().lastTouch > FRAGMENT_TTL_MS) {
+                    pending.remove(en.getKey());
+                    removed = true;
+                }
+            }
+            if (removed) {
+                log.infoT("log.mc.fragments-swept", "分片 pending 表已清理过期条目（剩余 {0}）", pending.size());
+            }
+        } finally {
+            // 仅当仍有未完成分片时才续排下一次；空闲即停止调度（不驻留定时任务）
+            sweepScheduled.set(false);
+            if (!pending.isEmpty()) {
+                ensureSweepScheduled();
+            }
+        }
+    }
+
+    private static byte[] join(byte[][] parts) {
+        int len = 0;
+        for (byte[] p : parts) {
+            if (p != null) len += p.length;
+        }
+        byte[] out = new byte[len];
+        int off = 0;
+        for (byte[] p : parts) {
+            if (p != null) {
+                System.arraycopy(p, 0, out, off, p.length);
+                off += p.length;
+            }
+        }
+        return out;
+    }
+
+    /**
+     * 强制把玩家加入某通道的 listening 集合（1.12.2 仅 CraftPlayer 提供 addChannel，反射兼容）。
+     */
+    private void ensureListening(Player player, String ch) {
+        try {
+            java.lang.reflect.Method m;
+            try {
+                m = Player.class.getMethod("addListeningPluginChannel", String.class);
+            } catch (NoSuchMethodException e) {
+                m = player.getClass().getMethod("addChannel", String.class);
+            }
+            m.invoke(player, ch);
+        } catch (Exception e) {
+            log.warnT("log.mc.force-listen-fail", "无法强制登记监听通道 {0}: {1}", ch, e);
+        }
+    }
+
+    private static class PendingReq {
+        final byte[][] buffers;
+        int received = 0;
+        long lastTouch = System.currentTimeMillis();
+
+        PendingReq(int total) {
+            this.buffers = new byte[total][];
+        }
+    }
+}

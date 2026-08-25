@@ -24,9 +24,7 @@ jobs:
           distribution: 'temurin'
           cache: maven
 
-      # 本地魔改 / 已下线的依赖（lib/ 内 vendored jar）：公共仓库无法解析，CI 先装入本地 Maven 仓库
-      # （MCProtocolLib/packetlib/opennbt 为本地魔改版；bungeecord-api 1.12.x 公共仓库已无，
-      #  用从 fat jar 提取的瘦身版，netty 由 Central 的 netty-all provided 提供）
+      # 安装本地vendored依赖
       - name: Install vendored deps
         run: |
           mvn -B -q install:install-file -Dfile=lib/packetlib-1.2.jar \
@@ -36,8 +34,26 @@ jobs:
           mvn -B -q install:install-file -Dfile=lib/bungeecord-api-1.12.2-build1867-slim.jar \
             -DgroupId=net.md_5 -DartifactId=bungeecord-api -Dversion=1.12.2-build1867 -Dpackaging=jar
 
+      # 获取tag版本，去除前缀v；非tag触发VERSION为空字符串
+      - name: Get tag version
+        id: get_version
+        run: |
+          if [[ $GITHUB_REF == refs/tags/v* ]]; then
+            RAW_TAG=${GITHUB_REF#refs/tags/v}
+            echo "VERSION=$RAW_TAG" >> $GITHUB_OUTPUT
+          else
+            echo "VERSION=" >> $GITHUB_OUTPUT
+          fi
+
+      # 组装Maven参数：只有tag触发时追加 -Drevision=xxx
       - name: Build main plugin (Spigot)
-        run: mvn -B clean package -DskipTests
+        run: |
+          MAVEN_ARGS="-B clean package -DskipTests"
+          if [[ -n "${{ steps.get_version.outputs.VERSION }}" ]]; then
+            MAVEN_ARGS+=" -Drevision=${{ steps.get_version.outputs.VERSION }}"
+          fi
+          echo "Maven arguments: $MAVEN_ARGS"
+          mvn $MAVEN_ARGS
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
@@ -46,11 +62,6 @@ jobs:
           path: |
             target/SOYSHTTPOverMC.jar
           if-no-files-found: error
-
-      - name: Get tag version
-        id: get_version
-        if: startsWith(github.ref, 'refs/tags/')
-        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
 
       - name: Get tag-commit short message
         id: get_commit

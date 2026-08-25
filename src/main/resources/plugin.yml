@@ -1,6 +1,6 @@
 name: SOYSHTTPOverMC
-version: '${project.version}'
-main: soys.soyshttpovermc.HttpOverMcPlugin
+version: '${plugin.version}'
+main: com.github.cocosoys.mc.soyshttpovermc.HttpOverMcPlugin
 author: SOYS
 description: Mount HTTP over the MC join channel (HTTP-Over-MC tunnel)
 softdepend: [AuthMe]
