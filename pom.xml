@@ -146,8 +146,28 @@
                     </nonFilteredFileExtensions>
                 </configuration>
             </plugin>
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>properties-maven-plugin</artifactId>
+                <version>1.2.1</version>
+                <executions>
+                    <execution>
+                        <phase>initialize</phase>
+                        <goals>
+                            <goal>set-system-properties</goal>
+                        </goals>
+                        <configuration>
+                            <properties>
+                                <property>
+                                    <name>plugin.version</name>
+                                    <value>${git.commit.id.describe}</value>
+                                </property>
+                            </properties>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
         </plugins>
-
         <resources>
             <!-- 仅plugin.yml开启占位符过滤 -->
             <resource>
@@ -166,7 +186,6 @@
                 </excludes>
             </resource>
         </resources>
-
     </build>
 
     <repositories>
