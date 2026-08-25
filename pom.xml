@@ -4,8 +4,8 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>soys.soyshttpovermc</groupId>
-    <artifactId>SOYSHTTPOverMC</artifactId>
+    <groupId>com.github.cocosoys.mc</groupId>
+    <artifactId>soyshttpovermc</artifactId>
     <version>${revision}</version>
     <packaging>jar</packaging>
 
@@ -13,7 +13,7 @@
 
     <properties>
         <java.version>1.8</java.version>
-        <revision>1.0.0</revision>
+        <revision>0.0.0-unknown</revision>
         <effectiveVersion>${revision}</effectiveVersion>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <mcprotocollib.version>1.12.2-2</mcprotocollib.version>
@@ -103,6 +103,8 @@
                     </nonFilteredFileExtensions>
                 </configuration>
             </plugin>
+
+
         </plugins>
 
         <resources>
