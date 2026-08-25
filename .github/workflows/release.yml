@@ -84,8 +84,8 @@ jobs:
             ${{ steps.get_commit.outputs.COMMIT_MSG }}
 
             ### 📦 下载
-            - `SOYSHTTPOverMC.jar` —— Bukkit/Spigot 后端插件（单服或群组服子服，放各子服 plugins/）
+            - `SOYSHTTPOverMC-*.jar` —— Bukkit/Spigot 后端插件（单服或群组服子服，放各子服 plugins/）
           files: |
-            target/SOYSHTTPOverMC.jar
+            target/SOYSHTTPOverMC-*.jar
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
