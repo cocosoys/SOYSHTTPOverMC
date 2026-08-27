@@ -21,6 +21,14 @@ public interface WebPageApi {
     /** 登记网页（直接内容；显式 Content-Type；force=true 强制覆盖重复登记并打印强制登记的插件） */
     void registerPage(Plugin owner, String path, byte[] content, String contentType, boolean force);
 
+    /**
+     * 登记网页（直接内容；显式 HTTP 方法 + Content-Type + force + 界面说明 + 昵称路由）。
+     * 用于注册 POST/PUT/DELETE/PATCH 等非 GET 静态响应；{@code httpMethod} 为 null/空 → GET。
+     * 路径含 {name} 占位符段时自动登记到参数化路由表，匹配时按段比对提取 path variables。
+     */
+    void registerPage(Plugin owner, String path, String httpMethod, byte[] content, String contentType, boolean force,
+                      String description, java.util.List<String> nicknames);
+
     void registerResource(Plugin owner, String path, ClassLoader resourceClassLoader, String resourcePath);
 
     void registerResource(Plugin owner, String path, ClassLoader resourceClassLoader, String resourcePath, String contentType);
@@ -28,13 +36,37 @@ public interface WebPageApi {
     /** 登记网页（来自插件自有 jar 的资源；显式 Content-Type；force=true 强制覆盖重复登记并打印强制登记的插件） */
     void registerResource(Plugin owner, String path, ClassLoader resourceClassLoader, String resourcePath, String contentType, boolean force);
 
+    /**
+     * 登记网页（来自插件自有 jar 的资源；显式 HTTP 方法 + Content-Type + force + 界面说明 + 昵称路由）。
+     * 用于注册 POST/PUT/DELETE/PATCH 等非 GET 的 jar 资源响应；语义同
+     * {@link #registerResource(Plugin, String, ClassLoader, String, String, boolean)} 但带方法与元数据。
+     */
+    void registerResource(Plugin owner, String path, String httpMethod, ClassLoader resourceClassLoader, String resourcePath,
+                           String contentType, boolean force, String description, java.util.List<String> nicknames);
+
     void registerProxyPage(Plugin owner, String path, byte[] content);
 
     void registerProxyPage(Plugin owner, String path, byte[] content, String contentType);
 
+    /**
+     * 强制代理登记网页（直接内容；显式 HTTP 方法 + Content-Type + force + 界面说明 + 昵称路由）。
+     * 语义同 {@link #registerPage(Plugin, String, String, byte[], String, boolean, String, java.util.List)}
+     * 但无 /plugins 前缀。
+     */
+    void registerProxyPage(Plugin owner, String path, String httpMethod, byte[] content, String contentType, boolean force,
+                           String description, java.util.List<String> nicknames);
+
     void registerProxyResource(Plugin owner, String path, ClassLoader resourceClassLoader, String resourcePath);
 
     void registerProxyResource(Plugin owner, String path, ClassLoader resourceClassLoader, String resourcePath, String contentType);
+
+    /**
+     * 强制代理登记网页（来自插件自有 jar 的资源；显式 HTTP 方法 + Content-Type + force + 界面说明 + 昵称路由）。
+     * 语义同 {@link #registerResource(Plugin, String, String, ClassLoader, String, String, boolean, String, java.util.List)}
+     * 但无 /plugins 前缀。
+     */
+    void registerProxyResource(Plugin owner, String path, String httpMethod, ClassLoader resourceClassLoader, String resourcePath,
+                                String contentType, boolean force, String description, java.util.List<String> nicknames);
 
     /** 批量登记磁盘目录（递归扫描 dir 下文件挂到 basePath；请求时惰性读，支持热替换） */
     void registerDirectory(Plugin owner, String basePath, File dir);

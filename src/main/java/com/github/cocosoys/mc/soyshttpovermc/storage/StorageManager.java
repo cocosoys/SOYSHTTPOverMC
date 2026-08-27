@@ -134,21 +134,44 @@ public class StorageManager {
     }
 
     private void shutdownInternal(boolean awaitWrites) {
-        if (writeExecutor != null) {
-            writeExecutor.shutdown();
+        ExecutorService executor = this.writeExecutor;
+        if (executor != null) {
+            executor.shutdown(); // 停止接收新任务，已提交任务继续执行
             if (awaitWrites) {
                 try {
-                    if (!writeExecutor.awaitTermination(15, TimeUnit.SECONDS)) {
-                        log.warnT("log.storage.writer-drain-timeout",
-                        "存储写入队列未能在 15 秒内排空，部分数据可能丢失");
-                        writeExecutor.shutdownNow();
+                    // 短时间等待正常排空（10 秒）；超时则进入兜底流程：取出剩余任务同步执行
+                    if (!executor.awaitTermination(10, TimeUnit.SECONDS)) {
+                        List<Runnable> drained = executor.shutdownNow();
+                        int pending = drained == null ? 0 : drained.size();
+                        if (pending > 0) {
+                            log.warnT("log.storage.writer-drain-fallback",
+                                    "存储写入队列未能在 10 秒内排空，剩余 {0} 个任务将在当前线程同步执行（保证不丢数据）",
+                                    pending);
+                            // shutdownNow 返回的 Runnable 是 FutureTask 包装，可同步 run() 触发原任务执行
+                            for (Runnable r : drained) {
+                                try {
+                                    r.run();
+                                } catch (Throwable t) {
+                                    log.warnT("log.storage.task-error",
+                                            "存储任务同步执行异常: {0}", t.getMessage());
+                                }
+                            }
+                        }
+                        // 二次等待 shutdownNow 中断的任务结束（5 秒，与原 15 秒预算一致）
+                        try {
+                            executor.awaitTermination(5, TimeUnit.SECONDS);
+                        } catch (InterruptedException ignored) {
+                            Thread.currentThread().interrupt();
+                        }
                     }
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
-                    writeExecutor.shutdownNow();
+                    executor.shutdownNow();
                 }
+            } else {
+                executor.shutdownNow();
             }
-            writeExecutor = null;
+            this.writeExecutor = null;
         }
         for (DataStorage storage : storages.values()) {
             try {

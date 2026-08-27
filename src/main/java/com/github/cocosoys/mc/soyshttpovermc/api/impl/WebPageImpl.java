@@ -62,6 +62,16 @@ public class WebPageImpl implements WebPageApi {
     }
 
     @Override
+    public void registerPage(Plugin owner, String path, String httpMethod, byte[] content, String contentType, boolean force,
+                             String description, List<String> nicknames) {
+        try {
+            webRegistry.registerPage(owner, path, httpMethod, content, contentType, force, description, nicknames);
+        } catch (Exception ex) {
+            throw ExceptionBus.fire(new WebPageException("E_PAGE", "exception.web.register-page", "登记网页失败(path={0}): {1}", ex, path, ex.getMessage()));
+        }
+    }
+
+    @Override
     public void registerResource(Plugin owner, String path, ClassLoader resourceClassLoader, String resourcePath) {
         try {
             webRegistry.registerResource(owner, path, resourceClassLoader, resourcePath);
@@ -79,6 +89,16 @@ public class WebPageImpl implements WebPageApi {
     public void registerResource(Plugin owner, String path, ClassLoader resourceClassLoader, String resourcePath, String contentType, boolean force) {
         try {
             webRegistry.registerResource(owner, path, resourceClassLoader, resourcePath, contentType, force);
+        } catch (Exception ex) {
+            throw ExceptionBus.fire(new WebPageException("E_RESOURCE", "exception.web.register-resource", "登记资源失败(path={0}): {1}", ex, path, ex.getMessage()));
+        }
+    }
+
+    @Override
+    public void registerResource(Plugin owner, String path, String httpMethod, ClassLoader resourceClassLoader, String resourcePath,
+                                  String contentType, boolean force, String description, List<String> nicknames) {
+        try {
+            webRegistry.registerResource(owner, path, httpMethod, resourceClassLoader, resourcePath, contentType, force, description, nicknames);
         } catch (Exception ex) {
             throw ExceptionBus.fire(new WebPageException("E_RESOURCE", "exception.web.register-resource", "登记资源失败(path={0}): {1}", ex, path, ex.getMessage()));
         }
@@ -103,6 +123,16 @@ public class WebPageImpl implements WebPageApi {
     }
 
     @Override
+    public void registerProxyPage(Plugin owner, String path, String httpMethod, byte[] content, String contentType, boolean force,
+                                  String description, List<String> nicknames) {
+        try {
+            webRegistry.registerProxyPage(owner, path, httpMethod, content, contentType, force, description, nicknames);
+        } catch (Exception ex) {
+            throw ExceptionBus.fire(new WebPageException("E_PAGE_PROXY", "exception.web.register-proxy-page", "代理登记网页失败(path={0}): {1}", ex, path, ex.getMessage()));
+        }
+    }
+
+    @Override
     public void registerProxyResource(Plugin owner, String path, ClassLoader resourceClassLoader, String resourcePath) {
         try {
             webRegistry.registerProxyResource(owner, path, resourceClassLoader, resourcePath);
@@ -115,6 +145,16 @@ public class WebPageImpl implements WebPageApi {
     public void registerProxyResource(Plugin owner, String path, ClassLoader resourceClassLoader, String resourcePath, String contentType) {
         try {
             webRegistry.registerProxyResource(owner, path, resourceClassLoader, resourcePath, contentType);
+        } catch (Exception ex) {
+            throw ExceptionBus.fire(new WebPageException("E_RESOURCE_PROXY", "exception.web.register-proxy-resource", "代理登记资源失败(path={0}): {1}", ex, path, ex.getMessage()));
+        }
+    }
+
+    @Override
+    public void registerProxyResource(Plugin owner, String path, String httpMethod, ClassLoader resourceClassLoader, String resourcePath,
+                                       String contentType, boolean force, String description, List<String> nicknames) {
+        try {
+            webRegistry.registerProxyResource(owner, path, httpMethod, resourceClassLoader, resourcePath, contentType, force, description, nicknames);
         } catch (Exception ex) {
             throw ExceptionBus.fire(new WebPageException("E_RESOURCE_PROXY", "exception.web.register-proxy-resource", "代理登记资源失败(path={0}): {1}", ex, path, ex.getMessage()));
         }

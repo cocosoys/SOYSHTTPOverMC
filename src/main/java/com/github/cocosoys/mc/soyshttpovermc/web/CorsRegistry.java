@@ -1,8 +1,11 @@
 package com.github.cocosoys.mc.soyshttpovermc.web;
 
+import com.github.cocosoys.mc.soyshttpovermc.i18n.I18n;
 import com.github.cocosoys.mc.soyshttpovermc.proto.FrameProto;
 
 import com.google.protobuf.ByteString;
+
+import lombok.CustomLog;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -15,7 +18,12 @@ import java.util.concurrent.CopyOnWriteArrayList;
  *   <li>命中配置的普通请求 → 响应附加 CORS 头。</li>
  * </ul>
  * 经门面 {@code api.getWebPage().registerCors(...)} 注册；卸载随所属插件。
+ *
+ * <p><b>安全防护</b>：{@code origin=*} 与 {@code credentials=true} 同时配置会被浏览器拒绝
+ * （W3C CORS 规范禁止通配源 + 凭据），属于典型配置陷阱。本注册中心在 {@link #register} 时
+ * 检测该组合并<b>拒绝登记</b>，同时打印告警，避免运维误配后静默失效。</p>
  */
+@CustomLog
 public class CorsRegistry {
 
     /** CORS 声明条目。 */
@@ -40,11 +48,28 @@ public class CorsRegistry {
 
     private final java.util.List<CorsEntry> entries = new CopyOnWriteArrayList<>();
 
-    /** 注册 CORS 声明（pathPrefix 为空或 "/" 表示全局）。 */
+    /**
+     * 注册 CORS 声明（pathPrefix 为空或 "/" 表示全局）。
+     *
+     * <p><b>拒绝危险组合</b>：当 origin 为 {@code *}（或为空回退到 {@code *}）且 credentials=true 时，
+     * 浏览器会因 W3C CORS 规范禁止通配源 + 凭据而静默拒绝带 Cookie 的请求，导致凭据站点 CSRF
+     * 防护形同虚设同时正常登录用户也无法访问。本方法检测该组合后<b>不登记</b>并打印告警。
+     * 如确需凭据，请指定具体 origin（如 {@code https://example.com}）。</p>
+     */
     public void register(String ownerPlugin, String pathPrefix, String origin, String methods,
                          String headers, boolean credentials) {
+        String resolvedOrigin = (origin == null || origin.trim().isEmpty()) ? "*" : origin.trim();
+        if (credentials && "*".equals(resolvedOrigin)) {
+            log.warnT("log.cors.dangerous-combo-rejected",
+                    "拒绝登记危险 CORS 组合: owner={0} prefix={1} —— origin=* 与 credentials=true 同时设置"
+                            + " 会被浏览器拒绝（W3C CORS 禁止通配源 + 凭据）。如需凭据请指定具体 origin。"
+                            + " 本次登记已忽略。",
+                    ownerPlugin == null ? "?" : ownerPlugin,
+                    pathPrefix == null ? "/" : pathPrefix);
+            return;
+        }
         String p = (pathPrefix == null || pathPrefix.isEmpty()) ? "/" : pathPrefix;
-        entries.add(new CorsEntry(ownerPlugin, p, origin, methods, headers, credentials));
+        entries.add(new CorsEntry(ownerPlugin, p, resolvedOrigin, methods, headers, credentials));
     }
 
     /** 卸载指定插件登记的全部 CORS 声明。 */

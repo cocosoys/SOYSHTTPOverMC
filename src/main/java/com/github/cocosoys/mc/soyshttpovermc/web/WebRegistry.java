@@ -10,11 +10,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Enumeration;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
@@ -44,15 +40,35 @@ import java.util.jar.JarFile;
 @CustomLog
 public class WebRegistry {
 
-    /** 路由表：key = "GET <路径>"，value = 登记项 */
+    /** 路由表：key = "<METHOD> <路径>"（如 "GET /api/users"），value = 登记项 */
     private final Map<String, Entry> pages = new ConcurrentHashMap<>();
-    /** 网络文件/网络网页页面：key = "GET <路径>"（NetworkPage 抽象，按需 load） */
+    /**
+     * 参数化路由表：key = "<METHOD> <模板>"（如 "GET /api/users/{id}"），value = 登记项。
+     * 模板路径含 {name} 占位符段；匹配时按段比对并提取 path variables。
+     * 仅在精确匹配未命中时启用，避免影响默认 GET 路由性能。
+     */
+    private final Map<String, Entry> parameterizedPages = new ConcurrentHashMap<>();
+    /** 网络文件/网络网页页面：key = "<METHOD> <路径>"（NetworkPage 抽象，按需 load） */
     private final Map<String, RegisteredNetworkPage> networkPages = new ConcurrentHashMap<>();
     /** 宿主插件名（SOYSHTTPOverMC 本体）：其登记不加 /plugins 前缀 */
     private final String hostName;
 
+    /** 默认 HTTP 方法（保持向后兼容：未显式指定方法时按 GET 登记）。 */
+    public static final String DEFAULT_METHOD = "GET";
+
     public WebRegistry(String hostName) {
         this.hostName = hostName == null ? "" : hostName;
+    }
+
+    /** 规范化 HTTP 方法（大写；null/空 → GET）。 */
+    private static String normalizeMethod(String method) {
+        String m = method == null ? "" : method.trim().toUpperCase();
+        return m.isEmpty() ? DEFAULT_METHOD : m;
+    }
+
+    /** 判定路径是否含 {name} 占位符段（参数化路由）。 */
+    private static boolean isParameterized(String path) {
+        return path != null && path.indexOf('{') >= 0 && path.indexOf('}') > path.indexOf('{');
     }
 
     // ===== 普通登记（自动 /plugins/<插件名> 前缀） =====
@@ -78,6 +94,17 @@ public class WebRegistry {
         register(owner, path, content, contentType, false, force, description, nicknames);
     }
 
+    /**
+     * 登记网页（直接内容；显式 HTTP 方法 + Content-Type + force + 界面说明 + 昵称路由）。
+     * 用于注册 POST/PUT/DELETE/PATCH 等非 GET 的静态响应（如简单 POST 接收器返回固定 JSON）；
+     * {@code httpMethod} 为 null/空 时按 GET 处理（与默认重载等价）。
+     * 路径含 {name} 占位符段时自动登记到参数化路由表，匹配时按段比对提取 path variables。
+     */
+    public void registerPage(Plugin owner, String path, String httpMethod, byte[] content, String contentType, boolean force,
+                             String description, List<String> nicknames) {
+        register(owner, path, httpMethod, content, contentType, false, force, description, nicknames);
+    }
+
     /** 登记网页（来自插件自有 jar 的资源；Content-Type 按路径扩展名推断）；重复路径默认阻止。 */
     public void registerResource(Plugin owner, String path, ClassLoader resourceClassLoader, String resourcePath) {
         registerResource(owner, path, resourceClassLoader, resourcePath, null, false);
@@ -91,6 +118,15 @@ public class WebRegistry {
     /** 登记网页（来自插件自有 jar 的资源；显式 Content-Type；force=true 强制覆盖重复登记并打印强制登记的插件）。 */
     public void registerResource(Plugin owner, String path, ClassLoader resourceClassLoader, String resourcePath, String contentType, boolean force) {
         registerRes(owner, path, resourceClassLoader, resourcePath, contentType, false, force);
+    }
+
+    /**
+     * 登记网页（来自插件自有 jar 的资源；显式 HTTP 方法 + Content-Type + force + 界面说明 + 昵称路由）。
+     * 用于注册 POST/PUT/DELETE/PATCH 等非 GET 的 jar 资源响应；路径含 {name} 时自动登记到参数化路由表。
+     */
+    public void registerResource(Plugin owner, String path, String httpMethod, ClassLoader resourceClassLoader, String resourcePath,
+                                  String contentType, boolean force, String description, List<String> nicknames) {
+        registerRes(owner, path, httpMethod, resourceClassLoader, resourcePath, contentType, false, force, description, nicknames);
     }
 
     // ===== 强制代理登记（无 /plugins/<插件名> 前缀） =====
@@ -116,6 +152,16 @@ public class WebRegistry {
         register(owner, path, content, contentType, true, force, description, nicknames);
     }
 
+    /**
+     * 强制代理登记网页（直接内容；显式 HTTP 方法 + Content-Type + force + 界面说明 + 昵称路由）。
+     * 用于注册 POST/PUT/DELETE/PATCH 等非 GET 的静态响应（无 /plugins 前缀）；语义同
+     * {@link #registerPage(Plugin, String, String, byte[], String, boolean, String, List)} 但走代理路径。
+     */
+    public void registerProxyPage(Plugin owner, String path, String httpMethod, byte[] content, String contentType, boolean force,
+                                  String description, List<String> nicknames) {
+        register(owner, path, httpMethod, content, contentType, true, force, description, nicknames);
+    }
+
     /** 强制以主插件代理登记网页（来自插件自有 jar 的资源）；重复路径默认阻止。 */
     public void registerProxyResource(Plugin owner, String path, ClassLoader resourceClassLoader, String resourcePath) {
         registerProxyResource(owner, path, resourceClassLoader, resourcePath, null);
@@ -124,6 +170,16 @@ public class WebRegistry {
     /** 强制以主插件代理登记网页（来自插件自有 jar 的资源；显式 Content-Type）；重复路径默认阻止。 */
     public void registerProxyResource(Plugin owner, String path, ClassLoader resourceClassLoader, String resourcePath, String contentType) {
         registerRes(owner, path, resourceClassLoader, resourcePath, contentType, true, false);
+    }
+
+    /**
+     * 强制代理登记网页（来自插件自有 jar 的资源；显式 HTTP 方法 + Content-Type + force + 界面说明 + 昵称路由）。
+     * 语义同 {@link #registerResource(Plugin, String, String, ClassLoader, String, String, boolean, String, List)}
+     * 但走代理路径（无 /plugins 前缀）。
+     */
+    public void registerProxyResource(Plugin owner, String path, String httpMethod, ClassLoader resourceClassLoader, String resourcePath,
+                                      String contentType, boolean force, String description, List<String> nicknames) {
+        registerRes(owner, path, httpMethod, resourceClassLoader, resourcePath, contentType, true, force, description, nicknames);
     }
 
     // ===== 跳转登记（A 网址 → B 网址，302/301） =====
@@ -151,15 +207,21 @@ public class WebRegistry {
     /**
      * 登记核心：重复路径<b>默认阻止</b>（打印拒绝日志，返回 false）；{@code force=true} 时
      * 强制覆盖并打印<b>强制登记的插件</b>与原登记插件。
+     *
+     * <p>路由 key 形如 {@code "<METHOD> <路径>"}。若路径含 {name} 占位符段 → 登记到参数化路由表
+     * （{@link #parameterizedPages}），匹配时按段比对并提取 path variables；否则登记到精确路由表
+     * （{@link #pages}）。</p>
      */
     private boolean putEntry(String key, Entry e, boolean force) {
-        Entry old = pages.get(key);
+        // 路径含 {name} 占位符 → 走参数化路由表；key 形如 "GET /api/users/{id}"
+        Map<String, Entry> table = isParameterized(e.path) ? parameterizedPages : pages;
+        Entry old = table.get(key);
         if (old != null && !force) {
             log.warnT("log.web.register-duplicate-denied", "拒绝重复登记: {0}（已由插件 {1} 登记；如需覆盖请用强制登记 force=true）",
                     key, old.ownerPlugin);
             return false;
         }
-        pages.put(key, e);
+        table.put(key, e);
         if (old != null) {
             log.infoT("log.web.register-force-overwrite", "插件 {0} 强制登记覆盖: {1}（原登记插件 {2}）", e.ownerPlugin, key, old.ownerPlugin);
         }
@@ -351,25 +413,44 @@ public class WebRegistry {
 
     /**
      * 按方法 + 路径解析已登记网页；未命中返回 null。
-     * 支持 .html 后缀智能匹配：注册 /login 后，访问 /login 与 /login.html 均可命中（反之亦然）。
-     * 其次匹配<b>昵称路由</b>：登记时若带 nicknames（如 /主页），访问昵称同样命中本登记项。
+     * 解析顺序：
+     * <ol>
+     *   <li>精确匹配（含 .html 后缀智能匹配）；</li>
+     *   <li>参数化路由匹配（含 {name} 占位符段，如 {@code /api/users/{id}} 命中 {@code /api/users/123}）；
+     *       <b>不</b>返回 path variables —— 若需提取路径参数请用 {@link #resolveFull}；</li>
+     *   <li>昵称路由（扫描全部登记项，避免别名表与主表不一致）。</li>
+     * </ol>
      */
     public Entry resolve(String httpMethod, String cleanPath) {
-        String method = httpMethod == null ? "GET" : httpMethod.toUpperCase();
+        ResolveResult rr = resolveFull(httpMethod, cleanPath);
+        return rr == null ? null : rr.entry;
+    }
+
+    /**
+     * 按方法 + 路径解析已登记网页，<b>带 path variables</b>；未命中返回 null。
+     * 参数化路由命中时，pathVariables 含 {name} → 实际值 映射（如 {@code {id=123}}）。
+     * 精确匹配与昵称路由命中时，pathVariables 为空 Map。
+     */
+    public ResolveResult resolveFull(String httpMethod, String cleanPath) {
+        String method = httpMethod == null ? DEFAULT_METHOD : httpMethod.toUpperCase();
         if (cleanPath == null) return null;
+        // 1) 精确匹配（含 .html 后缀智能匹配）
         Entry e = lookup(pages, method, cleanPath);
-        if (e != null) return e;
-        // 昵称路由（扫描全部登记项，避免别名表与主表不一致）
+        if (e != null) return new ResolveResult(e, java.util.Collections.emptyMap());
+        // 2) 参数化路由匹配（{name} 占位符段，按段比对）
+        ResolveResult pr = matchParameterized(parameterizedPages, method, cleanPath);
+        if (pr != null) return pr;
+        // 3) 昵称路由（扫描全部登记项，避免别名表与主表不一致）
         for (Entry en : pages.values()) {
             if (en.nicknames == null || en.nicknames.isEmpty()) continue;
             for (String nickname : en.nicknames) {
                 if (nickname == null || nickname.trim().isEmpty()) continue;
                 String a = nickname.startsWith("/") ? nickname : "/" + nickname;
                 a = a.replace('\\', '/');
-                if (a.equals(cleanPath)) return en;
-                if (cleanPath.indexOf('.') < 0 && a.equals(cleanPath + ".html")) return en;
+                if (a.equals(cleanPath)) return new ResolveResult(en, java.util.Collections.emptyMap());
+                if (cleanPath.indexOf('.') < 0 && a.equals(cleanPath + ".html")) return new ResolveResult(en, java.util.Collections.emptyMap());
                 if (cleanPath.endsWith(".html") && cleanPath.length() > 5
-                        && a.equals(cleanPath.substring(0, cleanPath.length() - 5))) return en;
+                        && a.equals(cleanPath.substring(0, cleanPath.length() - 5))) return new ResolveResult(en, java.util.Collections.emptyMap());
             }
         }
         return null;
@@ -388,18 +469,103 @@ public class WebRegistry {
         return null;
     }
 
+    /**
+     * 在参数化路由表中按段匹配：模板段为 {name} 时匹配任意非空段并提取 path variable；
+     * 普通段必须严格相等。模板与路径段数必须相同（不支持 {var} 之外的通配）。
+     * 仅支持 .html 后缀智能匹配（路径无扩展名时同时尝试 {@code path + ".html"}）。
+     */
+    private static ResolveResult matchParameterized(Map<String, Entry> table, String method, String cleanPath) {
+        if (table.isEmpty()) return null;
+        String[] reqSegments = splitSegments(cleanPath);
+        for (Map.Entry<String, Entry> kv : table.entrySet()) {
+            String key = kv.getKey();
+            // key 形如 "GET /api/users/{id}" —— 取空格之后的部分作为模板
+            int sp = key.indexOf(' ');
+            if (sp < 0) continue;
+            String keyMethod = key.substring(0, sp);
+            if (!keyMethod.equals(method)) continue;
+            String pattern = key.substring(sp + 1);
+            ResolveResult rr = matchPattern(pattern, reqSegments, kv.getValue());
+            if (rr != null) return rr;
+        }
+        // .html 后缀智能匹配（无扩展名路径试 .html）
+        if (cleanPath.indexOf('.') < 0) {
+            String[] reqSegmentsHtml = splitSegments(cleanPath + ".html");
+            for (Map.Entry<String, Entry> kv : table.entrySet()) {
+                String key = kv.getKey();
+                int sp = key.indexOf(' ');
+                if (sp < 0) continue;
+                String keyMethod = key.substring(0, sp);
+                if (!keyMethod.equals(method)) continue;
+                String pattern = key.substring(sp + 1);
+                ResolveResult rr = matchPattern(pattern, reqSegmentsHtml, kv.getValue());
+                if (rr != null) return rr;
+            }
+        }
+        return null;
+    }
+
+    /** 按段比对模板与请求路径；模板段 {name} 提取为 path variable，普通段严格相等。 */
+    private static ResolveResult matchPattern(String pattern, String[] reqSegments, Entry entry) {
+        String[] patSegments = splitSegments(pattern);
+        if (patSegments.length != reqSegments.length) return null;
+        Map<String, String> vars = null;
+        for (int i = 0; i < patSegments.length; i++) {
+            String p = patSegments[i];
+            String r = reqSegments[i];
+            if (p.startsWith("{") && p.endsWith("}") && p.length() > 2) {
+                String name = p.substring(1, p.length() - 1).trim();
+                if (name.isEmpty()) return null;
+                if (r.isEmpty()) return null;
+                if (vars == null) vars = new LinkedHashMap<>();
+                vars.put(name, r);
+            } else if (!p.equals(r)) {
+                return null;
+            }
+        }
+        return new ResolveResult(entry, vars == null ? java.util.Collections.emptyMap() : vars);
+    }
+
+    /** 按 "/" 切分路径段（去除前导斜杠与空段，保留中间空段表示 //）。 */
+    private static String[] splitSegments(String path) {
+        if (path == null || path.isEmpty()) return new String[0];
+        String p = path.startsWith("/") ? path.substring(1) : path;
+        // 末尾斜杠视为一段空字符串已无意义（去除），中间斜杠严格切分
+        if (p.endsWith("/")) p = p.substring(0, p.length() - 1);
+        if (p.isEmpty()) return new String[0];
+        return p.split("/", -1);
+    }
+
+    /** 解析结果：命中的登记项 + 路径变量（参数化路由时填充，否则为空 Map）。 */
+    public static final class ResolveResult {
+        public final Entry entry;
+        public final Map<String, String> pathVariables;
+
+        ResolveResult(Entry entry, Map<String, String> pathVariables) {
+            this.entry = entry;
+            this.pathVariables = pathVariables == null
+                    ? java.util.Collections.emptyMap()
+                    : java.util.Collections.unmodifiableMap(pathVariables);
+        }
+    }
+
     /** 卸载指定插件名登记的全部网页（监听 PluginDisableEvent 时调用） */
     public void unregisterPlugin(String pluginName) {
         if (pluginName == null || pluginName.isEmpty()) return;
         int n = pages.size();
         pages.entrySet().removeIf(e -> pluginName.equals(e.getValue().ownerPlugin));
         int removed = n - pages.size();
+        // 一并清理该插件的参数化路由（{name} 模板路由）
+        int pn = parameterizedPages.size();
+        parameterizedPages.entrySet().removeIf(e -> pluginName.equals(e.getValue().ownerPlugin));
+        int pRemoved = pn - parameterizedPages.size();
         // 一并清理该插件的网络页
         int netRemoved = (int) networkPages.entrySet().stream()
                 .filter(e -> pluginName.equals(e.getValue().ownerPlugin)).count();
         networkPages.entrySet().removeIf(e -> pluginName.equals(e.getValue().ownerPlugin));
-        if (removed > 0 || netRemoved > 0) {
-            log.infoT("log.web.unregister", "卸载网页（插件 {0}）：共 {1} 个{2}", pluginName, removed,
+        if (removed > 0 || pRemoved > 0 || netRemoved > 0) {
+            log.infoT("log.web.unregister", "卸载网页（插件 {0}）：共 {1} 个{2}{3}", pluginName, removed + pRemoved,
+                    pRemoved > 0 ? "，参数化 " + pRemoved + " 个" : "",
                     netRemoved > 0 ? "，网络页 " + netRemoved + " 个" : "");
         }
         // 一并清理该插件的自定义错误页
@@ -441,6 +607,9 @@ public class WebRegistry {
         for (Entry e : pages.values()) {
             out.add(e.path + " (owner=" + (e.ownerPlugin == null ? "?" : e.ownerPlugin) + ")");
         }
+        for (Entry e : parameterizedPages.values()) {
+            out.add(e.path + " (owner=" + (e.ownerPlugin == null ? "?" : e.ownerPlugin) + ", param)");
+        }
         Collections.sort(out);
         return out;
     }
@@ -461,6 +630,7 @@ public class WebRegistry {
     /** 列出全部已登记项（Entry 原对象），按路径排序；供 /soyshttp pages 分类展示（区分页/资源/跳转）。 */
     public List<Entry> listEntries() {
         List<Entry> out = new ArrayList<>(pages.values());
+        out.addAll(parameterizedPages.values());
         out.sort((a, b) -> a.path.compareTo(b.path));
         return out;
     }
@@ -473,45 +643,69 @@ public class WebRegistry {
 
     /** 内部：登记直接内容（显式 force；force=true 强制覆盖重复路径并打印强制登记插件）。 */
     private void register(Plugin owner, String path, byte[] content, String contentType, boolean proxy, boolean force) {
-        register(owner, path, content, contentType, proxy, force, null, null);
+        register(owner, path, DEFAULT_METHOD, content, contentType, proxy, force, null, null);
     }
 
     /** 内部：登记直接内容（显式 force + 界面说明 + 昵称路由）。 */
     private void register(Plugin owner, String path, byte[] content, String contentType, boolean proxy, boolean force,
                           String description, List<String> nicknames) {
+        register(owner, path, DEFAULT_METHOD, content, contentType, proxy, force, description, nicknames);
+    }
+
+    /**
+     * 内部：登记直接内容（显式 HTTP 方法 + force + 界面说明 + 昵称路由）。
+     * 当 {@code httpMethod} 非默认 GET 或路径含 {name} 占位符时，日志显式标注方法与是否参数化路由。
+     */
+    private void register(Plugin owner, String path, String httpMethod, byte[] content, String contentType,
+                          boolean proxy, boolean force, String description, List<String> nicknames) {
         if (path == null || content == null) return;
+        String method = normalizeMethod(httpMethod);
         String ownerName = owner == null ? null : owner.getName();
         String full = resolvePath(ownerName, path, proxy);
         // contentType 为空 → 置 null，服务端按 MimeTypes 请求时实时推断（支持后续 registerMimeType）
         String ct = (contentType == null || contentType.isEmpty()) ? null : contentType;
-        if (!putEntry("GET " + full,
-                new Entry(ownerName, full, ct, content, null, null, null, 0, null, description, nicknames), force)) {
+        boolean param = isParameterized(full);
+        if (!putEntry(method + " " + full,
+                new Entry(ownerName, method, full, ct, content, null, null, null, 0, null, description, nicknames), force)) {
             return;
         }
-        log.infoT("log.web.register-page", "登记网页: GET {0} 插件={1}{2}", full, ownerName, proxy ? I18n.t("log.registry.label.proxy-no-prefix", " (代理无前缀)") : "");
+        log.infoT("log.web.register-page", "登记网页: {0} {1} 插件={2}{3}{4}", method, full, ownerName,
+                proxy ? I18n.t("log.registry.label.proxy-no-prefix", " (代理无前缀)") : "",
+                param ? I18n.t("log.web.label.parameterized", " (参数化)") : "");
     }
 
     private void registerRes(Plugin owner, String path, ClassLoader cl, String resource, String contentType, boolean proxy) {
-        registerRes(owner, path, cl, resource, contentType, proxy, false);
+        registerRes(owner, path, DEFAULT_METHOD, cl, resource, contentType, proxy, false, null, null);
     }
 
     /** 内部：登记 jar 资源（显式 force；force=true 强制覆盖重复路径并打印强制登记插件）。 */
     private void registerRes(Plugin owner, String path, ClassLoader cl, String resource, String contentType, boolean proxy, boolean force) {
-        registerRes(owner, path, cl, resource, contentType, proxy, force, null, null);
+        registerRes(owner, path, DEFAULT_METHOD, cl, resource, contentType, proxy, force, null, null);
     }
 
     /** 内部：登记 jar 资源（显式 force + 界面说明 + 昵称路由）。 */
     private void registerRes(Plugin owner, String path, ClassLoader cl, String resource, String contentType, boolean proxy, boolean force,
                              String description, List<String> nicknames) {
+        registerRes(owner, path, DEFAULT_METHOD, cl, resource, contentType, proxy, force, description, nicknames);
+    }
+
+    /** 内部：登记 jar 资源（显式 HTTP 方法 + force + 界面说明 + 昵称路由）。 */
+    private void registerRes(Plugin owner, String path, String httpMethod, ClassLoader cl, String resource,
+                             String contentType, boolean proxy, boolean force,
+                             String description, List<String> nicknames) {
         if (path == null || cl == null || resource == null) return;
+        String method = normalizeMethod(httpMethod);
         String ownerName = owner == null ? null : owner.getName();
         String full = resolvePath(ownerName, path, proxy);
         String ct = (contentType == null || contentType.isEmpty()) ? null : contentType;
-        if (!putEntry("GET " + full,
-                new Entry(ownerName, full, ct, null, cl, resource, null, 0, null, description, nicknames), force)) {
+        boolean param = isParameterized(full);
+        if (!putEntry(method + " " + full,
+                new Entry(ownerName, method, full, ct, null, cl, resource, null, 0, null, description, nicknames), force)) {
             return;
         }
-        log.infoT("log.web.register-resource", "登记网页(资源): GET {0} 插件={1}{2}", full, ownerName, proxy ? " (代理无前缀)" : "");
+        log.infoT("log.web.register-resource", "登记网页(资源): {0} {1} 插件={2}{3}{4}", method, full, ownerName,
+                proxy ? " (代理无前缀)" : "",
+                param ? I18n.t("log.web.label.parameterized", " (参数化)") : "");
     }
 
     /** 计算最终路径：非主插件且非代理 → 前置 /plugins/<插件名> */
@@ -576,6 +770,8 @@ public class WebRegistry {
     /** 登记项：保存来源与元数据，按需解析字节内容；redirectTo 非空时表示跳转。 */
     public static final class Entry {
         public final String ownerPlugin;
+        /** HTTP 方法（大写：GET/POST/PUT/DELETE/PATCH 等；默认 GET）。 */
+        public final String httpMethod;
         public final String path;
         public final String contentType;
         public final String redirectTo;    // 非空 = 跳转目标（Location）
@@ -596,13 +792,25 @@ public class WebRegistry {
 
         Entry(String ownerPlugin, String path, String contentType, byte[] content,
               ClassLoader resCl, String resource, String redirectTo, int redirectCode, File diskFile) {
-            this(ownerPlugin, path, contentType, content, resCl, resource, redirectTo, redirectCode, diskFile, null, null);
+            this(ownerPlugin, DEFAULT_METHOD, path, contentType, content, resCl, resource, redirectTo, redirectCode, diskFile, null, null);
         }
 
         Entry(String ownerPlugin, String path, String contentType, byte[] content,
               ClassLoader resCl, String resource, String redirectTo, int redirectCode, File diskFile,
               String description, List<String> nicknames) {
+            this(ownerPlugin, DEFAULT_METHOD, path, contentType, content, resCl, resource, redirectTo, redirectCode, diskFile, description, nicknames);
+        }
+
+        /**
+         * 全参数构造器（带显式 HTTP 方法）。
+         * @param httpMethod HTTP 方法（GET/POST/PUT/DELETE/PATCH 等；null/空 → GET）
+         */
+        Entry(String ownerPlugin, String httpMethod, String path, String contentType, byte[] content,
+              ClassLoader resCl, String resource, String redirectTo, int redirectCode, File diskFile,
+              String description, List<String> nicknames) {
             this.ownerPlugin = ownerPlugin;
+            this.httpMethod = (httpMethod == null || httpMethod.trim().isEmpty())
+                    ? DEFAULT_METHOD : httpMethod.trim().toUpperCase();
             this.path = path;
             this.contentType = contentType;
             this.content = content;

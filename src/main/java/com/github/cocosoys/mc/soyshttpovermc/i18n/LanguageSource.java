@@ -1,5 +1,7 @@
 package com.github.cocosoys.mc.soyshttpovermc.i18n;
 
+import lombok.CustomLog;
+
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
 
@@ -26,7 +28,12 @@ import java.util.Map;
  *
  * <p>{@code source} 可为相对/绝对文件或文件夹、网络文件；网络 URL 可用反引号包裹（配置读取时会去掉）。
  * 经 {@link I18n#registerLanguageSource} 注册后，在语言加载（clear 清空 / overlay 覆盖 / 国际化）时参与合并。</p>
+ *
+ * <p><b>失败告警</b>：网络拉取失败、本地文件解析失败等情形<b>不再静默返回 null</b>，
+ * 而是经 {@code @CustomLog} 打印 warn 级别日志（含来源名称/URL/原因），便于运维定位。
+ * 失败后仍返回 null/空集合以保持降级语义（不阻塞其他来源加载）。</p>
  */
+@CustomLog
 final class LanguageSource {
 
     private final String name;
@@ -103,6 +110,9 @@ final class LanguageSource {
         try {
             return parse(YamlConfiguration.loadConfiguration(file));
         } catch (Throwable t) {
+            log.warnT("log.i18n.local-load-fail",
+                    "[i18n] 语言源 {0} 本地缓存解析失败: {1} - {2}",
+                    name, file.getAbsolutePath(), t.getMessage());
             return null;
         }
     }
@@ -116,19 +126,45 @@ final class LanguageSource {
     /**
      * 为指定语言代码解析出键值对；来源不可用/加载失败返回 {@code null}（调用方跳过）。
      * 调用方需先经 {@link #appliesToLanguage} 确认语言匹配。
+     *
+     * <p>失败时（网络异常、HTTP 非 2xx、本地文件缺失、YAML 解析失败）<b>不再静默</b>，
+     * 经 {@code @CustomLog} 打印 warn 日志（含来源名称/语言代码/原因），便于运维定位。</p>
      */
     Map<String, String> load(String code) {
         try {
             if (url) {
                 String u = resolved(code);
                 String text = fetch(u);
-                if (text == null || text.isEmpty()) return null;
-                return parse(text);
+                if (text == null || text.isEmpty()) {
+                    // fetch() 内部已打印告警，此处避免重复日志
+                    return null;
+                }
+                Map<String, String> m = parse(text);
+                if (m == null) {
+                    log.warnT("log.i18n.fetch-parse-fail",
+                            "[i18n] 语言源 {0} 网络内容 YAML 解析失败: language={1} url={2}",
+                            name, code, u);
+                }
+                return m;
             }
             File target = resolveLocal(code);
-            if (target == null || !target.isFile()) return null;
-            return parse(YamlConfiguration.loadConfiguration(target));
+            if (target == null || !target.isFile()) {
+                log.warnT("log.i18n.local-file-missing",
+                        "[i18n] 语言源 {0} 本地文件不存在: language={1} path={2}",
+                        name, code, target == null ? "(null)" : target.getAbsolutePath());
+                return null;
+            }
+            Map<String, String> m = parse(YamlConfiguration.loadConfiguration(target));
+            if (m == null) {
+                log.warnT("log.i18n.local-parse-fail",
+                        "[i18n] 语言源 {0} 本地文件 YAML 解析失败: language={1} path={2}",
+                        name, code, target.getAbsolutePath());
+            }
+            return m;
         } catch (Throwable t) {
+            log.warnT("log.i18n.load-error",
+                    "[i18n] 语言源 {0} 加载异常: language={1} - {2}",
+                    name, code, t.getMessage());
             return null;
         }
     }
@@ -152,7 +188,10 @@ final class LanguageSource {
         return f;
     }
 
-    /** GET 拉取网络文件文本（UTF-8）；失败返回 {@code null}。 */
+    /**
+     * GET 拉取网络文件文本（UTF-8）；失败时<b>告警</b>并返回 {@code null}（保持降级语义）。
+     * 告警含来源名称/HTTP 状态/异常原因/URL，便于运维定位网络问题或配置错误。
+     */
     private String fetch(String urlString) {
         HttpURLConnection conn = null;
         try {
@@ -171,8 +210,14 @@ final class LanguageSource {
                     return new String(bos.toByteArray(), StandardCharsets.UTF_8);
                 }
             }
+            log.warnT("log.i18n.fetch-http-error",
+                    "[i18n] 语言源 {0} 网络拉取失败: HTTP {1} - {2}",
+                    name, code, urlString);
             return null;
         } catch (Throwable t) {
+            log.warnT("log.i18n.fetch-exception",
+                    "[i18n] 语言源 {0} 网络拉取异常: {1} - {2}",
+                    name, t.getClass().getSimpleName() + ": " + t.getMessage(), urlString);
             return null;
         } finally {
             if (conn != null) conn.disconnect();

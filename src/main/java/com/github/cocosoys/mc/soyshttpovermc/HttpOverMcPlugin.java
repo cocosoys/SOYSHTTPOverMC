@@ -23,6 +23,8 @@ import com.github.cocosoys.mc.soyshttpovermc.config.ConfigManager;
 import com.github.cocosoys.mc.soyshttpovermc.event.ApiLifecycleListener;
 import com.github.cocosoys.mc.soyshttpovermc.event.GatewayEventListener;
 
+import lombok.Data;
+import lombok.Getter;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.Bukkit;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -77,6 +79,7 @@ import java.io.File;
 import java.util.function.Supplier;
 
 @CustomLog
+@Getter
 public class HttpOverMcPlugin extends JavaPlugin {
 
     private static HttpOverMcPlugin instance;
