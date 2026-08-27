@@ -1,7 +1,9 @@
 package com.github.cocosoys.mc.soyshttpovermc.command;
 
 import org.bukkit.Bukkit;
+import org.bukkit.ChatColor;
 import org.bukkit.command.CommandSender;
+import org.bukkit.entity.Player;
 
 import com.github.cocosoys.mc.soyshttpovermc.HttpOverMcPlugin;
 import com.github.cocosoys.mc.soyshttpovermc.i18n.I18n;
@@ -84,12 +86,21 @@ public abstract class SubCommand {
         return java.util.Collections.emptyList();
     }
 
-    /** 统一前缀发送消息；玩家显示绿色前缀，控制台输出纯文本避免 § 被转成 ANSI 乱码。 */
+    /** 统一前缀发送消息；玩家保留 § 颜色码，控制台（非玩家）剥离 § 避免被转写成 ANSI 控制符污染 latest.log。 */
     protected void msg(CommandSender sender, String text) {
-        if (sender instanceof org.bukkit.entity.Player) {
+        if (sender instanceof Player) {
             sender.sendMessage("§a[SOYSHTTPOverMC]§r " + text);
         } else {
-            sender.sendMessage("[SOYSHTTPOverMC] " + text);
+            sender.sendMessage(ChatColor.stripColor("[SOYSHTTPOverMC] " + text));
+        }
+    }
+
+    /** 发送消息：玩家保留 § 颜色码；控制台（非玩家）剥离 § 避免被转写成 ANSI 控制符污染 latest.log。 */
+    protected static void sendColored(CommandSender sender, String text) {
+        if (sender instanceof Player) {
+            sender.sendMessage(text);
+        } else {
+            sender.sendMessage(ChatColor.stripColor(text));
         }
     }
 

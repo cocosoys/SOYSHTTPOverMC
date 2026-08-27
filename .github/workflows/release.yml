@@ -33,6 +33,8 @@ jobs:
             -DgroupId=com.github.steveice10 -DartifactId=opennbt -Dversion=1.0 -Dpackaging=jar
           mvn -B -q install:install-file -Dfile=lib/bungeecord-api-1.12.2-build1867-slim.jar \
             -DgroupId=net.md_5 -DartifactId=bungeecord-api -Dversion=1.12.2-build1867 -Dpackaging=jar
+          mvn -B -q install:install-file -Dfile=lib/MCProtocolLib-1.12.2-2.jar \
+            -DgroupId=com.github.steveice10 -DartifactId=MCProtocolLib -Dversion=1.12.2-2 -Dpackaging=jar
 
       # 获取tag版本，去除前缀v；非tag触发VERSION为空字符串
       - name: Get tag version
@@ -84,8 +86,8 @@ jobs:
             ${{ steps.get_commit.outputs.COMMIT_MSG }}
 
             ### 📦 下载
-            - `SOYSHTTPOverMC-*.jar` —— Bukkit/Spigot 后端插件（单服或群组服子服，放各子服 plugins/）
+            - `SOYSHTTPOverMC.jar` —— Bukkit/Spigot 后端插件（单服或群组服子服，放各子服 plugins/）
           files: |
-            target/SOYSHTTPOverMC-*.jar
+            target/SOYSHTTPOverMC*.jar
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

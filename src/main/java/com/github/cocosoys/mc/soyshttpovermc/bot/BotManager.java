@@ -138,7 +138,7 @@ public class BotManager {
 
     /** 触发主 Bot 重新连接（被踢出游戏等特殊情况后恢复隧道；主通道与 McLink 引用保持不变）。 */
     public void reconnectMainBot() {
-        mainBot.reconnect();
+        mainBot.manualReconnect();
         log.infoT("log.bot.reconnect", "主 Bot 重新连接已触发: {0}", mainBot.getUsername());
     }
 

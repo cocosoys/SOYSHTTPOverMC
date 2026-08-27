@@ -1,11 +1,12 @@
 package com.github.cocosoys.mc.soyshttpovermc.proxy;
 import com.github.cocosoys.mc.soyshttpovermc.enums.ProxyPlatform;
+import com.github.cocosoys.mc.soyshttpovermc.log.LogKit;
 
+import lombok.CustomLog;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.io.File;
-import java.util.logging.Level;
 
 /**
  * 群组服探测骨架（运行期）。
@@ -17,6 +18,7 @@ import java.util.logging.Level;
  * <p>注意：Bukkit 的 {@code getDataFolder()} 在某些启动方式下返回<b>相对路径</b>，
  * 故 {@link #serverRoot} 必须先 {@code getAbsoluteFile()} 再上溯两级定位服务器根目录。</p>
  */
+@CustomLog
 public final class ProxyDetector {
 
     private ProxyDetector() {
@@ -30,20 +32,20 @@ public final class ProxyDetector {
      */
     public static ProxyPlatform detect(JavaPlugin plugin) {
         File spigot = resolveFile(plugin, "spigot.yml");
-        boolean bungee = spigot != null && readBool(plugin, spigot, "settings.bungeecord");
+        boolean bungee = spigot != null && readBool(spigot, "settings.bungeecord");
         if (bungee) {
-            plugin.getLogger().info("[HTTP-Over-MC] ProxyDetector: spigot.yml settings.bungeecord=true → BUNGEECORD");
+            log.infoT("log.proxy.detect-bungee", "spigot.yml settings.bungeecord=true → BUNGEECORD");
             return ProxyPlatform.BUNGEECORD;
         }
         File paper = resolveFile(plugin, "paper.yml");
-        if (paper != null && readBool(plugin, paper, "settings.velocity-support.enabled")) {
+        if (paper != null && readBool(paper, "settings.velocity-support.enabled")) {
             return ProxyPlatform.VELOCITY;
         }
-        if (spigot != null && (readBool(plugin, spigot, "settings.velocity-support.enabled")
-                || readBool(plugin, spigot, "velocity.forwarding.enabled"))) {
+        if (spigot != null && (readBool(spigot, "settings.velocity-support.enabled")
+                || readBool(spigot, "velocity.forwarding.enabled"))) {
             return ProxyPlatform.VELOCITY;
         }
-        plugin.getLogger().info("[HTTP-Over-MC] ProxyDetector: 未检测到代理（spigot.yml bungeecord=false）→ STANDALONE");
+        log.infoT("log.proxy.detect-standalone", "未检测到代理（spigot.yml bungeecord=false）→ STANDALONE");
         return ProxyPlatform.STANDALONE;
     }
 
@@ -55,13 +57,13 @@ public final class ProxyDetector {
     }
 
     /** 读取某 YAML 文件的布尔键（文件缺失返回 false，解析异常打印日志）。 */
-    private static boolean readBool(JavaPlugin plugin, File file, String path) {
+    private static boolean readBool(File file, String path) {
         if (!file.isFile()) return false;
         try {
             YamlConfiguration cfg = YamlConfiguration.loadConfiguration(file);
             return cfg.getBoolean(path, false);
         } catch (Exception e) {
-            plugin.getLogger().log(Level.WARNING, "[HTTP-Over-MC] ProxyDetector 读取 " + file.getAbsolutePath() + " 失败", e);
+            log.warnT("log.proxy.read-fail", "ProxyDetector 读取 {0} 失败: {1}", file.getAbsolutePath(), e.getMessage());
             return false;
         }
     }

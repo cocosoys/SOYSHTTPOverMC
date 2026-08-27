@@ -144,8 +144,7 @@ public class SoysHttpCommand implements CommandExecutor, TabCompleter {
         List<String[]> rows = new ArrayList<>();
         for (SubCommand sub : getSubCommands().values()) {
             if (sub.isHide()) continue;                      // 隐藏子指令不进帮助列表
-            String usage=sub.usage().replaceFirst(sub.usage().substring(sub.usage().lastIndexOf(" —— ")),"");
-//            String usage=sub.usage().replaceFirst("/soyshttp "+sub.name()+" —— ","");
+            String usage=sub.usage().substring(sub.usage().lastIndexOf(" —— "));
             rows.add(new String[]{sub.name(), usage});
         }
 
@@ -167,7 +166,7 @@ public class SoysHttpCommand implements CommandExecutor, TabCompleter {
                 "  §7· 第 {0}/{1} 页 · 共 {2} 条 · /{3} help <页码> 翻页 · /{3} help <子指令> 看详情 ·",
                 cur, Math.max(1, (totalItems + size - 1) / size), totalItems, label);
         for (String line : StringListUtil.page(header, content, footer, cur, size).lines) {
-            sender.sendMessage(line);
+            SubCommand.sendColored(sender, line);
         }
     }
 
@@ -187,7 +186,7 @@ public class SoysHttpCommand implements CommandExecutor, TabCompleter {
     }
 
     private void msg(CommandSender sender, String text) {
-        sender.sendMessage("§a[SOYSHTTPOverMC]§r " + text);
+        SubCommand.sendColored(sender, "§a[SOYSHTTPOverMC]§r " + text);
     }
 
     /** 按 i18n 键翻译后发送（带统一前缀）：key 缺失回退 {@code fallback}，占位符用 {@code args} 替换。 */

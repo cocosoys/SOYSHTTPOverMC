@@ -189,6 +189,23 @@ public final class ConfigManager {
     }
 
     /**
+     * 解析本服对外地址的 host 部分：
+     * 若 config.yml 的 {@code mc.host} 未填写（空），则从服务器根目录的
+     * {@code server.properties} 读取 {@code server-ip}；若其仍为空，再回退到
+     * Bukkit 运行期 {@code getServer().getIp()}，最终回退 {@code 127.0.0.1}。
+     *
+     * @param plugin   本插件实例（用于定位服务器根目录与运行期端口）
+     * @return 非空 host
+     */
+    public static boolean resolveMcOnlineMode(JavaPlugin plugin) {
+        String onlineMode = readServerProperty(plugin, "online-mode");
+        if (onlineMode != null && !onlineMode.trim().isEmpty()) {
+            return false;
+        }
+        return plugin.getServer().getOnlineMode();
+    }
+
+    /**
      * 解析本服对外地址的 port 部分：
      * 若 config.yml 的 {@code mc.port} 未填写（<=0），则从服务器根目录的
      * {@code server.properties} 读取 {@code server-port}；解析失败再回退到

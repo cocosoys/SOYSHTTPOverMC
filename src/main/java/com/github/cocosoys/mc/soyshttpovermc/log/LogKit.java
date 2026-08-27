@@ -91,10 +91,9 @@ public class LogKit {
     protected String formatMessage(String rawMessage, int tier) {
         if (rawMessage == null) rawMessage = "null";
         StringBuilder sb = new StringBuilder();
-//        if (prefix != null && !prefix.isEmpty()) {
-//            sb.append(StringColor.gradient(prefix, Color.AQUA, Color.LIGHT_PURPLE)).append(' ');
-//        }
-//        sb.append(Color.fg(colorFor(tier)));
+        if (prefix != null && !prefix.isEmpty()) {
+            sb.append(prefix).append(' ');
+        }
         if (isDebugEnabled()) {
             if (tier == 5) { // TRACE：完整类名（含包路径）+ 线程名，便于精确定位日志来源与线程上下文
                 sb.append('[').append(Thread.currentThread().getName()).append("] ")

@@ -228,8 +228,13 @@ public class InternalBot {
         if (sender.isShutdown() || sender.isTerminated()) {
             sender = newSender();
         }
-        reconnectAttempts = 0; // 人工 /soyshttp reconnect 视为新周期
         connect();
+    }
+
+    /** 人工触发重连（/soyshttp reconnect）：视为全新周期，重置自动重连计数后再重连。 */
+    public void manualReconnect() {
+        reconnectAttempts = 0;
+        reconnect();
     }
 
     public void sendChannelMessage(String ch, byte[] data) {
@@ -260,6 +265,7 @@ public class InternalBot {
             return;
         }
         state = BotState.READY;
+        reconnectAttempts = 0; // 稳定连接达成，重置自动重连计数（下一次断线才重新累计）
         final Session s = session;
         sender.submit(() -> {
             s.send(new ClientPluginMessagePacket(REGISTER_CHANNEL, getChannel().getBytes(StandardCharsets.UTF_8)));

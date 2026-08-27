@@ -78,10 +78,10 @@ public class HelpSubCommand extends SubCommand {
                 msgT(sender, "command.common.no-op", "§c无权限（需 op）");
                 return;
             }
-            sender.sendMessage(I18n.t("command.common.detail-title",
+            SubCommand.sendColored(sender, I18n.t("command.common.detail-title",
                     "§a§l[SOYSHTTPOverMC] §e/soyshttp {0} §f详细用法：", target.name()));
             for (String line : target.detail().split("\n")) {
-                sender.sendMessage("  §7" + line);
+                SubCommand.sendColored(sender, "  §7" + line);
             }
             return;
         }
