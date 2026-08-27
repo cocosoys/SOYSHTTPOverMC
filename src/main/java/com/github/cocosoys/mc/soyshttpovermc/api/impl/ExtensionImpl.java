@@ -38,7 +38,7 @@ public class ExtensionImpl implements ExtensionApi {
 
     @Override
     public void registerSubCommand(SubCommand subCommand) {
-        SoysHttpCommand cmd = plugin.getCommandExecutor();
+        SoysHttpCommand cmd = plugin.getCommand();
         if (cmd == null) {
             throw ExceptionBus.fire(new ApiException("E_REGISTER_SUB_COMMAND",
                     "exception.extension.sub-command-uninit", "/soyshttp 命令尚未初始化（请在宿主 onEnable 完成后注册子指令）"));

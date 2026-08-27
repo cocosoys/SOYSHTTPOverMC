@@ -61,14 +61,13 @@ public class HttpOverMcPlugin extends JavaPlugin {
      * -- GETTER --
      * 供其他插件获取本插件实例（接入注解式 API / 监听网关事件 / 下发凭证）
      */
-    @Getter
-    private static HttpOverMcPlugin instance;
+    private @Getter static HttpOverMcPlugin instance;
 
     /** 上帝代理类：承载全部业务逻辑。构造期即创建，onEnable/onDisable 委托调用。
      * -- GETTER --
      * 获取上帝代理类实例（承载全部业务逻辑；外部经此调用迁移后的方法）。
      */
-    private final HttpOverMcPluginProxy delegate = new HttpOverMcPluginProxy(this);
+    private @Getter final HttpOverMcPluginProxy delegate = new HttpOverMcPluginProxy(this);
 
     private InternalBot bot;
     private McLink mcLink;
@@ -157,5 +156,4 @@ public class HttpOverMcPlugin extends JavaPlugin {
     public File getFileProxy(){
         return getFile();
     }
-
 }
