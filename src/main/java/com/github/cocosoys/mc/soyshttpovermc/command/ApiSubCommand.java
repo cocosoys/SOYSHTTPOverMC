@@ -3,7 +3,7 @@ package com.github.cocosoys.mc.soyshttpovermc.command;
 import org.bukkit.command.CommandSender;
 
 import com.github.cocosoys.mc.soyshttpovermc.HttpOverMcPlugin;
-import com.github.cocosoys.mc.soyshttpovermc.ApiRegistry;
+import com.github.cocosoys.mc.soyshttpovermc.web.ApiRegistry;
 import com.github.cocosoys.mc.soyshttpovermc.api.event.ApiInfo;
 import com.github.cocosoys.mc.soyshttpovermc.i18n.I18n;
 import com.github.cocosoys.mc.soyshttpovermc.util.StringListUtil;

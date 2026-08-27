@@ -6,7 +6,7 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.server.PluginDisableEvent;
 import org.bukkit.plugin.Plugin;
 
-import com.github.cocosoys.mc.soyshttpovermc.ApiRegistry;
+import com.github.cocosoys.mc.soyshttpovermc.web.ApiRegistry;
 import com.github.cocosoys.mc.soyshttpovermc.web.WebRegistry;
 
 /**

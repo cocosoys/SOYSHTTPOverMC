@@ -37,7 +37,7 @@ public class ReportSubCommand extends SubCommand {
 
     @Override
     public void execute(CommandSender sender, String label, String[] args) {
-        plugin.reportContribution();
+        plugin.getDelegate().reportContribution();
         msgT(sender, "command.report.sent", "§a已开始手动上报插件使用记录（异步，结果见后台日志）");
     }
 }

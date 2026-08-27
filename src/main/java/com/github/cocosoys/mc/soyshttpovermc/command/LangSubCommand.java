@@ -72,8 +72,8 @@ public class LangSubCommand extends SubCommand {
             return;
         }
         if (I18n.load(code)) {
-            plugin.getLanguageConfig().set("language.current", code);
-            plugin.saveLanguageConfig(); // 持久化语言切换到 language.yml，重启后仍按此语言加载
+            plugin.getDelegate().getLanguageConfig().set("language.current", code);
+            plugin.getDelegate().saveLanguageConfig(); // 持久化语言切换到 language.yml，重启后仍按此语言加载
             log.infoT("command.lang.switched-log", "[lang] 已切换语言为: {0}", code);
             msgT(sender, "command.lang.switched", "已切换语言为：{0}", code);
         } else {

@@ -82,8 +82,8 @@ public class KeySubCommand extends SubCommand {
             if (c.getApiKey() != null) sb.append("\n  X-API-Key: ").append(c.getApiKey());
             if (c.getBearer() != null) sb.append("\n  Authorization: Bearer ").append(c.getBearer());
             if (c.getCookieName() != null) sb.append("\n  Cookie: ").append(c.getCookieName()).append('=').append(c.getCookieValue());
-            int port = plugin.getMcPort();
-            sb.append("\n  curl -sk https://").append(plugin.getMcHost()).append(":").append(port).append("/api/status -H \"X-API-Key: ").append(c.getApiKey()).append('"');
+            int port = plugin.getDelegate().getMcPort();
+            sb.append("\n  curl -sk https://").append(plugin.getDelegate().getMcHost()).append(":").append(port).append("/api/status -H \"X-API-Key: ").append(c.getApiKey()).append('"');
             if (issuer instanceof SessionTokenIssuer) {
                 sb.append(I18n.t("command.key.admin-warn",
                         "\n  ⚠ 该 key 为最高权限（adm），可免权限访问全部 API，请仅用于可信外部服务"));

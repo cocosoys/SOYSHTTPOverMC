@@ -1,6 +1,6 @@
 package com.github.cocosoys.mc.soyshttpovermc.api;
 
-import com.github.cocosoys.mc.soyshttpovermc.HttpResponse;
+import com.github.cocosoys.mc.soyshttpovermc.web.HttpResponse;
 
 import java.util.Map;
 

@@ -58,9 +58,9 @@ public class StatusSubCommand extends SubCommand {
         int bots = plugin.getBotManager() == null ? 0 : plugin.getBotManager().getBotNames().size();
 
         sender.sendMessage(I18n.t("command.status.title", "§a§l[SOYSHTTPOverMC] §7HTTP 服务运行状态："));
-        line(sender, I18n.t("command.status.addr", "监听地址"), plugin.getMcHost() + ":" + plugin.getMcPort());
-        line(sender, I18n.t("command.status.https", "HTTPS(TLS)"), plugin.isTlsEnabled() ? on : off);
-        line(sender, I18n.t("command.status.bot", "Bot 隧道"), plugin.isBotReady() ? yes : no);
+        line(sender, I18n.t("command.status.addr", "监听地址"), plugin.getDelegate().getMcHost() + ":" + plugin.getDelegate().getMcPort());
+        line(sender, I18n.t("command.status.https", "HTTPS(TLS)"), plugin.getDelegate().isTlsEnabled() ? on : off);
+        line(sender, I18n.t("command.status.bot", "Bot 隧道"), plugin.getDelegate().isBotReady() ? yes : no);
         line(sender, I18n.t("command.status.gw", "网关"), gw);
         line(sender, I18n.t("command.status.pages", "已注册页面"), String.valueOf(pages));
         line(sender, I18n.t("command.status.apis", "已注册 API"), String.valueOf(apis));

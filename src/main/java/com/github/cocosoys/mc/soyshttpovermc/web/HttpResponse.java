@@ -1,4 +1,4 @@
-package com.github.cocosoys.mc.soyshttpovermc;
+package com.github.cocosoys.mc.soyshttpovermc.web;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;

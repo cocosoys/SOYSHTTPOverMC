@@ -31,12 +31,12 @@ public class LoginProviderContext {
 
     /** MC 服务器地址（HTTP 链接构造用）。 */
     public String getMcHost() {
-        return plugin.getMcHost();
+        return plugin.getDelegate().getMcHost();
     }
 
     /** MC 服务器端口（HTTP 链接构造用）。 */
     public int getMcPort() {
-        return plugin.getMcPort();
+        return plugin.getDelegate().getMcPort();
     }
 
     /** 是否为受管隧道 Bot（免登录热装填的判定目标）。 */

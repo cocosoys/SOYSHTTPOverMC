@@ -1,6 +1,6 @@
 package com.github.cocosoys.mc.soyshttpovermc.api.impl;
 
-import com.github.cocosoys.mc.soyshttpovermc.HttpResponse;
+import com.github.cocosoys.mc.soyshttpovermc.web.HttpResponse;
 import com.github.cocosoys.mc.soyshttpovermc.HttpOverMcPlugin;
 import com.github.cocosoys.mc.soyshttpovermc.api.CrossServerHttpClient;
 import com.github.cocosoys.mc.soyshttpovermc.cross.CrossServerHub;

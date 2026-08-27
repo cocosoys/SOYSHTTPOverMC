@@ -37,7 +37,7 @@ public class ReloadSubCommand extends SubCommand {
 
     @Override
     public void execute(CommandSender sender, String label, String[] args) {
-        plugin.reloadHttpConfig();
+        plugin.getDelegate().reloadHttpConfig();
         String gwState = plugin.getGateway() == null
                 ? I18n.t("command.reload.gateway-closed", "网关关闭")
                 : I18n.t("command.reload.gateway-policies", "{0} 个策略启用", plugin.getGateway().getPolicies().size());
@@ -46,7 +46,7 @@ public class ReloadSubCommand extends SubCommand {
         msgT(sender, "command.reload.result",
                 "网关策略已热重载：{0}，HTTPS={1}，事件调试={2}，日志级别={3}（配置={4}）",
                 gwState,
-                plugin.isTlsEnabled() ? on : off,
+                plugin.getDelegate().isTlsEnabled() ? on : off,
                 plugin.isDebugEventsEnabled() ? on : off,
                 LogKit.levelName(),
                 plugin.getConfig().getString("log.level", "INFO"));

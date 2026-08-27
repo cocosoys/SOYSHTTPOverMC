@@ -1,8 +1,8 @@
 package com.github.cocosoys.mc.soyshttpovermc.api.impl;
 import com.github.cocosoys.mc.soyshttpovermc.enums.ProxyPlatform;
 
-import com.github.cocosoys.mc.soyshttpovermc.ApiRegistry;
-import com.github.cocosoys.mc.soyshttpovermc.HttpResponse;
+import com.github.cocosoys.mc.soyshttpovermc.web.ApiRegistry;
+import com.github.cocosoys.mc.soyshttpovermc.web.HttpResponse;
 import com.github.cocosoys.mc.soyshttpovermc.HttpOverMcPlugin;
 import com.github.cocosoys.mc.soyshttpovermc.api.HttpClientApi;
 import com.github.cocosoys.mc.soyshttpovermc.exception.ExceptionBus;

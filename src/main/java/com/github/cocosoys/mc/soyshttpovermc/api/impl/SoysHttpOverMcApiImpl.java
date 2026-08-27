@@ -5,7 +5,7 @@ import com.github.cocosoys.mc.soyshttpovermc.web.CorsRegistry;
 import com.github.cocosoys.mc.soyshttpovermc.web.LargeFileLoaderRegistry;
 import org.bukkit.plugin.Plugin;
 
-import com.github.cocosoys.mc.soyshttpovermc.ApiRegistry;
+import com.github.cocosoys.mc.soyshttpovermc.web.ApiRegistry;
 import com.github.cocosoys.mc.soyshttpovermc.api.ApiRegistrationApi;
 import com.github.cocosoys.mc.soyshttpovermc.api.AuthCredentialApi;
 import com.github.cocosoys.mc.soyshttpovermc.api.BotManagementApi;
@@ -70,6 +70,6 @@ public class SoysHttpOverMcApiImpl implements SoysHttpOverMcApi {
     @Override public CrossServerHttpClient getCrossServer() { return crossServer; }
 
     @Override public void registerReloadHook(ReloadHttpConfigHandler handler) {
-        hostPlugin.registerReloadHook(handler);
+        hostPlugin.getDelegate().registerReloadHook(handler);
     }
 }

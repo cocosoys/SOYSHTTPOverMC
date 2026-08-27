@@ -93,11 +93,19 @@ public class PagesSubCommand extends SubCommand {
                 line += " §7(昵称: " + String.join(" / ", e.nicknames) + ")";
             }
             content.add(line);
+            
         }
         if (content.isEmpty()) {
             sender.sendMessage(I18n.t("command.pages.empty-thirdparty", "  §7（无第三方插件登记的网页）"));
             return;
         }
+
+
+
+
+
+
+
 
         int size = PAGE_SIZE;
         int totalItems = content.size();
@@ -120,7 +128,7 @@ public class PagesSubCommand extends SubCommand {
         for (WebRegistry.Entry e : reg.listEntries()) {
             if ("/".equals(e.path)) return;
         }
-        String home = plugin.webConfig("web.home", "");
+        String home = plugin.getDelegate().webConfig("web.home", "");
         String src = (home == null || home.trim().isEmpty()) ? "默认 index.html" : home.trim();
         sender.sendMessage(I18n.t("command.pages.home-hint",
                 "  §e/ §7—— 首页（静态解析源:" + src + "）"));

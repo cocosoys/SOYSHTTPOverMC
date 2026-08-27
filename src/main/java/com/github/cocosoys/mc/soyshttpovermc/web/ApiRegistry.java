@@ -1,4 +1,4 @@
-package com.github.cocosoys.mc.soyshttpovermc;
+package com.github.cocosoys.mc.soyshttpovermc.web;
 import com.github.cocosoys.mc.soyshttpovermc.annotations.GetMapping;
 import com.github.cocosoys.mc.soyshttpovermc.enums.RequestMethod;
 import lombok.CustomLog;

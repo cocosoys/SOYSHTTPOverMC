@@ -73,8 +73,8 @@ public class SendSubCommand extends SubCommand {
             return;
         }
         String raw = args[1];
-        String host = plugin.getMcHost();
-        int port = plugin.getMcPort();
+        String host = plugin.getDelegate().getMcHost();
+        int port = plugin.getDelegate().getMcPort();
         String url = LinkMessageUtil.resolveUrl(raw, host, port);
 
         // 解析 [显示文字] 与 [玩家]（显示文字可能含空格，按规则把目标参数剥离）
