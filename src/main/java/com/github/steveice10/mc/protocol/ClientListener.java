@@ -111,12 +111,12 @@ public class ClientListener extends SessionAdapter {
         if(protocol.getSubProtocol() == SubProtocol.LOGIN) {
             GameProfile profile = event.getSession().getFlag(MinecraftConstants.PROFILE_KEY);
             protocol.setSubProtocol(SubProtocol.HANDSHAKE, true, event.getSession());
-            event.getSession().send(new HandshakePacket(MinecraftConstants.PROTOCOL_VERSION, event.getSession().getHost(), event.getSession().getPort(), HandshakeIntent.LOGIN));
+            event.getSession().send(new HandshakePacket(protocol.getProtocolVersion(), event.getSession().getHost(), event.getSession().getPort(), HandshakeIntent.LOGIN));
             protocol.setSubProtocol(SubProtocol.LOGIN, true, event.getSession());
             event.getSession().send(new LoginStartPacket(profile != null ? profile.getName() : ""));
         } else if(protocol.getSubProtocol() == SubProtocol.STATUS) {
             protocol.setSubProtocol(SubProtocol.HANDSHAKE, true, event.getSession());
-            event.getSession().send(new HandshakePacket(MinecraftConstants.PROTOCOL_VERSION, event.getSession().getHost(), event.getSession().getPort(), HandshakeIntent.STATUS));
+            event.getSession().send(new HandshakePacket(protocol.getProtocolVersion(), event.getSession().getHost(), event.getSession().getPort(), HandshakeIntent.STATUS));
             protocol.setSubProtocol(SubProtocol.STATUS, true, event.getSession());
             event.getSession().send(new StatusQueryPacket());
         }

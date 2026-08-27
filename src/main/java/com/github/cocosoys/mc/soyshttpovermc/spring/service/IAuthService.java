@@ -1,6 +1,6 @@
 package com.github.cocosoys.mc.soyshttpovermc.spring.service;
 
-import com.github.cocosoys.mc.soyshttpovermc.gateway.policy.auth.issuer.CredentialPresentation;
+import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.issuer.CredentialPresentation;
 import com.github.cocosoys.mc.soyshttpovermc.util.AjaxResult;
 import com.github.cocosoys.mc.soyshttpovermc.util.ApiResponse;
 

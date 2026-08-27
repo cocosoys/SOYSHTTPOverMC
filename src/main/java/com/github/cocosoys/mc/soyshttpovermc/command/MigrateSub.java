@@ -37,9 +37,12 @@ public class MigrateSub extends SubCommand {
 
     @Override
     public String detail() {
-        return usage() + "\n  来源/目标: " + backendNames() + "（须已启用）\n"
-                + "  追加 overwrite 先清空目标后端再写入（默认不清空，按 key 覆盖）\n"
-                + "  示例: /soyshttp migrate yaml mysql —— 把 yaml 数据迁入 mysql";
+        return usage() + "\n"
+                + I18n.t("command.migrate.detail",
+                        "  来源/目标: " + backendNames() + "（须已启用）\n"
+                        + "  追加 overwrite 先清空目标后端再写入（默认不清空，按 key 覆盖）\n"
+                        + "  示例: /soyshttp migrate yaml mysql —— 把 yaml 数据迁入 mysql",
+                        backendNames());
     }
 
     @Override

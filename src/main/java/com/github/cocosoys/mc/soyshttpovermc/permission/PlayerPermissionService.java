@@ -1,10 +1,10 @@
 package com.github.cocosoys.mc.soyshttpovermc.permission;
 
 import com.github.cocosoys.mc.soyshttpovermc.annotations.PermissionService;
-import com.github.cocosoys.mc.soyshttpovermc.gateway.GatewayFilter;
-import com.github.cocosoys.mc.soyshttpovermc.gateway.policy.auth.issuer.CredentialIssuer;
-import com.github.cocosoys.mc.soyshttpovermc.gateway.policy.auth.issuer.CredentialPresentation;
-import com.github.cocosoys.mc.soyshttpovermc.gateway.policy.auth.issuer.SessionTokenIssuer;
+import com.github.cocosoys.mc.soyshttpovermc.web.gateway.GatewayFilter;
+import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.issuer.CredentialIssuer;
+import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.issuer.CredentialPresentation;
+import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.issuer.SessionTokenIssuer;
 
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;

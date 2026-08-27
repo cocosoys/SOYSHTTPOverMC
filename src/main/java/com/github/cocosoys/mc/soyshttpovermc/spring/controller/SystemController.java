@@ -4,7 +4,7 @@ import com.github.cocosoys.mc.soyshttpovermc.util.AjaxResult;
 import com.github.cocosoys.mc.soyshttpovermc.annotations.ApiName;
 import com.github.cocosoys.mc.soyshttpovermc.annotations.ApiPublic;
 import com.github.cocosoys.mc.soyshttpovermc.annotations.GetMapping;
-import com.github.cocosoys.mc.soyshttpovermc.api.ApiRequestContext;
+import com.github.cocosoys.mc.soyshttpovermc.web.ApiRequestContext;
 import com.github.cocosoys.mc.soyshttpovermc.spring.service.ISystemService;
 
 import java.util.HashMap;

@@ -1,6 +1,6 @@
 package com.github.cocosoys.mc.soyshttpovermc.api.event;
 
-import com.github.cocosoys.mc.soyshttpovermc.gateway.policy.auth.issuer.CredentialPresentation;
+import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.issuer.CredentialPresentation;
 
 import org.bukkit.event.Event;
 import org.bukkit.event.HandlerList;

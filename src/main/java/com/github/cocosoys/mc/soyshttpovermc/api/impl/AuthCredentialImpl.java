@@ -3,10 +3,10 @@ package com.github.cocosoys.mc.soyshttpovermc.api.impl;
 import com.github.cocosoys.mc.soyshttpovermc.api.AuthCredentialApi;
 import com.github.cocosoys.mc.soyshttpovermc.exception.AuthException;
 import com.github.cocosoys.mc.soyshttpovermc.exception.ExceptionBus;
-import com.github.cocosoys.mc.soyshttpovermc.gateway.GatewayFilter;
-import com.github.cocosoys.mc.soyshttpovermc.gateway.policy.auth.issuer.CredentialIssuer;
-import com.github.cocosoys.mc.soyshttpovermc.gateway.policy.auth.issuer.IssuedCredential;
-import com.github.cocosoys.mc.soyshttpovermc.gateway.policy.auth.issuer.SessionTokenIssuer;
+import com.github.cocosoys.mc.soyshttpovermc.web.gateway.GatewayFilter;
+import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.issuer.CredentialIssuer;
+import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.issuer.IssuedCredential;
+import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.issuer.SessionTokenIssuer;
 
 import java.util.ArrayList;
 import java.util.List;

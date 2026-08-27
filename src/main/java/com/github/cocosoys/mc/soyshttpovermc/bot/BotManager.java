@@ -2,7 +2,7 @@ package com.github.cocosoys.mc.soyshttpovermc.bot;
 import lombok.CustomLog;
 
 import com.github.cocosoys.mc.soyshttpovermc.exception.BotException;
-import com.github.cocosoys.mc.soyshttpovermc.link.McLink;
+import com.github.cocosoys.mc.soyshttpovermc.bot.link.McLink;
 
 import org.bukkit.plugin.java.JavaPlugin;
 
@@ -86,6 +86,8 @@ public class BotManager {
         if (existing != null) return existing;
         InternalBot bot = new InternalBot(plugin, name, channel, host, port);
         bot.setProxyForwarding(proxyForwarding);
+        // 透传协议版本策略：显式配置沿用主 Bot 的值；未配置时额外 Bot 同样每次连接前自动探测目标服务端版本。
+        bot.setProtocolVersion(mainBot.getProtocolVersion());
         McLink link = new McLink(bot, channel);
         bot.setRawMessageListener((ch, data) -> {
             if (channel.equals(ch)) {

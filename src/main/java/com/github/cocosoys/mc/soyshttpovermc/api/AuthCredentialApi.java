@@ -1,7 +1,7 @@
 package com.github.cocosoys.mc.soyshttpovermc.api;
 
-import com.github.cocosoys.mc.soyshttpovermc.gateway.policy.auth.issuer.CredentialIssuer;
-import com.github.cocosoys.mc.soyshttpovermc.gateway.policy.auth.issuer.IssuedCredential;
+import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.issuer.CredentialIssuer;
+import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.issuer.IssuedCredential;
 
 import java.util.List;
 import java.util.function.Supplier;

@@ -5,7 +5,9 @@ import lombok.Getter;
 import com.github.cocosoys.mc.soyshttpovermc.enums.BotState;
 
 import com.github.steveice10.mc.protocol.MinecraftProtocol;
+import com.github.steveice10.mc.protocol.MinecraftConstants;
 import com.github.steveice10.mc.protocol.data.SubProtocol;
+import com.github.steveice10.mc.protocol.data.status.VersionInfo;
 import com.github.steveice10.mc.protocol.packet.ingame.client.ClientPluginMessagePacket;
 import com.github.steveice10.mc.protocol.packet.ingame.client.world.ClientTeleportConfirmPacket;
 import com.github.steveice10.mc.protocol.packet.ingame.server.ServerPluginMessagePacket;
@@ -92,6 +94,9 @@ public class InternalBot {
     private volatile int maxReconnectAttempts = 3;
     /** 已连续失败（连接失败 / 断开 / 被踢）次数 */
     private volatile int reconnectAttempts = 0;
+    /** Bot 握手协议版本号；{@code <=0} 表示未显式指定 —— 每次连接前经 STATUS 探测目标服务端真实版本号，
+     *  服务端版本变化时自动适配（消除 outdated_client/outdated_server）。由 config 的 {@code bot.protocol-version} 覆盖。 */
+    private volatile int protocolVersion = -1;
 
     /**
      * Bot 连接生命周期状态（统一状态机，替代原先分散的 closed/registered/inGame 布尔组合）：
@@ -159,7 +164,11 @@ public class InternalBot {
 
     public void connect() {
         state = BotState.CONNECTING;
-        MinecraftProtocol protocol = new MinecraftProtocol(getUsername());
+        // 动态协议版本：显式配置 > STATUS 探测目标服务端真实版本号 > 库默认(1.12.2/340)。
+        // 每次连接（含自动重连）都会重新探测，服务端版本变化后无需改配置即可自动适配。
+        int pv = resolveProtocolVersion();
+        MinecraftProtocol protocol = pv > 0 ? new MinecraftProtocol(getUsername(), pv)
+                : new MinecraftProtocol(getUsername());
         // 握手 host：群组服转发模式（后端 bungee:true / Velocity legacy 转发）下附加转发数据，
         // 格式与 BungeeCord ServerConnector 一致：host + "\0" + ip + "\0" + uuid（3 段，NULL 字节 \0 分隔）。
         // Spigot 1.12.2 在 bungee:true 时按 \0 切分握手 host，要求恰好 3~4 段，否则直接断开 Bot。
@@ -321,6 +330,79 @@ public class InternalBot {
     /** 设置自动重连次数上限（0=禁用自动重连；达到上限仍未连上/被踢则放弃）。 */
     public void setMaxReconnectAttempts(int maxAttempts) {
         this.maxReconnectAttempts = Math.max(0, maxAttempts);
+    }
+
+    /** 显式指定 Bot 握手协议版本号；{@code <=0} 表示每次连接前自动探测目标服务端版本（默认行为）。 */
+    public void setProtocolVersion(int protocolVersion) {
+        this.protocolVersion = protocolVersion;
+    }
+
+    /** 当前协议版本配置值（{@code <=0}=未显式指定，连接时自动探测）。 */
+    public int getProtocolVersion() {
+        return this.protocolVersion;
+    }
+
+    /**
+     * 解析本次连接使用的协议版本号：
+     * <ol>
+     *   <li>config 显式指定（{@code bot.protocol-version} > 0）→ 直接使用，跳过探测；</li>
+     *   <li>否则经 STATUS 协议探测目标服务端真实版本号（探测目标是 Bot 实际 TCP 连接目标：代理或本服）；</li>
+     *   <li>探测失败 → 返回 {@code -1}（由调用方回退库默认 340）。</li>
+     * </ol>
+     */
+    private int resolveProtocolVersion() {
+        if (protocolVersion > 0) {
+            return protocolVersion;
+        }
+        int probed = probeServerProtocolVersion();
+        if (probed > 0) {
+            log.infoT("log.bot.protocol-probed", "Bot 协议版本自动探测为目标服务端版本: {0}", probed);
+            return probed;
+        }
+        log.warnT("log.bot.protocol-probe-fallback", "协议版本探测失败，使用库默认版本(1.12.2 / 340)");
+        return -1;
+    }
+
+    /**
+     * 用 STATUS 子协议对目标服务端（与 Bot 实际 TCP 连接目标一致）发起版本探测，
+     * 从 {@code StatusResponsePacket} 的 {@code version.protocol} 取真实协议号；失败/超时返回 {@code -1}。
+     * <p>注：STATUS 握手即使协议版本不匹配，服务端通常也照常返回状态 JSON（标准服务器列表 ping 流程），
+     * 因此可用库默认版本发起探测以拿到目标真实协议号。</p>
+     */
+    private int probeServerProtocolVersion() {
+        String probeHost = getHost();
+        int probePort = getPort();
+        if (connectViaProxy && proxyHost != null && proxyPort > 0) {
+            probeHost = proxyHost;
+            probePort = proxyPort;
+        }
+        Session probe = null;
+        try {
+            MinecraftProtocol statusProto = new MinecraftProtocol(SubProtocol.STATUS);
+            Client c = new Client(probeHost, probePort, statusProto, new TcpSessionFactory());
+            probe = c.getSession();
+            final java.util.concurrent.CompletableFuture<Integer> f = new java.util.concurrent.CompletableFuture<>();
+            probe.setFlag(MinecraftConstants.SERVER_INFO_HANDLER_KEY,
+                    (com.github.steveice10.mc.protocol.data.status.handler.ServerInfoHandler) (sess, info) -> {
+                        VersionInfo v = info == null ? null : info.getVersionInfo();
+                        f.complete(v == null ? -1 : v.getProtocolVersion());
+                    });
+            probe.addListener(new SessionAdapter() {
+                @Override
+                public void disconnected(DisconnectedEvent e) {
+                    f.complete(-1);
+                }
+            });
+            probe.connect();
+            return f.get(3, TimeUnit.SECONDS);
+        } catch (Throwable t) {
+            log.debugT("log.bot.protocol-probe-fail", "协议版本探测异常: {0}", String.valueOf(t));
+            return -1;
+        } finally {
+            if (probe != null && probe.isConnected()) {
+                try { probe.disconnect("probe done"); } catch (Throwable ignored) { }
+            }
+        }
     }
 
     /** 延迟自动重连（网络抖动 / 代理未就绪 / 被踢），保证隧道自愈；插件关闭后不再重连。

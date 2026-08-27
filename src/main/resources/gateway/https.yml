@@ -13,3 +13,4 @@ key-pass: ""
 # 若本列表为空且仍配置了旧键 min-tls，则以 min-tls 作为最低允许协议。
 # 支持：TLSv1.3 / TLSv1.2 / TLSv1.1 / TLSv1
 enabled-protocols: []
+min-tls: TLSv1.1

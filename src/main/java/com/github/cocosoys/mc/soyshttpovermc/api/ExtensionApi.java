@@ -1,8 +1,8 @@
 package com.github.cocosoys.mc.soyshttpovermc.api;
 
-import com.github.cocosoys.mc.soyshttpovermc.gateway.SecurityPolicy;
+import com.github.cocosoys.mc.soyshttpovermc.web.gateway.SecurityPolicy;
 import com.github.cocosoys.mc.soyshttpovermc.command.SubCommand;
-import com.github.cocosoys.mc.soyshttpovermc.gateway.policy.auth.bridge.spi.LoginProvider;
+import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.bridge.spi.LoginProvider;
 import com.github.cocosoys.mc.soyshttpovermc.web.WebInterceptor;
 
 /**

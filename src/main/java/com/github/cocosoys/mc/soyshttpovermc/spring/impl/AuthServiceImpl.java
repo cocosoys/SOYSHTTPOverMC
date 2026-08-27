@@ -1,8 +1,8 @@
 package com.github.cocosoys.mc.soyshttpovermc.spring.impl;
 import com.github.cocosoys.mc.soyshttpovermc.enums.LoginMode;
 
-import com.github.cocosoys.mc.soyshttpovermc.gateway.policy.auth.bridge.AuthLoginBridge;
-import com.github.cocosoys.mc.soyshttpovermc.gateway.policy.auth.issuer.CredentialPresentation;
+import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.bridge.AuthLoginBridge;
+import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.issuer.CredentialPresentation;
 
 import com.github.cocosoys.mc.soyshttpovermc.spring.service.IAuthService;
 import com.github.cocosoys.mc.soyshttpovermc.util.AjaxResult;

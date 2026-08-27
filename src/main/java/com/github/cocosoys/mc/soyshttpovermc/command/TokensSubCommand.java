@@ -3,9 +3,9 @@ package com.github.cocosoys.mc.soyshttpovermc.command;
 import org.bukkit.command.CommandSender;
 
 import com.github.cocosoys.mc.soyshttpovermc.HttpOverMcPlugin;
-import com.github.cocosoys.mc.soyshttpovermc.gateway.GatewayFilter;
-import com.github.cocosoys.mc.soyshttpovermc.gateway.policy.auth.issuer.CredentialIssuer;
-import com.github.cocosoys.mc.soyshttpovermc.gateway.policy.auth.issuer.SessionTokenIssuer;
+import com.github.cocosoys.mc.soyshttpovermc.web.gateway.GatewayFilter;
+import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.issuer.CredentialIssuer;
+import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.issuer.SessionTokenIssuer;
 import com.github.cocosoys.mc.soyshttpovermc.i18n.I18n;
 
 import java.text.SimpleDateFormat;

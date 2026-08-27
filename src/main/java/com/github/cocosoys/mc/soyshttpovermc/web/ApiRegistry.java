@@ -3,7 +3,6 @@ import com.github.cocosoys.mc.soyshttpovermc.annotations.GetMapping;
 import com.github.cocosoys.mc.soyshttpovermc.enums.RequestMethod;
 import lombok.CustomLog;
 
-import com.github.cocosoys.mc.soyshttpovermc.api.ApiRequestContext;
 import com.github.cocosoys.mc.soyshttpovermc.api.event.ApiAccessEvent;
 import com.github.cocosoys.mc.soyshttpovermc.api.event.ApiInfo;
 import com.github.cocosoys.mc.soyshttpovermc.api.event.ApiRegisteredEvent;
@@ -11,8 +10,8 @@ import com.github.cocosoys.mc.soyshttpovermc.api.event.ApiUnregisteredEvent;
 import com.github.cocosoys.mc.soyshttpovermc.util.AjaxResult;
 import com.github.cocosoys.mc.soyshttpovermc.util.ApiResponse;
 import com.github.cocosoys.mc.soyshttpovermc.i18n.I18n;
-import com.github.cocosoys.mc.soyshttpovermc.gateway.policy.auth.util.AuthUtils;
-import com.github.cocosoys.mc.soyshttpovermc.gateway.policy.auth.issuer.CredentialPresentation;
+import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.util.AuthUtils;
+import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.issuer.CredentialPresentation;
 
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;

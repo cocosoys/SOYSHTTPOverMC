@@ -5,7 +5,7 @@ import com.github.cocosoys.mc.soyshttpovermc.util.AjaxResult;
 import com.github.cocosoys.mc.soyshttpovermc.util.ApiResponse;
 import com.github.cocosoys.mc.soyshttpovermc.util.HttpFrames;
 import com.github.cocosoys.mc.soyshttpovermc.i18n.I18n;
-import com.github.cocosoys.mc.soyshttpovermc.proto.FrameProto;
+import com.github.cocosoys.mc.soyshttpovermc.web.proto.FrameProto;
 import com.google.protobuf.ByteString;
 
 import java.io.ByteArrayOutputStream;

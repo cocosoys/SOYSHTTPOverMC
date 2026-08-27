@@ -83,10 +83,10 @@ public class LogKit {
     }
 
     /**
-     * 组装带色前缀与类名的整行日志：插件标签用渐变色点缀，消息用级别色。
-     * 仅在全局日志级别调到 DEBUG 及以上（{@link #isDebugEnabled()}）时才打印类名：
-     * DEBUG 打印短类名；TRACE 打印<b>完整类名（含包路径）+ 线程名</b>，便于精确定位来源与线程上下文；
-     * INFO/WARN/ERROR 下保持输出简洁、不打印类名。
+     * 组装带前缀与类名的整行日志。
+     * 全局级别 >= DEBUG 时打印完整类名（含包路径），便于精确定位来源；
+     * 全局级别 == TRACE 且消息级别为 TRACE 时额外打印线程名，便于排查线程上下文；
+     * INFO/WARN/ERROR 全局级别下保持输出简洁、不打印类名。
      */
     protected String formatMessage(String rawMessage, int tier) {
         if (rawMessage == null) rawMessage = "null";
@@ -95,15 +95,14 @@ public class LogKit {
             sb.append(prefix).append(' ');
         }
         if (isDebugEnabled()) {
-            if (tier == 5) { // TRACE：完整类名（含包路径）+ 线程名，便于精确定位日志来源与线程上下文
-                sb.append('[').append(Thread.currentThread().getName()).append("] ")
-                        .append('[').append(sourceClass.getName()).append("] ");
-            } else {
-                sb.append('[').append(sourceClass.getSimpleName()).append("] ");
+            // 全局 DEBUG/TRACE：所有消息统一打印完整类名（含包路径）
+            if (tier == 5) {
+                // TRACE 消息额外打印线程名，便于排查并发与线程上下文
+                sb.append('[').append(Thread.currentThread().getName()).append("] ");
             }
+            sb.append('[').append(sourceClass.getName()).append("] ");
         }
         sb.append(rawMessage);
-//        sb.append(Color.reset());
         return sb.toString();
     }
 

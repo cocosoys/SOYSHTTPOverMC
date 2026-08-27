@@ -1,6 +1,6 @@
 package com.github.cocosoys.mc.soyshttpovermc.util;
 
-import com.github.cocosoys.mc.soyshttpovermc.proto.FrameProto;
+import com.github.cocosoys.mc.soyshttpovermc.web.proto.FrameProto;
 import com.github.cocosoys.mc.soyshttpovermc.web.MimeTypes;
 
 import com.google.protobuf.ByteString;

@@ -1,7 +1,7 @@
 package com.github.cocosoys.mc.soyshttpovermc.api.impl;
 
-import com.github.cocosoys.mc.soyshttpovermc.gateway.GatewayFilter;
-import com.github.cocosoys.mc.soyshttpovermc.gateway.SecurityPolicy;
+import com.github.cocosoys.mc.soyshttpovermc.web.gateway.GatewayFilter;
+import com.github.cocosoys.mc.soyshttpovermc.web.gateway.SecurityPolicy;
 import com.github.cocosoys.mc.soyshttpovermc.web.WebInterceptor;
 import com.github.cocosoys.mc.soyshttpovermc.web.WebInterceptorRegistry;
 import com.github.cocosoys.mc.soyshttpovermc.HttpOverMcPlugin;
@@ -11,8 +11,8 @@ import com.github.cocosoys.mc.soyshttpovermc.command.SubCommand;
 import com.github.cocosoys.mc.soyshttpovermc.exception.ApiException;
 import com.github.cocosoys.mc.soyshttpovermc.exception.ExceptionBus;
 import com.github.cocosoys.mc.soyshttpovermc.i18n.I18n;
-import com.github.cocosoys.mc.soyshttpovermc.gateway.policy.auth.bridge.spi.LoginProvider;
-import com.github.cocosoys.mc.soyshttpovermc.gateway.policy.auth.bridge.spi.LoginProviderFactory;
+import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.bridge.spi.LoginProvider;
+import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.bridge.spi.LoginProviderFactory;
 
 /**
  * 能力组 8：扩展接入实现（委托 {@link LoginProviderFactory} / {@link SoysHttpCommand}）。

@@ -1,7 +1,7 @@
 package com.github.cocosoys.mc.soyshttpovermc.bot;
 import com.github.cocosoys.mc.soyshttpovermc.enums.BotTier;
 
-import com.github.cocosoys.mc.soyshttpovermc.gateway.policy.auth.util.AuthUtils;
+import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.util.AuthUtils;
 
 import java.util.Map;
 

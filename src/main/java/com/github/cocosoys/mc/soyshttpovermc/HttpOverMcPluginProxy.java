@@ -39,27 +39,27 @@ import com.github.cocosoys.mc.soyshttpovermc.spring.service.IStatusService;
 import com.github.cocosoys.mc.soyshttpovermc.spring.service.ISystemService;
 import com.github.cocosoys.mc.soyshttpovermc.bot.InternalBot;
 import com.github.cocosoys.mc.soyshttpovermc.bot.ApiKeyBotRule;
-import com.github.cocosoys.mc.soyshttpovermc.gateway.GatewayConfig;
-import com.github.cocosoys.mc.soyshttpovermc.gateway.GatewayFilter;
-import com.github.cocosoys.mc.soyshttpovermc.gateway.policy.tls.TlsContextFactory;
-import com.github.cocosoys.mc.soyshttpovermc.http.HttpMcTranslator;
-import com.github.cocosoys.mc.soyshttpovermc.link.McLink;
-import com.github.cocosoys.mc.soyshttpovermc.mc.McMessageHandler;
-import com.github.cocosoys.mc.soyshttpovermc.mc.RequestScheduler;
-import com.github.cocosoys.mc.soyshttpovermc.mc.SocketSniffer;
+import com.github.cocosoys.mc.soyshttpovermc.web.gateway.GatewayConfig;
+import com.github.cocosoys.mc.soyshttpovermc.web.gateway.GatewayFilter;
+import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.tls.TlsContextFactory;
+import com.github.cocosoys.mc.soyshttpovermc.web.http.HttpMcTranslator;
+import com.github.cocosoys.mc.soyshttpovermc.bot.link.McLink;
+import com.github.cocosoys.mc.soyshttpovermc.bot.mc.McMessageHandler;
+import com.github.cocosoys.mc.soyshttpovermc.bot.mc.RequestScheduler;
+import com.github.cocosoys.mc.soyshttpovermc.bot.mc.SocketSniffer;
 import com.github.cocosoys.mc.soyshttpovermc.proxy.ProxyDetector;
 
 import com.github.cocosoys.mc.soyshttpovermc.proxy.ServerTag;
 import com.github.cocosoys.mc.soyshttpovermc.i18n.I18n;
 import com.github.cocosoys.mc.soyshttpovermc.enums.BotHideMode;
-import com.github.cocosoys.mc.soyshttpovermc.cross.CrossServerHub;
-import com.github.cocosoys.mc.soyshttpovermc.gateway.policy.auth.bridge.AuthLoginBridge;
-import com.github.cocosoys.mc.soyshttpovermc.gateway.policy.auth.bridge.provider.AuthMeLoginProvider;
+import com.github.cocosoys.mc.soyshttpovermc.proxy.cross.CrossServerHub;
+import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.bridge.AuthLoginBridge;
+import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.bridge.provider.AuthMeLoginProvider;
 import com.github.cocosoys.mc.soyshttpovermc.permission.PlayerPermissionService;
-import com.github.cocosoys.mc.soyshttpovermc.gateway.policy.auth.bridge.spi.LoginProviderContext;
-import com.github.cocosoys.mc.soyshttpovermc.gateway.policy.auth.bridge.spi.LoginProviderFactory;
-import com.github.cocosoys.mc.soyshttpovermc.gateway.policy.auth.issuer.CredentialIssuer;
-import com.github.cocosoys.mc.soyshttpovermc.gateway.policy.auth.issuer.SessionTokenIssuer;
+import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.bridge.spi.LoginProviderContext;
+import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.bridge.spi.LoginProviderFactory;
+import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.issuer.CredentialIssuer;
+import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.issuer.SessionTokenIssuer;
 
 import javax.net.ssl.SSLEngine;
 import java.io.File;
@@ -598,6 +598,11 @@ public class HttpOverMcPluginProxy {
                 new BotGuardian(plugin.getBotManager(), plugin.getBotNamePrefix(),
                         plugin.getAllowedLoginIps(), plugin.getBotHideMode().configName()), plugin);
         plugin.getBot().setMaxReconnectAttempts(plugin.getConfig().getInt("bot.reconnect-attempts", 3));
+        int cfgProtocolVersion = plugin.getConfig().getInt("bot.protocol-version", -1);
+        if (cfgProtocolVersion > 0) {
+            plugin.getBot().setProtocolVersion(cfgProtocolVersion);
+            log.infoT("log.plugin.bot-protocol-fixed", "Bot 协议版本按配置固定为 {0}（跳过自动探测）", cfgProtocolVersion);
+        }
         plugin.getBot().connect();
     }
 
@@ -720,9 +725,10 @@ public class HttpOverMcPluginProxy {
         boolean trustProxy = plugin.getConfig().getBoolean("mc.trust-proxy", true);
         int httpConcurrency = Math.max(1, plugin.getConfig().getInt("sniffer.http-concurrency", 4));
         int httpQueue = Math.max(1, plugin.getConfig().getInt("sniffer.http-queue-size", 8));
+        int keepAliveIdleSeconds = Math.max(1, plugin.getConfig().getInt("sniffer.keep-alive-idle-seconds", 30));
         plugin.setSniffer(new SocketSniffer(plugin, translator,
                 () -> plugin.getBot().isReady(), plugin.getMaxBody(), stats, plugin.getGateway(),
-                getTlsEngineSupplier(), trustProxy, httpConcurrency, httpQueue));
+                getTlsEngineSupplier(), trustProxy, httpConcurrency, httpQueue, keepAliveIdleSeconds));
         plugin.getSniffer().install();
     }
 

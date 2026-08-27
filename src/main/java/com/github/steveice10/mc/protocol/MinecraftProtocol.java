@@ -149,6 +149,8 @@ public class MinecraftProtocol extends PacketProtocol {
 
     private GameProfile profile;
     private String accessToken = "";
+    /** 握手用协议版本号（运行时动态可变，默认取库内置 1.12.2=340；版本变化时由宿主探测后设置）。 */
+    private int protocolVersion = MinecraftConstants.PROTOCOL_VERSION;
 
     @SuppressWarnings("unused")
     private MinecraftProtocol() {
@@ -168,6 +170,13 @@ public class MinecraftProtocol extends PacketProtocol {
     public MinecraftProtocol(String username) {
         this(SubProtocol.LOGIN);
         this.profile = new GameProfile((UUID) null, username);
+    }
+
+    /** 指定协议版本的登录协议（服务端版本变化时由 Bot 探测后传入，避免 outdated_client/outdated_server）。 */
+    public MinecraftProtocol(String username, int protocolVersion) {
+        this(SubProtocol.LOGIN);
+        this.profile = new GameProfile((UUID) null, username);
+        this.protocolVersion = protocolVersion;
     }
 
     public MinecraftProtocol(String username, String password) throws RequestException {
@@ -206,6 +215,16 @@ public class MinecraftProtocol extends PacketProtocol {
 
     public String getAccessToken() {
         return this.accessToken;
+    }
+
+    /** 当前握手协议版本号（默认 1.12.2=340；可经 {@link #setProtocolVersion(int)} 动态覆盖以适配服务端版本）。 */
+    public int getProtocolVersion() {
+        return this.protocolVersion;
+    }
+
+    /** 动态覆盖握手协议版本号（服务端版本变化时由宿主探测后设置，无需改常量）。 */
+    public void setProtocolVersion(int protocolVersion) {
+        this.protocolVersion = protocolVersion;
     }
 
     @Override

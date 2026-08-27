@@ -2,8 +2,8 @@ package com.github.cocosoys.mc.soyshttpovermc.api.event;
 
 import org.bukkit.event.HandlerList;
 
-import com.github.cocosoys.mc.soyshttpovermc.gateway.policy.auth.issuer.CredentialIssuer;
-import com.github.cocosoys.mc.soyshttpovermc.gateway.policy.auth.issuer.IssuedCredential;
+import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.issuer.CredentialIssuer;
+import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.issuer.IssuedCredential;
 
 /**
  * 凭证下发事件：/soyshttp key 命令或登录插件调用颁发器下发凭证后触发。

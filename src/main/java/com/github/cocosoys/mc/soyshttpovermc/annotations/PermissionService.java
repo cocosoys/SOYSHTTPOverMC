@@ -1,6 +1,6 @@
 package com.github.cocosoys.mc.soyshttpovermc.annotations;
 
-import com.github.cocosoys.mc.soyshttpovermc.gateway.policy.auth.issuer.CredentialPresentation;
+import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.issuer.CredentialPresentation;
 
 /**
  * 权限判定服务接口（仿 Spring Security 的 PermissionEvaluator）：
