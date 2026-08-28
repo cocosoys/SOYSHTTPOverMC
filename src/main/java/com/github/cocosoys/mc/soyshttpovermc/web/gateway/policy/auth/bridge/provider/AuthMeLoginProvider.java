@@ -188,6 +188,12 @@ public class AuthMeLoginProvider implements LoginProvider, Listener {
         // 幂等绑定本提供者（bridge 重建后重新绑定；离线登录校验立即可用，不依赖本事件）
         bind(bridge);
 
+        // 记录游戏端登录 IP（用于后续网页端 IP 匹配自动登录）
+        String gameIp = player.getAddress() != null ? player.getAddress().getAddress().getHostAddress() : null;
+        if (gameIp != null) {
+            bridge.recordGameLogin(name, gameIp);
+        }
+
         // 玩家进游戏正常登录：先把他名下现存会话令牌升级为在线模式（离线 cookie 自动补全为在线语义），
         // 再签发在线令牌并生成一次性登录票据
         int upgraded = bridge.upgradePlayerToOnline(name);
@@ -199,8 +205,8 @@ public class AuthMeLoginProvider implements LoginProvider, Listener {
         if (upgraded > 0) {
             log.infoT("log.authme.login-upgraded", "玩家 {0} 进游戏登录：已将 {1} 个离线令牌升级为在线模式", name, upgraded);
         }
-        log.infoT("log.authme.login-issued", "玩家 {0} 经 AuthMe 登录：已签发会话令牌并发送网页登录链接 (token={1}...)", name,
-                token.substring(0, Math.min(8, token.length())));
+        log.infoT("log.authme.login-issued", "玩家 {0} 经 AuthMe 登录：已签发会话令牌并发送网页登录链接 (token={1}..., ip={2})", name,
+                token.substring(0, Math.min(8, token.length())), gameIp);
     }
 
     // ===== Bot 免登录热装填（PlayerJoinEvent / PlayerQuitEvent）=====
@@ -208,18 +214,43 @@ public class AuthMeLoginProvider implements LoginProvider, Listener {
     @EventHandler(priority = EventPriority.HIGHEST)
     public void onJoin(PlayerJoinEvent event) {
         Player p = event.getPlayer();
-        if (p == null || context == null || !context.isManagedBot(p.getName())) return;
-        if (mutateUnrestricted(true, p.getName())) {
-            log.infoT("log.authme.unrestricted-added", "AuthMe 免登录名单已热装填: {0}", p.getName());
-        } else {
-            // 反射不可用时的兜底：forceLogin（未注册玩家 AuthMe 可能不买账）
+        if (p == null || context == null) return;
+        String name = p.getName();
+
+        // Bot 免登录热装填
+        if (context.isManagedBot(name)) {
+            if (mutateUnrestricted(true, name)) {
+                log.infoT("log.authme.unrestricted-added", "AuthMe 免登录名单已热装填: {0}", name);
+            } else {
+                // 反射不可用时的兜底：forceLogin（未注册玩家 AuthMe 可能不买账）
+                try {
+                    Class<?> api = Class.forName("fr.xephi.authme.api.v3.AuthMeApi");
+                    Method forceLogin = api.getMethod("forceLogin", Player.class);
+                    forceLogin.invoke(api.getMethod("getInstance").invoke(null), p);
+                    log.warnT("log.authme.forcelogin-fallback", "已用 forceLogin 兜底（内存名单不可用）: {0}", name);
+                } catch (Throwable t) {
+                    log.warnT("log.authme.forcelogin-fallback-fail", "forceLogin 兜底也失败: {0}", t);
+                }
+            }
+            return;
+        }
+
+        // 网页→游戏免登录：玩家在网页端已登录且 IP 匹配 → 强制 AuthMe 登录
+        AuthLoginBridge bridge = context.bridge();
+        if (bridge == null) return;
+        String gameIp = p.getAddress() != null ? p.getAddress().getAddress().getHostAddress() : null;
+        if (gameIp == null) return;
+        if (bridge.isWebLoggedIn(name) && bridge.webIpMatches(name, gameIp)) {
             try {
-                Class<?> api = Class.forName("fr.xephi.authme.api.v3.AuthMeApi");
-                Method forceLogin = api.getMethod("forceLogin", Player.class);
-                forceLogin.invoke(api.getMethod("getInstance").invoke(null), p);
-                log.warnT("log.authme.forcelogin-fallback", "已用 forceLogin 兜底（内存名单不可用）: {0}", p.getName());
+                AuthMeApi api = AuthMeApi.getInstance();
+                if (api != null && api.isRegistered(name)) {
+                    api.forceLogin(p);
+                    log.infoT("log.authme.web-ip-auto-login", "玩家 {0} 网页端已登录且 IP 匹配({1})，已强制 AuthMe 免登录", name, gameIp);
+                } else {
+                    log.infoT("log.authme.web-ip-auto-login-skip", "玩家 {0} 网页端已登录但未注册 AuthMe，跳过强制登录(ip={1})", name, gameIp);
+                }
             } catch (Throwable t) {
-                log.warnT("log.authme.forcelogin-fallback-fail", "forceLogin 兜底也失败: {0}", t);
+                log.warnT("log.authme.web-ip-auto-login-fail", "玩家 {0} 网页→游戏免登录失败: {1}", name, t);
             }
         }
     }
@@ -227,8 +258,16 @@ public class AuthMeLoginProvider implements LoginProvider, Listener {
     @EventHandler(priority = EventPriority.MONITOR)
     public void onQuit(PlayerQuitEvent event) {
         String name = event.getPlayer().getName();
-        if (name != null && context != null && context.isManagedBot(name) && mutateUnrestricted(false, name)) {
-            log.infoT("log.authme.unrestricted-removed", "AuthMe 免登录名单已移除: {0}", name);
+        if (name != null && context != null) {
+            // 清除游戏端登录记录（玩家退出后不再用于网页端自动登录）
+            AuthLoginBridge bridge = context.bridge();
+            if (bridge != null) {
+                bridge.clearGameLogin(name);
+            }
+            // Bot 免登录名单移除
+            if (context.isManagedBot(name) && mutateUnrestricted(false, name)) {
+                log.infoT("log.authme.unrestricted-removed", "AuthMe 免登录名单已移除: {0}", name);
+            }
         }
     }
 

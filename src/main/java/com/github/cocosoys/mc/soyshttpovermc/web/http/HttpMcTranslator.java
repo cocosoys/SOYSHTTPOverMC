@@ -1,10 +1,10 @@
 package com.github.cocosoys.mc.soyshttpovermc.web.http;
 import com.github.cocosoys.mc.soyshttpovermc.enums.BotTier;
 
-import com.github.cocosoys.mc.soyshttpovermc.bot.BotRuleController;
+import com.github.cocosoys.mc.soyshttpovermc.web.http.handler.bot.manager.BotRuleController;
 
 import com.github.cocosoys.mc.soyshttpovermc.proxy.cross.CrossServerHub;
-import com.github.cocosoys.mc.soyshttpovermc.bot.link.McLink;
+import com.github.cocosoys.mc.soyshttpovermc.web.http.handler.bot.manager.link.McLink;
 import com.github.cocosoys.mc.soyshttpovermc.web.proto.FrameProto;
 
 import java.util.HashMap;

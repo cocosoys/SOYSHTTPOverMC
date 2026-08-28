@@ -1,7 +1,7 @@
 package com.github.cocosoys.mc.soyshttpovermc.api;
 
-import com.github.cocosoys.mc.soyshttpovermc.bot.BotManager;
-import com.github.cocosoys.mc.soyshttpovermc.bot.InternalBot;
+import com.github.cocosoys.mc.soyshttpovermc.web.http.handler.bot.manager.BotManager;
+import com.github.cocosoys.mc.soyshttpovermc.web.http.handler.bot.manager.InternalBot;
 
 /**
  * 能力组 6：Bot 管理（委托 {@link BotManager}）。

@@ -5,7 +5,7 @@ import com.github.cocosoys.mc.soyshttpovermc.HttpOverMcPlugin;
 import com.github.cocosoys.mc.soyshttpovermc.api.CrossServerHttpClient;
 import com.github.cocosoys.mc.soyshttpovermc.proxy.cross.CrossServerHub;
 import com.github.cocosoys.mc.soyshttpovermc.i18n.I18n;
-import com.github.cocosoys.mc.soyshttpovermc.bot.link.McLink;
+import com.github.cocosoys.mc.soyshttpovermc.web.http.handler.bot.manager.link.McLink;
 import com.github.cocosoys.mc.soyshttpovermc.web.proto.FrameProto;
 
 import com.google.protobuf.ByteString;

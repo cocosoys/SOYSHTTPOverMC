@@ -1,4 +1,4 @@
-package com.github.cocosoys.mc.soyshttpovermc.bot;
+package com.github.cocosoys.mc.soyshttpovermc.web.http.handler.bot.manager;
 import com.github.cocosoys.mc.soyshttpovermc.enums.BotTier;
 
 import java.util.Map;

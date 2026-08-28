@@ -50,6 +50,10 @@ public class AuthLoginBridge {
     private final Map<String, String> loginTickets = new ConcurrentHashMap<>();
     /** 玩家名 → 已签发的会话令牌（LoginEvent 时登记）。 */
     private final Map<String, String> playerTokens = new ConcurrentHashMap<>();
+    /** 玩家名 → 网页端登录 IP（网页登录成功时登记，用于 IP 匹配免登录）。 */
+    private final Map<String, String> webLoginIps = new ConcurrentHashMap<>();
+    /** 玩家名 → 游戏端登录 IP（AuthMe LoginEvent 时登记，用于 IP 匹配免登录）。 */
+    private final Map<String, String> gameLoginIps = new ConcurrentHashMap<>();
 
     public AuthLoginBridge(SessionTokenIssuer issuer) {
         this.issuer = issuer;
@@ -134,6 +138,86 @@ public class AuthLoginBridge {
         String token = issuer.issueToken(player, mode);
         playerTokens.put(player, token);
         return token;
+    }
+
+    // ===== 登录 IP 记录与双向免登录 =====
+
+    /** 记录网页端登录 IP（网页登录成功时调用，用于后续游戏端 IP 匹配免登录）。 */
+    public void recordWebLogin(String player, String ip) {
+        if (player == null || ip == null) return;
+        webLoginIps.put(player, ip);
+    }
+
+    /** 记录游戏端登录 IP（AuthMe LoginEvent 时调用，用于后续网页端 IP 匹配自动登录）。 */
+    public void recordGameLogin(String player, String ip) {
+        if (player == null || ip == null) return;
+        gameLoginIps.put(player, ip);
+    }
+
+    /** 获取网页端登录 IP（未登录返回 null）。 */
+    public String getWebLoginIp(String player) {
+        return player == null ? null : webLoginIps.get(player);
+    }
+
+    /** 获取游戏端登录 IP（未登录返回 null）。 */
+    public String getGameLoginIp(String player) {
+        return player == null ? null : gameLoginIps.get(player);
+    }
+
+    /** 网页端是否已登录（有令牌记录 + 有登录 IP）。 */
+    public boolean isWebLoggedIn(String player) {
+        if (player == null) return false;
+        return playerTokens.containsKey(player) && webLoginIps.containsKey(player);
+    }
+
+    /** 游戏端是否已登录（玩家当前在线 + 有登录 IP 记录）。 */
+    public boolean isGameLoggedIn(String player) {
+        if (player == null) return false;
+        if (!gameLoginIps.containsKey(player)) return false;
+        return Bukkit.getPlayerExact(player) != null;
+    }
+
+    /**
+     * 网页端登录 IP 与给定 IP 是否匹配（用于游戏端免登录判定）。
+     * 回环地址（127.0.0.1 / ::1 / localhost）等价匹配。
+     */
+    public boolean webIpMatches(String player, String ip) {
+        if (player == null || ip == null) return false;
+        String recorded = webLoginIps.get(player);
+        if (recorded == null) return false;
+        return ipEquals(recorded, ip);
+    }
+
+    /**
+     * 游戏端登录 IP 与给定 IP 是否匹配（用于网页端自动登录判定）。
+     * 回环地址（127.0.0.1 / ::1 / localhost）等价匹配。
+     */
+    public boolean gameIpMatches(String player, String ip) {
+        if (player == null || ip == null) return false;
+        String recorded = gameLoginIps.get(player);
+        if (recorded == null) return false;
+        return ipEquals(recorded, ip);
+    }
+
+    /** 清除网页端登录记录（退出登录时调用）。 */
+    public void clearWebLogin(String player) {
+        if (player == null) return;
+        webLoginIps.remove(player);
+    }
+
+    /** 清除游戏端登录记录（玩家退出时调用）。 */
+    public void clearGameLogin(String player) {
+        if (player == null) return;
+        gameLoginIps.remove(player);
+    }
+
+    /** IP 比较：回环地址等价（127.0.0.1 / ::1 / localhost），其余精确匹配。 */
+    private static boolean ipEquals(String a, String b) {
+        if (a == null || b == null) return false;
+        if (a.equals(b)) return true;
+        boolean aLoop = a.equals("127.0.0.1") || a.equals("::1") || a.equalsIgnoreCase("localhost") || a.equals("0:0:0:0:0:0:0:1");
+        boolean bLoop = b.equals("127.0.0.1") || b.equals("::1") || b.equalsIgnoreCase("localhost") || b.equals("0:0:0:0:0:0:0:1");
+        return aLoop && bLoop;
     }
 
     /**

@@ -1,8 +1,8 @@
-package com.github.cocosoys.mc.soyshttpovermc.bot;
+package com.github.cocosoys.mc.soyshttpovermc.web.http.handler.bot.manager;
 import lombok.CustomLog;
 
 import com.github.cocosoys.mc.soyshttpovermc.exception.BotException;
-import com.github.cocosoys.mc.soyshttpovermc.bot.link.McLink;
+import com.github.cocosoys.mc.soyshttpovermc.web.http.handler.bot.manager.link.McLink;
 
 import org.bukkit.plugin.java.JavaPlugin;
 

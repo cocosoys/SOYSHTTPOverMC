@@ -110,13 +110,18 @@ public class AuthPolicy extends SecurityPolicy {
      * 路径匹配：支持两种写法——用户直接写显式路径（/api/ping），或写逻辑路径（/ping）。
      * 对逻辑路径自动补 api-prefix 后再匹配（已带前缀则不重复补）。
      * 这样 exempt/paths 的写法与「auth 是否启用」「API 前缀是否生效」完全解耦。
+     * 注意：path 可能包含 query 字符串（如 /api/auth/status?player=test），匹配前先剥离。
      */
     private boolean matchesPattern(String path, String pattern) {
         if (pattern == null || pattern.isEmpty()) return true;
         if ("*".equals(pattern)) return true;
-        if (AuthUtils.matchesPath(path, pattern)) return true;
+        // 剥离 query 字符串（/api/auth/status?player=test → /api/auth/status）
+        String cleanPath = path;
+        int q = path.indexOf('?');
+        if (q >= 0) cleanPath = path.substring(0, q);
+        if (AuthUtils.matchesPath(cleanPath, pattern)) return true;
         String prefixed = applyApiPrefix(pattern);
-        return prefixed != null && !prefixed.equals(pattern) && AuthUtils.matchesPath(path, prefixed);
+        return prefixed != null && !prefixed.equals(pattern) && AuthUtils.matchesPath(cleanPath, prefixed);
     }
 
     /** 给逻辑路径补 api-prefix（已带前缀 / 空前缀 / 通配前缀则不处理） */

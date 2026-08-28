@@ -1,4 +1,4 @@
-package com.github.cocosoys.mc.soyshttpovermc.bot.mc;
+package com.github.cocosoys.mc.soyshttpovermc.web.http.handler.bot.manager.mc;
 import com.github.cocosoys.mc.soyshttpovermc.enums.RequestMethod;
 import com.github.cocosoys.mc.soyshttpovermc.enums.SnifferChannelState;
 import lombok.CustomLog;
@@ -20,11 +20,11 @@ import org.bukkit.plugin.java.JavaPlugin;
 import com.github.cocosoys.mc.soyshttpovermc.api.event.GatewayAccessDeniedEvent;
 import com.github.cocosoys.mc.soyshttpovermc.api.event.GatewayRequestEvent;
 import com.github.cocosoys.mc.soyshttpovermc.api.event.GatewayRequestServedEvent;
+import com.github.cocosoys.mc.soyshttpovermc.web.http.HttpRequestHandler;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.GatewayContext;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.GatewayFilter;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.Credential;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.PolicyResult;
-import com.github.cocosoys.mc.soyshttpovermc.web.http.HttpMcTranslator;
 import com.github.cocosoys.mc.soyshttpovermc.web.proto.FrameProto;
 import com.github.cocosoys.mc.soyshttpovermc.util.HttpFrames;
 import com.github.cocosoys.mc.soyshttpovermc.web.RequestStats;
@@ -86,6 +86,21 @@ public class SocketSniffer {
 
     private static final String[] METHODS = RequestMethod.toList();
 
+    /**
+     * 静态预加载内部类：避免在 Netty EventLoop 线程中延迟加载时，
+     * 因线程上下文类加载器不是 PluginClassLoader 而抛出 ClassNotFoundException。
+     * 触发时机：SocketSniffer 类首次被加载时（插件初始化阶段，类加载器正确）。
+     */
+    static {
+        try {
+            Class.forName(ParentInjectorHandler.class.getName());
+            Class.forName(HttpSnifferHandler.class.getName());
+            Class.forName(RequestParsed.class.getName());
+        } catch (ClassNotFoundException ignored) {
+            // 内部类必然存在，忽略
+        }
+    }
+
     /** 低于此字节数的响应体不压缩（压缩收益低于开销）。 */
     private static final int COMPRESS_THRESHOLD = 512;
     /** keep-alive 空闲超时（秒）：超过未收到下一个请求则关闭连接，避免长连接泄漏。
@@ -94,7 +109,7 @@ public class SocketSniffer {
     private final int keepAliveIdleSeconds;
 
     private final JavaPlugin plugin;
-    private final HttpMcTranslator translator;
+    private final HttpRequestHandler handler;
     private final BooleanSupplier ready;
     private final int maxBodyBytes;
     private final RequestStats stats;
@@ -121,19 +136,19 @@ public class SocketSniffer {
     });
     private final java.util.List<Channel> installedParents = new java.util.ArrayList<>();
 
-    public SocketSniffer(JavaPlugin plugin, HttpMcTranslator translator, BooleanSupplier ready,
+    public SocketSniffer(JavaPlugin plugin, HttpRequestHandler handler, BooleanSupplier ready,
                          int maxBodyBytes, RequestStats stats,
                          GatewayFilter gateway, Supplier<SSLEngine> tlsEngineSupplier,
                          boolean trustProxy) {
-        this(plugin, translator, ready, maxBodyBytes, stats, gateway, tlsEngineSupplier, trustProxy, 1, 8, 30);
+        this(plugin, handler, ready, maxBodyBytes, stats, gateway, tlsEngineSupplier, trustProxy, 1, 8, 30);
     }
 
-    public SocketSniffer(JavaPlugin plugin, HttpMcTranslator translator, BooleanSupplier ready,
+    public SocketSniffer(JavaPlugin plugin, HttpRequestHandler handler, BooleanSupplier ready,
                          int maxBodyBytes, RequestStats stats,
                          GatewayFilter gateway, Supplier<SSLEngine> tlsEngineSupplier,
                          boolean trustProxy, int concurrency, int queueSize, int keepAliveIdleSeconds) {
         this.plugin = plugin;
-        this.translator = translator;
+        this.handler = handler;
         this.ready = ready;
         this.maxBodyBytes = maxBodyBytes;
         this.keepAliveIdleSeconds = Math.max(1, keepAliveIdleSeconds);
@@ -223,7 +238,14 @@ public class SocketSniffer {
                 Channel child = (Channel) msg;
                 ChannelPipeline cp = child.pipeline();
                 if (cp.get("http-over-mc-sniffer") == null) {
-                    cp.addFirst("http-over-mc-sniffer", new HttpSnifferHandler());
+                    // 确保使用插件的类加载器创建内部类实例（Netty EventLoop 线程的上下文类加载器可能不对）
+                    ClassLoader oldCl = Thread.currentThread().getContextClassLoader();
+                    try {
+                        Thread.currentThread().setContextClassLoader(SocketSniffer.class.getClassLoader());
+                        cp.addFirst("http-over-mc-sniffer", new HttpSnifferHandler());
+                    } finally {
+                        Thread.currentThread().setContextClassLoader(oldCl);
+                    }
                 }
             }
             ctx.fireChannelRead(msg);
@@ -530,7 +552,7 @@ public class SocketSniffer {
                 if (cred != null && !tls && tlsEngineSupplier != null) {
                     log.warnT("log.sniffer.plaintext-cred", "凭证经明文 HTTP 传输（建议启用 TLS）: {0}", ip);
                 }
-                GatewayContext gctx = new GatewayContext(p.method, translator.policyPath(p.path),
+                GatewayContext gctx = new GatewayContext(p.method, handler.policyPath(p.path),
                         p.headers, ip, tls, cred, p.path);
                 GatewayFilter.Outcome oc = gw.filterDetailed(gctx);
                 PolicyResult res = oc.result;
@@ -550,7 +572,7 @@ public class SocketSniffer {
             if (p.headers != null) {
                 p.headers.put(ApiRequestContext.HEADER_REMOTE_IP, ip);
             }
-            FrameProto.HttpResponseFrame resp = translator.translate(p.method, p.path, p.headers, p.body);
+            FrameProto.HttpResponseFrame resp = handler.handle(p.method, p.path, p.headers, p.body);
             code = resp.getStatusCode();
             byte[] body = resp.getBody().toByteArray();
             String contentType = resp.getHeadersMap().get("Content-Type");

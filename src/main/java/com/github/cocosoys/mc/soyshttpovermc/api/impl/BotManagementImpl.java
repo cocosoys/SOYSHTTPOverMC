@@ -1,8 +1,8 @@
 package com.github.cocosoys.mc.soyshttpovermc.api.impl;
 
 import com.github.cocosoys.mc.soyshttpovermc.api.BotManagementApi;
-import com.github.cocosoys.mc.soyshttpovermc.bot.BotManager;
-import com.github.cocosoys.mc.soyshttpovermc.bot.InternalBot;
+import com.github.cocosoys.mc.soyshttpovermc.web.http.handler.bot.manager.BotManager;
+import com.github.cocosoys.mc.soyshttpovermc.web.http.handler.bot.manager.InternalBot;
 import com.github.cocosoys.mc.soyshttpovermc.exception.BotException;
 import com.github.cocosoys.mc.soyshttpovermc.exception.ExceptionBus;
 

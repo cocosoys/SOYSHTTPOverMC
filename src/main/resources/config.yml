@@ -11,38 +11,6 @@ upload:
 
 
 # ============================================================================
-#  虚拟 Bot 身份（服务端与 Bot 必须一致，用于识别隧道消息来源）
-# ----------------------------------------------------------------------------
-bot:
-  username: __http_proxy__
-  # Bot 专属账号名称前缀（默认为 "__bot__"）。
-  # ⚠️ 不建议修改：所有以该前缀开头的账号一律视为 bot 专属账号，受以下保护：
-  #    ① 登录 IP 白名单限制（见 allowed-login-ips），非白名单 IP 使用此类账号登录将被拒绝并提示；
-  #    ② 进服后自动对真实玩家隐藏（见 hide-mode）。
-  # 仅在确与现有账号冲突等极端情况下才可修改，且需保证 bot.username / API 注册的 bot 名与之匹配。
-  name-prefix: "__bot__"
-  # Bot 允许登录的 IP 白名单（Bot 回环登录本服时来源为 127.0.0.1 / ::1）。
-  # 其余 IP 使用 bot 专属账号（前缀或受管 bot 名）登录将被强制拒绝，提示"该账号为 bot 专属账号"，
-  # 用于防止 Bot 被特殊方式强制踢出后，有人抢注其名称登录。
-  # 支持多个 IP；回环地址（127.0.0.1 / ::1 / localhost）等价匹配。
-  allowed-login-ips:
-    - "127.0.0.1"
-  # Bot 对真实玩家的隐藏方式：
-  #   hideplayer          = 在 PlayerJoinEvent 中对每个真实玩家调用 hidePlayer(botPlayer)，新进服玩家同样隐藏（当前实现）
-  #   playerinfo-remove   = 向所有客户端发送 PacketPlayOutPlayerInfo(REMOVE_PLAYER)（预留：当前为占位空实现，切换后不生效）
-  hide-mode: "hideplayer"
-  # 自动重连次数：Bot 连不上或被踢出后自动重连的尝试次数（0=禁用自动重连；默认 3）。
-  # 达到上限仍未成功则放弃，需人工执行 /soyshttp reconnect 恢复。
-  reconnect-attempts: 3
-  # Bot 握手协议版本号（可选，默认 -1）：
-  #   >0   = 固定使用该协议号（如 1.12.2=340 / 1.12.1=338 / 1.12=335），跳过自动探测；
-  #   <=0  = 每次连接（含自动重连）前经 STATUS 探测目标服务端真实版本号，自动适配版本变化
-  #          （消除 outdated_client / outdated_server 警告）。一般无需手动指定，留空即可。
-  # ⚠️ 协议号仅在 1.12.x 协议族内可平滑适配（登录包 ID 兼容）；1.13+ 需另行升级多版本协议库。
-  protocol-version: -1
-
-
-# ============================================================================
 #  插件消息通道（服务端与 Bot 必须一致）
 # ----------------------------------------------------------------------------
 channel: httpproxy:main
@@ -111,6 +79,58 @@ sniffer:
   #   ① 减少 Chrome 对自签证书场景下新建连接的重校验（certificate_unknown 警告）；
   #   ② 提升长轮询/SSE 等长连接稳定性。代价是空闲连接占用更多 socket 资源。
   keep-alive-idle-seconds: 120
+
+
+# ============================================================================
+#  HTTP 后端传输模式
+# ----------------------------------------------------------------------------
+# 控制 HTTP 请求从网关层到业务处理层（WebFrontendHandler）的传输方式。
+# 五种模式可选，默认 netty-eventloop（延迟低且不阻塞 IO 线程）：
+#
+#   direct            - 直接调用：在 Netty IO 线程直接调用 WebFrontendHandler，
+#                       延迟最低（<1ms），但高并发下会阻塞 IO 线程影响其他连接。
+#   netty-eventloop   - Netty EventLoop（默认，推荐）：提交到独立 Netty EventLoop 处理，
+#                       延迟低（~1-3ms），不阻塞网关 IO 线程。
+#   memory-queue      - 内存队列：提交到有界 ArrayBlockingQueue，worker 线程处理，
+#                       支持背压（队列满返回 503），延迟略高（~2-5ms）。
+#   bot-tunnel        - Bot 隧道（兼容旧模式）：经 InternalBot + PluginMessage 传输，
+#                       延迟高（100ms+），但支持跨服路由（BungeeCord/Velocity）。
+#   standalone-server - 独立 HTTP 服务器：在独立端口启动 Netty HTTP 服务器，
+#                       不使用同端口嗅探，延迟最低（<1ms），实现最简单可靠。
+#                       需配置下方 standalone-server.host / port。
+#
+# 配置结构：每种模式的参数放在 http-backend.<mode> 下（如 http-backend.netty-eventloop.threads）。
+# 旧的扁平配置（如 http-backend.netty-threads）仍向后兼容，但推荐使用新的分层结构。
+#
+# ⚠️ 切换到 bot-tunnel 模式需要重启服务器生效（涉及 Bot 初始化与事件注册）。
+http-backend:
+  # 传输模式：direct / netty-eventloop / memory-queue / bot-tunnel / standalone-server
+  mode: "netty-eventloop"
+
+  # direct 模式：无额外参数
+  direct: {}
+
+  # netty-eventloop 模式配置
+  netty-eventloop:
+    # 处理请求的 EventLoop 线程数（默认 2）
+    threads: 2
+
+  # memory-queue 模式配置
+  memory-queue:
+    # 任务队列容量（默认 1024，满则返回 503）
+    capacity: 1024
+    # worker 线程数（默认 4）
+    workers: 4
+
+  # bot-tunnel 模式：无额外参数（Bot 相关配置见 bot.yml）
+  bot-tunnel: {}
+
+  # standalone-server 模式配置（独立端口 HTTP 服务器，不占用 MC 端口）
+  standalone-server:
+    # 监听地址（0.0.0.0 = 所有网卡，127.0.0.1 = 仅本地）
+    host: "0.0.0.0"
+    # 监听端口（默认 25565，需与 MC 端口不同）
+    port: 25565
 
 
 # ======================================================================================

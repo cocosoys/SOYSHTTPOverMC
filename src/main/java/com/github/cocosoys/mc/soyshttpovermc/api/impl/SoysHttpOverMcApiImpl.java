@@ -16,7 +16,7 @@ import com.github.cocosoys.mc.soyshttpovermc.api.ApiToolkitApi;
 import com.github.cocosoys.mc.soyshttpovermc.api.SoysHttpOverMcApi;
 import com.github.cocosoys.mc.soyshttpovermc.api.ReloadHttpConfigHandler;
 import com.github.cocosoys.mc.soyshttpovermc.api.WebPageApi;
-import com.github.cocosoys.mc.soyshttpovermc.bot.BotManager;
+import com.github.cocosoys.mc.soyshttpovermc.web.http.handler.bot.manager.BotManager;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.GatewayFilter;
 import com.github.cocosoys.mc.soyshttpovermc.web.WebRegistry;
 

@@ -2,7 +2,7 @@ package com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.bridge.spi
 
 import com.github.cocosoys.mc.soyshttpovermc.HttpOverMcPlugin;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.bridge.AuthLoginBridge;
-import com.github.cocosoys.mc.soyshttpovermc.bot.BotManager;
+import com.github.cocosoys.mc.soyshttpovermc.web.http.handler.bot.manager.BotManager;
 
 /**
  * 登录插件提供者的运行上下文：提供插件实例 / 登录桥 / Bot 管理器等访问入口，

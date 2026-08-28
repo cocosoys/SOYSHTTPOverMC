@@ -18,7 +18,6 @@ public final class MimeTypes {
 
     static {
         MAP.put("html", "text/html; charset=utf-8");
-        MAP.put("htm", "text/html; charset=utf-8");
         MAP.put("js", "application/javascript; charset=utf-8");
         MAP.put("mjs", "application/javascript; charset=utf-8");
         MAP.put("css", "text/css; charset=utf-8");
@@ -76,11 +75,11 @@ public final class MimeTypes {
         return t == null ? OCTET_STREAM : t;
     }
 
-    /** 该路径是否指向 HTML 页（以 .html / .htm 结尾），供分支/路由判断统一使用。 */
+    /** 该路径是否指向 HTML 页（以 .html 结尾），供分支/路由判断统一使用。 */
     public static boolean isHtmlPath(String path) {
         if (path == null) return false;
         String p = path.toLowerCase();
-        return p.endsWith(".html") || p.endsWith(".htm");
+        return p.endsWith(".html");
     }
 
     /** 该 Content-Type 是否为 HTML（text/html 前缀）。 */

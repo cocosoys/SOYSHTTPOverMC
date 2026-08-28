@@ -1,6 +1,6 @@
-package com.github.cocosoys.mc.soyshttpovermc.bot.link;
+package com.github.cocosoys.mc.soyshttpovermc.web.http.handler.bot.manager.link;
 
-import com.github.cocosoys.mc.soyshttpovermc.bot.InternalBot;
+import com.github.cocosoys.mc.soyshttpovermc.web.http.handler.bot.manager.InternalBot;
 import com.github.cocosoys.mc.soyshttpovermc.web.proto.FrameProto;
 
 import com.google.protobuf.ByteString;

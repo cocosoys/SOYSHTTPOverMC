@@ -1,5 +1,6 @@
 package com.github.cocosoys.mc.soyshttpovermc.spring.service;
 
+import com.github.cocosoys.mc.soyshttpovermc.web.ApiRequestContext;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.issuer.CredentialPresentation;
 import com.github.cocosoys.mc.soyshttpovermc.util.AjaxResult;
 import com.github.cocosoys.mc.soyshttpovermc.util.ApiResponse;
@@ -15,8 +16,9 @@ public interface IAuthService {
     /**
      * 弹窗登录：body 为 JSON 或表单的 {@code {username, password}}。
      * 成功返回 {@code {player, token, cookieName, ttlSeconds}}；失败返回 401。
+     * @param ctx 请求上下文（用于记录网页端登录 IP，实现 IP 匹配免登录）
      */
-    AjaxResult login(String body);
+    AjaxResult login(String body, ApiRequestContext ctx);
 
     /** 退出登录：撤销当前请求凭证对应的会话令牌。 */
     AjaxResult logout(CredentialPresentation credential);
@@ -40,4 +42,16 @@ public interface IAuthService {
 
     /** 登录模式信息：{@code GET /api/auth/mode} → {requiresPassword, cookieName, ttlSeconds}（前端切换表单用）。 */
     AjaxResult loginMode();
+
+    /**
+     * 登录状态检查：{@code GET /api/auth/status}。
+     * <ul>
+     *   <li>当前请求已登录 → 返回已登录状态（player, authenticated, online, mode）；</li>
+     *   <li>未登录但携带 {@code player} 参数 → 检查该玩家是否在游戏端已登录且 IP 匹配，
+     *       匹配则自动签发令牌并返回 Set-Cookie（游戏→网页自动登录）；</li>
+     *   <li>未登录且无 player 参数或不匹配 → 返回未登录状态。</li>
+     * </ul>
+     * 用于网页端首次打开时自动检测游戏端登录状态，实现 IP 匹配免密登录。
+     */
+    ApiResponse checkStatus(ApiRequestContext ctx, String player);
 }

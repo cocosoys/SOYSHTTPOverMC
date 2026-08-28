@@ -1,4 +1,4 @@
-package com.github.cocosoys.mc.soyshttpovermc.bot;
+package com.github.cocosoys.mc.soyshttpovermc.web.http.handler.bot.manager;
 import lombok.CustomLog;
 
 import com.github.cocosoys.mc.soyshttpovermc.i18n.I18n;

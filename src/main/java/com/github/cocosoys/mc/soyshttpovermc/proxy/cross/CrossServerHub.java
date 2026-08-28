@@ -1,7 +1,7 @@
 package com.github.cocosoys.mc.soyshttpovermc.proxy.cross;
 import lombok.CustomLog;
 
-import com.github.cocosoys.mc.soyshttpovermc.bot.link.McLink;
+import com.github.cocosoys.mc.soyshttpovermc.web.http.handler.bot.manager.link.McLink;
 import com.github.cocosoys.mc.soyshttpovermc.enums.CrossChannelKind;
 import com.github.cocosoys.mc.soyshttpovermc.web.proto.FrameProto;
 import com.github.cocosoys.mc.soyshttpovermc.proxy.ServerRegistry;

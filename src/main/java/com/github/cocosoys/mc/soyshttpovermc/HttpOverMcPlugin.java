@@ -7,24 +7,27 @@ import com.github.cocosoys.mc.soyshttpovermc.config.PagesConfig;
 import com.github.cocosoys.mc.soyshttpovermc.proxy.cross.CrossServerHub;
 import com.github.cocosoys.mc.soyshttpovermc.enums.BotHideMode;
 import com.github.cocosoys.mc.soyshttpovermc.enums.ProxyPlatform;
-import com.github.cocosoys.mc.soyshttpovermc.bot.BotManager;
-import com.github.cocosoys.mc.soyshttpovermc.bot.BotRuleController;
-import com.github.cocosoys.mc.soyshttpovermc.bot.InternalBot;
+import com.github.cocosoys.mc.soyshttpovermc.web.http.handler.bot.manager.BotManager;
+import com.github.cocosoys.mc.soyshttpovermc.web.http.handler.bot.manager.BotRuleController;
+import com.github.cocosoys.mc.soyshttpovermc.web.http.handler.bot.manager.InternalBot;
 import com.github.cocosoys.mc.soyshttpovermc.command.SoysHttpCommand;
 import com.github.cocosoys.mc.soyshttpovermc.event.GatewayEventListener;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.GatewayFilter;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.bridge.AuthLoginBridge;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.bridge.spi.LoginProvider;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.tls.TlsContextFactory;
-import com.github.cocosoys.mc.soyshttpovermc.bot.link.McLink;
-import com.github.cocosoys.mc.soyshttpovermc.bot.mc.RequestScheduler;
-import com.github.cocosoys.mc.soyshttpovermc.bot.mc.SocketSniffer;
+import com.github.cocosoys.mc.soyshttpovermc.web.http.handler.bot.manager.link.McLink;
+import com.github.cocosoys.mc.soyshttpovermc.web.http.handler.bot.manager.mc.RequestScheduler;
+import com.github.cocosoys.mc.soyshttpovermc.web.http.handler.bot.manager.mc.SocketSniffer;
 import com.github.cocosoys.mc.soyshttpovermc.proxy.ServerRegistry;
 import com.github.cocosoys.mc.soyshttpovermc.spring.impl.AuthServiceImpl;
 import com.github.cocosoys.mc.soyshttpovermc.api.SoysHttpOverMcApi;
 import com.github.cocosoys.mc.soyshttpovermc.storage.StorageManager;
 import com.github.cocosoys.mc.soyshttpovermc.storage.SyncStorage;
 import com.github.cocosoys.mc.soyshttpovermc.web.*;
+import com.github.cocosoys.mc.soyshttpovermc.web.http.HttpBackendMode;
+import com.github.cocosoys.mc.soyshttpovermc.web.http.HttpRequestHandler;
+import com.github.cocosoys.mc.soyshttpovermc.web.http.handler.standalone.StandaloneHttpServer;
 import lombok.CustomLog;
 import lombok.Getter;
 import lombok.Setter;
@@ -73,6 +76,12 @@ public class HttpOverMcPlugin extends JavaPlugin {
     private McLink mcLink;
     private BotManager botManager;
     private SocketSniffer sniffer;
+    /** 独立 HTTP 服务器（standalone-server 模式时使用，其他模式为 null） */
+    private StandaloneHttpServer standaloneServer;
+    /** 当前 HTTP 后端处理器（direct/netty-eventloop/memory-queue/bot-tunnel 之一） */
+    private HttpRequestHandler httpBackend;
+    /** 当前 HTTP 后端模式 */
+    private HttpBackendMode httpBackendMode;
     private GatewayFilter gateway;
     private TlsContextFactory tlsFactory;
     private ApiRegistry apiRegistry;

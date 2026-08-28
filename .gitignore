@@ -7,4 +7,6 @@ server*/
 /lib/MCProtocolLib-1.12.2-2.jar
 docs/*.md
 ihomepages/
-/SOYSHTTPOverMC-Proxy/
+SOYSHTTPOverMC-Proxy/
+webMC/
+demo/

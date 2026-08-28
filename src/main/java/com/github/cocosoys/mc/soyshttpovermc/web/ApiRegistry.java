@@ -1,5 +1,6 @@
 package com.github.cocosoys.mc.soyshttpovermc.web;
 import com.github.cocosoys.mc.soyshttpovermc.annotations.GetMapping;
+import com.github.cocosoys.mc.soyshttpovermc.annotations.PermissionService;
 import com.github.cocosoys.mc.soyshttpovermc.enums.RequestMethod;
 import lombok.CustomLog;
 
@@ -79,7 +80,7 @@ public class ApiRegistry {
     /** 宿主插件（SOYSHTTPOverMC 本体）：注册时若无法归属到其它插件则归为本插件 */
     private final Plugin hostPlugin;
     private final Map<String, EndpointMeta> routes = new ConcurrentHashMap<>();
-    private volatile com.github.cocosoys.mc.soyshttpovermc.annotations.PermissionService permissionService;
+    private volatile PermissionService permissionService;
     /** 凭证 → 玩家名 解析器（由宿主注入 SessionTokenIssuer::subjectOf），供 ApiAccessEvent 携带玩家信息。 */
     private volatile Function<CredentialPresentation, String> playerResolver;
     /**
@@ -331,7 +332,7 @@ public class ApiRegistry {
                 true, true, true, true);
 
         // 权限判定（未注册 PermissionService 时注解不阻断）
-        com.github.cocosoys.mc.soyshttpovermc.annotations.PermissionService ps = permissionService;
+        PermissionService ps = permissionService;
         if (ps != null && !meta.permission.isEmpty()) {
             try {
                 if (!ps.hasPermission(credential, meta.permission)) {
