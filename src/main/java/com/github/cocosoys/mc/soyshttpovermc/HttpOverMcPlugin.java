@@ -4,21 +4,14 @@ import com.github.cocosoys.mc.soyshttpovermc.api.ReloadHttpConfigHandler;
 import com.github.cocosoys.mc.soyshttpovermc.config.EulaConfig;
 import com.github.cocosoys.mc.soyshttpovermc.config.LanguageConfig;
 import com.github.cocosoys.mc.soyshttpovermc.config.PagesConfig;
-import com.github.cocosoys.mc.soyshttpovermc.proxy.cross.CrossServerHub;
-import com.github.cocosoys.mc.soyshttpovermc.enums.BotHideMode;
 import com.github.cocosoys.mc.soyshttpovermc.enums.ProxyPlatform;
-import com.github.cocosoys.mc.soyshttpovermc.web.http.handler.bot.manager.BotManager;
-import com.github.cocosoys.mc.soyshttpovermc.web.http.handler.bot.manager.BotRuleController;
-import com.github.cocosoys.mc.soyshttpovermc.web.http.handler.bot.manager.InternalBot;
 import com.github.cocosoys.mc.soyshttpovermc.command.SoysHttpCommand;
 import com.github.cocosoys.mc.soyshttpovermc.event.GatewayEventListener;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.GatewayFilter;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.bridge.AuthLoginBridge;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.bridge.spi.LoginProvider;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.tls.TlsContextFactory;
-import com.github.cocosoys.mc.soyshttpovermc.web.http.handler.bot.manager.link.McLink;
-import com.github.cocosoys.mc.soyshttpovermc.web.http.handler.bot.manager.mc.RequestScheduler;
-import com.github.cocosoys.mc.soyshttpovermc.web.http.handler.bot.manager.mc.SocketSniffer;
+import com.github.cocosoys.mc.soyshttpovermc.web.http.sniffer.SocketSniffer;
 import com.github.cocosoys.mc.soyshttpovermc.proxy.ServerRegistry;
 import com.github.cocosoys.mc.soyshttpovermc.spring.impl.AuthServiceImpl;
 import com.github.cocosoys.mc.soyshttpovermc.api.SoysHttpOverMcApi;
@@ -37,9 +30,7 @@ import org.bukkit.plugin.java.JavaPlugin;
 
 import java.io.File;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
-import java.util.Set;
 
 /**
  * HTTP-Over-MC 主插件类（上帝类）：仅保留字段属性 + 生命周期入口（onEnable/onDisable）+ 单例访问。
@@ -72,13 +63,10 @@ public class HttpOverMcPlugin extends JavaPlugin {
      */
     private @Getter final HttpOverMcPluginProxy delegate = new HttpOverMcPluginProxy(this);
 
-    private InternalBot bot;
-    private McLink mcLink;
-    private BotManager botManager;
     private SocketSniffer sniffer;
     /** 独立 HTTP 服务器（standalone-server 模式时使用，其他模式为 null） */
     private StandaloneHttpServer standaloneServer;
-    /** 当前 HTTP 后端处理器（direct/netty-eventloop/memory-queue/bot-tunnel 之一） */
+    /** 当前 HTTP 后端处理器（direct/netty-eventloop/memory-queue 之一） */
     private HttpRequestHandler httpBackend;
     /** 当前 HTTP 后端模式 */
     private HttpBackendMode httpBackendMode;
@@ -88,19 +76,7 @@ public class HttpOverMcPlugin extends JavaPlugin {
     private WebRegistry webRegistry;
     private SoysHttpOverMcApi api;
     private GatewayEventListener gatewayEventListener;
-    /** 请求分配规则控制器：决定请求进入哪个逻辑队列（tier） */
-    private BotRuleController botRuleController;
-    /** 按 Bot 队列优先级处理 API 请求（单物理 Bot 隧道 + 多逻辑队列 + 背压） */
-    private RequestScheduler requestScheduler;
     private volatile boolean debugEventsEnabled = false;
-    private String channel;
-    private String botUsername;
-    /** bot 专属账号名称前缀（config.yml bot.name-prefix，默认 "__bot__"，不建议修改） */
-    private String botNamePrefix = "__bot__";
-    /** bot 专属账号允许登录的 IP 白名单（config.yml bot.allowed-login-ips，默认 127.0.0.1） */
-    private Set<String> allowedLoginIps = Collections.singleton("127.0.0.1");
-    /** Bot 隐藏方式（config.yml bot.hide-mode：hideplayer | playerinfo-remove[预留]）。 */
-    private BotHideMode botHideMode = BotHideMode.HIDEPLAYER;
     private String mcHost;
     private int mcPort;
     private boolean snifferEnabled;
@@ -119,16 +95,14 @@ public class HttpOverMcPlugin extends JavaPlugin {
     private File webRootDir;
     /** 登录窗口认证服务（/soyshttp reload 后向其热替换登录桥） */
     private AuthServiceImpl authService;
-    /** 当前运行拓扑：独立服 / BungeeCord(Waterfall) / Velocity（群组服探测结果，影响 Bot 握手转发兼容与对外地址） */
+    /** 当前运行拓扑：独立服 / BungeeCord(Waterfall) / Velocity（群组服探测结果） */
     private ProxyPlatform proxyPlatform = ProxyPlatform.STANDALONE;
     /** 群组服服务器名（config.yml proxy.server-name；独立服为空） */
     private String serverName = "";
-    /** 群组服下 Bot 经代理连接的地址（config.yml proxy.proxy-address，host:port；独立服为空） */
+    /** 群组服下代理连接的地址（config.yml proxy.proxy-address，host:port；独立服为空） */
     private String proxyAddress = "";
     /** 群组服服务器标签注册表（本服自注册 + 经 discovery 收集其他子服） */
     private final ServerRegistry serverRegistry = new ServerRegistry();
-    /** 跨服枢纽（独立服为 null；群组服下承载中继/服务/响应关联/发现） */
-    private CrossServerHub crossHub = null;
     /** Web 内容存活缓存（pinned 常驻 + LRU + TTL + 大文件加载器）；onEnable 装配，reload 不重建（配置改动重启生效） */
     private WebContentCache webContentCache = null;
     /** 大文件加载器注册中心（默认流式加载器 + 开发者自定义） */

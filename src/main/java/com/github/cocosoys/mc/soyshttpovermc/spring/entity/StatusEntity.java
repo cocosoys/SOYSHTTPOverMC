@@ -9,7 +9,7 @@ import java.util.List;
  * 隧道状态实体（{@link BaseEntity} 的实现）：GET /status 的返回数据载体。
  * <pre>
  * data: {
- *   online, port, bot, uptimeMillis, uptime,
+ *   online, port, uptimeMillis, uptime,
  *   requests: {total, get, post, other},
  *   latency:  {avgMs, maxMs},
  *   recent:   [{method, path, code, ms}, ...]
@@ -24,7 +24,6 @@ public class StatusEntity extends BaseEntity {
 
     private Boolean online;
     private Integer port;
-    private String bot;
     private Long uptimeMillis;
     private String uptime;
     private RequestCountEntity requests;

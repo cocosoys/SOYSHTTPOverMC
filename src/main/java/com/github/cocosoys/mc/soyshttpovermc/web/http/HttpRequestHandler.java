@@ -1,6 +1,5 @@
 package com.github.cocosoys.mc.soyshttpovermc.web.http;
 
-import com.github.cocosoys.mc.soyshttpovermc.web.http.handler.bot.BotTunnelRequestHandler;
 import com.github.cocosoys.mc.soyshttpovermc.web.http.handler.direct.DirectRequestHandler;
 import com.github.cocosoys.mc.soyshttpovermc.web.http.handler.memory.MemoryQueueRequestHandler;
 import com.github.cocosoys.mc.soyshttpovermc.web.http.handler.netty.NettyEventLoopRequestHandler;
@@ -11,16 +10,15 @@ import java.util.Map;
 /**
  * HTTP 请求后端处理器接口。
  *
- * <p>定义 HTTP 请求从网关层到业务处理层的传输方式。四种实现：
+ * <p>定义 HTTP 请求从网关层到业务处理层的传输方式。三种实现：
  * <ul>
  *   <li>{@link DirectRequestHandler} —— 直接调用 WebFrontendHandler（同进程，最低延迟）</li>
  *   <li>{@link NettyEventLoopRequestHandler} —— 提交到独立 Netty EventLoop 处理（默认）</li>
  *   <li>{@link MemoryQueueRequestHandler} —— 提交到内存队列，worker 线程处理</li>
- *   <li>{@link BotTunnelRequestHandler} —— 经 Bot 隧道 + PluginMessage 传输（兼容旧模式）</li>
  * </ul>
  *
- * <p>前三种用于同端口嗅探模式（SocketSniffer），第四种为兼容旧的 Bot 隧道模式。
- * 独立 HTTP 服务器模式（{@link StandaloneHttpServer}）不实现此接口，因为它是独立的网络入口。</p>
+ * <p>三种用于同端口嗅探模式（SocketSniffer）。
+ * 独立 HTTP 服务器模式（{@link com.github.cocosoys.mc.soyshttpovermc.web.http.handler.standalone.StandaloneHttpServer}）不实现此接口，因为它是独立的网络入口。</p>
  */
 public interface HttpRequestHandler {
 
@@ -44,8 +42,7 @@ public interface HttpRequestHandler {
     String name();
 
     /**
-     * 网关策略路径转换。默认返回原路径；Bot 隧道模式需覆盖此方法，
-     * 将外部路径转换为隧道内部路径（如 /api/xxx → /tunnel/api/xxx）。
+     * 网关策略路径转换。默认返回原路径。
      */
     default String policyPath(String path) {
         return path;

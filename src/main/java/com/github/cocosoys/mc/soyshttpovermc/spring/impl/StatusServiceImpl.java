@@ -18,12 +18,10 @@ public class StatusServiceImpl extends BaseServiceImpl<StatusEntity> implements 
 
     private final RequestStats stats;
     private final int port;
-    private final String botName;
 
-    public StatusServiceImpl(RequestStats stats, int port, String botName) {
+    public StatusServiceImpl(RequestStats stats, int port) {
         this.stats = stats;
         this.port = port;
-        this.botName = botName == null ? "" : botName;
     }
 
     @Override
@@ -33,7 +31,6 @@ public class StatusServiceImpl extends BaseServiceImpl<StatusEntity> implements 
         StatusEntity status = new StatusEntity();
         status.setOnline(true);
         status.setPort(port);
-        status.setBot(botName);
         status.setUptimeMillis(up);
         status.setUptime(formatUptime(up));
 

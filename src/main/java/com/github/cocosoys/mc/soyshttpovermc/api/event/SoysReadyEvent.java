@@ -6,7 +6,7 @@ import org.bukkit.event.HandlerList;
 import com.github.cocosoys.mc.soyshttpovermc.api.SoysHttpOverMcApi;
 
 /**
- * SOYSHTTPOverMC 就绪事件：宿主插件 onEnable 完成全部初始化（API 门面 / 网页 / 网关 / Bot / 前端）
+ * SOYSHTTPOverMC 就绪事件：宿主插件 onEnable 完成全部初始化（API 门面 / 网页 / 网关 / 前端）
  * 后触发。
  *
  * <p><b>解决「第三方插件先于 SOYS 加载」的延迟注册问题</b>：第三方插件若在自身 onEnable 中
@@ -27,7 +27,7 @@ public class SoysReadyEvent extends Event {
         this.api = api;
     }
 
-    /** 就绪后的对外门面（注册 API / 网页 / 凭证 / Bot / 拦截器等）。 */
+    /** 就绪后的对外门面（注册 API / 网页 / 凭证 / 拦截器等）。 */
     public SoysHttpOverMcApi getApi() {
         return api;
     }

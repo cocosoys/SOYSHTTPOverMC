@@ -1,12 +1,7 @@
 .i*/
 .w*/
 target/
-TODO.md
-TODO.txt
 server*/
-/lib/MCProtocolLib-1.12.2-2.jar
 docs/*.md
 ihomepages/
 SOYSHTTPOverMC-Proxy/
-webMC/
-demo/

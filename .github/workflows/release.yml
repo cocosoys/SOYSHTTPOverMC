@@ -24,18 +24,6 @@ jobs:
           distribution: 'temurin'
           cache: maven
 
-      # 安装本地vendored依赖
-      - name: Install vendored deps
-        run: |
-          mvn -B -q install:install-file -Dfile=lib/packetlib-1.2.jar \
-            -DgroupId=com.github.steveice10 -DartifactId=packetlib -Dversion=1.2 -Dpackaging=jar
-          mvn -B -q install:install-file -Dfile=lib/opennbt-1.0.jar \
-            -DgroupId=com.github.steveice10 -DartifactId=opennbt -Dversion=1.0 -Dpackaging=jar
-          mvn -B -q install:install-file -Dfile=lib/bungeecord-api-1.12.2-build1867-slim.jar \
-            -DgroupId=net.md_5 -DartifactId=bungeecord-api -Dversion=1.12.2-build1867 -Dpackaging=jar
-          mvn -B -q install:install-file -Dfile=lib/MCProtocolLib-1.12.2-2.jar \
-            -DgroupId=com.github.steveice10 -DartifactId=MCProtocolLib -Dversion=1.12.2-2 -Dpackaging=jar
-
       # 获取tag版本，去除前缀v；非tag触发VERSION为空字符串
       - name: Get tag version
         id: get_version

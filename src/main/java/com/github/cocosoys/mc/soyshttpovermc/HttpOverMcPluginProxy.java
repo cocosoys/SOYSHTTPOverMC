@@ -27,8 +27,6 @@ import org.bukkit.Bukkit;
 import com.github.cocosoys.mc.soyshttpovermc.api.ReloadHttpConfigHandler;
 import com.github.cocosoys.mc.soyshttpovermc.api.event.HttpConfigReloadEvent;
 import com.github.cocosoys.mc.soyshttpovermc.api.impl.SoysHttpOverMcApiImpl;
-import com.github.cocosoys.mc.soyshttpovermc.web.http.handler.bot.manager.BotGuardian;
-import com.github.cocosoys.mc.soyshttpovermc.web.http.handler.bot.manager.BotManager;
 import com.github.cocosoys.mc.soyshttpovermc.spring.impl.StatusServiceImpl;
 import com.github.cocosoys.mc.soyshttpovermc.spring.impl.SystemServiceImpl;
 import com.github.cocosoys.mc.soyshttpovermc.spring.controller.StatusController;
@@ -37,29 +35,20 @@ import com.github.cocosoys.mc.soyshttpovermc.spring.controller.AuthController;
 import com.github.cocosoys.mc.soyshttpovermc.spring.impl.AuthServiceImpl;
 import com.github.cocosoys.mc.soyshttpovermc.spring.service.IStatusService;
 import com.github.cocosoys.mc.soyshttpovermc.spring.service.ISystemService;
-import com.github.cocosoys.mc.soyshttpovermc.web.http.handler.bot.manager.InternalBot;
-import com.github.cocosoys.mc.soyshttpovermc.web.http.handler.bot.manager.ApiKeyBotRule;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.GatewayConfig;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.GatewayFilter;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.tls.TlsContextFactory;
-import com.github.cocosoys.mc.soyshttpovermc.web.http.HttpMcTranslator;
-import com.github.cocosoys.mc.soyshttpovermc.web.http.handler.bot.manager.link.McLink;
-import com.github.cocosoys.mc.soyshttpovermc.web.http.handler.bot.manager.mc.McMessageHandler;
-import com.github.cocosoys.mc.soyshttpovermc.web.http.handler.bot.manager.mc.RequestScheduler;
-import com.github.cocosoys.mc.soyshttpovermc.web.http.handler.bot.manager.mc.SocketSniffer;
+import com.github.cocosoys.mc.soyshttpovermc.web.http.sniffer.SocketSniffer;
 import com.github.cocosoys.mc.soyshttpovermc.proxy.ProxyDetector;
 import com.github.cocosoys.mc.soyshttpovermc.web.http.HttpBackendMode;
 import com.github.cocosoys.mc.soyshttpovermc.web.http.HttpRequestHandler;
 import com.github.cocosoys.mc.soyshttpovermc.web.http.handler.direct.DirectRequestHandler;
 import com.github.cocosoys.mc.soyshttpovermc.web.http.handler.netty.NettyEventLoopRequestHandler;
 import com.github.cocosoys.mc.soyshttpovermc.web.http.handler.memory.MemoryQueueRequestHandler;
-import com.github.cocosoys.mc.soyshttpovermc.web.http.handler.bot.BotTunnelRequestHandler;
 import com.github.cocosoys.mc.soyshttpovermc.web.http.handler.standalone.StandaloneHttpServer;
 
 import com.github.cocosoys.mc.soyshttpovermc.proxy.ServerTag;
 import com.github.cocosoys.mc.soyshttpovermc.i18n.I18n;
-import com.github.cocosoys.mc.soyshttpovermc.enums.BotHideMode;
-import com.github.cocosoys.mc.soyshttpovermc.proxy.cross.CrossServerHub;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.bridge.AuthLoginBridge;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.bridge.provider.AuthMeLoginProvider;
 import com.github.cocosoys.mc.soyshttpovermc.permission.PlayerPermissionService;
@@ -144,12 +133,8 @@ public class HttpOverMcPluginProxy {
         setupAuthIntegration();
         // 5) 注解式 API 框架 + 网页登记 + 事件监听 + 系统级 API
         initApiFramework(gatewayDir);
-        // 5.5) 读取 HTTP 后端模式（决定是否初始化 Bot）
+        // 5.5) 读取 HTTP 后端模式
         HttpBackendMode backendMode = HttpBackendMode.from(plugin.getConfig().getString("http-backend.mode", "netty-eventloop"));
-        // 6) 无头 Bot 回环连接本服 + McLink 隧道（仅 bot-tunnel 模式需要）
-        if (backendMode.usesBot()) {
-            initBot();
-        }
         // 6.5) 对外集成门面
         initApiImpl();
 
@@ -187,26 +172,6 @@ public class HttpOverMcPluginProxy {
             try {
                 plugin.getHttpBackend().shutdown();
             } catch (Throwable ignored) {}
-        }
-        HttpBackendMode mode = plugin.getHttpBackendMode();
-        if (mode != null && mode.usesBot()) {
-            if (plugin.getBotManager() != null) {
-                try {
-                    plugin.getBotManager().disconnectAll();
-                } catch (Throwable t) {
-                    log.warnT("log.plugin.disconnect-all-fail", "关闭全部 Bot 连接时出错: {0}", String.valueOf(t));
-                }
-            }
-            if (plugin.getRequestScheduler() != null) {
-                plugin.getRequestScheduler().shutdown();
-            }
-            if (plugin.getBot() != null) {
-                try {
-                    plugin.getBot().disconnect();
-                } catch (Throwable t) {
-                    log.warnT("log.plugin.bot-disconnect-fail", "主 Bot 断开时出错: {0}", String.valueOf(t));
-                }
-            }
         }
         if (plugin.getSyncStorage() != null) {
             try {
@@ -277,11 +242,6 @@ public class HttpOverMcPluginProxy {
     /** HTTPS（TLS 引擎）是否可用 */
     public boolean isTlsEnabled() {
         return plugin.getTlsFactory() != null;
-    }
-
-    /** 主 Bot（内部回环隧道）是否就绪。 */
-    public boolean isBotReady() {
-        return plugin.getBot() != null && plugin.getBot().isReady();
     }
 
     /** 本服存储标识（群组服=server-name；独立服=standalone-&lt;host&gt;:&lt;port&gt;）。 */
@@ -476,90 +436,18 @@ public class HttpOverMcPluginProxy {
 
     /** 从 config.yml 读取核心运行参数。 */
     private void loadCoreConfig() {
-        // 读取 HTTP 后端模式（决定是否加载 Bot 配置）
+        // 读取 HTTP 后端模式
         HttpBackendMode backendMode = HttpBackendMode.from(plugin.getConfig().getString("http-backend.mode", "netty-eventloop"));
-        boolean usesBot = backendMode.usesBot();
+        plugin.setHttpBackendMode(backendMode);
 
-        if (usesBot) {
-            // bot-tunnel 模式：加载 bot.yml（Bot 配置已从 config.yml 移出）
-            org.bukkit.configuration.file.YamlConfiguration botCfg = loadBotConfig();
-
-            plugin.setBotUsername(botCfg.getString("username", "__http_proxy__"));
-            plugin.setBotNamePrefix(botCfg.getString("name-prefix", "__bot__"));
-            java.util.List<String> ips = botCfg.getStringList("allowed-login-ips");
-            plugin.setAllowedLoginIps((ips == null || ips.isEmpty())
-                    ? java.util.Collections.singleton("127.0.0.1")
-                    : new java.util.LinkedHashSet<>(ips));
-            plugin.setBotHideMode(BotHideMode.from(botCfg.getString("hide-mode", BotHideMode.HIDEPLAYER.configName())));
-            if (!plugin.getBotUsername().startsWith(plugin.getBotNamePrefix())) {
-                log.warnT("log.plugin.bot-name-prefix",
-                        "bot.username 不以 bot.name-prefix({0}) 开头：{1}（建议使用前缀命名 bot 专属账号；当前名称仍受 IP 白名单保护，但新账号请使用前缀）",
-                        plugin.getBotNamePrefix(), plugin.getBotUsername());
-            }
-        } else {
-            // 非 bot-tunnel 模式：不加载 Bot 配置，设置空值占位
-            plugin.setBotUsername("");
-            plugin.setBotNamePrefix("");
-            plugin.setAllowedLoginIps(java.util.Collections.emptySet());
-            plugin.setBotHideMode(BotHideMode.HIDEPLAYER);
-        }
-
-        plugin.setChannel(plugin.getConfig().getString("channel", "httpproxy:main"));
         plugin.setProxyPlatform(ProxyDetector.detect(plugin));
-        if (usesBot) {
-            log.infoT("log.plugin.proxy-topology", "运行拓扑探测: {0}{1}", plugin.getProxyPlatform(),
-                    plugin.getProxyPlatform() == ProxyPlatform.STANDALONE
-                            ? I18n.t("log.plugin.proxy-standalone-suffix", "（独立服，Bot 直连）")
-                            : I18n.t("log.plugin.proxy-bungee-suffix", "（群组服，Bot 握手将附加转发兼容）"));
-        } else {
-            log.infoT("log.plugin.proxy-topology", "运行拓扑探测: {0}", plugin.getProxyPlatform());
-        }
+        log.infoT("log.plugin.proxy-topology", "运行拓扑探测: {0}", plugin.getProxyPlatform());
         plugin.setServerName(plugin.getConfig().getString("proxy.server-name", ""));
-        if (usesBot && plugin.getProxyPlatform() != ProxyPlatform.STANDALONE
-                && plugin.getServerName() != null && !plugin.getServerName().isEmpty()) {
-            String sName = sanitizeName(plugin.getServerName());
-            int budget = 16 - plugin.getBotNamePrefix().length() - 1;
-            if (budget < 1) {
-                plugin.setBotUsername(plugin.getBotNamePrefix());
-            } else {
-                if (sName.length() > budget) sName = sName.substring(0, budget);
-                plugin.setBotUsername(plugin.getBotNamePrefix() + "_" + sName);
-            }
-            log.infoT("log.plugin.bot-unique-name", "群组服模式：Bot 采用全局唯一名 {0}（本服={1}）",
-                    plugin.getBotUsername(), plugin.getServerName());
-        }
         plugin.setProxyAddress(plugin.getConfig().getString("proxy.proxy-address", ""));
         plugin.setMcHost(getMcHost());
         plugin.setMcPort(getMcPort());
         plugin.setSnifferEnabled(plugin.getConfig().getBoolean("sniffer.enabled", true));
         plugin.setMaxBody(plugin.getConfig().getInt("sniffer.max-body-bytes", 8 * 1024 * 1024));
-    }
-
-    /** 把任意字符串洗成 MC 合法用户名片段：仅保留 [a-zA-Z0-9_]，其余替换为 _。 */
-    static String sanitizeName(String s) {
-        if (s == null) return "";
-        StringBuilder sb = new StringBuilder(s.length());
-        for (char c : s.toCharArray()) {
-            sb.append((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_' ? c : '_');
-        }
-        return sb.toString();
-    }
-
-    /**
-     * 加载 bot.yml 配置文件。如果插件数据目录中不存在，则从 jar 资源中复制默认配置。
-     * @return bot.yml 的 YamlConfiguration 对象
-     */
-    private org.bukkit.configuration.file.YamlConfiguration loadBotConfig() {
-        try {
-            File botFile = new File(plugin.getDataFolder(), "bot.yml");
-            if (!botFile.exists()) {
-                plugin.saveResource("bot.yml", false);
-            }
-            return org.bukkit.configuration.file.YamlConfiguration.loadConfiguration(botFile);
-        } catch (Throwable t) {
-            log.warnT("log.plugin.bot-config-fail", "加载 bot.yml 失败，使用默认值: {0}", t.getMessage());
-            return new org.bukkit.configuration.file.YamlConfiguration();
-        }
     }
 
     /** 初始化注解式 API 框架。 */
@@ -589,8 +477,6 @@ public class HttpOverMcPluginProxy {
 
         plugin.setAuthService(new AuthServiceImpl(plugin.getAuthLoginBridge()));
         plugin.getApiRegistry().register(new AuthController(plugin.getAuthService()));
-
-        plugin.setBotRuleController(new ApiKeyBotRule());
     }
 
     /** 装配网页登录接入（登录插件 SPI）。 */
@@ -640,87 +526,16 @@ public class HttpOverMcPluginProxy {
                 plugin.getLoginProvider().name(), plugin.getLoginProvider().displayName());
     }
 
-    /** 启动无头 Bot 回环连接本服，并装配 McLink 隧道。 */
-    private void initBot() {
-        plugin.setBot(new InternalBot(plugin, plugin.getBotUsername(), plugin.getChannel(),
-                plugin.getMcHost(), plugin.getMcPort()));
-        plugin.setMcLink(new McLink(plugin.getBot(), plugin.getChannel()));
-        plugin.getBot().setProxyForwarding(plugin.getProxyPlatform() != ProxyPlatform.STANDALONE);
-        plugin.getBot().setServerName(plugin.getServerName());
-        if (plugin.getProxyPlatform() != ProxyPlatform.STANDALONE) {
-            plugin.getBot().setProxyAddress(plugin.getProxyAddress());
-            plugin.getServer().getMessenger().registerIncomingPluginChannel(plugin, InternalBot.CHANNEL_BOT_CTL,
-                    (ch, player, message) -> handleBotConnectRequest(player, message));
-        }
-        plugin.setBotManager(new BotManager(plugin, plugin.getBot(), plugin.getMcLink(), plugin.getChannel(),
-                plugin.getMcHost(), plugin.getMcPort(), plugin.getProxyPlatform() != ProxyPlatform.STANDALONE));
-        plugin.getBot().setRawMessageListener(plugin.getBotManager()::dispatch);
-        plugin.getServer().getPluginManager().registerEvents(
-                new BotGuardian(plugin.getBotManager(), plugin.getBotNamePrefix(),
-                        plugin.getAllowedLoginIps(), plugin.getBotHideMode().configName()), plugin);
-        plugin.getBot().setMaxReconnectAttempts(loadBotConfig().getInt("reconnect-attempts", 3));
-        int cfgProtocolVersion = loadBotConfig().getInt("protocol-version", -1);
-        if (cfgProtocolVersion > 0) {
-            plugin.getBot().setProtocolVersion(cfgProtocolVersion);
-            log.infoT("log.plugin.bot-protocol-fixed", "Bot 协议版本按配置固定为 {0}（跳过自动探测）", cfgProtocolVersion);
-        }
-        plugin.getBot().connect();
-    }
-
-    /** 收到 Bot 经代理落在当前服后发来的 botctl 请求：代其向 BungeeCord 发 Connect 切到目标服。 */
-    private void handleBotConnectRequest(org.bukkit.entity.Player player, byte[] message) {
-        try {
-            boolean botDedicated = plugin.getBotManager() != null && plugin.getBotManager().isManagedBot(player.getName());
-            if (!botDedicated && !player.getName().startsWith(plugin.getBotNamePrefix())) {
-                log.warnT("log.plugin.ignore-botctl", "忽略非 Bot 的 botctl 请求: {0}", player.getName());
-                return;
-            }
-            java.io.DataInputStream in = new java.io.DataInputStream(new java.io.ByteArrayInputStream(message));
-            String target = in.readUTF();
-            if (target == null || target.isEmpty()) return;
-            java.io.ByteArrayOutputStream bos = new java.io.ByteArrayOutputStream();
-            java.io.DataOutputStream out = new java.io.DataOutputStream(bos);
-            out.writeUTF("Connect");
-            out.writeUTF(target);
-            out.flush();
-            final byte[] pkt = bos.toByteArray();
-            Bukkit.getScheduler().runTask(plugin, () -> player.sendPluginMessage(plugin, "BungeeCord", pkt));
-            log.infoT("log.plugin.bot-connect", "已代 Bot({0}) 发 Connect 切到: {1}", player.getName(), target);
-            forceBotListen(player, CrossServerHub.CHANNEL_FWD_REQ);
-            forceBotListen(player, CrossServerHub.CHANNEL_FWD_RESP);
-            forceBotListen(player, CrossServerHub.CHANNEL_DISCOVERY);
-        } catch (Throwable t) {
-            log.warnT("log.plugin.botctl-fail", "处理 botctl 失败: {0}", t);
-        }
-    }
-
-    /** 服务端侧强制把 Bot 加入某通道监听。 */
-    private void forceBotListen(org.bukkit.entity.Player player, String ch) {
-        try {
-            java.lang.reflect.Method m;
-            try {
-                m = org.bukkit.entity.Player.class.getMethod("addListeningPluginChannel", String.class);
-            } catch (NoSuchMethodException e) {
-                m = player.getClass().getMethod("addChannel", String.class);
-            }
-            m.invoke(player, ch);
-            log.infoT("log.plugin.force-listen", "已为 Bot 强制登记监听通道 {0} -> {1}", ch, player.getListeningPluginChannels());
-        } catch (Throwable t) {
-            log.warnT("log.plugin.force-listen-fail", "无法为 Bot 强制登记通道 {0}: {1}", ch, t);
-        }
-    }
-
     /** 构造对外集成门面。 */
     private void initApiImpl() {
         plugin.setApi(new SoysHttpOverMcApiImpl(plugin, plugin.getApiRegistry(), plugin.getWebRegistry(),
-                plugin.getGateway(), plugin.getBotManager(),
-                plugin.getLargeFileLoaderRegistry(), plugin.getCorsRegistry()));
+                plugin.getGateway(), plugin.getLargeFileLoaderRegistry(), plugin.getCorsRegistry()));
     }
 
-    /** 装配统计 / 状态 API / 前端处理器 / 通道消息处理；返回统计实例供嗅探器复用。 */
+    /** 装配统计 / 状态 API / 前端处理器；返回统计实例供嗅探器复用。 */
     private RequestStats initFrontend(File webRoot) {
         RequestStats stats = new RequestStats();
-        IStatusService statusService = new StatusServiceImpl(stats, plugin.getMcPort(), plugin.getBotUsername());
+        IStatusService statusService = new StatusServiceImpl(stats, plugin.getMcPort());
         plugin.getApiRegistry().register(new StatusController(statusService));
 
         WebFrontendHandler web = new WebFrontendHandler(
@@ -731,65 +546,7 @@ public class HttpOverMcPluginProxy {
                 plugin.getCorsRegistry(), plugin.getWebInterceptorRegistry());
         plugin.setWebFrontend(web);
 
-        HttpBackendMode backendMode = HttpBackendMode.from(plugin.getConfig().getString("http-backend.mode", "netty-eventloop"));
-        boolean usesBot = backendMode.usesBot();
-
-        if (usesBot) {
-            // bot-tunnel 模式：创建 RequestScheduler、CrossServerHub、McMessageHandler
-            plugin.setRequestScheduler(new RequestScheduler(plugin, plugin.getChannel(), web, 512, 128, 4));
-            if (plugin.getProxyPlatform() != ProxyPlatform.STANDALONE
-                    && plugin.getServerName() != null && !plugin.getServerName().isEmpty()) {
-                plugin.setCrossHub(new CrossServerHub(plugin, plugin.getMcLink(), web,
-                        plugin.getBotUsername(), plugin.getServerRegistry()));
-                plugin.getCrossHub().setLocalServerName(plugin.getServerName());
-                plugin.getServerRegistry().register(new ServerTag(plugin.getServerName(),
-                        plugin.getMcHost(), plugin.getMcPort(), plugin.getBotUsername()));
-                plugin.getServer().getMessenger().registerOutgoingPluginChannel(plugin, CrossServerHub.BUNGEECORD_CHANNEL);
-                plugin.getServer().getMessenger().registerIncomingPluginChannel(plugin,
-                        CrossServerHub.BUNGEECORD_CHANNEL, plugin.getCrossHub().listener());
-                plugin.getBot().addExtraChannel(CrossServerHub.BUNGEECORD_CHANNEL);
-                final String botName = plugin.getBotUsername();
-                plugin.getServer().getPluginManager().registerEvents(new org.bukkit.event.Listener() {
-                    @org.bukkit.event.EventHandler
-                    public void onJoin(org.bukkit.event.player.PlayerJoinEvent e) {
-                        if (botName.equals(e.getPlayer().getName())) {
-                            forceBotListen(e.getPlayer(), CrossServerHub.BUNGEECORD_CHANNEL);
-                            log.infoT("log.plugin.force-listen-bungee",
-                                    "已为 Bot 强制登记 BungeeCord 监听通道(服务端兜底): {0}", botName);
-                        }
-                    }
-                }, plugin);
-                log.infoT("log.plugin.cross-hub-ready", "跨服枢纽已启用: 本服={0} host={1}:{2} bot={3}",
-                        plugin.getServerName(), plugin.getMcHost(), plugin.getMcPort(), plugin.getBotUsername());
-                startCrossServerDiscovery();
-            }
-            McMessageHandler handler = new McMessageHandler(plugin, plugin.getBotUsername(),
-                    plugin.getChannel(), plugin.getRequestScheduler(), plugin.getCrossHub());
-            plugin.getServer().getMessenger().registerOutgoingPluginChannel(plugin, plugin.getChannel());
-            plugin.getServer().getMessenger().registerIncomingPluginChannel(plugin, plugin.getChannel(), handler);
-        } else {
-            // 非 bot-tunnel 模式：仅自注册 ServerTag（用于跨服 HTTP 转发的目标地址查找）
-            if (plugin.getProxyPlatform() != ProxyPlatform.STANDALONE
-                    && plugin.getServerName() != null && !plugin.getServerName().isEmpty()) {
-                plugin.getServerRegistry().register(new ServerTag(plugin.getServerName(),
-                        plugin.getMcHost(), plugin.getMcPort(), ""));
-                log.infoT("log.plugin.cross-http-ready", "跨服 HTTP 转发已启用: 本服={0} host={1}:{2}",
-                        plugin.getServerName(), plugin.getMcHost(), plugin.getMcPort());
-            }
-        }
         return stats;
-    }
-
-    /** 启动群组服发现。 */
-    private void startCrossServerDiscovery() {
-        plugin.getServer().getScheduler().runTaskTimer(plugin, () -> {
-            if (plugin.getCrossHub() == null) return;
-            ServerTag self = new ServerTag(plugin.getServerName(),
-                    plugin.getMcHost(), plugin.getMcPort(), plugin.getBotUsername());
-            plugin.getServerRegistry().register(self);
-            plugin.getCrossHub().broadcastDiscovery(self);
-            plugin.getServerRegistry().sweep();
-        }, 100L, 600L);
     }
 
     /** 启动 HTTP 服务：同端口嗅探模式安装 SocketSniffer，独立服务器模式启动 StandaloneHttpServer。 */
@@ -819,13 +576,8 @@ public class HttpOverMcPluginProxy {
         int httpQueue = Math.max(1, plugin.getConfig().getInt("sniffer.http-queue-size", 8));
         int keepAliveIdleSeconds = Math.max(1, plugin.getConfig().getInt("sniffer.keep-alive-idle-seconds", 30));
 
-        // bot-tunnel 模式需要等待 Bot 就绪；其他模式直接就绪
-        java.util.function.BooleanSupplier ready = (mode == HttpBackendMode.BOT_TUNNEL)
-                ? () -> plugin.getBot() != null && plugin.getBot().isReady()
-                : () -> true;
-
         plugin.setSniffer(new SocketSniffer(plugin, handler,
-                ready, plugin.getMaxBody(), stats, plugin.getGateway(),
+                () -> true, plugin.getMaxBody(), stats, plugin.getGateway(),
                 getTlsEngineSupplier(), trustProxy, httpConcurrency, httpQueue, keepAliveIdleSeconds));
         plugin.getSniffer().install();
     }
@@ -852,25 +604,17 @@ public class HttpOverMcPluginProxy {
         switch (mode) {
             case NETTY_EVENTLOOP: {
                 int threads = getBackendInt("netty-eventloop", "threads", "netty-threads", 2);
-                return new NettyEventLoopRequestHandler(plugin.getWebFrontend(),
-                        plugin.getServerRegistry(), plugin.getServerName(), threads);
+                return new NettyEventLoopRequestHandler(plugin.getWebFrontend(), threads);
             }
             case MEMORY_QUEUE: {
                 int capacity = getBackendInt("memory-queue", "capacity", "queue-capacity", 1024);
                 int workers = getBackendInt("memory-queue", "workers", "queue-workers", 4);
-                return new MemoryQueueRequestHandler(plugin.getWebFrontend(),
-                        plugin.getServerRegistry(), plugin.getServerName(), capacity, workers);
-            }
-            case BOT_TUNNEL: {
-                HttpMcTranslator translator = new HttpMcTranslator(plugin.getMcLink(), plugin.getBotRuleController());
-                translator.setLocalServerName(plugin.getServerName());
-                return new BotTunnelRequestHandler(translator);
+                return new MemoryQueueRequestHandler(plugin.getWebFrontend(), capacity, workers);
             }
             case STANDALONE_SERVER:
             case DIRECT:
             default:
-                return new DirectRequestHandler(plugin.getWebFrontend(),
-                        plugin.getServerRegistry(), plugin.getServerName());
+                return new DirectRequestHandler(plugin.getWebFrontend());
         }
     }
 
@@ -934,8 +678,8 @@ public class HttpOverMcPluginProxy {
     private void logStartup(File webRoot) {
         printStartupBanner();
         log.infoT("log.plugin.startup",
-                "HTTP-Over-MC 已启动（同端口嗅探 + 前端服务 + 安全网关 + 注解式API）: mc={0}:{1} 通道={2} 嗅探器={3} 网关={4} HTTPS={5} API注册数={6} webroot={7} | {8} 三协议端口：MC / 明文 HTTP / HTTPS",
-                plugin.getMcHost(), plugin.getMcPort(), plugin.getChannel(),
+                "HTTP-Over-MC 已启动（同端口嗅探 + 前端服务 + 安全网关 + 注解式API）: mc={0}:{1} 嗅探器={2} 网关={3} HTTPS={4} API注册数={5} webroot={6} | {7} 三协议端口：MC / 明文 HTTP / HTTPS",
+                plugin.getMcHost(), plugin.getMcPort(),
                 plugin.isSnifferEnabled() ? I18n.t("log.plugin.on", "开") : I18n.t("log.plugin.off", "关"),
                 plugin.getGateway() == null ? I18n.t("log.plugin.off", "关") : I18n.t("log.plugin.on", "开"),
                 getTlsEngineSupplier() == null ? I18n.t("log.plugin.off", "关") : I18n.t("log.plugin.on", "开"),

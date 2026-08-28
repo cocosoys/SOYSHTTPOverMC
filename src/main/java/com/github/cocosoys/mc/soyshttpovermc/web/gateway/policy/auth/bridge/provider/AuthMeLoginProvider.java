@@ -33,7 +33,7 @@ import java.util.Set;
  * AuthMe 登录插件提供者（软依赖：仅在 AuthMe 已加载时由宿主实例化并注册到
  * {@link LoginProviderFactory}）。
  *
- * <p>覆盖 {@link LoginProvider} 三块能力：</p>
+ * <p>覆盖 {@link LoginProvider} 两块能力：</p>
  * <ul>
  *   <li><b>纯账号密码校验</b>：{@link #verifyPassword} 走 AuthMe 底层纯数据库 hash 比对
  *       （反射 {@code AuthMe.database} → {@link DataSource#getAuth} +
@@ -42,9 +42,6 @@ import java.util.Set;
  *       AuthMeApi.checkPassword 仅作兜底。</li>
  *   <li><b>玩家登录事件</b>：监听 {@link LoginEvent}，为该玩家签发会话令牌 + 一次性票据 + 发送网页登录链接；
  *       bridge 重建（/soyshttp reload）后经 {@link #bind} 重新绑定。</li>
- *   <li><b>Bot 免登录热装填</b>：监听 {@link PlayerJoinEvent}/{@link PlayerQuitEvent}，受管 Bot
- *       进服时把其名<b>纯内存注入</b> AuthMe 免登录名单（{@code UNRESTRICTED_NAMES}），退出自动移除，
- *       不写 AuthMe 配置文件。</li>
  * </ul>
  */
 @CustomLog
@@ -58,12 +55,6 @@ public class AuthMeLoginProvider implements LoginProvider, Listener {
     private volatile DataSource authMeDataSource;
     /** AuthMe 密码比对器（反射 injector.getSingleton / AuthMeApi 单例字段）；null=不可用。 */
     private volatile PasswordSecurity authMePasswordSecurity;
-
-    /** ConfigurationData 实例（relocated configme，反射持有，免登录名单热装填用）。 */
-    private volatile Object configData;
-    /** RestrictionSettings.UNRESTRICTED_NAMES 属性（Property<Set<String>>）。 */
-    private volatile Object unrestrictedProperty;
-    private volatile boolean unrestrictedReady;
 
     public AuthMeLoginProvider() {
     }
@@ -83,7 +74,7 @@ public class AuthMeLoginProvider implements LoginProvider, Listener {
     @Override
     public String description() {
         return I18n.t("provider.authme.description",
-                "账号密码离线校验 + 玩家登录自动签发令牌 + Bot 免登录内存热装填");
+                "账号密码离线校验 + 玩家登录自动签发令牌 + 网页→游戏联动登录");
     }
 
     @Override
@@ -111,14 +102,12 @@ public class AuthMeLoginProvider implements LoginProvider, Listener {
         Plugin host = ctx.getPlugin();
         host.getServer().getPluginManager().registerEvents(this, host);
         initAuthMeHandles();   // 主线程初始化底层句柄（worker 线程 getPlugin 可能返回 null）
-        initUnrestricted();    // 主线程初始化免登录名单反射通道
         log.infoT("log.authme.connected", "登录插件 AuthMe 已接入（{0}）", description());
     }
 
     @Override
     public void shutdown() {
         shutdown = true;
-        unregisterAll();
     }
 
     @Override
@@ -161,16 +150,6 @@ public class AuthMeLoginProvider implements LoginProvider, Listener {
         }
     }
 
-    @Override
-    public boolean addUnrestricted(String playerName) {
-        return mutateUnrestricted(true, playerName);
-    }
-
-    @Override
-    public boolean removeUnrestricted(String playerName) {
-        return mutateUnrestricted(false, playerName);
-    }
-
     // ===== 玩家登录事件：自动签发令牌 + 网页登录链接 =====
 
     @EventHandler
@@ -209,31 +188,13 @@ public class AuthMeLoginProvider implements LoginProvider, Listener {
                 token.substring(0, Math.min(8, token.length())), gameIp);
     }
 
-    // ===== Bot 免登录热装填（PlayerJoinEvent / PlayerQuitEvent）=====
+    // ===== 网页→游戏联动登录（PlayerJoinEvent / PlayerQuitEvent）=====
 
     @EventHandler(priority = EventPriority.HIGHEST)
     public void onJoin(PlayerJoinEvent event) {
         Player p = event.getPlayer();
         if (p == null || context == null) return;
         String name = p.getName();
-
-        // Bot 免登录热装填
-        if (context.isManagedBot(name)) {
-            if (mutateUnrestricted(true, name)) {
-                log.infoT("log.authme.unrestricted-added", "AuthMe 免登录名单已热装填: {0}", name);
-            } else {
-                // 反射不可用时的兜底：forceLogin（未注册玩家 AuthMe 可能不买账）
-                try {
-                    Class<?> api = Class.forName("fr.xephi.authme.api.v3.AuthMeApi");
-                    Method forceLogin = api.getMethod("forceLogin", Player.class);
-                    forceLogin.invoke(api.getMethod("getInstance").invoke(null), p);
-                    log.warnT("log.authme.forcelogin-fallback", "已用 forceLogin 兜底（内存名单不可用）: {0}", name);
-                } catch (Throwable t) {
-                    log.warnT("log.authme.forcelogin-fallback-fail", "forceLogin 兜底也失败: {0}", t);
-                }
-            }
-            return;
-        }
 
         // 网页→游戏免登录：玩家在网页端已登录且 IP 匹配 → 强制 AuthMe 登录
         AuthLoginBridge bridge = context.bridge();
@@ -263,10 +224,6 @@ public class AuthMeLoginProvider implements LoginProvider, Listener {
             AuthLoginBridge bridge = context.bridge();
             if (bridge != null) {
                 bridge.clearGameLogin(name);
-            }
-            // Bot 免登录名单移除
-            if (context.isManagedBot(name) && mutateUnrestricted(false, name)) {
-                log.infoT("log.authme.unrestricted-removed", "AuthMe 免登录名单已移除: {0}", name);
             }
         }
     }
@@ -338,71 +295,6 @@ public class AuthMeLoginProvider implements LoginProvider, Listener {
                             : I18n.t("provider.authme.status-fallback", "不可用，将回退 AuthMeApi"));
         } catch (Throwable t) {
             log.warnT("log.authme.init-fail", "AuthMe 底层句柄初始化失败: {0}", t);
-        }
-    }
-
-    /**
-     * 反射初始化免登录名单通道（一次性，主线程）：
-     * {@code AuthMe.settings} → {@code SettingsManagerImpl.getConfigurationData()}（protected）→
-     * {@code ConfigurationData.setValue(RestrictionSettings.UNRESTRICTED_NAMES, Set)}（纯内存）。
-     */
-    private void initUnrestricted() {
-        try {
-            Plugin authme = org.bukkit.Bukkit.getPluginManager().getPlugin("AuthMe");
-            if (authme == null) return;
-            Field settingsField = authme.getClass().getDeclaredField("settings");
-            settingsField.setAccessible(true);
-            Object settings = settingsField.get(authme); // fr.xephi.authme.settings.Settings
-
-            Method getCfg = findMethodByArity(settings.getClass(), "getConfigurationData", 0);
-            Object cfgData = getCfg.invoke(settings); // ConfigurationData
-
-            Class<?> restrictionSettings = Class.forName("fr.xephi.authme.settings.properties.RestrictionSettings");
-            Field propField = restrictionSettings.getDeclaredField("UNRESTRICTED_NAMES");
-            Object property = propField.get(null); // Property<Set<String>>
-
-            this.configData = cfgData;
-            this.unrestrictedProperty = property;
-            this.unrestrictedReady = true;
-            log.infoT("log.authme.unrestricted-ready", "AuthMe 免登录内存通道就绪（UNRESTRICTED_NAMES 反射可用）");
-        } catch (Throwable t) {
-            this.unrestrictedReady = false;
-            log.warnT("log.authme.unrestricted-init-fail", "AuthMe 免登录内存通道初始化失败，回退 forceLogin（未注册 Bot 可能仍被踢）: {0}", t);
-        }
-    }
-
-    /** 插件卸载时清理：移除全部受管 Bot 名（AuthMe 内存名单恢复干净）。 */
-    private void unregisterAll() {
-        if (!unrestrictedReady || context == null || context.getPlugin().getBotManager() == null) return;
-        for (String name : context.getPlugin().getBotManager().getBotNames()) {
-            mutateUnrestricted(false, name);
-        }
-        log.infoT("log.authme.unrestricted-cleared", "AuthMe 免登录名单已全部清理（shutdown）");
-    }
-
-    /**
-     * 纯内存增删 AuthMe UNRESTRICTED_NAMES：
-     * ConfigurationData.getValue(property) 取当前 Set → 拷贝修改 → setValue(property, 新Set)。
-     */
-    private boolean mutateUnrestricted(boolean add, String name) {
-        if (!unrestrictedReady || name == null) return false;
-        try {
-            Object cfg = configData;
-            Object prop = unrestrictedProperty;
-            Method getValue = findMethodByArity(cfg.getClass(), "getValue", 1);
-            if (getValue == null) return false;
-            Object current = getValue.invoke(cfg, prop);
-            @SuppressWarnings("unchecked")
-            Set<String> set = current == null ? new HashSet<String>() : new HashSet<String>((Set<String>) current);
-            boolean changed = add ? set.add(name) : set.remove(name);
-            if (!changed) return false;
-            Method setValue = findMethodByArity(cfg.getClass(), "setValue", 2);
-            if (setValue == null) return false;
-            setValue.invoke(cfg, prop, set);
-            return true;
-        } catch (Throwable t) {
-            log.warnT("log.authme.unrestricted-mutate-fail", "AuthMe 免登录名单热装填失败: {0}", t);
-            return false;
         }
     }
 

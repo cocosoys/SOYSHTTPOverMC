@@ -37,7 +37,7 @@ import java.util.List;
  */
 public abstract class SubCommand {
 
-    /** 插件实例（子类按需取 BotManager / WebRegistry / getMcHost 等）。 */
+    /** 插件实例（子类按需取 WebRegistry / getMcHost 等）。 */
     protected final HttpOverMcPlugin plugin;
 
     /**

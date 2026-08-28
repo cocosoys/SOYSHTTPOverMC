@@ -17,7 +17,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
 /**
- * 服务端 HTTP 处理器：把一次经 Bot 隧道送达的 HTTP 请求，路由为注解式 API 或静态资源。
+ * 服务端 HTTP 处理器：把一次经 HTTP 后端送达的 HTTP 请求，路由为注解式 API 或静态资源。
  *
  * 路由优先级：
  *  1) 注解式 API（@GetMapping 注册，如 /api/status、/api/ping、/api/auth/*）→ dispatch；

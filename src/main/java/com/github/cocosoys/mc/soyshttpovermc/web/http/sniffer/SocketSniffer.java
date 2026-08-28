@@ -1,4 +1,4 @@
-package com.github.cocosoys.mc.soyshttpovermc.web.http.handler.bot.manager.mc;
+package com.github.cocosoys.mc.soyshttpovermc.web.http.sniffer;
 import com.github.cocosoys.mc.soyshttpovermc.enums.RequestMethod;
 import com.github.cocosoys.mc.soyshttpovermc.enums.SnifferChannelState;
 import lombok.CustomLog;
@@ -63,7 +63,7 @@ import java.util.zip.GZIPOutputStream;
  *  - 我们在父 Channel pipeline 最前插入 ParentInjectorHandler：拿到每个子 Channel 后，
  *    在其 pipeline 最前插入 HttpSnifferHandler，再向下游 fire（让 Spigot 的 MC 解码器照常工作）。
  *  - HttpSnifferHandler 嗅探首包，三协议分流（server-port 即三协议端口）：
- *      明文 HTTP（A-Z 方法词）→ 网关策略链 → Bot 隧道转换并写回 HTTP 响应；
+ *      明文 HTTP（A-Z 方法词）→ 网关策略链 → HTTP 后端处理并写回 HTTP 响应；
  *      TLS（0x16 0x03）→ 就地 addFirst(SslHandler) 解密 → 同一策略链 → 服务；
  *      MC（0xFE / varint+0x00）→ 原样放行给 Spigot 的 MC 解码器。
  *
@@ -79,7 +79,7 @@ import java.util.zip.GZIPOutputStream;
 @CustomLog
 public class SocketSniffer {
 
-    /** 判断隧道是否就绪（Bot 已连接并 REGISTER 通道），未就绪时 HTTP 返回 503 */
+    /** 判断 HTTP 后端是否就绪，未就绪时 HTTP 返回 503 */
     public interface ReadyChecker {
         boolean isReady();
     }

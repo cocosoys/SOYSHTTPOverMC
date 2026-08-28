@@ -6,8 +6,8 @@ import com.github.cocosoys.mc.soyshttpovermc.i18n.I18n;
  * HTTP-Over-MC 异常体系的根抽象类。
  *
  * <p>所有对开发者可见的异常均继承此类（{@code ApiException} / {@code WebPageException} /
- * {@code AuthException} / {@code BotException} / {@code HttpClientException} /
- * {@code ConfigException} / {@code TunnelException} / {@code ToolkitException}），
+ * {@code AuthException} / {@code HttpClientException} /
+ * {@code ConfigException} / {@code ToolkitException}），
  * 统一携带 {@link Module 模块}、错误码 {@code code} 与可选触发插件名，
  * 便于在 {@link ExceptionBus} 中按模块集中登记、日志与分发，方便维护。</p>
  *
@@ -18,7 +18,7 @@ public abstract class SoysHttpException extends RuntimeException {
 
     /** 异常所属模块（与门面能力组一一对应，便于分类维护） */
     public enum Module {
-        CORE, API, WEB, AUTH, BOT, HTTP, CONFIG, TUNNEL, TOOLKIT, UNKNOWN
+        CORE, API, WEB, AUTH, HTTP, CONFIG, TOOLKIT, UNKNOWN
     }
 
     private final Module module;

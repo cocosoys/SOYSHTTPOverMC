@@ -11,13 +11,13 @@ upload:
 
 
 # ============================================================================
-#  插件消息通道（服务端与 Bot 必须一致）
+#  插件消息通道
 # ----------------------------------------------------------------------------
 channel: httpproxy:main
 
 
 # ============================================================================
-#  无头 Bot 回连本服的地址与端口。
+#  MC 服务器地址与端口。
 # ----------------------------------------------------------------------------
 # 必须 == Spigot 的 server-port 所监听的端口（即"服务器端口"）。
 # server.properties 的 server-port 即对外端口（如 25564，可按需自定义），无需另配端口、无需挪窝。
@@ -32,7 +32,7 @@ mc:
   # 当后端端口需经代理对外、或后端绑定内网而客户端应连代理公网地址时，
   # 在此填客户端实际可达的 host/port（例如代理公网 IP 与后端端口，或后端自身公网 IP 与 server-port）。
   # 仅影响对外连接信息（/soyshttp send 链接、状态页显示的地址），
-  # 不改变无头 Bot 回连本服的地址（Bot 始终回连后端 server-port）。
+  # 不改变 HTTP 后端连接本服的地址。
   public-host: ""
   public-port: 0
   # 是否信任前置代理（SOYSHTTPOverMC 的 BungeeCord 代理模块）注入的 X-Forwarded-For，
@@ -46,11 +46,11 @@ mc:
 # ----------------------------------------------------------------------------
 # server-name 为该子服在代理中的唯一名称（对应 BungeeCord config.yml servers.<name>）。
 # 仅在群组服下填写；独立服留空。用于：①跨服请求路由（/server/<server-name>/...）；
-# ②Bot 携带服务器标签（名称/host/port）经 discovery 广播，便于网关与其他插件定位并与 Bot 通讯。
+# ②携带服务器标签（名称/host/port）经 discovery 广播，便于网关与其他插件定位目标服。
 # 注意：群组服下每台子服的 server-name 必须唯一且与该服在代理里注册的名字一致。
-# proxy-address 为 Bot 经代理连接的地址（host:port，即 BungeeCord / Velocity 监听端口）。
-# 群组服下必须填写：Bot 只有“经代理连接的玩家”身份，其 BungeeCord 频道 Forward 才会被代理跨服中继；
-# 留空则 Bot 直连后端，Forward 被静默丢弃 → 跨服请求/发现全部失效。通常填 127.0.0.1:<代理端口>。
+# proxy-address 为经代理连接的地址（host:port，即 BungeeCord / Velocity 监听端口）。
+# 群组服下必须填写：只有"经代理连接"的身份，其 BungeeCord 频道 Forward 才会被代理跨服中继；
+# 留空则直连后端，Forward 被静默丢弃 → 跨服请求/发现全部失效。通常填 127.0.0.1:<代理端口>。
 proxy:
   server-name: ""
   proxy-address: ""
@@ -68,9 +68,9 @@ sniffer:
   # HTTP 请求体上限（字节），超过返回 413
   max-body-bytes: 8388608
   # 秒杀/高并发防护：
-  # 同时阻塞在隧道等待（future.get）的请求数上限（默认 4）。每个请求在经 Bot 隧道往返期间
+  # 同时阻塞在 HTTP 后端等待（future.get）的请求数上限（默认 4）。每个请求在经 HTTP 后端处理期间
   # 占用一个 worker；达到该值且队列满后，新请求直接 503 快速失败，直到有空位（不再堆积）。
-  # 日常负载可适当调大（如 4~8），需权衡单 Bot 隧道吞吐。
+  # 日常负载可适当调大（如 4~8），需权衡单连接吞吐。
   http-concurrency: 4
   # 等待中的请求队列容量（满后新请求直接 503）
   http-queue-size: 8
@@ -85,7 +85,7 @@ sniffer:
 #  HTTP 后端传输模式
 # ----------------------------------------------------------------------------
 # 控制 HTTP 请求从网关层到业务处理层（WebFrontendHandler）的传输方式。
-# 五种模式可选，默认 netty-eventloop（延迟低且不阻塞 IO 线程）：
+# 四种模式可选，默认 netty-eventloop（延迟低且不阻塞 IO 线程）：
 #
 #   direct            - 直接调用：在 Netty IO 线程直接调用 WebFrontendHandler，
 #                       延迟最低（<1ms），但高并发下会阻塞 IO 线程影响其他连接。
@@ -93,18 +93,14 @@ sniffer:
 #                       延迟低（~1-3ms），不阻塞网关 IO 线程。
 #   memory-queue      - 内存队列：提交到有界 ArrayBlockingQueue，worker 线程处理，
 #                       支持背压（队列满返回 503），延迟略高（~2-5ms）。
-#   bot-tunnel        - Bot 隧道（兼容旧模式）：经 InternalBot + PluginMessage 传输，
-#                       延迟高（100ms+），但支持跨服路由（BungeeCord/Velocity）。
 #   standalone-server - 独立 HTTP 服务器：在独立端口启动 Netty HTTP 服务器，
 #                       不使用同端口嗅探，延迟最低（<1ms），实现最简单可靠。
 #                       需配置下方 standalone-server.host / port。
 #
 # 配置结构：每种模式的参数放在 http-backend.<mode> 下（如 http-backend.netty-eventloop.threads）。
 # 旧的扁平配置（如 http-backend.netty-threads）仍向后兼容，但推荐使用新的分层结构。
-#
-# ⚠️ 切换到 bot-tunnel 模式需要重启服务器生效（涉及 Bot 初始化与事件注册）。
 http-backend:
-  # 传输模式：direct / netty-eventloop / memory-queue / bot-tunnel / standalone-server
+  # 传输模式：direct / netty-eventloop / memory-queue / standalone-server
   mode: "netty-eventloop"
 
   # direct 模式：无额外参数
@@ -121,9 +117,6 @@ http-backend:
     capacity: 1024
     # worker 线程数（默认 4）
     workers: 4
-
-  # bot-tunnel 模式：无额外参数（Bot 相关配置见 bot.yml）
-  bot-tunnel: {}
 
   # standalone-server 模式配置（独立端口 HTTP 服务器，不占用 MC 端口）
   standalone-server:

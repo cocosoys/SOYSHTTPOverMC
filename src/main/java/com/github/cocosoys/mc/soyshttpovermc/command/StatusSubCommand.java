@@ -32,7 +32,7 @@ public class StatusSubCommand extends SubCommand {
     public String detail() {
         return I18n.t("command.status.detail",
                 "/soyshttp status —— 查看HTTP服务运行状态\n"
-                + "展示监听地址、HTTPS 开关、Bot 就绪、网关策略、已注册页面/API 与运行拓扑等汇总信息。");
+                + "展示监听地址、HTTPS 开关、网关策略、已注册页面/API 与运行拓扑等汇总信息。");
     }
 
     @Override
@@ -55,16 +55,13 @@ public class StatusSubCommand extends SubCommand {
                 ? 0 : plugin.getWebRegistry().listEntries().size();
         int apis = plugin.getApiRegistry() == null || plugin.getApiRegistry().listEndpoints() == null
                 ? 0 : plugin.getApiRegistry().listEndpoints().size();
-        int bots = plugin.getBotManager() == null ? 0 : plugin.getBotManager().getBotNames().size();
 
         sender.sendMessage(I18n.t("command.status.title", "§a§l[SOYSHTTPOverMC] §7HTTP 服务运行状态："));
         line(sender, I18n.t("command.status.addr", "监听地址"), plugin.getDelegate().getMcHost() + ":" + plugin.getDelegate().getMcPort());
         line(sender, I18n.t("command.status.https", "HTTPS(TLS)"), plugin.getDelegate().isTlsEnabled() ? on : off);
-        line(sender, I18n.t("command.status.bot", "Bot 隧道"), plugin.getDelegate().isBotReady() ? yes : no);
         line(sender, I18n.t("command.status.gw", "网关"), gw);
         line(sender, I18n.t("command.status.pages", "已注册页面"), String.valueOf(pages));
         line(sender, I18n.t("command.status.apis", "已注册 API"), String.valueOf(apis));
-        line(sender, I18n.t("command.status.bot-count", "受管 Bot"), String.valueOf(bots));
         line(sender, I18n.t("command.status.topo", "运行拓扑"), topo);
     }
 

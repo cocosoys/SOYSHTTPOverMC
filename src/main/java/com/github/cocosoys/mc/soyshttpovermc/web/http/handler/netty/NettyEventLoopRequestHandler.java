@@ -1,6 +1,5 @@
 package com.github.cocosoys.mc.soyshttpovermc.web.http.handler.netty;
 
-import com.github.cocosoys.mc.soyshttpovermc.proxy.ServerRegistry;
 import com.github.cocosoys.mc.soyshttpovermc.web.WebFrontendHandler;
 import com.github.cocosoys.mc.soyshttpovermc.web.http.AbstractHttpRequestHandler;
 import com.github.cocosoys.mc.soyshttpovermc.web.proto.FrameProto;
@@ -17,19 +16,18 @@ import java.util.concurrent.ExecutionException;
  * <p>请求被提交到独立的 NioEventLoopGroup（默认 2 线程），在 EventLoop 线程中调用
  * WebFrontendHandler.handle()，通过 CompletableFuture 同步等待结果。
  *
- * <p>延迟极低（~1-3ms），且不阻塞网关的 Netty IO 线程，是推荐的默认模式。支持跨服路由。</p>
+ * <p>延迟极低（~1-3ms），且不阻塞网关的 Netty IO 线程，是推荐的默认模式。</p>
  */
 public class NettyEventLoopRequestHandler extends AbstractHttpRequestHandler {
 
     private final EventLoopGroup eventLoop;
 
-    public NettyEventLoopRequestHandler(WebFrontendHandler web, ServerRegistry registry, String localServerName) {
-        this(web, registry, localServerName, 2);
+    public NettyEventLoopRequestHandler(WebFrontendHandler web) {
+        this(web, 2);
     }
 
-    public NettyEventLoopRequestHandler(WebFrontendHandler web, ServerRegistry registry,
-                                          String localServerName, int threads) {
-        super(web, registry, localServerName);
+    public NettyEventLoopRequestHandler(WebFrontendHandler web, int threads) {
+        super(web);
         this.eventLoop = new NioEventLoopGroup(Math.max(1, threads));
     }
 

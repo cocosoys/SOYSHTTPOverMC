@@ -16,8 +16,7 @@ import com.github.cocosoys.mc.soyshttpovermc.exception.ExceptionBus;
  *   api.getAuthCredential().issueCredential(subject);             // 能力组 3
  *   api.getToolkit().toJson(obj);                                 // 能力组 4
  *   api.getLogger().logInfo("...");                               // 能力组 5
- *   api.getBotManagement().addBot("bot2", "my:chan");             // 能力组 6
- *   api.getHttpClient().sendGet("https://example.com");          // 能力组 7
+ *   api.getHttpClient().sendGet("https://example.com");          // 能力组 6
  * </pre>
  *
  * <p>各分组接口：</p>
@@ -26,7 +25,6 @@ import com.github.cocosoys.mc.soyshttpovermc.exception.ExceptionBus;
  *   <li>{@link WebPageApi} —— 网页登记</li>
  *   <li>{@link AuthCredentialApi} —— 鉴权与凭证</li>
  *   <li>{@link ApiToolkitApi} —— 工具（JSON / Content-Type）</li>
- *   <li>{@link BotManagementApi} —— Bot 管理</li>
  *   <li>{@link HttpClientApi} —— HTTP 请求 / 本地回环</li>
  * </ul>
  *
@@ -51,17 +49,11 @@ public interface SoysHttpOverMcApi {
     /** 能力组 4：工具（JSON / Content-Type） */
     ApiToolkitApi getToolkit();
 
-    /** 能力组 6：Bot 管理 */
-    BotManagementApi getBotManagement();
-
     /** 能力组 7：HTTP 请求 / 本地回环 */
     HttpClientApi getHttpClient();
 
     /** 能力组 8：扩展接入（登录插件提供者 / /soyshttp 子指令） */
     ExtensionApi getExtension();
-
-    /** 能力组 9：跨服调用（群组服下插件间经隧道调用另一子服 API） */
-    CrossServerHttpClient getCrossServer();
 
     /**
      * 注册热重载钩子：提供 /soyshttp 子指令的其它插件实现 {@link ReloadHttpConfigHandler} 后注册，

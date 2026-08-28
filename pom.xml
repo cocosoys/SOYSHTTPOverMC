@@ -16,7 +16,6 @@
         <revision>1.2.0</revision>
         <effectiveVersion>${revision}</effectiveVersion>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <mcprotocollib.version>1.12.2-2</mcprotocollib.version>
         <protobuf.version>3.25.3</protobuf.version>
     </properties>
 
@@ -182,44 +181,6 @@
             <scope>provided</scope>
         </dependency>
         <dependency>
-            <groupId>com.github.steveice10</groupId>
-            <artifactId>MCProtocolLib</artifactId>
-            <version>${mcprotocollib.version}</version>
-            <exclusions>
-                <exclusion>
-                    <groupId>io.netty</groupId>
-                    <artifactId>netty-all</artifactId>
-                </exclusion>
-            </exclusions>
-        </dependency>
-        <dependency>
-            <groupId>com.github.steveice10</groupId>
-            <artifactId>packetlib</artifactId>
-            <version>1.2</version>
-            <exclusions>
-                <exclusion>
-                    <groupId>io.netty</groupId>
-                    <artifactId>netty-all</artifactId>
-                </exclusion>
-            </exclusions>
-        </dependency>
-        <dependency>
-            <groupId>com.github.steveice10</groupId>
-            <artifactId>mcauthlib</artifactId>
-            <version>1.0</version>
-            <exclusions>
-                <exclusion>
-                    <groupId>io.netty</groupId>
-                    <artifactId>netty-all</artifactId>
-                </exclusion>
-            </exclusions>
-        </dependency>
-        <dependency>
-            <groupId>com.github.steveice10</groupId>
-            <artifactId>opennbt</artifactId>
-            <version>1.0</version>
-        </dependency>
-        <dependency>
             <groupId>io.netty</groupId>
             <artifactId>netty-all</artifactId>
             <version>4.1.24.Final</version>
@@ -305,6 +266,13 @@
             <groupId>com.velocitypowered</groupId>
             <artifactId>velocity-api</artifactId>
             <version>3.0.0</version>
+            <scope>provided</scope>
+        </dependency>
+        <!-- Source: https://mvnrepository.com/artifact/net.md-5/bungeecord-api -->
+        <dependency>
+            <groupId>net.md-5</groupId>
+            <artifactId>bungeecord-api</artifactId>
+            <version>1.16-R0.2</version>
             <scope>provided</scope>
         </dependency>
     </dependencies>

@@ -10,7 +10,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * <ul>
  *   <li>每台子服 onEnable 时<b>自注册</b>本服标签（保证单服即可验证）；</li>
  *   <li>经 {@code httpproxy:discovery} 通道的 BungeeCord Forward(ALL) 广播，各服会收集到<b>其他子服</b>的标签，
- *       形成全网联视图，满足“获取并与 Bot 通讯”——按 serverName 即可取得目标服的 botName/host/port 用于转发/回程。</li>
+ *       形成全网联视图，按 serverName 即可取得目标服的 host/port 用于转发/回程。</li>
  * </ul>
  */
 public class ServerRegistry {

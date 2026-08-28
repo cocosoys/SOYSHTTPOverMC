@@ -2,10 +2,9 @@ package com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.bridge.spi
 
 import com.github.cocosoys.mc.soyshttpovermc.HttpOverMcPlugin;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.bridge.AuthLoginBridge;
-import com.github.cocosoys.mc.soyshttpovermc.web.http.handler.bot.manager.BotManager;
 
 /**
- * 登录插件提供者的运行上下文：提供插件实例 / 登录桥 / Bot 管理器等访问入口，
+ * 登录插件提供者的运行上下文：提供插件实例 / 登录桥等访问入口，
  * 避免 SPI 实现直接依赖 {@link HttpOverMcPlugin} 具体类（解耦 + 便于测试/文档化）。
  *
  * <p>由 {@link HttpOverMcPlugin} 在 onEnable 创建一次并交给 {@link LoginProviderFactory} 持有，
@@ -37,11 +36,5 @@ public class LoginProviderContext {
     /** MC 服务器端口（HTTP 链接构造用）。 */
     public int getMcPort() {
         return plugin.getDelegate().getMcPort();
-    }
-
-    /** 是否为受管隧道 Bot（免登录热装填的判定目标）。 */
-    public boolean isManagedBot(String playerName) {
-        BotManager bm = plugin.getBotManager();
-        return bm != null && bm.isManagedBot(playerName);
     }
 }

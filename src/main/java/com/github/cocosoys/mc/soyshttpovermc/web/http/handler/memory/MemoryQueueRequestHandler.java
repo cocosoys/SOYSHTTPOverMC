@@ -1,6 +1,5 @@
 package com.github.cocosoys.mc.soyshttpovermc.web.http.handler.memory;
 
-import com.github.cocosoys.mc.soyshttpovermc.proxy.ServerRegistry;
 import com.github.cocosoys.mc.soyshttpovermc.util.HttpFrames;
 import com.github.cocosoys.mc.soyshttpovermc.web.WebFrontendHandler;
 import com.github.cocosoys.mc.soyshttpovermc.web.http.AbstractHttpRequestHandler;
@@ -16,10 +15,10 @@ import java.util.concurrent.Executors;
 /**
  * 内存队列模式：请求提交到有界 ArrayBlockingQueue，worker 线程从队列取任务处理。
  *
- * <p>类似于 RequestScheduler 的工作模式，但不经过 Bot 隧道。请求被封装为 Task 提交到队列，
+ * <p>请求被封装为 Task 提交到队列，
  * worker 线程（默认 4 个）从队列取任务，调用 WebFrontendHandler.handle()，通过 CompletableFuture 返回结果。
  *
- * <p>延迟略高于 Netty EventLoop 模式（~2-5ms），但支持背压（队列满时返回 503），适用于高并发场景。支持跨服路由。</p>
+ * <p>延迟略高于 Netty EventLoop 模式（~2-5ms），但支持背压（队列满时返回 503），适用于高并发场景。</p>
  */
 public class MemoryQueueRequestHandler extends AbstractHttpRequestHandler {
 
@@ -44,13 +43,12 @@ public class MemoryQueueRequestHandler extends AbstractHttpRequestHandler {
         }
     }
 
-    public MemoryQueueRequestHandler(WebFrontendHandler web, ServerRegistry registry, String localServerName) {
-        this(web, registry, localServerName, 1024, 4);
+    public MemoryQueueRequestHandler(WebFrontendHandler web) {
+        this(web, 1024, 4);
     }
 
-    public MemoryQueueRequestHandler(WebFrontendHandler web, ServerRegistry registry,
-                                       String localServerName, int queueCapacity, int workerThreads) {
-        super(web, registry, localServerName);
+    public MemoryQueueRequestHandler(WebFrontendHandler web, int queueCapacity, int workerThreads) {
+        super(web);
         this.queue = new ArrayBlockingQueue<>(Math.max(1, queueCapacity));
         this.workers = Executors.newFixedThreadPool(Math.max(1, workerThreads), r -> {
             Thread t = new Thread(r, "HTTP-Over-MC-Queue-Worker");

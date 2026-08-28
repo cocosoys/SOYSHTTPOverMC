@@ -12,7 +12,7 @@ import java.util.List;
  */
 public interface IStatusService extends IBaseService<StatusEntity> {
 
-    /** 组装完整隧道状态实体：在线 / 端口 / Bot / 运行时长 / 请求计数 / 延迟 / 近期请求 */
+    /** 组装完整隧道状态实体：在线 / 端口 / 运行时长 / 请求计数 / 延迟 / 近期请求 */
     StatusEntity getStatus();
 
     /** 近期请求快照（轻量，供探测/调试复用） */

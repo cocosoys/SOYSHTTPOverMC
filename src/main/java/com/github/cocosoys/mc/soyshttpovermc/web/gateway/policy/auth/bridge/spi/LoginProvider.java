@@ -5,7 +5,7 @@ import org.bukkit.configuration.ConfigurationSection;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.bridge.AuthLoginBridge;
 
 /**
- * 登录插件提供者抽象（SPI）：把"账号密码校验 / Bot 免登录 / 玩家登录事件"统一抽象，
+ * 登录插件提供者抽象（SPI）：把"账号密码校验 / 玩家登录事件"统一抽象，
  * 快速接入任意登录插件（AuthMe、XAuth、nLogin、自有注册表等）。
  *
  * <p><b>接入新登录插件 = 实现本接口并注册到 {@link LoginProviderFactory}</b>，
@@ -19,9 +19,7 @@ import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.bridge.Auth
  *       与初始化底层句柄（如 AuthMe 的 DataSource/PasswordSecurity 反射），并<b>幂等</b>；</li>
  *   <li>{@link #verifyPassword(String, String)}：<b>纯账号密码校验，不得要求玩家在线</b>
  *       （离线网页登录依赖它）——实现应从数据库取 hash 做纯比对，而非依赖在线缓存/单例；</li>
- *   <li>{@link #addUnrestricted(String)} / {@link #removeUnrestricted(String)}：隧道 Bot 免登录
- *       （Bot 进服自动装填、退出自动移除），不写登录插件配置文件；不支持返回 false；</li>
- *   <li>{@link #shutdown()}：插件卸载清理（如移除全部 Bot 免登录名单）。</li>
+ *   <li>{@link #shutdown()}：插件卸载清理。</li>
  * </ul>
  *
  * <p>软依赖约定：实现类若引用登录插件类型（如 {@code fr.xephi.authme.*}），必须<b>延迟加载</b>——
@@ -47,16 +45,6 @@ public interface LoginProvider {
      */
     boolean verifyPassword(String playerName, String password);
 
-    /** Bot 免登录热装填：把指定 Bot 名加入免登录名单（内存态，不写配置文件）。返回 false=不支持。 */
-    default boolean addUnrestricted(String playerName) {
-        return false;
-    }
-
-    /** Bot 免登录移除：把指定 Bot 名移出免登录名单。返回 false=不支持。 */
-    default boolean removeUnrestricted(String playerName) {
-        return false;
-    }
-
     /**
      * 从 {@code gateway/providers/<name>.yml} 加载自定义配置。
      * 每个 auth 实现必须完成自己的 config.yml 配置，以便对不同类型的登录插件进行更高度的自定义。
@@ -74,7 +62,7 @@ public interface LoginProvider {
     default void init(LoginProviderContext context) {
     }
 
-    /** 插件卸载清理（移除全部免登录名单等）。 */
+    /** 插件卸载清理。 */
     default void shutdown() {
     }
 

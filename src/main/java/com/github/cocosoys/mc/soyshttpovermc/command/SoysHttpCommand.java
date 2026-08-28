@@ -27,7 +27,6 @@ import com.github.cocosoys.mc.soyshttpovermc.util.StringListUtil;
  * <ul>
  *   <li>{@code reload} —— 热重载配置与网关；</li>
  *   <li>{@code key <subject>} —— 为指定主体下发最高权限凭证；</li>
- *   <li>{@code reconnect} —— 主 Bot 重新连接；</li>
  *   <li>{@code send <url|/page> [显示文字] [玩家]} —— 向玩家发送可点击链接；</li>
  *   <li>{@code pages} —— 查看已注册的界面（默认仅 .html 页 + 跳转；{@code pages all} 含全部资源/脚本）；</li>
  *   <li>{@code api} —— 查看已注册的注解式 API 端点（方法/路径/owner/权限）；</li>
@@ -53,7 +52,6 @@ public class SoysHttpCommand implements CommandExecutor, TabCompleter {
         registerSubCommand(new ReportSubCommand(plugin));
         registerSubCommand(new ReloadSubCommand(plugin));
         registerSubCommand(new KeySubCommand(plugin));
-        registerSubCommand(new ReconnectSubCommand(plugin));
         registerSubCommand(new SendSubCommand(plugin));
         registerSubCommand(new PagesSubCommand(plugin));
         registerSubCommand(new ApiSubCommand(plugin));
