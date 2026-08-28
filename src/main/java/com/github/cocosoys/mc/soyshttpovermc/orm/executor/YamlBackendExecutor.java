@@ -21,6 +21,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 /**
  * YAML 后端执行器（零依赖先行）：实体 ↔ {@code data/&lt;表名&gt;.yml} 文件。

@@ -52,6 +52,7 @@ import com.github.cocosoys.mc.soyshttpovermc.i18n.I18n;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.bridge.AuthLoginBridge;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.bridge.provider.AuthMeLoginProvider;
 import com.github.cocosoys.mc.soyshttpovermc.permission.PlayerPermissionService;
+import com.github.cocosoys.mc.soyshttpovermc.permission.CombinedPermissionService;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.bridge.spi.LoginProviderContext;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.bridge.spi.LoginProviderFactory;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.issuer.CredentialIssuer;
@@ -73,6 +74,8 @@ import java.util.function.Supplier;
 public class HttpOverMcPluginProxy {
 
     private final HttpOverMcPlugin plugin;
+    /** 组合权限服务（多权限插件组合判断，含离线权限查询能力）。 */
+    private volatile CombinedPermissionService combinedPermissionService;
 
     public HttpOverMcPluginProxy(HttpOverMcPlugin plugin) {
         this.plugin = plugin;
@@ -269,9 +272,10 @@ public class HttpOverMcPluginProxy {
         File gatewayDir = ConfigManager.ensureGatewayFiles(plugin);
         rebuildGateway(gatewayDir);
         if (plugin.getApiRegistry() != null) {
-            PlayerPermissionService pps = new PlayerPermissionService(plugin.getGateway());
-            plugin.getApiRegistry().setPermissionService(pps);
-            plugin.getApiRegistry().setPlayerResolver(pps::subjectOf);
+            CombinedPermissionService cps = new CombinedPermissionService(plugin, plugin.getGateway());
+            this.combinedPermissionService = cps;
+            plugin.getApiRegistry().setPermissionService(cps);
+            plugin.getApiRegistry().setPlayerResolver(cps::subjectOf);
         }
         setupAuthIntegration();
         if (plugin.getAuthService() != null) {
@@ -457,9 +461,10 @@ public class HttpOverMcPluginProxy {
 
         plugin.setApiRegistry(new ApiRegistry(plugin));
         plugin.getApiRegistry().setPathPrefix(apiPrefix);
-        PlayerPermissionService pps = new PlayerPermissionService(plugin.getGateway());
-        plugin.getApiRegistry().setPermissionService(pps);
-        plugin.getApiRegistry().setPlayerResolver(pps::subjectOf);
+        CombinedPermissionService cps = new CombinedPermissionService(plugin, plugin.getGateway());
+        this.combinedPermissionService = cps;
+        plugin.getApiRegistry().setPermissionService(cps);
+        plugin.getApiRegistry().setPlayerResolver(cps::subjectOf);
         if (plugin.getAuthLoginBridge() != null) {
             plugin.getApiRegistry().setTokenUpgrader(plugin.getAuthLoginBridge()::upgradeHeadersIfOnline);
         }

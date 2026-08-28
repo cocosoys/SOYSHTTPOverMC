@@ -48,6 +48,11 @@ public class StorageManager {
     /** 串行写入线程，保证写顺序 */
     private ExecutorService writeExecutor;
 
+    /** 当前数据 schema 版本：升级时表结构变更需递增此版本号并在 migrateSchema() 中添加迁移逻辑。 */
+    private static final int SCHEMA_VERSION = 1;
+    /** 存储 schema 版本号的特殊 key（SyncRecord 的 key 字段）。 */
+    private static final String SCHEMA_VERSION_KEY = "_meta:schema_version";
+
     public StorageManager(JavaPlugin plugin) {
         this.plugin = plugin;
     }
@@ -103,6 +108,9 @@ public class StorageManager {
                     + "但主存储并非 MySQL，多实例将无法共享数据！请在所有实例的 config.yml 中"
                     + "将 storage.backends.mysql.enabled 设为 true 并指向同一数据库。");
         }
+
+        // Schema 版本检查与迁移（升级时表结构变更需递增 SCHEMA_VERSION 并在 migrateSchema() 中添加迁移逻辑）
+        checkAndMigrateSchema();
 
         log.infoT("log.storage.primary", "主存储: {0}{1}",
                 primary.getType().getDisplayName(),
@@ -198,6 +206,64 @@ public class StorageManager {
             default:
                 return null;
         }
+    }
+
+    /**
+     * Schema 版本检查与迁移：读取主存储中记录的 schema_version，与当前 SCHEMA_VERSION 比较。
+     * <ul>
+     *   <li>旧版本 → 新版本：执行 migrateSchema(from, to) 迁移逻辑，然后更新版本号；</li>
+     *   <li>新版本 → 旧版本（降级）：打印警告，不执行迁移（数据可能不兼容）；</li>
+     *   <li>无版本记录（首次启动）：直接写入当前版本号。</li>
+     * </ul>
+     * 升级时表结构变更需递增 SCHEMA_VERSION 并在 migrateSchema() 中添加对应迁移逻辑。
+     */
+    private void checkAndMigrateSchema() {
+        try {
+            int storedVersion = 0;
+            SyncRecord meta = primary.load(SCHEMA_VERSION_KEY);
+            if (meta != null && meta.getData() != null) {
+                try {
+                    storedVersion = Integer.parseInt(meta.getData());
+                } catch (NumberFormatException ignored) {
+                }
+            }
+            if (storedVersion == SCHEMA_VERSION) {
+                return; // 版本一致，无需迁移
+            }
+            if (storedVersion == 0) {
+                // 首次启动，直接写入当前版本号
+                primary.save(new SyncRecord(SCHEMA_VERSION_KEY, "_meta", String.valueOf(SCHEMA_VERSION)));
+                log.infoT("log.storage.schema-version-init",
+                        "[Storage] 初始化 schema_version={0}", SCHEMA_VERSION);
+                return;
+            }
+            if (storedVersion > SCHEMA_VERSION) {
+                // 降级（数据来自更高版本），打印警告，不执行迁移
+                log.warnT("log.storage.schema-version-downgrade",
+                        "[Storage] 警告：数据 schema_version={0} 高于当前版本 {1}，可能存在不兼容！",
+                        storedVersion, SCHEMA_VERSION);
+                return;
+            }
+            // 升级：执行迁移逻辑
+            log.infoT("log.storage.schema-version-migrating",
+                    "[Storage] 正在迁移数据 schema: {0} → {1} ...", storedVersion, SCHEMA_VERSION);
+            migrateSchema(storedVersion, SCHEMA_VERSION);
+            primary.save(new SyncRecord(SCHEMA_VERSION_KEY, "_meta", String.valueOf(SCHEMA_VERSION)));
+            log.infoT("log.storage.schema-version-migrated",
+                    "[Storage] 数据 schema 迁移完成: {0} → {1}", storedVersion, SCHEMA_VERSION);
+        } catch (Exception e) {
+            log.warnT("log.storage.schema-version-check-fail",
+                    "[Storage] Schema 版本检查失败: {0}", e.getMessage());
+        }
+    }
+
+    /**
+     * 执行 schema 迁移逻辑（from → to）。升级时表结构变更需在此方法中添加对应迁移分支。
+     * 当前版本无表结构变更，此方法为空实现；未来升级时按版本号递增添加迁移逻辑。
+     */
+    private void migrateSchema(int from, int to) {
+        // 示例：if (from < 2 && to >= 2) { /* v1→v2 迁移逻辑 */ }
+        // 当前 SCHEMA_VERSION=1，无迁移逻辑
     }
 
     private void startKeepAliveTask() {

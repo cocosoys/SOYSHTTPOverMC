@@ -12,6 +12,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * 会话令牌颁发器（{@link CredentialIssuer} 参考实现）。
@@ -39,10 +40,14 @@ public class SessionTokenIssuer extends CredentialIssuer {
     private long ttlMillis = 24L * 3600 * 1000;
     /** JWT HMAC 密钥（外部注入，持久化于 data/token-secret.key）。 */
     private volatile byte[] secret = new byte[0];
-    /** 已注销令牌的 jti 黑名单（退出登录后即使 JWT 未过期也不可用；reload/重启清空）。 */
-    private final Set<String> revoked = ConcurrentHashMap.newKeySet();
+    /** 已注销令牌的 jti 黑名单（退出登录后即使 JWT 未过期也不可用；reload/重启清空）。
+     *  key=jti, value=撤销时间戳，用于过期清理（超过 2*ttl 后令牌必然已过期，可安全移除）。 */
+    private final Map<String, Long> revoked = new ConcurrentHashMap<>();
     /** 颁发登记表（subject → 签发记录；仅审计展示用，惰性清理过期记录）。 */
     private final Map<String, List<IssuedRecord>> issued = new ConcurrentHashMap<>();
+    /** 颁发计数：每 ISSUE_CLEANUP_INTERVAL 次颁发触发一次过期清理，避免登记表和黑名单无限增长。 */
+    private static final long ISSUE_CLEANUP_INTERVAL = 500L;
+    private final AtomicLong issueCount = new AtomicLong(0);
     /** 跨服同步存储（MySQL 等；null=纯内存模式）：黑名单/审计双写+查询。 */
     private volatile SyncStorage syncStorage = null;
     /** 本服标识（写库记录来源服，防双服冲突；由宿主注入）。 */
@@ -151,7 +156,7 @@ public class SessionTokenIssuer extends CredentialIssuer {
 
     /** 本服内存黑名单 + 跨服共享黑名单（存储后端）联合判定；存储查询带命中缓存。 */
     private boolean isRevoked(String jti) {
-        if (revoked.contains(jti)) return true;
+        if (revoked.containsKey(jti)) return true;
         SyncStorage s = syncStorage;
         return s != null && s.isAvailable() && s.isTokenRevoked(jti);
     }
@@ -224,7 +229,7 @@ public class SessionTokenIssuer extends CredentialIssuer {
     public boolean revoke(String token) {
         JwtCodec.Payload payload = parseToken(token);
         if (payload == null || payload.jti == null) return false;
-        revoked.add(payload.jti);
+        revoked.put(payload.jti, System.currentTimeMillis());
         markRevoked(payload.jti);
         SyncStorage s = syncStorage;
         if (s != null && s.isAvailable()) {
@@ -282,6 +287,10 @@ public class SessionTokenIssuer extends CredentialIssuer {
         long now = System.currentTimeMillis();
         issued.computeIfAbsent(subject, k -> new CopyOnWriteArrayList<>())
                 .add(new IssuedRecord(subject, mode, admin, now, now + ttlMillis, jti));
+        // 每 ISSUE_CLEANUP_INTERVAL 次颁发触发一次过期清理，避免登记表和黑名单无限增长
+        if (issueCount.incrementAndGet() % ISSUE_CLEANUP_INTERVAL == 0) {
+            cleanupExpired();
+        }
         // 跨服审计：同步写库（append-only；失败降级不影响签发）
         SyncStorage s = syncStorage;
         if (s != null && s.isAvailable()) {
@@ -289,6 +298,28 @@ public class SessionTokenIssuer extends CredentialIssuer {
                 s.recordIssued(serverId, subject, mode, admin, jti, now, now + ttlMillis);
             } catch (Throwable ignored) {
             }
+        }
+    }
+
+    /** 清理过期的颁发记录和已撤销黑名单（超过 2*ttl 后令牌必然已过期，可安全移除）。 */
+    private void cleanupExpired() {
+        long now = System.currentTimeMillis();
+        long revokeExpireThreshold = now - 2L * ttlMillis;
+        // 清理已过期的黑名单 jti（撤销时间超过 2*ttl，令牌必然已过期）
+        Iterator<Map.Entry<String, Long>> revIt = revoked.entrySet().iterator();
+        while (revIt.hasNext()) {
+            Map.Entry<String, Long> e = revIt.next();
+            if (e.getValue() != null && e.getValue() < revokeExpireThreshold) {
+                revIt.remove();
+            }
+        }
+        // 清理已过期的颁发记录
+        Iterator<Map.Entry<String, List<IssuedRecord>>> it = issued.entrySet().iterator();
+        while (it.hasNext()) {
+            Map.Entry<String, List<IssuedRecord>> e = it.next();
+            List<IssuedRecord> list = e.getValue();
+            list.removeIf(r -> !r.revoked && r.expiresAt < now);
+            if (list.isEmpty()) it.remove();
         }
     }
 

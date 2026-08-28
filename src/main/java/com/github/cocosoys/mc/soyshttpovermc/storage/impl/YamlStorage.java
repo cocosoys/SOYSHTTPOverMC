@@ -17,12 +17,13 @@ import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 /**
  * YAML 文件存储后端：
  * 零外部依赖，默认启用；所有记录写在 {@code storage.backends.yaml.file} 指定<b>文件夹</b>下的
  * {@code records.yml}（默认 data/records.yml）的 {@code records: {key: {type, data, updated_at}}}
- * 节点下，对象锁保证并发安全。
+ * 节点下，读写分离锁保证并发安全（读共享、写独占）。
  * <p>{@code file} 现在表示<b>存放各类 yml 表的文件夹</b>（KV 记录文件 records.yml + ORM 各实体表
  * 同处一目录），兼容旧式 {@code file: data/records.yml} 写法（取其父目录作为存储文件夹）。</p>
  */
@@ -35,11 +36,12 @@ public class YamlStorage implements DataStorage {
     private static final String RECORDS_FILE = "records.yml";
 
     private final JavaPlugin plugin;
-    private final Object lock = new Object();
+    /** 读写分离锁：读操作共享读锁（并发读不阻塞），写操作独占写锁。 */
+    private final ReentrantReadWriteLock rwLock = new ReentrantReadWriteLock();
 
     private File file;
     private YamlConfiguration config;
-    private boolean available = false;
+    private volatile boolean available = false;
     private boolean backupOnSave = false;
 
     public YamlStorage(JavaPlugin plugin) {
@@ -92,18 +94,22 @@ public class YamlStorage implements DataStorage {
         if (!file.exists() && !file.createNewFile()) {
             throw new IOException(I18n.t("exception.storage.create-data-file", "无法创建数据文件: {0}", file.getAbsolutePath()));
         }
-        synchronized (lock) {
+        rwLock.writeLock().lock();
+        try {
             this.config = YamlConfiguration.loadConfiguration(file);
             if (!config.isConfigurationSection(ROOT)) {
                 config.createSection(ROOT);
             }
+        } finally {
+            rwLock.writeLock().unlock();
         }
         this.available = true;
     }
 
     @Override
     public void shutdown() {
-        synchronized (lock) {
+        rwLock.writeLock().lock();
+        try {
             try {
                 if (config != null && file != null) {
                     config.save(file);
@@ -113,6 +119,8 @@ public class YamlStorage implements DataStorage {
                 "[YAML] 关闭时保存失败: {0}", e.getMessage());
             }
             available = false;
+        } finally {
+            rwLock.writeLock().unlock();
         }
     }
 
@@ -130,15 +138,19 @@ public class YamlStorage implements DataStorage {
 
     @Override
     public SyncRecord load(String key) throws Exception {
-        synchronized (lock) {
+        rwLock.readLock().lock();
+        try {
             ConfigurationSection section = config.getConfigurationSection(ROOT + "." + key);
             return section == null ? null : deserialize(key, section);
+        } finally {
+            rwLock.readLock().unlock();
         }
     }
 
     @Override
     public Collection<SyncRecord> loadAll() {
-        synchronized (lock) {
+        rwLock.readLock().lock();
+        try {
             Collection<SyncRecord> records = new ArrayList<>();
             ConfigurationSection root = config.getConfigurationSection(ROOT);
             if (root == null) {
@@ -154,14 +166,19 @@ public class YamlStorage implements DataStorage {
                 }
             }
             return records;
+        } finally {
+            rwLock.readLock().unlock();
         }
     }
 
     @Override
     public int count() {
-        synchronized (lock) {
+        rwLock.readLock().lock();
+        try {
             ConfigurationSection root = config.getConfigurationSection(ROOT);
             return root == null ? 0 : root.getKeys(false).size();
+        } finally {
+            rwLock.readLock().unlock();
         }
     }
 
@@ -169,36 +186,48 @@ public class YamlStorage implements DataStorage {
 
     @Override
     public void save(SyncRecord record) throws Exception {
-        synchronized (lock) {
+        rwLock.writeLock().lock();
+        try {
             serialize(record);
             flush();
+        } finally {
+            rwLock.writeLock().unlock();
         }
     }
 
     @Override
     public void saveAll(Collection<SyncRecord> records) throws Exception {
-        synchronized (lock) {
+        rwLock.writeLock().lock();
+        try {
             for (SyncRecord record : records) {
                 serialize(record);
             }
             flush();
+        } finally {
+            rwLock.writeLock().unlock();
         }
     }
 
     @Override
     public void delete(String key) throws Exception {
-        synchronized (lock) {
+        rwLock.writeLock().lock();
+        try {
             config.set(ROOT + "." + key, null);
             flush();
+        } finally {
+            rwLock.writeLock().unlock();
         }
     }
 
     @Override
     public void clear() throws Exception {
-        synchronized (lock) {
+        rwLock.writeLock().lock();
+        try {
             config.set(ROOT, null);
             config.createSection(ROOT);
             flush();
+        } finally {
+            rwLock.writeLock().unlock();
         }
     }
 

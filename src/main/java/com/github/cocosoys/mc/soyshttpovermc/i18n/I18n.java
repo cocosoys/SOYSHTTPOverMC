@@ -79,6 +79,51 @@ public final class I18n {
         ensureDefaultResource(dir, "en_us.yml");
         String c = (code == null || code.isEmpty()) ? System.getProperty("soys.i18n.language", "zh_cn") : code;
         load(c);
+        // 异步预加载网络源到本地缓存，避免后续加载时阻塞主线程
+        asyncPreloadNetworkSources(c);
+    }
+
+    /**
+     * 异步预加载所有网络源到本地缓存（后台线程，不阻塞主线程）。
+     * 预加载成功后，后续 load() 优先走本地缓存，离线可用且不阻塞。
+     */
+    private static void asyncPreloadNetworkSources(String code) {
+        List<LanguageSource> sources = languageSources;
+        if (sources == null || sources.isEmpty()) return;
+        boolean hasUrl = false;
+        for (LanguageSource s : sources) {
+            if (s.isUrl() && s.enabled() && s.appliesToLanguage(code)) {
+                hasUrl = true;
+                break;
+            }
+        }
+        if (!hasUrl) return;
+        Thread t = new Thread(() -> {
+            try {
+                for (int i = 0; i < sources.size(); i++) {
+                    LanguageSource s = sources.get(i);
+                    if (s.isUrl() && s.enabled() && s.appliesToLanguage(code)) {
+                        File cache = networkLangFile(s.name(), code);
+                        if (cache != null && !cache.isFile()) {
+                            String text = s.fetchText(code);
+                            if (text != null && !text.isEmpty()) {
+                                cache.getParentFile().mkdirs();
+                                java.nio.file.Files.write(cache.toPath(),
+                                        text.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                                log.infoT("log.i18n.network-preloaded",
+                                        "[i18n] 网络语言源已异步预加载到本地缓存: {0} ({1} 字节)",
+                                        s.name(), text.length());
+                            }
+                        }
+                    }
+                }
+            } catch (Throwable e) {
+                log.warnT("log.i18n.network-preload-fail",
+                        "[i18n] 网络语言源异步预加载异常: {0}", e.getMessage());
+            }
+        }, "I18n-NetworkPreloader");
+        t.setDaemon(true);
+        t.start();
     }
 
     /** 加载默认作用域的语言包（磁盘 {@code language/<code>.yml} + 已注册的额外语言源，按当前策略合并）。 */

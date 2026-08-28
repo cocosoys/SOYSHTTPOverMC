@@ -7,9 +7,11 @@ import com.github.cocosoys.mc.soyshttpovermc.web.gateway.SecurityPolicy;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * API/网页访问限制器策略：按多条规则分别限流，每条规则以 {@code scope}（ip | key | path）
@@ -29,6 +31,11 @@ public class AccessLimiterPolicy extends SecurityPolicy {
 
     private final List<Rule> rules = new ArrayList<>();
     private final ConcurrentHashMap<String, Counter> counters = new ConcurrentHashMap<>();
+    /** 访问计数：每 CLEANUP_INTERVAL 次访问触发一次过期清理，避免计数器无限增长。 */
+    private static final long CLEANUP_INTERVAL = 1000L;
+    private final AtomicLong accessCount = new AtomicLong(0);
+    /** 过期阈值：超过 2 个最大窗口时间未访问的计数器将被清理（避免活跃计数器被误删）。 */
+    private static final long EXPIRE_THRESHOLD_MILLIS = 2 * 3600 * 1000L;
 
     @Override
     public String name() {
@@ -69,12 +76,29 @@ public class AccessLimiterPolicy extends SecurityPolicy {
 
     @Override
     public PolicyResult check(GatewayContext ctx) {
+        // 每 CLEANUP_INTERVAL 次访问触发一次过期清理，避免计数器内存泄漏
+        if (accessCount.incrementAndGet() % CLEANUP_INTERVAL == 0) {
+            cleanupExpiredCounters();
+        }
         // 每条规则独立限流；任一规则达到上限即拒绝
         for (int i = 0; i < rules.size(); i++) {
             PolicyResult res = rules.get(i).check(i, ctx, counters);
             if (!res.isAllow()) return res;
         }
         return PolicyResult.ALLOW;
+    }
+
+    /** 清理超过 EXPIRE_THRESHOLD_MILLIS 未访问的过期计数器，防止长期运行后内存无限增长。 */
+    private void cleanupExpiredCounters() {
+        long now = System.currentTimeMillis();
+        Iterator<Map.Entry<String, Counter>> it = counters.entrySet().iterator();
+        while (it.hasNext()) {
+            Map.Entry<String, Counter> entry = it.next();
+            Counter c = entry.getValue();
+            if (c != null && now - c.lastAccessTime > EXPIRE_THRESHOLD_MILLIS) {
+                it.remove();
+            }
+        }
     }
 
     private static String stringOf(Object v) {
@@ -119,6 +143,7 @@ public class AccessLimiterPolicy extends SecurityPolicy {
             Counter c = counters.computeIfAbsent(key, k -> new Counter());
             synchronized (c) {
                 long now = System.currentTimeMillis();
+                c.lastAccessTime = now;
                 // 被动刷新：窗口已过则重置计数与窗口起点
                 if (now - c.windowStart >= windowMillis) {
                     c.windowStart = now;
@@ -154,9 +179,10 @@ public class AccessLimiterPolicy extends SecurityPolicy {
         }
     }
 
-    /** 单一限流计数单元：固定窗口 + 命中次数。 */
+    /** 单一限流计数单元：固定窗口 + 命中次数 + 最后访问时间（用于过期清理）。 */
     private static final class Counter {
         long count = 0;
         long windowStart = System.currentTimeMillis();
+        volatile long lastAccessTime = System.currentTimeMillis();
     }
 }

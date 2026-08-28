@@ -1,7 +1,6 @@
 package com.github.cocosoys.mc.soyshttpovermc.proxy;
-import com.github.cocosoys.mc.soyshttpovermc.enums.ProxyPlatform;
-import com.github.cocosoys.mc.soyshttpovermc.log.LogKit;
 
+import com.github.cocosoys.mc.soyshttpovermc.enums.ProxyPlatform;
 import lombok.CustomLog;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.plugin.java.JavaPlugin;

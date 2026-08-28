@@ -191,8 +191,36 @@ final class LanguageSource {
     /**
      * GET 拉取网络文件文本（UTF-8）；失败时<b>告警</b>并返回 {@code null}（保持降级语义）。
      * 告警含来源名称/HTTP 状态/异常原因/URL，便于运维定位网络问题或配置错误。
+     * 支持重试：最多重试 MAX_FETCH_RETRIES 次，每次间隔 RETRY_INTERVAL_MS 毫秒。
      */
+    private static final int MAX_FETCH_RETRIES = 2;
+    private static final long RETRY_INTERVAL_MS = 1000L;
+
     private String fetch(String urlString) {
+        for (int attempt = 0; attempt <= MAX_FETCH_RETRIES; attempt++) {
+            if (attempt > 0) {
+                try {
+                    Thread.sleep(RETRY_INTERVAL_MS);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    return null;
+                }
+            }
+            String result = fetchOnce(urlString);
+            if (result != null) {
+                return result;
+            }
+            if (attempt < MAX_FETCH_RETRIES) {
+                log.infoT("log.i18n.fetch-retry",
+                        "[i18n] 语言源 {0} 网络拉取失败，正在重试 ({1}/{2}): {3}",
+                        name, attempt + 1, MAX_FETCH_RETRIES, urlString);
+            }
+        }
+        return null;
+    }
+
+    /** 单次网络拉取（无重试）。 */
+    private String fetchOnce(String urlString) {
         HttpURLConnection conn = null;
         try {
             URL u = new URL(urlString);

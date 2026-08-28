@@ -50,6 +50,8 @@ public class WebRegistry {
     private final Map<String, Entry> parameterizedPages = new ConcurrentHashMap<>();
     /** 网络文件/网络网页页面：key = "<METHOD> <路径>"（NetworkPage 抽象，按需 load） */
     private final Map<String, RegisteredNetworkPage> networkPages = new ConcurrentHashMap<>();
+    /** 昵称路由索引：key = 昵称路径（规范化后），value = 登记项。注册时构建，O(1) 匹配，避免遍历全部页面。 */
+    private final Map<String, Entry> nicknameIndex = new ConcurrentHashMap<>();
     /** 宿主插件名（SOYSHTTPOverMC 本体）：其登记不加 /plugins 前缀 */
     private final String hostName;
 
@@ -222,6 +224,21 @@ public class WebRegistry {
             return false;
         }
         table.put(key, e);
+        // 构建昵称路由索引（O(1) 匹配，避免 resolveFull 时遍历全部页面）
+        if (e.nicknames != null && !e.nicknames.isEmpty()) {
+            for (String nickname : e.nicknames) {
+                if (nickname == null || nickname.trim().isEmpty()) continue;
+                String a = nickname.startsWith("/") ? nickname : "/" + nickname;
+                a = a.replace('\\', '/');
+                nicknameIndex.put(a, e);
+                // .html 后缀智能匹配：同时索引带 .html 和不带 .html 的形式
+                if (a.indexOf('.') < 0) {
+                    nicknameIndex.put(a + ".html", e);
+                } else if (a.endsWith(".html") && a.length() > 5) {
+                    nicknameIndex.put(a.substring(0, a.length() - 5), e);
+                }
+            }
+        }
         if (old != null) {
             log.infoT("log.web.register-force-overwrite", "插件 {0} 强制登记覆盖: {1}（原登记插件 {2}）", e.ownerPlugin, key, old.ownerPlugin);
         }
@@ -440,18 +457,16 @@ public class WebRegistry {
         // 2) 参数化路由匹配（{name} 占位符段，按段比对）
         ResolveResult pr = matchParameterized(parameterizedPages, method, cleanPath);
         if (pr != null) return pr;
-        // 3) 昵称路由（扫描全部登记项，避免别名表与主表不一致）
-        for (Entry en : pages.values()) {
-            if (en.nicknames == null || en.nicknames.isEmpty()) continue;
-            for (String nickname : en.nicknames) {
-                if (nickname == null || nickname.trim().isEmpty()) continue;
-                String a = nickname.startsWith("/") ? nickname : "/" + nickname;
-                a = a.replace('\\', '/');
-                if (a.equals(cleanPath)) return new ResolveResult(en, java.util.Collections.emptyMap());
-                if (cleanPath.indexOf('.') < 0 && a.equals(cleanPath + ".html")) return new ResolveResult(en, java.util.Collections.emptyMap());
-                if (cleanPath.endsWith(".html") && cleanPath.length() > 5
-                        && a.equals(cleanPath.substring(0, cleanPath.length() - 5))) return new ResolveResult(en, java.util.Collections.emptyMap());
-            }
+        // 3) 昵称路由（O(1) 索引查找，注册时已构建 nicknameIndex）
+        Entry ne = nicknameIndex.get(cleanPath);
+        if (ne != null) return new ResolveResult(ne, java.util.Collections.emptyMap());
+        // .html 后缀智能匹配（路径无扩展名时尝试 +.html，带 .html 时尝试去后缀）
+        if (cleanPath.indexOf('.') < 0) {
+            ne = nicknameIndex.get(cleanPath + ".html");
+            if (ne != null) return new ResolveResult(ne, java.util.Collections.emptyMap());
+        } else if (cleanPath.endsWith(".html") && cleanPath.length() > 5) {
+            ne = nicknameIndex.get(cleanPath.substring(0, cleanPath.length() - 5));
+            if (ne != null) return new ResolveResult(ne, java.util.Collections.emptyMap());
         }
         return null;
     }
