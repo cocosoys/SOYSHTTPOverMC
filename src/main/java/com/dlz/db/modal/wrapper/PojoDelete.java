@@ -10,7 +10,7 @@ import com.dlz.db.modal.para.APojoQuery;
  *
  * @author dk
  */
-public class PojoDelete<T> extends APojoQuery<PojoDelete<T>,T, TableDelete> implements
+public class PojoDelete<T> extends APojoQuery<PojoDelete<T>, T, TableDelete> implements
         ISqlQuery<PojoDelete<T>>,
         ICondAddByLamda<PojoDelete<T>, T>,
         IExecutorDelete<PojoDelete<T>> {
@@ -38,7 +38,7 @@ public class PojoDelete<T> extends APojoQuery<PojoDelete<T>,T, TableDelete> impl
         return this;
     }
 
-    public int deletePhysical(){
+    public int deletePhysical() {
         return this.ignoreLogicDelete(true).execute();
     }
 }

@@ -7,11 +7,7 @@ import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.issuer.Cred
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.SecureRandom;
-import java.util.Base64;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 /**
  * 鉴权工具类：集中提供凭证头解析、Cookie 解析、路径匹配、常量时间比较与令牌生成，
@@ -26,7 +22,9 @@ public final class AuthUtils {
 
     // ===== 凭证头解析 =====
 
-    /** 从 Authorization 头提取 Bearer token；不是 Bearer 或无值返回 null。 */
+    /**
+     * 从 Authorization 头提取 Bearer token；不是 Bearer 或无值返回 null。
+     */
     public static String extractBearer(String authorization) {
         if (authorization == null) return null;
         String t = authorization.trim();
@@ -37,7 +35,9 @@ public final class AuthUtils {
         return null;
     }
 
-    /** 从 Authorization 头提取 Basic 用户名/密码；返回 [user, pass]，非 Basic 返回 null。 */
+    /**
+     * 从 Authorization 头提取 Basic 用户名/密码；返回 [user, pass]，非 Basic 返回 null。
+     */
     public static String[] extractBasic(String authorization) {
         if (authorization == null) return null;
         String t = authorization.trim();
@@ -54,7 +54,9 @@ public final class AuthUtils {
         }
     }
 
-    /** 解析 Cookie 头为 k→v 映射（大小写保留，取值 trim）。 */
+    /**
+     * 解析 Cookie 头为 k→v 映射（大小写保留，取值 trim）。
+     */
     public static Map<String, String> parseCookies(String cookieHeader) {
         if (cookieHeader == null || cookieHeader.isEmpty()) return Collections.emptyMap();
         Map<String, String> cookies = new HashMap<>();
@@ -111,13 +113,13 @@ public final class AuthUtils {
      * 这是「带有效 X-API-Key 可旁路 HTTPS 强制升级」与「未来按权限细分」共用的唯一校验入口。
      */
     public static Credential resolveCredential(Map<String, String> headers,
-                                                String apiKeyHeader,
-                                                boolean acceptHeader,
-                                                boolean acceptBearer,
-                                                boolean acceptBasic,
-                                                boolean acceptCookie,
-                                                java.util.List<CredentialIssuer> issuers,
-                                                Set<String> keys) {
+                                               String apiKeyHeader,
+                                               boolean acceptHeader,
+                                               boolean acceptBearer,
+                                               boolean acceptBasic,
+                                               boolean acceptCookie,
+                                               java.util.List<CredentialIssuer> issuers,
+                                               Set<String> keys) {
         CredentialPresentation p = extractPresentation(headers, apiKeyHeader,
                 acceptHeader, acceptBearer, acceptBasic, acceptCookie);
         // 1) 静态 key：X-API-Key 头 / Bearer / Basic 用户名=key
@@ -145,7 +147,9 @@ public final class AuthUtils {
         return null;
     }
 
-    /** 常量时间匹配任一静态 key */
+    /**
+     * 常量时间匹配任一静态 key
+     */
     private static boolean matchAnyKey(Set<String> keys, String presented) {
         if (keys == null || presented == null) return false;
         for (String k : keys) {
@@ -154,14 +158,18 @@ public final class AuthUtils {
         return false;
     }
 
-    /** 密钥指纹（SHA-256 前 8 位），用于 subject 脱敏，避免日志泄露原始密钥。 */
+    /**
+     * 密钥指纹（SHA-256 前 8 位），用于 subject 脱敏，避免日志泄露原始密钥。
+     */
     private static String fingerprint(String v) {
         if (v == null) return "?";
         String h = sha256Hex(v);
         return h.length() > 8 ? h.substring(0, 8) : h;
     }
 
-    /** 大小写不敏感读取请求头 */
+    /**
+     * 大小写不敏感读取请求头
+     */
     public static String getHeader(Map<String, String> headers, String name) {
         if (headers == null || name == null) return null;
         for (Map.Entry<String, String> e : headers.entrySet()) {
@@ -192,7 +200,9 @@ public final class AuthUtils {
 
     // ===== 安全比较 / 令牌 =====
 
-    /** 常量时间字符串比较，防时序侧信道（用于 key/token 比对）。 */
+    /**
+     * 常量时间字符串比较，防时序侧信道（用于 key/token 比对）。
+     */
     public static boolean constantTimeEquals(String a, String b) {
         if (a == null || b == null) return false;
         int diff = a.length() ^ b.length();
@@ -205,7 +215,9 @@ public final class AuthUtils {
         return diff == 0;
     }
 
-    /** 生成随机 hex 令牌，如 generateToken("st_", 24)。 */
+    /**
+     * 生成随机 hex 令牌，如 generateToken("st_", 24)。
+     */
     public static String generateToken(String prefix, int byteCount) {
         byte[] b = new byte[Math.max(4, byteCount)];
         RANDOM.nextBytes(b);
@@ -214,7 +226,9 @@ public final class AuthUtils {
         return sb.toString();
     }
 
-    /** SHA-256 十六进制摘要（用于日志脱敏/存指纹，不用于密码存储安全场景）。 */
+    /**
+     * SHA-256 十六进制摘要（用于日志脱敏/存指纹，不用于密码存储安全场景）。
+     */
     public static String sha256Hex(String s) {
         try {
             MessageDigest md = MessageDigest.getInstance("SHA-256");

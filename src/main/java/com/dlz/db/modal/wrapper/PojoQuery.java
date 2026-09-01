@@ -52,6 +52,7 @@ public class PojoQuery<T> extends APojoQuery<PojoQuery<T>, T, TableQuery> implem
         }
         return this;
     }
+
     @SuppressWarnings("unchecked")
     public PojoQuery<T> select(DlzFn<T, ?>... columns) {
         if (columns.length > 0) {
@@ -59,6 +60,7 @@ public class PojoQuery<T> extends APojoQuery<PojoQuery<T>, T, TableQuery> implem
         }
         return this;
     }
+
     /**
      * 自动根据map的键值对添加查询条件
      *
@@ -97,6 +99,7 @@ public class PojoQuery<T> extends APojoQuery<PojoQuery<T>, T, TableQuery> implem
         getPm().setPage(page);
         return this;
     }
+
     public T queryBean() {
         return DBHolder.doDb(s -> s.getBean(this, true));
     }

@@ -17,6 +17,8 @@ import java.lang.annotation.Target;
 @Target({ElementType.METHOD, ElementType.TYPE})
 public @interface ApiName {
 
-    /** API 显示名 */
+    /**
+     * API 显示名
+     */
     String value();
 }

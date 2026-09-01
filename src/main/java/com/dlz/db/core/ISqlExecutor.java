@@ -16,7 +16,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
-import java.util.function.Supplier;
 
 /**
  * SQL 执行器抽象：DLZ-DB 核心对 JDBC 操作的顶层接口。
@@ -102,6 +101,7 @@ public interface ISqlExecutor {
     default <T> T getFirstColumn(String sql, Class<T> requiredType, Object... args) {
         return DbConvertUtil.getFirstColumn(getOne(sql, false, args), requiredType);
     }
+
     default int[] batch(String sql, List<Object[]> batchArgs) {
         return doDb(conn -> {
                     try (PreparedStatement ps = conn.prepareStatement(sql)) {
@@ -163,7 +163,7 @@ public interface ISqlExecutor {
             if (e instanceof DbException) {
                 throw (DbException) e;
             }
-            throw new DbException("sql执行错误:"+e.getMessage(), 1001,e);
+            throw new DbException("sql执行错误:" + e.getMessage(), 1001, e);
         } finally {
             if (msg != null) {
                 DbLogUtil.logInfo(msg, t, re, err);

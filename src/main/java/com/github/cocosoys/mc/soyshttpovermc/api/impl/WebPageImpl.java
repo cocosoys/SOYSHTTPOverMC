@@ -1,17 +1,11 @@
 package com.github.cocosoys.mc.soyshttpovermc.api.impl;
 
-import lombok.CustomLog;
-import org.bukkit.plugin.Plugin;
-
 import com.github.cocosoys.mc.soyshttpovermc.api.WebPageApi;
 import com.github.cocosoys.mc.soyshttpovermc.exception.ExceptionBus;
 import com.github.cocosoys.mc.soyshttpovermc.exception.WebPageException;
-import com.github.cocosoys.mc.soyshttpovermc.web.CorsRegistry;
-import com.github.cocosoys.mc.soyshttpovermc.web.LargeFileLoader;
-import com.github.cocosoys.mc.soyshttpovermc.web.LargeFileLoaderRegistry;
-import com.github.cocosoys.mc.soyshttpovermc.web.NetworkPage;
-import com.github.cocosoys.mc.soyshttpovermc.web.NetworkTransport;
-import com.github.cocosoys.mc.soyshttpovermc.web.WebRegistry;
+import com.github.cocosoys.mc.soyshttpovermc.web.*;
+import lombok.CustomLog;
+import org.bukkit.plugin.Plugin;
 
 import java.io.File;
 import java.nio.charset.StandardCharsets;
@@ -28,7 +22,9 @@ public class WebPageImpl implements WebPageApi {
     private final WebRegistry webRegistry;
     private final LargeFileLoaderRegistry largeLoaderRegistry;
     private final CorsRegistry corsRegistry;
-    /** 网络传输提供者（预留：暂不接入加载链路，仅占位存储）。 */
+    /**
+     * 网络传输提供者（预留：暂不接入加载链路，仅占位存储）。
+     */
     private final List<NetworkTransport> networkTransports = new CopyOnWriteArrayList<>();
 
     public WebPageImpl(WebRegistry webRegistry,
@@ -96,7 +92,7 @@ public class WebPageImpl implements WebPageApi {
 
     @Override
     public void registerResource(Plugin owner, String path, String httpMethod, ClassLoader resourceClassLoader, String resourcePath,
-                                  String contentType, boolean force, String description, List<String> nicknames) {
+                                 String contentType, boolean force, String description, List<String> nicknames) {
         try {
             webRegistry.registerResource(owner, path, httpMethod, resourceClassLoader, resourcePath, contentType, force, description, nicknames);
         } catch (Exception ex) {
@@ -152,7 +148,7 @@ public class WebPageImpl implements WebPageApi {
 
     @Override
     public void registerProxyResource(Plugin owner, String path, String httpMethod, ClassLoader resourceClassLoader, String resourcePath,
-                                       String contentType, boolean force, String description, List<String> nicknames) {
+                                      String contentType, boolean force, String description, List<String> nicknames) {
         try {
             webRegistry.registerProxyResource(owner, path, httpMethod, resourceClassLoader, resourcePath, contentType, force, description, nicknames);
         } catch (Exception ex) {

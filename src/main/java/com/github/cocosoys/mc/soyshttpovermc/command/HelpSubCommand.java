@@ -1,9 +1,8 @@
 package com.github.cocosoys.mc.soyshttpovermc.command;
 
-import org.bukkit.command.CommandSender;
-
 import com.github.cocosoys.mc.soyshttpovermc.HttpOverMcPlugin;
 import com.github.cocosoys.mc.soyshttpovermc.i18n.I18n;
+import org.bukkit.command.CommandSender;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -25,7 +24,9 @@ import java.util.Map;
  */
 public class HelpSubCommand extends SubCommand {
 
-    /** 宿主命令执行器（取子指令注册表 + 复用 sendUsage 分页渲染）。 */
+    /**
+     * 宿主命令执行器（取子指令注册表 + 复用 sendUsage 分页渲染）。
+     */
     private final SoysHttpCommand command;
 
     public HelpSubCommand(HttpOverMcPlugin plugin, SoysHttpCommand command) {
@@ -38,7 +39,9 @@ public class HelpSubCommand extends SubCommand {
         return "help";
     }
 
-    /** help 对所有人均可见（含非 op）。 */
+    /**
+     * help 对所有人均可见（含非 op）。
+     */
     @Override
     public boolean requireOp() {
         return false;
@@ -53,11 +56,11 @@ public class HelpSubCommand extends SubCommand {
     public String detail() {
         return I18n.t("command.help.detail",
                 "显示全部子指令总览（分页），或某子指令的详细用法。\n"
-                + "用法：\n"
-                + "  /soyshttp help            列出全部可用子指令（第 1 页）\n"
-                + "  /soyshttp help <页码>     翻页查看（如 /soyshttp help 2）\n"
-                + "  /soyshttp help <子指令>   查看该子指令的参数 / 示例 / 注意事项\n"
-                + "提示：隐藏子指令（仅注册）不会出现在本列表中，但仍可直接 /soyshttp <子指令> 执行。");
+                        + "用法：\n"
+                        + "  /soyshttp help            列出全部可用子指令（第 1 页）\n"
+                        + "  /soyshttp help <页码>     翻页查看（如 /soyshttp help 2）\n"
+                        + "  /soyshttp help <子指令>   查看该子指令的参数 / 示例 / 注意事项\n"
+                        + "提示：隐藏子指令（仅注册）不会出现在本列表中，但仍可直接 /soyshttp <子指令> 执行。");
     }
 
     @Override

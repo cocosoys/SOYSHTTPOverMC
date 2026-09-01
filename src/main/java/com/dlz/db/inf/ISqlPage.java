@@ -19,29 +19,41 @@ import java.util.List;
  *
  * @param <T> 链式返回类型
  */
-public interface ISqlPage<T extends ISqlPage>{
-    /** 当前绑定的分页对象（可能为 null）。 */
+public interface ISqlPage<T extends ISqlPage> {
+    /**
+     * 当前绑定的分页对象（可能为 null）。
+     */
     Page getPage();
 
-    /** 直接用一个已有 {@link Page} 对象覆盖当前分页设置。 */
+    /**
+     * 直接用一个已有 {@link Page} 对象覆盖当前分页设置。
+     */
     T page(Page page);
 
-    /** 追加升序排序列。 */
+    /**
+     * 追加升序排序列。
+     */
     default T orderByAsc(String... column) {
         return sort(Order.ascs(column));
     }
 
-    /** 追加降序排序列。 */
+    /**
+     * 追加降序排序列。
+     */
     default T orderByDesc(String... column) {
         return sort(Order.descs(column));
     }
 
-    /** 等同于 {@link #page(long, long, List)}，参数透传。 */
+    /**
+     * 等同于 {@link #page(long, long, List)}，参数透传。
+     */
     default T page(int pageIndex, int size, Order... orders) {
         return page(pageIndex, size, Arrays.asList(orders));
     }
+
     /**
      * 仅设置分页大小，不改排序。
+     *
      * @param size 每页大小，最大 10000；{@code <=0} 则保持原值（默认 20）
      */
     default T limit(int size) {
@@ -60,7 +72,7 @@ public interface ISqlPage<T extends ISqlPage>{
         if (pmPage == null) {
             pmPage = Page.build();
         }
-        if(orders!=null && !orders.isEmpty()){
+        if (orders != null && !orders.isEmpty()) {
             pmPage.addOrder(orders);
         }
         if (size > 0) {
@@ -71,17 +83,24 @@ public interface ISqlPage<T extends ISqlPage>{
         }
         return page(pmPage);
     }
-    /** 可变参数版本的 {@link #page(long, long, List)}。 */
+
+    /**
+     * 可变参数版本的 {@link #page(long, long, List)}。
+     */
     default T page(long current, long size, Order... orders) {
-        return page(current,size,Arrays.asList(orders));
+        return page(current, size, Arrays.asList(orders));
     }
 
-    /** 仅追加排序，不改分页。 */
+    /**
+     * 仅追加排序，不改分页。
+     */
     default T sort(Order... orders) {
         return sort(Arrays.asList(orders));
     }
 
-    /** 仅追加排序，不改分页。 */
+    /**
+     * 仅追加排序，不改分页。
+     */
     default T sort(List<Order> orders) {
         return page(0, 0, orders);
     }

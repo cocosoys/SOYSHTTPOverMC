@@ -1,15 +1,11 @@
 package com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy;
 
-import org.bukkit.configuration.ConfigurationSection;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.GatewayContext;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.PolicyResult;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.SecurityPolicy;
+import org.bukkit.configuration.ConfigurationSection;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -31,10 +27,14 @@ public class AccessLimiterPolicy extends SecurityPolicy {
 
     private final List<Rule> rules = new ArrayList<>();
     private final ConcurrentHashMap<String, Counter> counters = new ConcurrentHashMap<>();
-    /** 访问计数：每 CLEANUP_INTERVAL 次访问触发一次过期清理，避免计数器无限增长。 */
+    /**
+     * 访问计数：每 CLEANUP_INTERVAL 次访问触发一次过期清理，避免计数器无限增长。
+     */
     private static final long CLEANUP_INTERVAL = 1000L;
     private final AtomicLong accessCount = new AtomicLong(0);
-    /** 过期阈值：超过 2 个最大窗口时间未访问的计数器将被清理（避免活跃计数器被误删）。 */
+    /**
+     * 过期阈值：超过 2 个最大窗口时间未访问的计数器将被清理（避免活跃计数器被误删）。
+     */
     private static final long EXPIRE_THRESHOLD_MILLIS = 2 * 3600 * 1000L;
 
     @Override
@@ -88,7 +88,9 @@ public class AccessLimiterPolicy extends SecurityPolicy {
         return PolicyResult.ALLOW;
     }
 
-    /** 清理超过 EXPIRE_THRESHOLD_MILLIS 未访问的过期计数器，防止长期运行后内存无限增长。 */
+    /**
+     * 清理超过 EXPIRE_THRESHOLD_MILLIS 未访问的过期计数器，防止长期运行后内存无限增长。
+     */
     private void cleanupExpiredCounters() {
         long now = System.currentTimeMillis();
         Iterator<Map.Entry<String, Counter>> it = counters.entrySet().iterator();
@@ -123,7 +125,9 @@ public class AccessLimiterPolicy extends SecurityPolicy {
         }
     }
 
-    /** 单条限流规则：独立的 scope / limit / 窗口。 */
+    /**
+     * 单条限流规则：独立的 scope / limit / 窗口。
+     */
     private static final class Rule {
         private final String name;
         private final String scope;
@@ -161,7 +165,9 @@ public class AccessLimiterPolicy extends SecurityPolicy {
             return PolicyResult.ALLOW;
         }
 
-        /** 按 scope 计算限流键：quantity 从请求头 / socket IP 派生。 */
+        /**
+         * 按 scope 计算限流键：quantity 从请求头 / socket IP 派生。
+         */
         private String scopeKey(GatewayContext ctx) {
             if ("path".equalsIgnoreCase(scope)) {
                 return "path:" + ctx.getPath();
@@ -179,7 +185,9 @@ public class AccessLimiterPolicy extends SecurityPolicy {
         }
     }
 
-    /** 单一限流计数单元：固定窗口 + 命中次数 + 最后访问时间（用于过期清理）。 */
+    /**
+     * 单一限流计数单元：固定窗口 + 命中次数 + 最后访问时间（用于过期清理）。
+     */
     private static final class Counter {
         long count = 0;
         long windowStart = System.currentTimeMillis();

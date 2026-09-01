@@ -2,7 +2,6 @@ package com.dlz.db.support.helper;
 
 import com.dlz.db.annotation.IdType;
 import com.dlz.db.annotation.TableId;
-import com.dlz.db.modal.dto.ResultMap;
 import com.dlz.db.support.DBHolder;
 import com.dlz.db.support.PojoCache;
 import com.dlz.db.support.bean.ColumnInfo;
@@ -39,35 +38,35 @@ public class DbOpMysql extends SqlHelper {
     public void createTable(String tableName, Class<?> clazz) {
         String createSql = "CREATE TABLE IF NOT EXISTS `{}` ({}){}";
         final String columns = FieldReflections.getFields(clazz).stream().map(field -> {
-            String columnName = PojoCache.getColumnName(field);
-            String column = null;
-            if (columnName.equals("")) {
-                return column;
-            }
-            column = " `" + columnName + "` " + getDbColumnType(field);
-            String columnComment = PojoCache.getColumnComment(field);
-            if (StringUtils.isNotEmpty(columnComment)) {
-                column += " COMMENT '" + columnComment + "'";
-            }
-            if (PojoCache.isColumnPk(field)) {
-                column += " PRIMARY KEY";
-                TableId tableId = field.getAnnotation(TableId.class);
-                if (tableId != null && tableId.type() == IdType.AUTO) {
-                    column += " AUTO_INCREMENT";
-                }
-            }
-            return column;
-        }).filter(Objects::nonNull)
+                    String columnName = PojoCache.getColumnName(field);
+                    String column = null;
+                    if (columnName.equals("")) {
+                        return column;
+                    }
+                    column = " `" + columnName + "` " + getDbColumnType(field);
+                    String columnComment = PojoCache.getColumnComment(field);
+                    if (StringUtils.isNotEmpty(columnComment)) {
+                        column += " COMMENT '" + columnComment + "'";
+                    }
+                    if (PojoCache.isColumnPk(field)) {
+                        column += " PRIMARY KEY";
+                        TableId tableId = field.getAnnotation(TableId.class);
+                        if (tableId != null && tableId.type() == IdType.AUTO) {
+                            column += " AUTO_INCREMENT";
+                        }
+                    }
+                    return column;
+                }).filter(Objects::nonNull)
                 .collect(Collectors.joining(","));
 
         String tableComment = PojoCache.getTableComment(clazz);
         if (StringUtils.isNotEmpty(tableComment)) {
-            tableComment = " COMMENT = '" + tableComment  + "'";
-        }else{
+            tableComment = " COMMENT = '" + tableComment + "'";
+        } else {
             tableComment = "";
         }
 
-        String sql = StringUtils.formatMsg(createSql, tableName,columns,tableComment);
+        String sql = StringUtils.formatMsg(createSql, tableName, columns, tableComment);
 
         DBHolder.getSqlExecutor().update(sql);
     }
@@ -149,11 +148,12 @@ public class DbOpMysql extends SqlHelper {
             return "bigint";
         } else if (Number.class.isAssignableFrom(classs)) {
             return "numeric(12, 1)";
-        } else if (Date.class.isAssignableFrom(classs)||classs== LocalDateTime.class||classs== LocalDate.class) {
+        } else if (Date.class.isAssignableFrom(classs) || classs == LocalDateTime.class || classs == LocalDate.class) {
             return "datetime";
         }
         return "text";
     }
+
     private Class<?> getJavaType(String columnType) {
         columnType = columnType.toLowerCase();
         if (columnType.startsWith("varchar") || columnType.startsWith("char")) {

@@ -1,8 +1,6 @@
 package com.dlz.db.interceptor;
 
 import com.dlz.db.modal.condition.Condition;
-import com.dlz.db.modal.para.AQuery;
-import com.dlz.db.modal.wrapper.TableInsert;
 
 import java.util.Map;
 
@@ -73,7 +71,7 @@ public interface SqlBuildInterceptor {
      *
      * <p>实现方应先检查表是否存在目标字段，避免无效注入。
      *
-     * @param tableName 表名
+     * @param tableName    表名
      * @param insertValues 插入字段值
      */
     default void onBuildInsert(String tableName, Map<String, Object> insertValues) {

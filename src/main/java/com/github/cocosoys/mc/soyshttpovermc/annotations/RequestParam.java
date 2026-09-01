@@ -17,12 +17,18 @@ import java.lang.annotation.Target;
 @Target(ElementType.PARAMETER)
 public @interface RequestParam {
 
-    /** 参数名（query key） */
+    /**
+     * 参数名（query key）
+     */
     String name();
 
-    /** 是否必填；缺失且必填时返回 400 */
+    /**
+     * 是否必填；缺失且必填时返回 400
+     */
     boolean required() default false;
 
-    /** 默认值（缺失且非必填时使用） */
+    /**
+     * 默认值（缺失且非必填时使用）
+     */
     String defaultValue() default "";
 }

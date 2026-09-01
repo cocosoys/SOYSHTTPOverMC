@@ -2,12 +2,7 @@ package com.github.cocosoys.mc.soyshttpovermc.permission.provider;
 
 import org.bukkit.plugin.java.JavaPlugin;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
 /**
  * 权限提供者注册表：管理所有支持的权限插件提供者，根据配置和插件可用性筛选活跃提供者。
@@ -111,17 +106,23 @@ public class ProviderRegistry {
         }
     }
 
-    /** 获取当前活跃的权限提供者列表（不可修改）。 */
+    /**
+     * 获取当前活跃的权限提供者列表（不可修改）。
+     */
     public List<PermissionProvider> getActiveProviders() {
         return activeProviders;
     }
 
-    /** 获取所有已注册的提供者（包括不可用的，用于调试/展示）。 */
+    /**
+     * 获取所有已注册的提供者（包括不可用的，用于调试/展示）。
+     */
     public List<PermissionProvider> getAllProviders() {
         return Collections.unmodifiableList(allProviders);
     }
 
-    /** 按名称获取提供者（含不可用的）。 */
+    /**
+     * 按名称获取提供者（含不可用的）。
+     */
     public PermissionProvider getProvider(String name) {
         if (name == null) return null;
         for (PermissionProvider p : allProviders) {

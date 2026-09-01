@@ -1,9 +1,8 @@
 package com.github.cocosoys.mc.soyshttpovermc.storage.impl;
+
 import com.github.cocosoys.mc.soyshttpovermc.enums.StorageType;
-import lombok.CustomLog;
-
 import com.github.cocosoys.mc.soyshttpovermc.i18n.I18n;
-
+import lombok.CustomLog;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.plugin.java.JavaPlugin;
 
@@ -52,11 +51,15 @@ public class MysqlStorage extends SqlStorage {
         this.tablePrefix = section.getString("table-prefix", "mc_shttp_");
         this.keepAliveSeconds = section.getInt("keepalive-interval", 1800);
 
+        String driver = getDriverClass();
         try {
-            Class.forName(getDriverClass());
+            Class.forName(driver);
         } catch (ClassNotFoundException e) {
             throw new IllegalStateException(I18n.t("exception.storage.mysql.driver-not-found", "未找到 MySQL JDBC 驱动，请确认服务端已提供该驱动"), e);
         }
+        // 兼容处理：服务端自带 5.x 驱动（com.mysql.jdbc.Driver）不识别 serverTimezone 等
+        // 8.x 专属连接参数，会抛 "Unsupported connection property"；自动剥离后再测试连接。
+        this.jdbcUrl = sanitizeJdbcUrl(driver, jdbcUrl);
         // 通过 url 直接测试连接
         try (Connection test = connect(jdbcUrl, username, password)) {
             log.infoT("log.storage.mysql-connect-success",
@@ -84,6 +87,35 @@ public class MysqlStorage extends SqlStorage {
         } catch (ClassNotFoundException e) {
             return "com.mysql.jdbc.Driver";
         }
+    }
+
+    /**
+     * 兼容处理：MySQL 5.x 驱动（com.mysql.jdbc.Driver，服务端自带）不识别 8.x 专属连接参数
+     * （如 serverTimezone），会抛 "Unsupported connection property"。加载 5.x 驱动时自动剥离
+     * 这些 8.x 专属参数；8.x 驱动（com.mysql.cj.jdbc.Driver）原样保留。
+     */
+    private static String sanitizeJdbcUrl(String driverClass, String url) {
+        if (!"com.mysql.jdbc.Driver".equals(driverClass)) {
+            return url; // 8.x 驱动保留全部参数
+        }
+        int q = url.indexOf('?');
+        if (q < 0) {
+            return url;
+        }
+        String base = url.substring(0, q);
+        String query = url.substring(q + 1);
+        StringBuilder sb = new StringBuilder();
+        for (String pair : query.split("&")) {
+            if (pair.isEmpty()) continue;
+            int eq = pair.indexOf('=');
+            String key = eq < 0 ? pair : pair.substring(0, eq);
+            if ("serverTimezone".equalsIgnoreCase(key)) {
+                continue; // 5.x 不识别，剥离
+            }
+            if (sb.length() > 0) sb.append('&');
+            sb.append(pair);
+        }
+        return sb.length() == 0 ? base : base + "?" + sb;
     }
 
     @Override

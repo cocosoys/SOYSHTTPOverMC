@@ -12,7 +12,7 @@ import com.dlz.kit.util.system.ConvertUtil;
  * sql语句，可以带参数如：select AD_ENDDATE from JOB_AD t where ad_id=#{ad_id}
  * paraMap ：Map<String,Object> m=new HashMap<String,Object>();m.put("ad_id", "47");
  *
-  * @throws Exception
+ * @throws Exception
  */
 public interface IDbOneService extends IDbBaseService {
 
@@ -28,8 +28,9 @@ public interface IDbOneService extends IDbBaseService {
     }
 
     default <T> T getBean(PojoQuery<T> wrapper, boolean throwEx) {
-        return doDb(wrapper, jdbcSql -> ConvertUtil.convert(getSqlExecutor().getOne(jdbcSql.sql, throwEx, jdbcSql.paras),wrapper.getBeanClass()));
+        return doDb(wrapper, jdbcSql -> ConvertUtil.convert(getSqlExecutor().getOne(jdbcSql.sql, throwEx, jdbcSql.paras), wrapper.getBeanClass()));
     }
+
     default <T> T getBean(IExecutorQuery paraMap, Class<T> t, boolean throwEx) {
         return doDb(paraMap, jdbcSql -> ConvertUtil.convert(getSqlExecutor().getOne(jdbcSql.sql, throwEx, jdbcSql.paras), t));
     }
@@ -42,11 +43,12 @@ public interface IDbOneService extends IDbBaseService {
         final PojoQuery<T> wrapper = PojoQuery.wrapper(bean);
         return getBean(wrapper, wrapper.getBeanClass(), true);
     }
-    default <T> T selectById(String id,Class<T> clazz){
-        if(StringUtils.isEmpty(id)){
+
+    default <T> T selectById(String id, Class<T> clazz) {
+        if (StringUtils.isEmpty(id)) {
             throw new ValidateException("id不能为空");
         }
-        return getBean(PojoQuery.wrapper(clazz).eq("id",id),clazz,true);
+        return getBean(PojoQuery.wrapper(clazz).eq("id", id), clazz, true);
     }
 
 }

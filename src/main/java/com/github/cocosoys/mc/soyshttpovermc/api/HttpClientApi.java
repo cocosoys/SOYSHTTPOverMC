@@ -10,7 +10,9 @@ import java.util.Map;
  */
 public interface HttpClientApi {
 
-    /** 对外发起真实 HTTP 请求（任意方法/URL/头/体），返回状态码+响应头+响应体；连接失败抛 {@code HttpClientException} */
+    /**
+     * 对外发起真实 HTTP 请求（任意方法/URL/头/体），返回状态码+响应头+响应体；连接失败抛 {@code HttpClientException}
+     */
     HttpResponse sendHttp(String method, String url, Map<String, String> headers, byte[] body);
 
     HttpResponse sendGet(String url);
@@ -21,7 +23,9 @@ public interface HttpClientApi {
 
     HttpResponse sendPost(String url, Map<String, String> headers, byte[] body);
 
-    /** 对内回环：直接调用本插件自身已注册的 API（绕过网络，等价于本地分发）；分发异常抛 {@code HttpClientException} */
+    /**
+     * 对内回环：直接调用本插件自身已注册的 API（绕过网络，等价于本地分发）；分发异常抛 {@code HttpClientException}
+     */
     Object callLocalApi(String method, String path, Map<String, String> headers, byte[] body);
 
     // ===== 环境自适配（通用发送，单服/群组服同一套代码） =====
@@ -50,12 +54,18 @@ public interface HttpClientApi {
      */
     String resolveUrl(String logicalPath);
 
-    /** 群组服跨服前缀（如 {@code /server/lobby}）；独立服返回空串。 */
+    /**
+     * 群组服跨服前缀（如 {@code /server/lobby}）；独立服返回空串。
+     */
     String getServerPrefix();
 
-    /** 注解式 API 全局前缀（如 {@code /api}）。 */
+    /**
+     * 注解式 API 全局前缀（如 {@code /api}）。
+     */
     String getApiPrefix();
 
-    /** 网关 auth 是否开启（开启则调用受保护 API 需携带凭证；{@link #sendApi} 本地分发时由注解层 {@code @ApiPublic/@ApiPermission} 判定）。 */
+    /**
+     * 网关 auth 是否开启（开启则调用受保护 API 需携带凭证；{@link #sendApi} 本地分发时由注解层 {@code @ApiPublic/@ApiPermission} 判定）。
+     */
     boolean isAuthEnabled();
 }

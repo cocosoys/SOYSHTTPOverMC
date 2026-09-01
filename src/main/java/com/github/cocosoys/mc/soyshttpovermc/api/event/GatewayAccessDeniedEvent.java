@@ -45,7 +45,9 @@ public class GatewayAccessDeniedEvent extends GatewayEvent {
         return tls;
     }
 
-    /** 拒绝该请求的策略名（如 tls / auth / rate-limit / ip-allowlist） */
+    /**
+     * 拒绝该请求的策略名（如 tls / auth / rate-limit / ip-allowlist）
+     */
     public String getPolicyName() {
         return policyName;
     }

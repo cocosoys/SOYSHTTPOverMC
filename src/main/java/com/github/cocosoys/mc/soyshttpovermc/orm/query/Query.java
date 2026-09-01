@@ -19,14 +19,18 @@ public class Query<T> {
 
     private final Class<T> beanClass;
     private final ConditionTree tree = new ConditionTree();
-    /** 执行器（由门面注入：YAML.Pojo → YamlBackendExecutor；SQL.Pojo → SqlBackendExecutor）。 */
+    /**
+     * 执行器（由门面注入：YAML.Pojo → YamlBackendExecutor；SQL.Pojo → SqlBackendExecutor）。
+     */
     private IBackendExecutor executor;
 
     public Query(Class<T> beanClass) {
         this.beanClass = beanClass;
     }
 
-    /** 门面注入执行器（默认 YAML）。 */
+    /**
+     * 门面注入执行器（默认 YAML）。
+     */
     public Query<T> setExecutor(IBackendExecutor executor) {
         this.executor = executor;
         return this;
@@ -86,13 +90,17 @@ public class Query<T> {
         return add(column, Op.NOT_NULL, null);
     }
 
-    /** OR 连接：与上一条件以 OR 相接。 */
+    /**
+     * OR 连接：与上一条件以 OR 相接。
+     */
     public Query<T> or(SFunction<T, ?> column, Op op, Object value) {
         tree.add(PojoMeta.columnOf(beanClass, LambdaUtils.resolve(column)), op, value, false);
         return this;
     }
 
-    /** 分组条件（AND 组）：{@code ands(s -> s.eq(...).eq(...))}。 */
+    /**
+     * 分组条件（AND 组）：{@code ands(s -> s.eq(...).eq(...))}。
+     */
     public Query<T> ands(Consumer<Query<T>> group) {
         Query<T> g = new Query<>(beanClass);
         group.accept(g);
@@ -102,7 +110,9 @@ public class Query<T> {
         return this;
     }
 
-    /** 分组条件（OR 组）：组内条件以 OR 连接。 */
+    /**
+     * 分组条件（OR 组）：组内条件以 OR 连接。
+     */
     public Query<T> ors(Consumer<Query<T>> group) {
         Query<T> g = new Query<>(beanClass);
         group.accept(g);
@@ -138,13 +148,17 @@ public class Query<T> {
 
     // ===== 执行（委托后端） =====
 
-    /** 查询单条（取第一条）；无结果返回 null。 */
+    /**
+     * 查询单条（取第一条）；无结果返回 null。
+     */
     public T queryBean() {
         List<T> list = queryBeanList();
         return list == null || list.isEmpty() ? null : list.get(0);
     }
 
-    /** 查询列表。 */
+    /**
+     * 查询列表。
+     */
     public List<T> queryBeanList() {
         IBackendExecutor e = executor;
         if (e == null) {
@@ -153,7 +167,9 @@ public class Query<T> {
         return e.selectByTree(beanClass, tree);
     }
 
-    /** 分页查询。 */
+    /**
+     * 分页查询。
+     */
     public Page<T> queryBeanPage() {
         IBackendExecutor e = executor;
         if (e == null) {
@@ -164,7 +180,9 @@ public class Query<T> {
 
     // ===== 内部 =====
 
-    /** 列值提取函数（YAML 端内存过滤用；字段名→列名）。 */
+    /**
+     * 列值提取函数（YAML 端内存过滤用；字段名→列名）。
+     */
     public Function<String, Object> columnValueAccessor(T bean) {
         return column -> {
             java.lang.reflect.Field f = PojoMeta.fieldOfColumn(beanClass, column);

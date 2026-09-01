@@ -1,21 +1,13 @@
 package com.github.cocosoys.mc.soyshttpovermc.api.impl;
 
 import com.github.cocosoys.mc.soyshttpovermc.HttpOverMcPlugin;
+import com.github.cocosoys.mc.soyshttpovermc.api.*;
+import com.github.cocosoys.mc.soyshttpovermc.web.ApiRegistry;
 import com.github.cocosoys.mc.soyshttpovermc.web.CorsRegistry;
 import com.github.cocosoys.mc.soyshttpovermc.web.LargeFileLoaderRegistry;
-import org.bukkit.plugin.Plugin;
-
-import com.github.cocosoys.mc.soyshttpovermc.web.ApiRegistry;
-import com.github.cocosoys.mc.soyshttpovermc.api.ApiRegistrationApi;
-import com.github.cocosoys.mc.soyshttpovermc.api.AuthCredentialApi;
-import com.github.cocosoys.mc.soyshttpovermc.api.ExtensionApi;
-import com.github.cocosoys.mc.soyshttpovermc.api.HttpClientApi;
-import com.github.cocosoys.mc.soyshttpovermc.api.ApiToolkitApi;
-import com.github.cocosoys.mc.soyshttpovermc.api.SoysHttpOverMcApi;
-import com.github.cocosoys.mc.soyshttpovermc.api.ReloadHttpConfigHandler;
-import com.github.cocosoys.mc.soyshttpovermc.api.WebPageApi;
-import com.github.cocosoys.mc.soyshttpovermc.web.gateway.GatewayFilter;
 import com.github.cocosoys.mc.soyshttpovermc.web.WebRegistry;
+import com.github.cocosoys.mc.soyshttpovermc.web.gateway.GatewayFilter;
+import org.bukkit.plugin.Plugin;
 
 /**
  * {@link SoysHttpOverMcApi} 的包内实现（Holder 跳转）：
@@ -46,19 +38,38 @@ public class SoysHttpOverMcApiImpl implements SoysHttpOverMcApi {
         this.extension = new ExtensionImpl(this.hostPlugin);
     }
 
-    @Override public ApiRegistrationApi getApiRegistration() { return apiRegistration; }
+    @Override
+    public ApiRegistrationApi getApiRegistration() {
+        return apiRegistration;
+    }
 
-    @Override public WebPageApi getWebPage() { return webPage; }
+    @Override
+    public WebPageApi getWebPage() {
+        return webPage;
+    }
 
-    @Override public AuthCredentialApi getAuthCredential() { return authCredential; }
+    @Override
+    public AuthCredentialApi getAuthCredential() {
+        return authCredential;
+    }
 
-    @Override public ApiToolkitApi getToolkit() { return toolkit; }
+    @Override
+    public ApiToolkitApi getToolkit() {
+        return toolkit;
+    }
 
-    @Override public HttpClientApi getHttpClient() { return httpClient; }
+    @Override
+    public HttpClientApi getHttpClient() {
+        return httpClient;
+    }
 
-    @Override public ExtensionApi getExtension() { return extension; }
+    @Override
+    public ExtensionApi getExtension() {
+        return extension;
+    }
 
-    @Override public void registerReloadHook(ReloadHttpConfigHandler handler) {
+    @Override
+    public void registerReloadHook(ReloadHttpConfigHandler handler) {
         hostPlugin.getDelegate().registerReloadHook(handler);
     }
 }

@@ -25,7 +25,9 @@ import java.util.concurrent.CopyOnWriteArrayList;
 @CustomLog
 public class CorsRegistry {
 
-    /** CORS 声明条目。 */
+    /**
+     * CORS 声明条目。
+     */
     public static final class CorsEntry {
         public final String ownerPlugin;
         public final String pathPrefix;
@@ -71,13 +73,17 @@ public class CorsRegistry {
         entries.add(new CorsEntry(ownerPlugin, p, resolvedOrigin, methods, headers, credentials));
     }
 
-    /** 卸载指定插件登记的全部 CORS 声明。 */
+    /**
+     * 卸载指定插件登记的全部 CORS 声明。
+     */
     public void unregisterPlugin(String pluginName) {
         if (pluginName == null) return;
         entries.removeIf(e -> pluginName.equals(e.ownerPlugin));
     }
 
-    /** 按请求路径匹配 CORS 声明（最长前缀优先；无命中返回 null）。 */
+    /**
+     * 按请求路径匹配 CORS 声明（最长前缀优先；无命中返回 null）。
+     */
     public CorsEntry match(String path) {
         if (path == null || entries.isEmpty()) return null;
         CorsEntry best = null;
@@ -93,7 +99,9 @@ public class CorsRegistry {
         return best;
     }
 
-    /** 构造 CORS 响应头（不带 Access-Control-Allow-Methods 用于普通请求）。 */
+    /**
+     * 构造 CORS 响应头（不带 Access-Control-Allow-Methods 用于普通请求）。
+     */
     private Map<String, String> headers(CorsEntry e, boolean preflight) {
         Map<String, String> h = new LinkedHashMap<>();
         h.put("Access-Control-Allow-Origin", e.origin);
@@ -107,12 +115,16 @@ public class CorsRegistry {
         return h;
     }
 
-    /** OPTIONS 预检短路响应（204 + CORS 头；204 无 body，Content-Type 声明统一为 JSON 无 text/plain 例外）。 */
+    /**
+     * OPTIONS 预检短路响应（204 + CORS 头；204 无 body，Content-Type 声明统一为 JSON 无 text/plain 例外）。
+     */
     public FrameProto.HttpResponseFrame preflight(CorsEntry e) {
         return frame(204, MimeTypes.forExt("json"), new byte[0], headers(e, true));
     }
 
-    /** 把 CORS 头附加到既有响应帧（不覆盖已有同名字段之外的逻辑，直接 put 进 headers map）。 */
+    /**
+     * 把 CORS 头附加到既有响应帧（不覆盖已有同名字段之外的逻辑，直接 put 进 headers map）。
+     */
     public FrameProto.HttpResponseFrame attach(CorsEntry e, FrameProto.HttpResponseFrame resp) {
         Map<String, String> cors = headers(e, false);
         FrameProto.HttpResponseFrame.Builder b = resp.toBuilder();

@@ -12,5 +12,5 @@ public interface ITableColumnMapper {
      * @throws
      * @Title: converObj4Db
      */
-     Object converObj4Db(String tableName, String columnName, Object value);
+    Object converObj4Db(String tableName, String columnName, Object value);
 }

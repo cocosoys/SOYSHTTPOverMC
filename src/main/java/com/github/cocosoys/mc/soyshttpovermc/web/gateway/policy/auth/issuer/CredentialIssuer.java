@@ -1,7 +1,7 @@
 package com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.issuer;
 
-import org.bukkit.configuration.ConfigurationSection;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.GatewayFilter;
+import org.bukkit.configuration.ConfigurationSection;
 
 /**
  * 凭证颁发器抽象基类：用于"下发" X-API-KEY / Authorization / Cookie 三类凭证，并校验客户端回传的凭证。
@@ -19,7 +19,9 @@ public abstract class CredentialIssuer {
 
     private volatile boolean enabled = false;
 
-    /** 颁发器唯一标识（= gateway/issuers/&lt;name&gt;.yml 的文件名） */
+    /**
+     * 颁发器唯一标识（= gateway/issuers/&lt;name&gt;.yml 的文件名）
+     */
     public abstract String name();
 
     public final boolean isEnabled() {
@@ -30,7 +32,9 @@ public abstract class CredentialIssuer {
         this.enabled = enabled;
     }
 
-    /** 从配置重载参数与开关（热重载时调用）。 */
+    /**
+     * 从配置重载参数与开关（热重载时调用）。
+     */
     public void reload(ConfigurationSection cfg) {
         setEnabled(cfg != null && cfg.getBoolean("enabled", false));
     }
@@ -41,7 +45,9 @@ public abstract class CredentialIssuer {
      */
     public abstract IssuedCredential issue(String subject);
 
-    /** 校验请求中携带的凭证（X-API-Key / Bearer / Basic / Cookie）是否有效。 */
+    /**
+     * 校验请求中携带的凭证（X-API-Key / Bearer / Basic / Cookie）是否有效。
+     */
     public abstract boolean validate(CredentialPresentation presented);
 
     /**

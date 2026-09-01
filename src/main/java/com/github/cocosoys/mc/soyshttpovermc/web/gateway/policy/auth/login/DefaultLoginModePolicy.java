@@ -1,4 +1,5 @@
 package com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.login;
+
 import com.github.cocosoys.mc.soyshttpovermc.enums.LoginMode;
 
 /**

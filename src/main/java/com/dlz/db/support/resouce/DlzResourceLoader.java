@@ -60,7 +60,9 @@ public class DlzResourceLoader {
         return result;
     }
 
-    /** 从资源 URL 提取类全限定名。 */
+    /**
+     * 从资源 URL 提取类全限定名。
+     */
     private static String extractClassName(URL url, String basePath) {
         String path = url.toString();
         int idx = path.indexOf(basePath);
@@ -398,7 +400,9 @@ public class DlzResourceLoader {
             log.warn("扫描 JAR 根资源失败: {}", rootUrl.toString(), e);
         } finally {
             if (jarFile != null) {
-                try { jarFile.close(); } catch (IOException e) { /* ignore */ }
+                try {
+                    jarFile.close();
+                } catch (IOException e) { /* ignore */ }
             }
         }
     }
@@ -473,8 +477,15 @@ public class DlzResourceLoader {
     private static Enumeration<URL> enumOf(final URL url) {
         return new Enumeration<URL>() {
             boolean served = url == null;
-            public boolean hasMoreElements() { return !served; }
-            public URL nextElement() { served = true; return url; }
+
+            public boolean hasMoreElements() {
+                return !served;
+            }
+
+            public URL nextElement() {
+                served = true;
+                return url;
+            }
         };
     }
 }

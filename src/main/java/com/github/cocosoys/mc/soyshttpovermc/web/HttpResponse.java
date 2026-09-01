@@ -20,22 +20,30 @@ public class HttpResponse {
         this.body = body == null ? new byte[0] : body;
     }
 
-    /** HTTP 状态码（如 200 / 404 / 500） */
+    /**
+     * HTTP 状态码（如 200 / 404 / 500）
+     */
     public int getStatus() {
         return status;
     }
 
-    /** 响应头（小写 key 归一化后的快照） */
+    /**
+     * 响应头（小写 key 归一化后的快照）
+     */
     public Map<String, String> getHeaders() {
         return headers;
     }
 
-    /** 原始响应体字节 */
+    /**
+     * 原始响应体字节
+     */
     public byte[] getBody() {
         return body;
     }
 
-    /** 响应体按 UTF-8 解码为字符串（便于 JSON / 文本场景） */
+    /**
+     * 响应体按 UTF-8 解码为字符串（便于 JSON / 文本场景）
+     */
     public String bodyAsString() {
         return new String(body, StandardCharsets.UTF_8);
     }

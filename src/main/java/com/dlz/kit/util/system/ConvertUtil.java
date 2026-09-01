@@ -15,7 +15,9 @@ public final class ConvertUtil {
     private ConvertUtil() {
     }
 
-    /** Map → Bean（字段名匹配；值为 Map/List 时递归）。 */
+    /**
+     * Map → Bean（字段名匹配；值为 Map/List 时递归）。
+     */
     public static <T> T convert(Map<String, Object> map, Class<T> clazz) {
         if (map == null || clazz == null) return null;
         if (clazz == Map.class || clazz.isInstance(map)) {
@@ -43,7 +45,9 @@ public final class ConvertUtil {
         }
     }
 
-    /** Map 列表 → Bean 列表。 */
+    /**
+     * Map 列表 → Bean 列表。
+     */
     public static <T> List<T> convertList(List<? extends Map<String, Object>> maps, Class<T> clazz) {
         List<T> out = new ArrayList<>();
         if (maps == null) return out;

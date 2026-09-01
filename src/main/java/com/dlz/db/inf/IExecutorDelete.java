@@ -22,7 +22,9 @@ import com.dlz.db.support.SqlRunThreadHolder;
  */
 public interface IExecutorDelete<ME extends IExecutorDelete>
         extends IExecutorUDI, ISqlQuery<ME> {
-    /** 目标表名。 */
+    /**
+     * 目标表名。
+     */
     String getTableName();
 
     /**
@@ -36,7 +38,7 @@ public interface IExecutorDelete<ME extends IExecutorDelete>
         try {
             // 调用插件：逻辑删除插件会在此将 DELETE 改写为 UPDATE deleted=1
             final int logicDeleteCnt = DbPlugin.doLogicDelete(this);
-            if(logicDeleteCnt >-1){
+            if (logicDeleteCnt > -1) {
                 return logicDeleteCnt;
             }
             // 无插件拦截，走物理 DELETE

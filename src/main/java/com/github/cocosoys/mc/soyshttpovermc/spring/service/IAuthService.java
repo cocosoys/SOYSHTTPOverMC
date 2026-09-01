@@ -1,9 +1,9 @@
 package com.github.cocosoys.mc.soyshttpovermc.spring.service;
 
-import com.github.cocosoys.mc.soyshttpovermc.web.ApiRequestContext;
-import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.issuer.CredentialPresentation;
 import com.github.cocosoys.mc.soyshttpovermc.util.AjaxResult;
 import com.github.cocosoys.mc.soyshttpovermc.util.ApiResponse;
+import com.github.cocosoys.mc.soyshttpovermc.web.ApiRequestContext;
+import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.issuer.CredentialPresentation;
 
 /**
  * 登录窗口认证 Service 接口（仿 MyBatis-Plus 的 {@code XxxService}）：
@@ -16,14 +16,19 @@ public interface IAuthService {
     /**
      * 弹窗登录：body 为 JSON 或表单的 {@code {username, password}}。
      * 成功返回 {@code {player, token, cookieName, ttlSeconds}}；失败返回 401。
+     *
      * @param ctx 请求上下文（用于记录网页端登录 IP，实现 IP 匹配免登录）
      */
     AjaxResult login(String body, ApiRequestContext ctx);
 
-    /** 退出登录：撤销当前请求凭证对应的会话令牌。 */
+    /**
+     * 退出登录：撤销当前请求凭证对应的会话令牌。
+     */
     AjaxResult logout(CredentialPresentation credential);
 
-    /** 登录信息：返回当前凭证绑定的玩家名与在线状态（未登录返回 401）。 */
+    /**
+     * 登录信息：返回当前凭证绑定的玩家名与在线状态（未登录返回 401）。
+     */
     AjaxResult me(CredentialPresentation credential);
 
     /**
@@ -40,7 +45,9 @@ public interface IAuthService {
      */
     ApiResponse issue(String body);
 
-    /** 登录模式信息：{@code GET /api/auth/mode} → {requiresPassword, cookieName, ttlSeconds}（前端切换表单用）。 */
+    /**
+     * 登录模式信息：{@code GET /api/auth/mode} → {requiresPassword, cookieName, ttlSeconds}（前端切换表单用）。
+     */
     AjaxResult loginMode();
 
     /**

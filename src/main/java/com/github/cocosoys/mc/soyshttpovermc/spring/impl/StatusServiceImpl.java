@@ -68,7 +68,9 @@ public class StatusServiceImpl extends BaseServiceImpl<StatusEntity> implements 
         return recent;
     }
 
-    /** 负值（无样本）→ null，否则数值（面板兼容 toFixed） */
+    /**
+     * 负值（无样本）→ null，否则数值（面板兼容 toFixed）
+     */
     private static Double nonNegative(double v) {
         return v < 0 ? null : v;
     }

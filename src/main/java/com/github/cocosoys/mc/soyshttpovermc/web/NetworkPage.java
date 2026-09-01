@@ -13,7 +13,9 @@ package com.github.cocosoys.mc.soyshttpovermc.web;
  */
 public abstract class NetworkPage {
 
-    /** 唯一名称（日志/调试用）。 */
+    /**
+     * 唯一名称（日志/调试用）。
+     */
     public abstract String name();
 
     /**
@@ -28,12 +30,16 @@ public abstract class NetworkPage {
      */
     public abstract byte[] load() throws Exception;
 
-    /** Content-Type（null=按 path 扩展名推断）。 */
+    /**
+     * Content-Type（null=按 path 扩展名推断）。
+     */
     public String contentType() {
         return null;
     }
 
-    /** 内容缓存 TTL（秒；&lt;=0 = 不缓存，每次请求重新 load）。 */
+    /**
+     * 内容缓存 TTL（秒；&lt;=0 = 不缓存，每次请求重新 load）。
+     */
     public long cacheTtlSeconds() {
         return 60;
     }

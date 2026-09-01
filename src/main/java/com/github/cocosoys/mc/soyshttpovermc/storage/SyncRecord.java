@@ -29,7 +29,9 @@ public class SyncRecord implements Serializable {
         this.updatedAt = System.currentTimeMillis();
     }
 
-    /** 反序列化用（updatedAt 从存储读出）。 */
+    /**
+     * 反序列化用（updatedAt 从存储读出）。
+     */
     public SyncRecord(String key, String type, String data, long updatedAt) {
         this.key = key;
         this.type = type;

@@ -1,11 +1,10 @@
 package com.github.cocosoys.mc.soyshttpovermc.command;
-import lombok.CustomLog;
-
-import org.bukkit.command.CommandSender;
 
 import com.github.cocosoys.mc.soyshttpovermc.HttpOverMcPlugin;
 import com.github.cocosoys.mc.soyshttpovermc.i18n.I18n;
 import com.github.cocosoys.mc.soyshttpovermc.i18n.I18n.LanguageSourceInfo;
+import lombok.CustomLog;
+import org.bukkit.command.CommandSender;
 
 import java.util.Collections;
 import java.util.List;
@@ -36,14 +35,14 @@ public class LangSubCommand extends SubCommand {
     public String detail() {
         return I18n.t("command.lang.detail",
                 "/soyshttp lang —— 显示当前语言及可用语言列表。\n"
-                + "/soyshttp lang <代码> —— 切换到指定语言（需 language/<代码>.yml 存在）。\n"
-                + "/soyshttp lang sources —— 列出当前全部语言源及其提供的翻译条数。\n"
-                + "/soyshttp lang sources on/off <索引> —— 启用/停用指定来源的翻译。\n"
-                + "/soyshttp lang sources download <索引> —— 将网络来源翻译下载到本地缓存（离线可用）。\n"
-                + "/soyshttp lang sources update <索引> —— 更新本地网络翻译（本地不存在则自动下载）。\n"
-                + "/soyshttp lang sources remove <索引> —— 删除本地网络翻译并从内存卸载。\n"
-                + "/soyshttp lang sources info <索引> —— 查看来源详细信息。\n"
-                + "例子：/soyshttp lang en_us");
+                        + "/soyshttp lang <代码> —— 切换到指定语言（需 language/<代码>.yml 存在）。\n"
+                        + "/soyshttp lang sources —— 列出当前全部语言源及其提供的翻译条数。\n"
+                        + "/soyshttp lang sources on/off <索引> —— 启用/停用指定来源的翻译。\n"
+                        + "/soyshttp lang sources download <索引> —— 将网络来源翻译下载到本地缓存（离线可用）。\n"
+                        + "/soyshttp lang sources update <索引> —— 更新本地网络翻译（本地不存在则自动下载）。\n"
+                        + "/soyshttp lang sources remove <索引> —— 删除本地网络翻译并从内存卸载。\n"
+                        + "/soyshttp lang sources info <索引> —— 查看来源详细信息。\n"
+                        + "例子：/soyshttp lang en_us");
     }
 
     @Override
@@ -81,7 +80,9 @@ public class LangSubCommand extends SubCommand {
         }
     }
 
-    /** 处理语言源子参数：列出来源或对指定索引执行 on/off/download/update/remove/info。 */
+    /**
+     * 处理语言源子参数：列出来源或对指定索引执行 on/off/download/update/remove/info。
+     */
     private void handleSources(CommandSender sender, String[] args) {
         if (args.length < 3) {
             List<LanguageSourceInfo> infos = I18n.languageSourcesInfo();
@@ -90,14 +91,14 @@ public class LangSubCommand extends SubCommand {
                 return;
             }
             msg(sender, "== " + I18n.t("command.lang.sources-header", "语言源（索引/名称/状态/语言/条数）") + " ==");
-        for (LanguageSourceInfo i : infos) {
-            String status = i.enabled()
-                    ? I18n.t("command.lang.sources-enable-label", "启用")
-                    : I18n.t("command.lang.sources-disable-label", "停用");
-            String langDisp = i.language().isEmpty() ? "*" : i.language();
-            msg(sender, I18n.t("command.lang.sources-line",
-                    "[#{0}] {1} {2}（语言:{3}，{4} 条）", i.index(), status, i.name(), langDisp, i.count()));
-        }
+            for (LanguageSourceInfo i : infos) {
+                String status = i.enabled()
+                        ? I18n.t("command.lang.sources-enable-label", "启用")
+                        : I18n.t("command.lang.sources-disable-label", "停用");
+                String langDisp = i.language().isEmpty() ? "*" : i.language();
+                msg(sender, I18n.t("command.lang.sources-line",
+                        "[#{0}] {1} {2}（语言:{3}，{4} 条）", i.index(), status, i.name(), langDisp, i.count()));
+            }
             msg(sender, I18n.t("command.lang.sources-hint",
                     "使用 /soyshttp lang sources on/off/download/update/remove/info <索引> 管理来源"));
             return;

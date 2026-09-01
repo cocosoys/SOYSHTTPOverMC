@@ -27,7 +27,9 @@ public final class PolicyResult {
         return new PolicyResult(false, statusCode, body, null);
     }
 
-    /** 带附加响应头（如 429 的 Retry-After、426 的 Location） */
+    /**
+     * 带附加响应头（如 429 的 Retry-After、426 的 Location）
+     */
     public static PolicyResult deny(int statusCode, String body, Map<String, String> headers) {
         return new PolicyResult(false, statusCode, body, headers);
     }

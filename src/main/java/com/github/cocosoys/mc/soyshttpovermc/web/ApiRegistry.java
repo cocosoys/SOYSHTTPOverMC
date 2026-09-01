@@ -1,19 +1,18 @@
 package com.github.cocosoys.mc.soyshttpovermc.web;
+
 import com.github.cocosoys.mc.soyshttpovermc.annotations.GetMapping;
 import com.github.cocosoys.mc.soyshttpovermc.annotations.PermissionService;
-import com.github.cocosoys.mc.soyshttpovermc.enums.RequestMethod;
-import lombok.CustomLog;
-
 import com.github.cocosoys.mc.soyshttpovermc.api.event.ApiAccessEvent;
 import com.github.cocosoys.mc.soyshttpovermc.api.event.ApiInfo;
 import com.github.cocosoys.mc.soyshttpovermc.api.event.ApiRegisteredEvent;
 import com.github.cocosoys.mc.soyshttpovermc.api.event.ApiUnregisteredEvent;
+import com.github.cocosoys.mc.soyshttpovermc.enums.RequestMethod;
+import com.github.cocosoys.mc.soyshttpovermc.i18n.I18n;
 import com.github.cocosoys.mc.soyshttpovermc.util.AjaxResult;
 import com.github.cocosoys.mc.soyshttpovermc.util.ApiResponse;
-import com.github.cocosoys.mc.soyshttpovermc.i18n.I18n;
-import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.util.AuthUtils;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.issuer.CredentialPresentation;
-
+import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.util.AuthUtils;
+import lombok.CustomLog;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.event.Event;
@@ -23,11 +22,7 @@ import java.lang.annotation.Annotation;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.net.URLDecoder;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 
@@ -77,11 +72,15 @@ public class ApiRegistry {
 
     private static final String ANY_METHOD = "*";
 
-    /** 宿主插件（SOYSHTTPOverMC 本体）：注册时若无法归属到其它插件则归为本插件 */
+    /**
+     * 宿主插件（SOYSHTTPOverMC 本体）：注册时若无法归属到其它插件则归为本插件
+     */
     private final Plugin hostPlugin;
     private final Map<String, EndpointMeta> routes = new ConcurrentHashMap<>();
     private volatile PermissionService permissionService;
-    /** 凭证 → 玩家名 解析器（由宿主注入 SessionTokenIssuer::subjectOf），供 ApiAccessEvent 携带玩家信息。 */
+    /**
+     * 凭证 → 玩家名 解析器（由宿主注入 SessionTokenIssuer::subjectOf），供 ApiAccessEvent 携带玩家信息。
+     */
     private volatile Function<CredentialPresentation, String> playerResolver;
     /**
      * 离线 cookie 自动升级器（由宿主注入 AuthLoginBridge::upgradeHeadersIfOnline）：输入请求凭证，
@@ -89,21 +88,27 @@ public class ApiRegistry {
      * 否则返回 null。升级结果随当前响应下发给浏览器，避免玩家进游戏后回网页还需二次登录。
      */
     private volatile Function<CredentialPresentation, Map<String, String>> tokenUpgrader;
-    /** 本次请求待附加响应头（ThreadLocal：worker 线程并发安全；dispatch 后由 WebFrontendHandler drain）。 */
+    /**
+     * 本次请求待附加响应头（ThreadLocal：worker 线程并发安全；dispatch 后由 WebFrontendHandler drain）。
+     */
     private final ThreadLocal<Map<String, String>> pendingHeaders = new ThreadLocal<Map<String, String>>() {
         @Override
         protected Map<String, String> initialValue() {
             return new HashMap<>();
         }
     };
-    /** 全局路径前缀（网关配置 api-prefix，默认 /api；始终生效，与 auth 是否启用解耦） */
+    /**
+     * 全局路径前缀（网关配置 api-prefix，默认 /api；始终生效，与 auth 是否启用解耦）
+     */
     private volatile String pathPrefix = "/api";
 
     public ApiRegistry(Plugin hostPlugin) {
         this.hostPlugin = hostPlugin;
     }
 
-    /** 注册 PermissionService（登录插件接入点）：非空后 @ApiPermission 生效。 */
+    /**
+     * 注册 PermissionService（登录插件接入点）：非空后 @ApiPermission 生效。
+     */
     public void setPermissionService(com.github.cocosoys.mc.soyshttpovermc.annotations.PermissionService permissionService) {
         this.permissionService = permissionService;
     }
@@ -133,7 +138,9 @@ public class ApiRegistry {
         this.tokenUpgrader = upgrader;
     }
 
-    /** 取出并清空本次请求待附加的响应头（升级 Set-Cookie 等）；无则空 map。 */
+    /**
+     * 取出并清空本次请求待附加的响应头（升级 Set-Cookie 等）；无则空 map。
+     */
     public Map<String, String> drainResponseHeaders() {
         Map<String, String> m = pendingHeaders.get();
         pendingHeaders.remove();
@@ -169,12 +176,16 @@ public class ApiRegistry {
         register(owner, instance, false, false);
     }
 
-    /** 注册（force=true 强制覆盖重复路由并打印强制注册的插件与原插件）。 */
+    /**
+     * 注册（force=true 强制覆盖重复路由并打印强制注册的插件与原插件）。
+     */
     public void register(Object instance, boolean force) {
         register(pluginOfInstance(instance), instance, false, force);
     }
 
-    /** 注册（显式 owner；force=true 强制覆盖重复路由）。 */
+    /**
+     * 注册（显式 owner；force=true 强制覆盖重复路由）。
+     */
     public void register(Plugin owner, Object instance, boolean force) {
         register(owner, instance, false, force);
     }
@@ -188,23 +199,30 @@ public class ApiRegistry {
         register(pluginOfInstance(instance), instance, true, false);
     }
 
-    /** 强制代理注册并显式指定所属插件（见 {@link #registerProxy(Object)}）。 */
+    /**
+     * 强制代理注册并显式指定所属插件（见 {@link #registerProxy(Object)}）。
+     */
     public void registerProxy(Plugin owner, Object instance) {
         register(owner, instance, true, false);
     }
 
-    /** 强制代理注册（force=true 强制覆盖重复路由并打印强制注册的插件）。 */
+    /**
+     * 强制代理注册（force=true 强制覆盖重复路由并打印强制注册的插件）。
+     */
     public void registerProxy(Object instance, boolean force) {
         register(pluginOfInstance(instance), instance, true, force);
     }
 
-    /** 强制代理注册（显式 owner；force=true 强制覆盖重复路由）。 */
+    /**
+     * 强制代理注册（显式 owner；force=true 强制覆盖重复路由）。
+     */
     public void registerProxy(Plugin owner, Object instance, boolean force) {
         register(owner, instance, true, force);
     }
 
     /**
      * 注册核心实现。
+     *
      * @param proxy true=强制以主插件代理（无 /plugins 前缀）；false=非主插件自动加 /plugins/&lt;插件名&gt;。
      * @param force true=强制覆盖重复路由（打印强制注册的插件与原插件）；false=重复路由默认阻止。
      */
@@ -270,7 +288,9 @@ public class ApiRegistry {
         fireApiEvent(new ApiRegisteredEvent(ownerName, registered));
     }
 
-    /** 卸载某处理器实例注册的全部端点（插件可显式调用；亦会在 PluginDisable 时自动调用）。 */
+    /**
+     * 卸载某处理器实例注册的全部端点（插件可显式调用；亦会在 PluginDisable 时自动调用）。
+     */
     public List<ApiInfo> unregister(Object instance) {
         List<ApiInfo> removed = new ArrayList<>();
         if (instance == null) return removed;
@@ -290,7 +310,9 @@ public class ApiRegistry {
         return removed;
     }
 
-    /** 卸载指定插件名注册的全部 API（监听 PluginDisableEvent 时调用）。 */
+    /**
+     * 卸载指定插件名注册的全部 API（监听 PluginDisableEvent 时调用）。
+     */
     public List<ApiInfo> unregisterPlugin(String pluginName) {
         List<ApiInfo> removed = new ArrayList<>();
         if (pluginName == null || pluginName.isEmpty()) return removed;
@@ -438,7 +460,9 @@ public class ApiRegistry {
         return routes;
     }
 
-    /** 当前已注册的全部端点快照（路径/方法/端点名/权限/处理器类/所属插件），供门面 getRegisteredApis 复用。 */
+    /**
+     * 当前已注册的全部端点快照（路径/方法/端点名/权限/处理器类/所属插件），供门面 getRegisteredApis 复用。
+     */
     public List<ApiInfo> listEndpoints() {
         List<ApiInfo> list = new ArrayList<>();
         for (EndpointMeta m : routes.values()) {
@@ -449,7 +473,9 @@ public class ApiRegistry {
 
     // ===== 插件归属推断 =====
 
-    /** 按处理器实例的 ClassLoader 归属插件；找不到（如宿主自身）则归为宿主插件。 */
+    /**
+     * 按处理器实例的 ClassLoader 归属插件；找不到（如宿主自身）则归为宿主插件。
+     */
     private Plugin pluginOfInstance(Object instance) {
         String name = pluginNameOfInstance(instance);
         if (name != null) {
@@ -468,7 +494,9 @@ public class ApiRegistry {
         return null;
     }
 
-    /** 主线程安全触发 API 注册/卸载事件（同步事件，必在主线程触发，规避 1.12.2 异步事件限制）。 */
+    /**
+     * 主线程安全触发 API 注册/卸载事件（同步事件，必在主线程触发，规避 1.12.2 异步事件限制）。
+     */
     private void fireApiEvent(Event e) {
         try {
             if (Bukkit.isPrimaryThread()) {
@@ -490,10 +518,14 @@ public class ApiRegistry {
         return new ApiInfo(m.httpMethod, m.path, m.apiName, m.permission, m.handlerClass, m.ownerPlugin);
     }
 
-    /** 端点是否显式公开（方法级或类级 @ApiPublic 任一存在即可）。 */
+    /**
+     * 端点是否显式公开（方法级或类级 @ApiPublic 任一存在即可）。
+     */
     private boolean isPublicEndpoint(EndpointMeta meta) {
-        if (meta.method.getAnnotation(com.github.cocosoys.mc.soyshttpovermc.annotations.ApiPublic.class) != null) return true;
-        if (meta.instance.getClass().getAnnotation(com.github.cocosoys.mc.soyshttpovermc.annotations.ApiPublic.class) != null) return true;
+        if (meta.method.getAnnotation(com.github.cocosoys.mc.soyshttpovermc.annotations.ApiPublic.class) != null)
+            return true;
+        if (meta.instance.getClass().getAnnotation(com.github.cocosoys.mc.soyshttpovermc.annotations.ApiPublic.class) != null)
+            return true;
         return false;
     }
 
@@ -505,13 +537,21 @@ public class ApiRegistry {
         public final String apiName;
         public final String permission;
         public final List<ParamBinding> params;
-        /** 实际挂载路径（含前缀，如 /api/ping） */
+        /**
+         * 实际挂载路径（含前缀，如 /api/ping）
+         */
         public final String path;
-        /** HTTP 方法（GET/POST/... 或 *） */
+        /**
+         * HTTP 方法（GET/POST/... 或 *）
+         */
         public final String httpMethod;
-        /** 注册该 API 的插件名（网关自动标记） */
+        /**
+         * 注册该 API 的插件名（网关自动标记）
+         */
         public final String ownerPlugin;
-        /** 处理器类全限定名 */
+        /**
+         * 处理器类全限定名
+         */
         public final String handlerClass;
 
         EndpointMeta(Object instance, Method method, String apiName, String permission,
@@ -534,9 +574,13 @@ public class ApiRegistry {
         final String defaultValue;
         final Class<?> type;
         final boolean requestBody;
-        /** true=参数由网关注入当前请求解析出的凭证（参数类型为 CredentialPresentation） */
+        /**
+         * true=参数由网关注入当前请求解析出的凭证（参数类型为 CredentialPresentation）
+         */
         final boolean injectCredential;
-        /** true=参数由网关注入当前请求上下文（参数类型为 ApiRequestContext：IP/玩家/凭证等） */
+        /**
+         * true=参数由网关注入当前请求上下文（参数类型为 ApiRequestContext：IP/玩家/凭证等）
+         */
         final boolean injectContext;
 
         ParamBinding(String name, boolean required, String defaultValue, Class<?> type,
@@ -650,7 +694,9 @@ public class ApiRegistry {
         return ap == null ? "" : ap.value();
     }
 
-    /** 类级 @RequestMapping 路径前缀（为空字符串表示无前缀）。仅取 value/path，不约束方法。 */
+    /**
+     * 类级 @RequestMapping 路径前缀（为空字符串表示无前缀）。仅取 value/path，不约束方法。
+     */
     private static String classMappingPrefix(Class<?> cls) {
         com.github.cocosoys.mc.soyshttpovermc.annotations.RequestMapping rm = cls.getAnnotation(com.github.cocosoys.mc.soyshttpovermc.annotations.RequestMapping.class);
         if (rm == null) return "";
@@ -658,7 +704,9 @@ public class ApiRegistry {
         return p == null ? "" : p.trim();
     }
 
-    /** 拼接类级前缀与方法路径（均先归一化为 / 开头，两者直接拼接即可得到 /admin/users） */
+    /**
+     * 拼接类级前缀与方法路径（均先归一化为 / 开头，两者直接拼接即可得到 /admin/users）
+     */
     private static String joinPath(String prefix, String sub) {
         if (prefix.isEmpty()) return normalizePath(sub);
         if (sub == null || sub.isEmpty()) return normalizePath(prefix);
@@ -674,7 +722,9 @@ public class ApiRegistry {
         return "";
     }
 
-    /** 解析方法上的映射注解 → [method|*, path] 列表（一个方法可注册多个方法路由） */
+    /**
+     * 解析方法上的映射注解 → [method|*, path] 列表（一个方法可注册多个方法路由）
+     */
     private static List<String[]> resolveMapping(Method m) {
         List<String[]> list = new ArrayList<>();
         com.github.cocosoys.mc.soyshttpovermc.annotations.GetMapping g = m.getAnnotation(GetMapping.class);

@@ -18,22 +18,30 @@ public class LoginProviderContext {
         this.plugin = plugin;
     }
 
-    /** 宿主插件（注册事件监听器 / 读取配置等）。 */
+    /**
+     * 宿主插件（注册事件监听器 / 读取配置等）。
+     */
     public HttpOverMcPlugin getPlugin() {
         return plugin;
     }
 
-    /** 当前登录桥（可能为 null：session-token 颁发器未启用时）。 */
+    /**
+     * 当前登录桥（可能为 null：session-token 颁发器未启用时）。
+     */
     public AuthLoginBridge bridge() {
         return plugin.getAuthLoginBridge();
     }
 
-    /** MC 服务器地址（HTTP 链接构造用）。 */
+    /**
+     * MC 服务器地址（HTTP 链接构造用）。
+     */
     public String getMcHost() {
         return plugin.getDelegate().getMcHost();
     }
 
-    /** MC 服务器端口（HTTP 链接构造用）。 */
+    /**
+     * MC 服务器端口（HTTP 链接构造用）。
+     */
     public int getMcPort() {
         return plugin.getDelegate().getMcPort();
     }

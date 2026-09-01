@@ -142,12 +142,16 @@ public class CombinedPermissionService extends PlayerPermissionService {
         return false;
     }
 
-    /** 重新加载权限提供者组合（/soyshttp reload 时调用）。 */
+    /**
+     * 重新加载权限提供者组合（/soyshttp reload 时调用）。
+     */
     public void reloadProviders() {
         providerRegistry.reload();
     }
 
-    /** 获取提供者注册表（供调试命令展示用）。 */
+    /**
+     * 获取提供者注册表（供调试命令展示用）。
+     */
     public ProviderRegistry getProviderRegistry() {
         return providerRegistry;
     }

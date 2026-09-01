@@ -1,11 +1,8 @@
 package com.github.cocosoys.mc.soyshttpovermc.web;
+
 import lombok.CustomLog;
 
-import java.io.ByteArrayOutputStream;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.IOException;
-import java.io.InputStream;
+import java.io.*;
 import java.net.HttpURLConnection;
 import java.net.URL;
 
@@ -27,10 +24,14 @@ import java.net.URL;
 @CustomLog
 public class HomePageResolver {
 
-    /** 网络首页缓存存活时间（毫秒）。 */
+    /**
+     * 网络首页缓存存活时间（毫秒）。
+     */
     public static final long REMOTE_TTL_MS = 5 * 60 * 1000L;
 
-    /** 解析结果（首页字节 + 生效 Content-Type；contentType 可为 null=按扩展名推断）。 */
+    /**
+     * 解析结果（首页字节 + 生效 Content-Type；contentType 可为 null=按扩展名推断）。
+     */
     public static final class Result {
         public final String name;
         public final byte[] bytes;
@@ -62,12 +63,16 @@ public class HomePageResolver {
         this.jarPrefix = "/dist";
     }
 
-    /** 首页是否已配置（非空）。 */
+    /**
+     * 首页是否已配置（非空）。
+     */
     public boolean isConfigured() {
         return !spec.isEmpty();
     }
 
-    /** 解析首页；未配置/失败返回 null。 */
+    /**
+     * 解析首页；未配置/失败返回 null。
+     */
     public Result resolve() {
         if (!isConfigured()) return null;
         if (spec.startsWith("http://") || spec.startsWith("https://")) {
@@ -80,7 +85,9 @@ public class HomePageResolver {
         return resolveLogical(spec);
     }
 
-    /** 网络 URL：拉取 + 缓存（TTL）；失败返回 null（回退默认）。 */
+    /**
+     * 网络 URL：拉取 + 缓存（TTL）；失败返回 null（回退默认）。
+     */
     private Result resolveRemote(String url) {
         long now = System.currentTimeMillis();
         byte[] cached = remoteBytes;
@@ -122,7 +129,9 @@ public class HomePageResolver {
         }
     }
 
-    /** 绝对路径：本地磁盘文件（含大文件防护）。 */
+    /**
+     * 绝对路径：本地磁盘文件（含大文件防护）。
+     */
     private Result resolveFile(File f) {
         try {
             if (!f.isFile()) {
@@ -142,7 +151,9 @@ public class HomePageResolver {
         }
     }
 
-    /** 相对/逻辑路径：剥 dist/ 前缀后按 web.root → jar /dist/ 顺序解析。 */
+    /**
+     * 相对/逻辑路径：剥 dist/ 前缀后按 web.root → jar /dist/ 顺序解析。
+     */
     private Result resolveLogical(String path) {
         String rel = path.startsWith("/") ? path.substring(1) : path;
         if (rel.isEmpty()) return null;

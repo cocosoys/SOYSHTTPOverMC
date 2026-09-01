@@ -15,7 +15,9 @@ public final class GatewayConfig {
     private GatewayConfig() {
     }
 
-    /** 读取 yml 文件为 ConfigurationSection；文件不存在或内容为空返回 null。 */
+    /**
+     * 读取 yml 文件为 ConfigurationSection；文件不存在或内容为空返回 null。
+     */
     public static ConfigurationSection loadYml(File file) {
         if (file == null || !file.isFile()) return null;
         try {

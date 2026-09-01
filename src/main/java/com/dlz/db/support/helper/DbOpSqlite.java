@@ -22,28 +22,28 @@ public class DbOpSqlite extends SqlHelper {
     public void createTable(String tableName, Class<?> clazz) {
         String createSql = "CREATE TABLE IF NOT EXISTS `{}` ({})";
         final String columns = FieldReflections.getFields(clazz).stream().map(field -> {
-            String columnName = PojoCache.getColumnName(field);
-            if (columnName.equals("")) {
-                return null;
-            }
-            String column = " `" + columnName + "` " + getDbColumnType(field);
-            if (PojoCache.isColumnPk(field)) {
-                column += " PRIMARY KEY";
-                TableId tableId = field.getAnnotation(TableId.class);
-                if (tableId != null && tableId.type() == IdType.AUTO) {
-                    column += " AUTOINCREMENT";
-                }
-            }
-            return column;
-        }).filter(Objects::nonNull)
-        .collect(Collectors.joining(","));
+                    String columnName = PojoCache.getColumnName(field);
+                    if (columnName.equals("")) {
+                        return null;
+                    }
+                    String column = " `" + columnName + "` " + getDbColumnType(field);
+                    if (PojoCache.isColumnPk(field)) {
+                        column += " PRIMARY KEY";
+                        TableId tableId = field.getAnnotation(TableId.class);
+                        if (tableId != null && tableId.type() == IdType.AUTO) {
+                            column += " AUTOINCREMENT";
+                        }
+                    }
+                    return column;
+                }).filter(Objects::nonNull)
+                .collect(Collectors.joining(","));
 
 //        String tableComment = BeanInfoHolder.getTableComment(clazz);
 //        if(StringUtils.isNotEmpty(tableComment)){
 //            tableComment = " COMMENT '" + tableComment + "'";
 //        }
 
-        String sql = StringUtils.formatMsg(createSql, tableName,columns);
+        String sql = StringUtils.formatMsg(createSql, tableName, columns);
 
         DBHolder.getSqlExecutor().update(sql);
     }
@@ -52,7 +52,7 @@ public class DbOpSqlite extends SqlHelper {
     public Set<String> getTableColumnNames(String tableName) {
         // 获取表所有字段
         String sql = "PRAGMA TABLE_INFO(`" + tableName + "`)";
-        List<ResultMap> maps = DBHolder.doDao(w->w.getList(sql));
+        List<ResultMap> maps = DBHolder.doDao(w -> w.getList(sql));
         Set<String> re = new HashSet();
         maps.forEach(item -> re.add(ValUtil.toStr(item.get("name"), "").toUpperCase()));
         return re;
@@ -140,6 +140,7 @@ public class DbOpSqlite extends SqlHelper {
         }
         return "TEXT";
     }
+
     private Class<?> getJavaType(String columnType) {
         if (columnType.equalsIgnoreCase("TEXT")) {
             return String.class;

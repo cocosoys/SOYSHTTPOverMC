@@ -88,6 +88,7 @@ public class DataSourceConfig {
     }
 
     private SqlHelper helper;
+
     public SqlHelper getSqlHelper() {
         if (helper != null) {
             return helper;

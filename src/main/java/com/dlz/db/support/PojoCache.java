@@ -4,10 +4,7 @@ import com.dlz.db.annotation.TableField;
 import com.dlz.db.annotation.TableId;
 import com.dlz.db.annotation.TableName;
 import com.dlz.db.annotation.proxy.AnnoProxies;
-import com.dlz.db.core.DlzDbProperties;
-import com.dlz.db.ds.DBDynamic;
 import com.dlz.db.modal.DB;
-import com.dlz.db.modal.wrapper.WrapperBuildUtil;
 import com.dlz.db.support.bean.IdInfo;
 import com.dlz.db.util.DbConvertUtil;
 import com.dlz.db.util.DbLogUtil;
@@ -106,6 +103,7 @@ public class PojoCache {
         }
         return map.containsKey(DbConvertUtil.toDbColumnName(columnName.replaceAll("`", "")).toUpperCase());
     }
+
     /**
      * 判断字段是否存在
      *
@@ -311,18 +309,18 @@ public class PojoCache {
     public static String getIdName(String tableName) {
         return idNameCache.getAndSet(tableName, () -> {
             final List<String> primaryKeys = DB.Dynamic.getSqlHelper().getTableInfo(tableName).getPrimaryKeys();
-            if(primaryKeys == null || primaryKeys.isEmpty()){
-                throw new SystemException("表["+tableName+"]无主键");
+            if (primaryKeys == null || primaryKeys.isEmpty()) {
+                throw new SystemException("表[" + tableName + "]无主键");
             }
-            if(primaryKeys.size()>1){
-                throw new SystemException("表["+tableName+"]为复合主键，不支持此操作");
+            if (primaryKeys.size() > 1) {
+                throw new SystemException("表[" + tableName + "]为复合主键，不支持此操作");
             }
             return DbConvertUtil.toFieldName(primaryKeys.get(0));
         });
     }
 
-    public static Field getLogicDeleteInfo(Class<?> beanClass,String logicDeleteFileName) {
-        final Field field = deletedFieldCache.computeIfAbsent(beanClass,k -> {
+    public static Field getLogicDeleteInfo(Class<?> beanClass, String logicDeleteFileName) {
+        final Field field = deletedFieldCache.computeIfAbsent(beanClass, k -> {
             List<Field> fields = getBeanFields(beanClass);
             if (fields == null) {
                 return null;

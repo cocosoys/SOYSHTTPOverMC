@@ -20,10 +20,14 @@ import org.bukkit.entity.Player;
  */
 public interface PermissionProvider {
 
-    /** 提供者唯一名称（对应 config.yml 中的 providers 配置值）。 */
+    /**
+     * 提供者唯一名称（对应 config.yml 中的 providers 配置值）。
+     */
     String name();
 
-    /** 对应权限插件是否存在且已启用。 */
+    /**
+     * 对应权限插件是否存在且已启用。
+     */
     boolean isAvailable();
 
     /**

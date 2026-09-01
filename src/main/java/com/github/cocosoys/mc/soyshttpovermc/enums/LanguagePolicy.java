@@ -25,12 +25,16 @@ public enum LanguagePolicy {
         this.configName = configName;
     }
 
-    /** 对应 config.yml 的字符串值。 */
+    /**
+     * 对应 config.yml 的字符串值。
+     */
     public String configName() {
         return configName;
     }
 
-    /** 从配置字符串解析；null / 空白 / 未知值一律回退 {@link #INTERNATIONALIZATION}（默认策略）。 */
+    /**
+     * 从配置字符串解析；null / 空白 / 未知值一律回退 {@link #INTERNATIONALIZATION}（默认策略）。
+     */
     public static LanguagePolicy from(String raw) {
         if (raw == null) {
             return INTERNATIONALIZATION;

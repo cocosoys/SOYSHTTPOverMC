@@ -33,7 +33,9 @@ public final class LinkMessageUtil {
     private LinkMessageUtil() {
     }
 
-    /** 解析链接目标：以 / 开头视为本服页面路径，拼 https://host:port；否则原样返回。 */
+    /**
+     * 解析链接目标：以 / 开头视为本服页面路径，拼 https://host:port；否则原样返回。
+     */
     public static String resolveUrl(String raw, String host, int port) {
         if (raw == null || raw.isEmpty()) return "";
         if (raw.startsWith("/")) {
@@ -81,17 +83,21 @@ public final class LinkMessageUtil {
         return out.toArray(new BaseComponent[0]);
     }
 
-    /** 向玩家发送链接消息（命令路径天然在主线程；若从其他线程调用请自行切主线程）。 */
+    /**
+     * 向玩家发送链接消息（命令路径天然在主线程；若从其他线程调用请自行切主线程）。
+     */
     public static void send(Player player, String url, String display) {
         if (player == null) return;
         player.spigot().sendMessage(build(display, url));
     }
 
-    /** 生成可点击链接组件（标签为空时用 url 本身作标签）。 */
+    /**
+     * 生成可点击链接组件（标签为空时用 url 本身作标签）。
+     */
     private static BaseComponent[] makeLink(String label, String url) {
         String colored = (label == null || label.isEmpty()) ? url : label.replace('&', '§');
         BaseComponent[] parts = TextComponent.fromLegacyText(colored);
-        BaseComponent[] hover = new BaseComponent[]{ new TextComponent("点击打开: " + url) };
+        BaseComponent[] hover = new BaseComponent[]{new TextComponent("点击打开: " + url)};
         for (BaseComponent p : parts) {
             p.setClickEvent(new ClickEvent(ClickEvent.Action.OPEN_URL, url));
             p.setHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, hover));

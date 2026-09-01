@@ -151,6 +151,7 @@ public class DbLogUtil {
             }
         }
     }
+
     public static void debug(String msg, Exception error) {
         if (log.isDebugEnabled() || error != null) {
             if (showCaller) {

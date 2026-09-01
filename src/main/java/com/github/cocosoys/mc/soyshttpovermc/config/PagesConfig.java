@@ -1,13 +1,12 @@
 package com.github.cocosoys.mc.soyshttpovermc.config;
 
 import com.github.cocosoys.mc.soyshttpovermc.HttpOverMcPlugin;
+import com.github.cocosoys.mc.soyshttpovermc.web.MimeTypes;
+import com.github.cocosoys.mc.soyshttpovermc.web.WebRegistry;
 import lombok.CustomLog;
-
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.plugin.java.JavaPlugin;
-import com.github.cocosoys.mc.soyshttpovermc.web.MimeTypes;
-import com.github.cocosoys.mc.soyshttpovermc.web.WebRegistry;
 
 import java.io.*;
 import java.util.ArrayList;
@@ -29,24 +28,32 @@ public final class PagesConfig {
         this.cfg = cfg;
     }
 
-    /** 装载 pages.yml（文件缺失时落内置默认；落盘失败时 cfg=null），由 ConfigManager 初始化时调用。 */
+    /**
+     * 装载 pages.yml（文件缺失时落内置默认；落盘失败时 cfg=null），由 ConfigManager 初始化时调用。
+     */
     public static PagesConfig load(JavaPlugin plugin) {
         return new PagesConfig(Manual.loadConfig(plugin));
     }
 
-    /** 原始配置对象（web.* 段 / pages 段统一在此；可能为 null=文件落盘失败）。 */
+    /**
+     * 原始配置对象（web.* 段 / pages 段统一在此；可能为 null=文件落盘失败）。
+     */
     public YamlConfiguration raw() {
         return cfg;
     }
 
-    /** 读取 pages.yml web.* 配置项（如 web.home / web.root / web.cache.max-bytes）。缺省返回默认值。 */
+    /**
+     * 读取 pages.yml web.* 配置项（如 web.home / web.root / web.cache.max-bytes）。缺省返回默认值。
+     */
     public String web(String path, String def) {
         if (cfg == null) return def;
         String v = cfg.getString(path, def);
         return v == null ? def : v;
     }
 
-    /** 读取 pages.yml web.* 字符串列表（如 web.cache.pinned）。缺省返回空列表。 */
+    /**
+     * 读取 pages.yml web.* 字符串列表（如 web.cache.pinned）。缺省返回空列表。
+     */
     public java.util.List<String> getStringList(String path) {
         if (cfg == null) return java.util.Collections.emptyList();
         java.util.List<String> v = cfg.getStringList(path);
@@ -106,7 +113,9 @@ public final class PagesConfig {
         private Manual() {
         }
 
-        /** 从头登记 pages.yml（文件缺失时先落内置默认）。返回登记成功的网页/跳转数（含目录内逐文件）。 */
+        /**
+         * 从头登记 pages.yml（文件缺失时先落内置默认）。返回登记成功的网页/跳转数（含目录内逐文件）。
+         */
         public static int register(JavaPlugin plugin, WebRegistry reg) {
             if (reg == null) return 0;
             YamlConfiguration cfg = loadConfig(plugin);
@@ -160,7 +169,9 @@ public final class PagesConfig {
             return YamlConfiguration.loadConfiguration(file);
         }
 
-        /** 解析 page 段单条为 PageItem（resource / nicknames / description）。 */
+        /**
+         * 解析 page 段单条为 PageItem（resource / nicknames / description）。
+         */
         private static PageItem readPageObj(ConfigurationSection pageSec, String key) {
             PageItem it = new PageItem();
             Object raw = pageSec.get(key);
@@ -175,7 +186,9 @@ public final class PagesConfig {
             return it;
         }
 
-        /** page 段：resource 单文件/资源 + nicknames/description；resource 不支持目录。 */
+        /**
+         * page 段：resource 单文件/资源 + nicknames/description；resource 不支持目录。
+         */
         private static int applyPage(JavaPlugin plugin, WebRegistry reg, String url, PageItem it) {
             if (it == null || it.resource == null || it.resource.trim().isEmpty()) {
                 log.warnT("log.pages.source-empty", "pages.yml 条目缺失内容来源: {0}", url);
@@ -198,7 +211,9 @@ public final class PagesConfig {
             return 1;
         }
 
-        /** auto 段：遍历平铺键值，逐条 applyAuto。 */
+        /**
+         * auto 段：遍历平铺键值，逐条 applyAuto。
+         */
         private static int applyAutoMap(JavaPlugin plugin, WebRegistry reg, ConfigurationSection sec) {
             int total = 0;
             for (String key : sec.getKeys(false)) {
@@ -217,7 +232,9 @@ public final class PagesConfig {
             return total;
         }
 
-        /** auto 段单条：反引号包裹 → 302 网络跳转；目录 → 递归 .html；否则单文件/资源。 */
+        /**
+         * auto 段单条：反引号包裹 → 302 网络跳转；目录 → 递归 .html；否则单文件/资源。
+         */
         private static int applyAuto(JavaPlugin plugin, WebRegistry reg, String url, String source) {
             if (isBacktickUrl(source)) {
                 reg.registerProxyRedirect(plugin, url, source.substring(1, source.length() - 1).trim(), 302);
@@ -238,12 +255,16 @@ public final class PagesConfig {
             return 1;
         }
 
-        /** 值是否形如 "`...`"（反引号包裹 = 网络跳转目标）。 */
+        /**
+         * 值是否形如 "`...`"（反引号包裹 = 网络跳转目标）。
+         */
         private static boolean isBacktickUrl(String s) {
             return s != null && s.length() >= 2 && s.charAt(0) == '`' && s.charAt(s.length() - 1) == '`';
         }
 
-        /** 目录模式：递归收集其下全部 .html，逐文件强制登记（URL = url 前缀 + 目录内相对路径）。 */
+        /**
+         * 目录模式：递归收集其下全部 .html，逐文件强制登记（URL = url 前缀 + 目录内相对路径）。
+         */
         private static int registerDir(JavaPlugin plugin, WebRegistry reg, String url, File dir) {
             List<File> htmls = new ArrayList<>();
             collectHtml(dir, htmls);
@@ -269,13 +290,17 @@ public final class PagesConfig {
             }
         }
 
-        /** 把来源解析为磁盘文件（相对插件 dataFolder 或绝对路径）；目录不存在时返回 {code new File(...)} 便于判空。 */
+        /**
+         * 把来源解析为磁盘文件（相对插件 dataFolder 或绝对路径）；目录不存在时返回 {code new File(...)} 便于判空。
+         */
         private static File resolveAsFile(JavaPlugin plugin, String source) {
             File abs = new File(source);
             return abs.isAbsolute() ? abs : new File(plugin.getDataFolder(), source);
         }
 
-        /** 读取来源字节：优先磁盘文件，否则按 jar 内置资源读取；都读不到返回 null。 */
+        /**
+         * 读取来源字节：优先磁盘文件，否则按 jar 内置资源读取；都读不到返回 null。
+         */
         private static byte[] readSource(JavaPlugin plugin, File disk, String source) {
             if (disk.isFile()) {
                 byte[] b = readFile(disk);
@@ -312,7 +337,9 @@ public final class PagesConfig {
             return p.replace('\\', '/');
         }
 
-        /** 拼接 URL：root=http://（?）"/"，rel=目录内相对路径（可能含子目录）。 */
+        /**
+         * 拼接 URL：root=http://（?）"/"，rel=目录内相对路径（可能含子目录）。
+         */
         private static String joinUrl(String root, String rel) {
             if ("/".equals(root)) return "/" + rel;
             String r = root.endsWith("/") ? root.substring(0, root.length() - 1) : root;
@@ -320,7 +347,9 @@ public final class PagesConfig {
             return r + rel2;
         }
 
-        /** page 段单条内容。 */
+        /**
+         * page 段单条内容。
+         */
         private static final class PageItem {
             String resource;
             String description;

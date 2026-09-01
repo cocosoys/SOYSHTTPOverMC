@@ -1,14 +1,12 @@
 package com.github.cocosoys.mc.soyshttpovermc.spring.impl;
+
 import com.github.cocosoys.mc.soyshttpovermc.enums.LoginMode;
-
-import com.github.cocosoys.mc.soyshttpovermc.web.ApiRequestContext;
-import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.bridge.AuthLoginBridge;
-import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.issuer.CredentialPresentation;
-
 import com.github.cocosoys.mc.soyshttpovermc.spring.service.IAuthService;
 import com.github.cocosoys.mc.soyshttpovermc.util.AjaxResult;
 import com.github.cocosoys.mc.soyshttpovermc.util.ApiResponse;
-
+import com.github.cocosoys.mc.soyshttpovermc.web.ApiRequestContext;
+import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.bridge.AuthLoginBridge;
+import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.issuer.CredentialPresentation;
 import org.bukkit.Bukkit;
 
 import java.net.URLDecoder;
@@ -25,7 +23,9 @@ import java.util.regex.Pattern;
  */
 public class AuthServiceImpl implements IAuthService {
 
-    /** 登录请求体中的字段提取（JSON 与表单双兼容） */
+    /**
+     * 登录请求体中的字段提取（JSON 与表单双兼容）
+     */
     private static final Pattern JSON_FIELD = Pattern.compile("\"([a-zA-Z0-9_]+)\"\\s*:\\s*\"([^\"]*)\"");
 
     private volatile AuthLoginBridge bridge;
@@ -34,7 +34,9 @@ public class AuthServiceImpl implements IAuthService {
         this.bridge = bridge;
     }
 
-    /** 热替换登录桥（/soyshttp reload 重建网关后调用，保持与最新 session-token 颁发器一致）。 */
+    /**
+     * 热替换登录桥（/soyshttp reload 重建网关后调用，保持与最新 session-token 颁发器一致）。
+     */
     public void setBridge(AuthLoginBridge bridge) {
         this.bridge = bridge;
     }
@@ -223,7 +225,9 @@ public class AuthServiceImpl implements IAuthService {
         return ApiResponse.status(200, AjaxResult.successDataT(data, "ajax.auth.auto-login-success", "IP 匹配，已自动登录"), extra);
     }
 
-    /** 解析登录请求体：优先 JSON（{"username":..,"password":..}），其次表单（username=..&password=..）。 */
+    /**
+     * 解析登录请求体：优先 JSON（{"username":..,"password":..}），其次表单（username=..&password=..）。
+     */
     private static Map<String, String> parseBody(String body) {
         Map<String, String> map = new HashMap<>();
         if (body == null || body.isEmpty()) return map;

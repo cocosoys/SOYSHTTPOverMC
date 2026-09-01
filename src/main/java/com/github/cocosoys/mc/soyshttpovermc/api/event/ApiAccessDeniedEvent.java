@@ -22,7 +22,9 @@ import java.util.Map;
  */
 public class ApiAccessDeniedEvent extends Event {
 
-    /** 共享 HandlerList（与 ApiAccessEvent 同构，便于统一事件治理）。 */
+    /**
+     * 共享 HandlerList（与 ApiAccessEvent 同构，便于统一事件治理）。
+     */
     private static final HandlerList HANDLERS = new HandlerList();
 
     private final String httpMethod;
@@ -61,67 +63,93 @@ public class ApiAccessDeniedEvent extends Event {
 
     // ===== getters =====
 
-    /** 实际请求方法（GET/POST/...）。 */
+    /**
+     * 实际请求方法（GET/POST/...）。
+     */
     public String getHttpMethod() {
         return httpMethod;
     }
 
-    /** 原始路径（含 query 串，保证 @RequestParam 重放正确）。 */
+    /**
+     * 原始路径（含 query 串，保证 @RequestParam 重放正确）。
+     */
     public String getRawPath() {
         return rawPath;
     }
 
-    /** 端点名称（@ApiName）。 */
+    /**
+     * 端点名称（@ApiName）。
+     */
     public String getApiName() {
         return apiName;
     }
 
-    /** 端点要求的权限（@ApiPermission）。 */
+    /**
+     * 端点要求的权限（@ApiPermission）。
+     */
     public String getPermission() {
         return permission;
     }
 
-    /** 注册该 API 的插件名。 */
+    /**
+     * 注册该 API 的插件名。
+     */
     public String getOwnerPlugin() {
         return ownerPlugin;
     }
 
-    /** 请求是否携带有效凭证。 */
+    /**
+     * 请求是否携带有效凭证。
+     */
     public boolean isAuthenticated() {
         return authenticated;
     }
 
-    /** 经 token/cookie 解析出的玩家名（无凭证 / 非玩家令牌 = null）。 */
+    /**
+     * 经 token/cookie 解析出的玩家名（无凭证 / 非玩家令牌 = null）。
+     */
     public String getPlayerName() {
         return playerName;
     }
 
-    /** 玩家离线标记（true=离线、需待上线补执行）。 */
+    /**
+     * 玩家离线标记（true=离线、需待上线补执行）。
+     */
     public boolean isOffline() {
         return offline;
     }
 
-    /** 请求解析出的凭证（可为 null）。 */
+    /**
+     * 请求解析出的凭证（可为 null）。
+     */
     public CredentialPresentation getCredential() {
         return credential;
     }
 
-    /** 拒绝状态码（403）。 */
+    /**
+     * 拒绝状态码（403）。
+     */
     public int getStatusCode() {
         return statusCode;
     }
 
-    /** 拒绝原因（人类可读）。 */
+    /**
+     * 拒绝原因（人类可读）。
+     */
     public String getReason() {
         return reason;
     }
 
-    /** 完整请求体（重放用）。 */
+    /**
+     * 完整请求体（重放用）。
+     */
     public byte[] getBody() {
         return body;
     }
 
-    /** 完整请求头（重放用）。 */
+    /**
+     * 完整请求头（重放用）。
+     */
     public Map<String, String> getHeaders() {
         return headers;
     }

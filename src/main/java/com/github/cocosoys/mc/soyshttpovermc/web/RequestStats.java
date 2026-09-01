@@ -25,7 +25,9 @@ public class RequestStats {
     private final ConcurrentLinkedDeque<RecentReq> recent = new ConcurrentLinkedDeque<>();
     private static final int MAX_RECENT = 25;
 
-    /** 记录一次已完成（无论成功/失败）的 HTTP 请求隧道往返 */
+    /**
+     * 记录一次已完成（无论成功/失败）的 HTTP 请求隧道往返
+     */
     public void recordRequest(String method, String path, int code, long latencyMicros) {
         total.incrementAndGet();
         String m = method == null ? "" : method.toUpperCase();
@@ -65,13 +67,17 @@ public class RequestStats {
         return otherCount.get();
     }
 
-    /** 平均端到端延迟（毫秒），无样本返回 -1 */
+    /**
+     * 平均端到端延迟（毫秒），无样本返回 -1
+     */
     public double getAvgLatencyMs() {
         long c = latCount.get();
         return c == 0 ? -1 : (latSumUs.get() / (double) c) / 1000.0;
     }
 
-    /** 最大端到端延迟（毫秒） */
+    /**
+     * 最大端到端延迟（毫秒）
+     */
     public double getMaxLatencyMs() {
         long m = latMaxUs.get();
         return m <= 0 ? -1 : m / 1000.0;

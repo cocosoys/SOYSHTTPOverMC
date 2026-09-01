@@ -1,13 +1,9 @@
 package com.github.cocosoys.mc.soyshttpovermc.web;
+
 import lombok.CustomLog;
 
 import java.io.File;
-import java.util.Collections;
-import java.util.Iterator;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
@@ -28,7 +24,9 @@ import java.util.function.Supplier;
 @CustomLog
 public class WebContentCache {
 
-    /** LRU 缓存条目。 */
+    /**
+     * LRU 缓存条目。
+     */
     private static final class Cached {
         final byte[] bytes;
         final long cachedAt;
@@ -49,11 +47,17 @@ public class WebContentCache {
     private final int maxEntries;
     private final long maxBytes;
     private final long ttlMillis;
-    /** 常驻路径/前缀（不淘汰、不计入 maxBytes） */
+    /**
+     * 常驻路径/前缀（不淘汰、不计入 maxBytes）
+     */
     private final Set<String> pinnedPatterns;
-    /** 常驻缓存：path -> bytes（常驻内容直接进内存） */
+    /**
+     * 常驻缓存：path -> bytes（常驻内容直接进内存）
+     */
     private final Map<String, byte[]> pinnedBytes = new ConcurrentHashMap<>();
-    /** LRU（accessOrder） */
+    /**
+     * LRU（accessOrder）
+     */
     private final Map<String, Cached> lru = new LinkedHashMap<String, Cached>(64, 0.75f, true) {
         @Override
         protected boolean removeEldestEntry(Map.Entry<String, Cached> eldest) {
@@ -75,7 +79,9 @@ public class WebContentCache {
         this.largeLoaders = largeLoaders;
     }
 
-    /** 某路径是否命中常驻列表（精确匹配或前缀匹配）。 */
+    /**
+     * 某路径是否命中常驻列表（精确匹配或前缀匹配）。
+     */
     public boolean isPinned(String path) {
         if (path == null || pinnedPatterns.isEmpty()) return false;
         for (String p : pinnedPatterns) {
@@ -88,9 +94,9 @@ public class WebContentCache {
     /**
      * 统一取字节入口（磁盘静态资源）：pinned → 大文件加载器 → LRU。
      *
-     * @param path     请求路径（/ 开头）
-     * @param file     磁盘文件（null 时不做大文件/热替换判定）
-     * @param loader   实际读取提供者（miss 时调用）
+     * @param path   请求路径（/ 开头）
+     * @param file   磁盘文件（null 时不做大文件/热替换判定）
+     * @param loader 实际读取提供者（miss 时调用）
      */
     public byte[] bytes(String path, File file, Supplier<byte[]> loader) {
         long stamp = file == null ? -1 : (file.isFile() ? file.lastModified() : -1);
@@ -157,7 +163,9 @@ public class WebContentCache {
         return b;
     }
 
-    /** 容量/条数/TTL 淘汰（必须在持有锁时调用）。 */
+    /**
+     * 容量/条数/TTL 淘汰（必须在持有锁时调用）。
+     */
     private void evictLocked(long now) {
         if (lru.isEmpty()) return;
         Iterator<Map.Entry<String, Cached>> it = lru.entrySet().iterator();
@@ -195,23 +203,41 @@ public class WebContentCache {
         }
     }
 
-    /** 手动淘汰：供定时任务/接口调用（无需线程常驻，仅在写入时自动淘汰）。 */
+    /**
+     * 手动淘汰：供定时任务/接口调用（无需线程常驻，仅在写入时自动淘汰）。
+     */
     public void sweep() {
         synchronized (this) {
             evictLocked(System.currentTimeMillis());
         }
     }
 
-    public long hits() { return hits.get(); }
-    public long misses() { return misses.get(); }
+    public long hits() {
+        return hits.get();
+    }
 
-    /** 当前 LRU 占用字节（不含常驻）。 */
-    public synchronized long cachedBytes() { return lruBytes; }
-    public synchronized int cachedEntries() { return lru.size(); }
+    public long misses() {
+        return misses.get();
+    }
+
+    /**
+     * 当前 LRU 占用字节（不含常驻）。
+     */
+    public synchronized long cachedBytes() {
+        return lruBytes;
+    }
+
+    public synchronized int cachedEntries() {
+        return lru.size();
+    }
+
     public long pinnedBytes() {
         long n = 0;
         for (byte[] b : pinnedBytes.values()) n += b.length;
         return n;
     }
-    public int pinnedEntries() { return pinnedBytes.size(); }
+
+    public int pinnedEntries() {
+        return pinnedBytes.size();
+    }
 }

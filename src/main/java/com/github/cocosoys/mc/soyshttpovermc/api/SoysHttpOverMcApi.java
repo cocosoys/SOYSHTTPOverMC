@@ -37,22 +37,34 @@ import com.github.cocosoys.mc.soyshttpovermc.exception.ExceptionBus;
  */
 public interface SoysHttpOverMcApi {
 
-    /** 能力组 1：注解式 API 注册 */
+    /**
+     * 能力组 1：注解式 API 注册
+     */
     ApiRegistrationApi getApiRegistration();
 
-    /** 能力组 2：网页登记 */
+    /**
+     * 能力组 2：网页登记
+     */
     WebPageApi getWebPage();
 
-    /** 能力组 3：鉴权与凭证 */
+    /**
+     * 能力组 3：鉴权与凭证
+     */
     AuthCredentialApi getAuthCredential();
 
-    /** 能力组 4：工具（JSON / Content-Type） */
+    /**
+     * 能力组 4：工具（JSON / Content-Type）
+     */
     ApiToolkitApi getToolkit();
 
-    /** 能力组 7：HTTP 请求 / 本地回环 */
+    /**
+     * 能力组 7：HTTP 请求 / 本地回环
+     */
     HttpClientApi getHttpClient();
 
-    /** 能力组 8：扩展接入（登录插件提供者 / /soyshttp 子指令） */
+    /**
+     * 能力组 8：扩展接入（登录插件提供者 / /soyshttp 子指令）
+     */
     ExtensionApi getExtension();
 
     /**

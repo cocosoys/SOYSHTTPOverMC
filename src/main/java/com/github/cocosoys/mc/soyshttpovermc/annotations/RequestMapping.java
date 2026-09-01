@@ -1,4 +1,5 @@
 package com.github.cocosoys.mc.soyshttpovermc.annotations;
+
 import com.github.cocosoys.mc.soyshttpovermc.enums.RequestMethod;
 
 import java.lang.annotation.ElementType;
@@ -27,12 +28,18 @@ import java.lang.annotation.Target;
 @Target({ElementType.TYPE, ElementType.METHOD, ElementType.ANNOTATION_TYPE})
 public @interface RequestMapping {
 
-    /** 路径别名（与 path 二选一；都为空则注册为 /） */
+    /**
+     * 路径别名（与 path 二选一；都为空则注册为 /）
+     */
     String value() default "";
 
-    /** 路由路径，如 /users（不含全局前缀；auth 开启时自动加 /api 前缀） */
+    /**
+     * 路由路径，如 /users（不含全局前缀；auth 开启时自动加 /api 前缀）
+     */
     String path() default "";
 
-    /** 允许的 HTTP 方法；为空表示不限定（匹配任意方法） */
+    /**
+     * 允许的 HTTP 方法；为空表示不限定（匹配任意方法）
+     */
     RequestMethod[] method() default {};
 }

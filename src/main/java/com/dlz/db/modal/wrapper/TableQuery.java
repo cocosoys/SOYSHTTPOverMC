@@ -23,7 +23,7 @@ import java.util.stream.Collectors;
 @SuppressWarnings("rawtypes")
 public class TableQuery extends AQuery<TableQuery> implements ISqlPage<TableQuery>, IExecutorQuery<TableQuery> {
     private static final long serialVersionUID = 8374167270612933157L;
-    String columns="*";
+    String columns = "*";
 
     public TableQuery(String tableName) {
         super(tableName);
@@ -35,6 +35,7 @@ public class TableQuery extends AQuery<TableQuery> implements ISqlPage<TableQuer
         }
         return this;
     }
+
     @SuppressWarnings("unchecked")
     public <T> TableQuery select(DlzFn<T, ?>... columns) {
         if (columns.length > 0) {
@@ -60,6 +61,7 @@ public class TableQuery extends AQuery<TableQuery> implements ISqlPage<TableQuer
         }
         return this;
     }
+
     public TableQuery convert(IConvertorToFieldName convertor) {
         SqlRunThreadHolder.setConvertorToFieldName(convertor);
         return this;

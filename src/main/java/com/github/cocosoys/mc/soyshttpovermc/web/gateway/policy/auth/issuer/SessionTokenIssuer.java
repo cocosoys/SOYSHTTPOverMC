@@ -1,15 +1,14 @@
 package com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.issuer;
-import com.github.cocosoys.mc.soyshttpovermc.storage.SyncStorage;
-import com.github.cocosoys.mc.soyshttpovermc.enums.LoginMode;
 
-import org.bukkit.configuration.ConfigurationSection;
+import com.github.cocosoys.mc.soyshttpovermc.enums.LoginMode;
+import com.github.cocosoys.mc.soyshttpovermc.storage.SyncStorage;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.util.AuthUtils;
+import org.bukkit.configuration.ConfigurationSection;
 
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicLong;
@@ -38,29 +37,47 @@ public class SessionTokenIssuer extends CredentialIssuer {
 
     private String cookieName = "soys_session";
     private long ttlMillis = 24L * 3600 * 1000;
-    /** JWT HMAC 密钥（外部注入，持久化于 data/token-secret.key）。 */
+    /**
+     * JWT HMAC 密钥（外部注入，持久化于 data/token-secret.key）。
+     */
     private volatile byte[] secret = new byte[0];
-    /** 已注销令牌的 jti 黑名单（退出登录后即使 JWT 未过期也不可用；reload/重启清空）。
-     *  key=jti, value=撤销时间戳，用于过期清理（超过 2*ttl 后令牌必然已过期，可安全移除）。 */
+    /**
+     * 已注销令牌的 jti 黑名单（退出登录后即使 JWT 未过期也不可用；reload/重启清空）。
+     * key=jti, value=撤销时间戳，用于过期清理（超过 2*ttl 后令牌必然已过期，可安全移除）。
+     */
     private final Map<String, Long> revoked = new ConcurrentHashMap<>();
-    /** 颁发登记表（subject → 签发记录；仅审计展示用，惰性清理过期记录）。 */
+    /**
+     * 颁发登记表（subject → 签发记录；仅审计展示用，惰性清理过期记录）。
+     */
     private final Map<String, List<IssuedRecord>> issued = new ConcurrentHashMap<>();
-    /** 颁发计数：每 ISSUE_CLEANUP_INTERVAL 次颁发触发一次过期清理，避免登记表和黑名单无限增长。 */
+    /**
+     * 颁发计数：每 ISSUE_CLEANUP_INTERVAL 次颁发触发一次过期清理，避免登记表和黑名单无限增长。
+     */
     private static final long ISSUE_CLEANUP_INTERVAL = 500L;
     private final AtomicLong issueCount = new AtomicLong(0);
-    /** 跨服同步存储（MySQL 等；null=纯内存模式）：黑名单/审计双写+查询。 */
+    /**
+     * 跨服同步存储（MySQL 等；null=纯内存模式）：黑名单/审计双写+查询。
+     */
     private volatile SyncStorage syncStorage = null;
-    /** 本服标识（写库记录来源服，防双服冲突；由宿主注入）。 */
+    /**
+     * 本服标识（写库记录来源服，防双服冲突；由宿主注入）。
+     */
     private volatile String serverId = "";
-    /** 时钟容差（毫秒）：跨服校验容忍各服时钟偏移（gateway/issuers/session-token.yml clock-skew-seconds，默认 30s）。 */
+    /**
+     * 时钟容差（毫秒）：跨服校验容忍各服时钟偏移（gateway/issuers/session-token.yml clock-skew-seconds，默认 30s）。
+     */
     private volatile long clockSkewMillis = 30_000;
 
-    /** 注入跨服同步存储（宿主装配；null=内存模式）。 */
+    /**
+     * 注入跨服同步存储（宿主装配；null=内存模式）。
+     */
     public void setSyncStorage(SyncStorage storage) {
         this.syncStorage = storage;
     }
 
-    /** 注入本服标识（群组服=server-name，独立服=standalone-&lt;host&gt;:&lt;port&gt;）。 */
+    /**
+     * 注入本服标识（群组服=server-name，独立服=standalone-&lt;host&gt;:&lt;port&gt;）。
+     */
     public void setServerId(String id) {
         this.serverId = id == null ? "" : id;
     }
@@ -81,7 +98,9 @@ public class SessionTokenIssuer extends CredentialIssuer {
         issued.clear(); // 颁发登记随重建清空（新颁发器实例从头登记）
     }
 
-    /** 注入 JWT 签名密钥（由主类从持久化文件加载；reload 复用同一密钥 → 旧令牌不失效）。 */
+    /**
+     * 注入 JWT 签名密钥（由主类从持久化文件加载；reload 复用同一密钥 → 旧令牌不失效）。
+     */
     public void setSecret(byte[] secret) {
         this.secret = secret == null ? new byte[0] : secret;
     }
@@ -91,7 +110,9 @@ public class SessionTokenIssuer extends CredentialIssuer {
         return issue(subject, LoginMode.ONLINE);
     }
 
-    /** 按指定登录模式签发会话令牌（offline=离线模式专属 cookie，online=正常在线令牌）。 */
+    /**
+     * 按指定登录模式签发会话令牌（offline=离线模式专属 cookie，online=正常在线令牌）。
+     */
     public IssuedCredential issue(String subject, LoginMode mode) {
         return IssuedCredential.ofToken(issueToken(subject, mode), cookieName);
     }
@@ -105,12 +126,16 @@ public class SessionTokenIssuer extends CredentialIssuer {
         return IssuedCredential.ofToken(issueToken(subject, mode, claims), cookieName);
     }
 
-    /** 签发并返回 JWT 令牌字符串（供登录桥登记/换发使用）。 */
+    /**
+     * 签发并返回 JWT 令牌字符串（供登录桥登记/换发使用）。
+     */
     public String issueToken(String subject, LoginMode mode) {
         return issueToken(subject, mode, null);
     }
 
-    /** 签发并返回 JWT 令牌字符串（支持自定义 claims）。 */
+    /**
+     * 签发并返回 JWT 令牌字符串（支持自定义 claims）。
+     */
     public String issueToken(String subject, LoginMode mode, java.util.Map<String, String> claims) {
         String jti = AuthUtils.generateToken("", 10);
         String modeName = mode == null ? LoginMode.ONLINE.name() : mode.name();
@@ -137,13 +162,17 @@ public class SessionTokenIssuer extends CredentialIssuer {
         return parse(p) != null;
     }
 
-    /** 解析请求凭证为 JWT payload（验签 + 过期 + 黑名单）；无效返回 null。 */
+    /**
+     * 解析请求凭证为 JWT payload（验签 + 过期 + 黑名单）；无效返回 null。
+     */
     private JwtCodec.Payload parse(CredentialPresentation p) {
         String token = tokenOf(p);
         return token == null ? null : parseToken(token);
     }
 
-    /** 解析令牌字符串（验签 + 过期[含时钟容差] + 黑名单）；无效返回 null。支持 st_（玩家）与 ak_（服主 admin）前缀。 */
+    /**
+     * 解析令牌字符串（验签 + 过期[含时钟容差] + 黑名单）；无效返回 null。支持 st_（玩家）与 ak_（服主 admin）前缀。
+     */
     private JwtCodec.Payload parseToken(String token) {
         if (token == null) return null;
         JwtCodec.Payload payload = token.startsWith("ak_")
@@ -154,26 +183,34 @@ public class SessionTokenIssuer extends CredentialIssuer {
         return payload;
     }
 
-    /** 本服内存黑名单 + 跨服共享黑名单（存储后端）联合判定；存储查询带命中缓存。 */
+    /**
+     * 本服内存黑名单 + 跨服共享黑名单（存储后端）联合判定；存储查询带命中缓存。
+     */
     private boolean isRevoked(String jti) {
         if (revoked.containsKey(jti)) return true;
         SyncStorage s = syncStorage;
         return s != null && s.isAvailable() && s.isTokenRevoked(jti);
     }
 
-    /** 是否为服主最高权限 key（adm 标记；无效/过期/已注销返回 false）。 */
+    /**
+     * 是否为服主最高权限 key（adm 标记；无效/过期/已注销返回 false）。
+     */
     public boolean isAdminToken(String token) {
         JwtCodec.Payload payload = parseToken(token);
         return payload != null && payload.adm;
     }
 
-    /** 请求凭证是否为服主最高权限 key（无效/过期/已注销返回 false）。 */
+    /**
+     * 请求凭证是否为服主最高权限 key（无效/过期/已注销返回 false）。
+     */
     public boolean isAdmin(CredentialPresentation p) {
         String token = tokenOf(p);
         return token != null && isAdminToken(token);
     }
 
-    /** 从凭证表示提取本颁发器可识别的令牌（Bearer / X-API-Key / Cookie(soys_session) 任一），供校验与权限映射复用。 */
+    /**
+     * 从凭证表示提取本颁发器可识别的令牌（Bearer / X-API-Key / Cookie(soys_session) 任一），供校验与权限映射复用。
+     */
     protected String tokenOf(CredentialPresentation p) {
         if (p == null) return null;
         String token = p.getBearer();
@@ -188,7 +225,9 @@ public class SessionTokenIssuer extends CredentialIssuer {
         return payload == null ? null : payload.subject;
     }
 
-    /** 查询指定令牌对应的登录模式（无效/过期/已注销返回 null）。 */
+    /**
+     * 查询指定令牌对应的登录模式（无效/过期/已注销返回 null）。
+     */
     public LoginMode modeOfToken(String token) {
         JwtCodec.Payload payload = parseToken(token);
         if (payload == null || payload.mode == null) return null;
@@ -199,7 +238,9 @@ public class SessionTokenIssuer extends CredentialIssuer {
         }
     }
 
-    /** 查询请求凭证对应令牌的登录模式（无效/过期返回 null）。 */
+    /**
+     * 查询请求凭证对应令牌的登录模式（无效/过期返回 null）。
+     */
     public LoginMode modeOf(CredentialPresentation p) {
         String token = tokenOf(p);
         return token == null ? null : modeOfToken(token);
@@ -215,17 +256,23 @@ public class SessionTokenIssuer extends CredentialIssuer {
         return 0; // 无状态 JWT 无法枚举玩家令牌；换发逻辑在 AuthLoginBridge.upgradePlayerToOnline
     }
 
-    /** 会话令牌 TTL（秒），供 Set-Cookie 的 Max-Age 使用。 */
+    /**
+     * 会话令牌 TTL（秒），供 Set-Cookie 的 Max-Age 使用。
+     */
     public long getTtlSeconds() {
         return ttlMillis / 1000L;
     }
 
-    /** Cookie 名称（默认 soys_session），供 Set-Cookie 头构造使用。 */
+    /**
+     * Cookie 名称（默认 soys_session），供 Set-Cookie 头构造使用。
+     */
     public String getCookieName() {
         return cookieName;
     }
 
-    /** 按令牌字符串撤销会话（退出登录用）：jti 加入黑名单（本地 + 跨服存储）；撤销成功返回 true。 */
+    /**
+     * 按令牌字符串撤销会话（退出登录用）：jti 加入黑名单（本地 + 跨服存储）；撤销成功返回 true。
+     */
     public boolean revoke(String token) {
         JwtCodec.Payload payload = parseToken(token);
         if (payload == null || payload.jti == null) return false;
@@ -242,20 +289,26 @@ public class SessionTokenIssuer extends CredentialIssuer {
         return true;
     }
 
-    /** 按请求携带的凭证撤销会话（退出登录用）；提取不到令牌或不存在返回 false。 */
+    /**
+     * 按请求携带的凭证撤销会话（退出登录用）；提取不到令牌或不存在返回 false。
+     */
     public boolean revoke(CredentialPresentation p) {
         String token = tokenOf(p);
         return token != null && revoke(token);
     }
 
-    /** 查询令牌是否仍有效（供调试/门面展示）。 */
+    /**
+     * 查询令牌是否仍有效（供调试/门面展示）。
+     */
     public boolean isValidToken(String token) {
         return parseToken(token) != null;
     }
 
     // ===== 颁发登记（审计，供 /soyshttp tokens 查询） =====
 
-    /** 一次签发的登记记录（不含令牌本体，仅审计元数据；JWT 校验不依赖它）。 */
+    /**
+     * 一次签发的登记记录（不含令牌本体，仅审计元数据；JWT 校验不依赖它）。
+     */
     public static final class IssuedRecord {
         public final String subject;
         public final String mode;
@@ -274,7 +327,9 @@ public class SessionTokenIssuer extends CredentialIssuer {
             this.jti = jti;
         }
 
-        /** 展示用状态：已注销 / 已过期 / 有效。 */
+        /**
+         * 展示用状态：已注销 / 已过期 / 有效。
+         */
         public String status() {
             if (revoked) return "已注销";
             if (System.currentTimeMillis() > expiresAt) return "已过期";
@@ -301,7 +356,9 @@ public class SessionTokenIssuer extends CredentialIssuer {
         }
     }
 
-    /** 清理过期的颁发记录和已撤销黑名单（超过 2*ttl 后令牌必然已过期，可安全移除）。 */
+    /**
+     * 清理过期的颁发记录和已撤销黑名单（超过 2*ttl 后令牌必然已过期，可安全移除）。
+     */
     private void cleanupExpired() {
         long now = System.currentTimeMillis();
         long revokeExpireThreshold = now - 2L * ttlMillis;
@@ -332,7 +389,9 @@ public class SessionTokenIssuer extends CredentialIssuer {
         }
     }
 
-    /** 全部签发记录快照（按签发时间倒序；惰性清理过期记录）。 */
+    /**
+     * 全部签发记录快照（按签发时间倒序；惰性清理过期记录）。
+     */
     public List<IssuedRecord> listIssued() {
         List<IssuedRecord> out = new ArrayList<>();
         long now = System.currentTimeMillis();

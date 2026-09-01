@@ -23,7 +23,9 @@ import org.bukkit.event.Event;
  */
 public abstract class GatewayEvent extends Event {
 
-    /** 默认异步（HTTP 处理线程触发；兼容旧字节码/无参构造） */
+    /**
+     * 默认异步（HTTP 处理线程触发；兼容旧字节码/无参构造）
+     */
     protected GatewayEvent() {
         super(true);
     }

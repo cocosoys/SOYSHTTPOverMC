@@ -1,9 +1,9 @@
 package com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy;
 
-import org.bukkit.configuration.ConfigurationSection;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.GatewayContext;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.PolicyResult;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.SecurityPolicy;
+import org.bukkit.configuration.ConfigurationSection;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -78,7 +78,9 @@ public class RateLimitPolicy extends SecurityPolicy {
         return "ip:" + ctx.getSocketIp();
     }
 
-    /** 令牌桶：按 rate 连续补充，容量 capacity；超过 5 分钟未访问视为过期 */
+    /**
+     * 令牌桶：按 rate 连续补充，容量 capacity；超过 5 分钟未访问视为过期
+     */
     private static final class Bucket {
         final double rate;
         final double capacity;

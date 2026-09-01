@@ -18,7 +18,9 @@ public class JSONMap extends LinkedHashMap<String, Object> {
         put(key, value);
     }
 
-    /** 链式设置参数。 */
+    /**
+     * 链式设置参数。
+     */
     public JSONMap set(String key, Object value) {
         put(key, value);
         return this;
@@ -31,7 +33,9 @@ public class JSONMap extends LinkedHashMap<String, Object> {
         return this;
     }
 
-    /** Date 值格式化为字符串（ResultMap.coverDate2Str 使用）。 */
+    /**
+     * Date 值格式化为字符串（ResultMap.coverDate2Str 使用）。
+     */
     public String getDateStr(String key, String dateFormat) {
         Object v = get(key);
         if (!(v instanceof java.util.Date)) return null;

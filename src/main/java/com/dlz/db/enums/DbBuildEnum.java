@@ -8,9 +8,6 @@ import com.dlz.kit.json.JSONMap;
 import com.dlz.kit.util.StringUtils;
 import lombok.AllArgsConstructor;
 
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-
 @AllArgsConstructor
 public enum DbBuildEnum {
     ands("and #s"),//and多条件语句,
@@ -18,13 +15,13 @@ public enum DbBuildEnum {
     muOr("#s"),//多条件语句 or 拼接
     muAnd("#s"),//多条件语句 and 拼接,
     sql("(#s)"),//自定义sql,
-//    apply("(#s)"),//自定义sql,
+    //    apply("(#s)"),//自定义sql,
     where("where #s");//自定义sql,
     private final String _sql;
 
 //    private static final Pattern PATTERN_INDEX = Pattern.compile("\\{(\\d+)\\}");
 
-    public Condition build(String tableName,String sql, JSONMap paras) {
+    public Condition build(String tableName, String sql, JSONMap paras) {
         switch (this) {
             case sql:
                 if (StringUtils.isEmpty(sql)) {

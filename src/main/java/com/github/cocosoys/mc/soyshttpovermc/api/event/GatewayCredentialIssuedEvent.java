@@ -1,9 +1,8 @@
 package com.github.cocosoys.mc.soyshttpovermc.api.event;
 
-import org.bukkit.event.HandlerList;
-
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.issuer.CredentialIssuer;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.issuer.IssuedCredential;
+import org.bukkit.event.HandlerList;
 
 /**
  * 凭证下发事件：/soyshttp key 命令或登录插件调用颁发器下发凭证后触发。
@@ -27,7 +26,9 @@ public class GatewayCredentialIssuedEvent extends GatewayEvent {
         this.credential = credential;
     }
 
-    /** 凭证所属主体（玩家 UUID/用户名） */
+    /**
+     * 凭证所属主体（玩家 UUID/用户名）
+     */
     public String getSubject() {
         return subject;
     }
@@ -40,7 +41,9 @@ public class GatewayCredentialIssuedEvent extends GatewayEvent {
         return issuer == null ? "" : issuer.name();
     }
 
-    /** 下发的凭证（X-API-Key / Bearer / Cookie 三种形态） */
+    /**
+     * 下发的凭证（X-API-Key / Bearer / Cookie 三种形态）
+     */
     public IssuedCredential getCredential() {
         return credential;
     }

@@ -13,6 +13,8 @@ public final class SQL {
     private SQL() {
     }
 
-    /** 基于 Pojo + 条件链操作 SQL 存储（仿 {@code YAML.Pojo}）。 */
+    /**
+     * 基于 Pojo + 条件链操作 SQL 存储（仿 {@code YAML.Pojo}）。
+     */
     public static final SqlPojo Pojo = new SqlPojo();
 }

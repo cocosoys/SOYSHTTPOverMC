@@ -35,6 +35,7 @@ public enum DbOperateEnum {
     private final static Pattern patternColumnName = Pattern.compile("#n");
 
     private final static Pattern COLUMN_NAME_PATTERN = Pattern.compile("^[a-zA-Z0-9_.]+$");
+
     private String mkSql(String dbn, String key) {
         if (!COLUMN_NAME_PATTERN.matcher(dbn).matches()) {
             throw new ValidateException("非法列名: " + dbn);
@@ -43,7 +44,7 @@ public enum DbOperateEnum {
         return key == null ? dbnSql : patternKey.matcher(dbnSql).replaceAll(key);
     }
 
-    private Condition paraZero(String dbn,String tableName) {
+    private Condition paraZero(String dbn, String tableName) {
         Condition condition = new Condition(tableName);
         condition.setRunSql(mkSql(dbn, null));
         return condition;
@@ -52,7 +53,7 @@ public enum DbOperateEnum {
     private Condition paraOne(String dbn, Object value, String tableName) {
         String key = KeyUtil.getKeyName(this + "_");
         Condition condition = new Condition(tableName);
-        condition.addPara(key, tableName==null?value:DbConvertUtil.getVal4Db(tableName, dbn, value));
+        condition.addPara(key, tableName == null ? value : DbConvertUtil.getVal4Db(tableName, dbn, value));
         condition.setRunSql(mkSql(dbn, key));
         return condition;
     }
@@ -66,13 +67,13 @@ public enum DbOperateEnum {
         Condition condition = new Condition(tableName);
         String key1 = key + "1";
         String key2 = key + "2";
-        condition.addPara(key1, tableName==null?array[0]:DbConvertUtil.getVal4Db(tableName, dbn, array[0]));
-        condition.addPara(key2, tableName==null?array[1]:DbConvertUtil.getVal4Db(tableName, dbn, array[1]));
+        condition.addPara(key1, tableName == null ? array[0] : DbConvertUtil.getVal4Db(tableName, dbn, array[0]));
+        condition.addPara(key2, tableName == null ? array[1] : DbConvertUtil.getVal4Db(tableName, dbn, array[1]));
         condition.setRunSql(mkSql(dbn, key));
         return condition;
     }
 
-    private Condition paraIn(String dbn, Object value,String tableName) {
+    private Condition paraIn(String dbn, Object value, String tableName) {
         String key = KeyUtil.getKeyName(this + "_");
         Condition condition = new Condition(tableName);
         condition.setRunSql(mkSql(dbn, key));
@@ -107,10 +108,10 @@ public enum DbOperateEnum {
                 return paraTwo(dbn, value, tableName);
             case isNull:
             case isNotNull:
-                return paraZero(dbn,tableName);
+                return paraZero(dbn, tableName);
             case in:
             case notIn:
-                return paraIn(dbn, value,tableName);
+                return paraIn(dbn, value, tableName);
             default:
 //            case eq:
 //            case ne:

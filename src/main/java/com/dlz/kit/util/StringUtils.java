@@ -24,7 +24,9 @@ public final class StringUtils {
         return !isEmpty(s);
     }
 
-    /** SLF4J 风格格式化：把 {@code {}} 依次替换为参数。 */
+    /**
+     * SLF4J 风格格式化：把 {@code {}} 依次替换为参数。
+     */
     public static String formatMsg(String msg, Object... args) {
         if (msg == null) return "";
         if (args == null || args.length == 0) return msg;
@@ -47,7 +49,9 @@ public final class StringUtils {
         return sb.toString();
     }
 
-    /** 用分隔符连接集合。 */
+    /**
+     * 用分隔符连接集合。
+     */
     public static String join(Object[] array, String separator) {
         if (array == null) return "";
         StringBuilder sb = new StringBuilder();
@@ -62,7 +66,9 @@ public final class StringUtils {
         return list == null ? "" : join(list.toArray(), separator);
     }
 
-    /** dlz 参数顺序重载：join(separator, list)。 */
+    /**
+     * dlz 参数顺序重载：join(separator, list)。
+     */
     public static String join(String separator, List<?> list) {
         return join(list, separator);
     }
@@ -71,12 +77,16 @@ public final class StringUtils {
         return join(array, separator);
     }
 
-    /** List&lt;String&gt; → String[]。 */
+    /**
+     * List&lt;String&gt; → String[]。
+     */
     public static String[] listToArray(List<String> list) {
         return list == null ? new String[0] : list.toArray(new String[0]);
     }
 
-    /** 任意集合 → Object[]（SqlUtil 的 in 参数转换使用）。 */
+    /**
+     * 任意集合 → Object[]（SqlUtil 的 in 参数转换使用）。
+     */
     public static Object[] listToArray(Collection<?> collection) {
         return collection == null ? new Object[0] : collection.toArray();
     }

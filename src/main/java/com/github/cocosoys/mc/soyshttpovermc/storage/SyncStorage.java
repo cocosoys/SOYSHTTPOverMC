@@ -1,4 +1,5 @@
 package com.github.cocosoys.mc.soyshttpovermc.storage;
+
 import com.github.cocosoys.mc.soyshttpovermc.enums.StorageType;
 
 /**
@@ -23,41 +24,61 @@ import com.github.cocosoys.mc.soyshttpovermc.enums.StorageType;
  */
 public interface SyncStorage {
 
-    /** 后端类型。 */
+    /**
+     * 后端类型。
+     */
     StorageType getType();
 
-    /** 初始化连接 / 建表。失败抛异常，调用方标记不可用并降级。 */
+    /**
+     * 初始化连接 / 建表。失败抛异常，调用方标记不可用并降级。
+     */
     void initialize() throws Exception;
 
-    /** 释放资源（关服/重载时调用）。 */
+    /**
+     * 释放资源（关服/重载时调用）。
+     */
     void shutdown();
 
-    /** 后端当前是否可用（不可用时调用方走内存模式）。 */
+    /**
+     * 后端当前是否可用（不可用时调用方走内存模式）。
+     */
     boolean isAvailable();
 
-    /** 简要描述（数据库地址），供日志/状态展示。 */
+    /**
+     * 简要描述（数据库地址），供日志/状态展示。
+     */
     String describe();
 
-    /** 主动保活探测（keepalive-interval 定时任务调用）。 */
+    /**
+     * 主动保活探测（keepalive-interval 定时任务调用）。
+     */
     void keepAlive();
 
     // ===== 令牌注销黑名单（跨服共享）=====
 
-    /** 该 jti 是否已在全局黑名单（本服内存 + DB 联合判定；DB 查询带命中缓存）。 */
+    /**
+     * 该 jti 是否已在全局黑名单（本服内存 + DB 联合判定；DB 查询带命中缓存）。
+     */
     boolean isTokenRevoked(String jti);
 
-    /** 把 jti 加入全局黑名单（幂等；记录来源服）。 */
+    /**
+     * 把 jti 加入全局黑名单（幂等；记录来源服）。
+     */
     void revokeToken(String jti, String serverId);
 
     // ===== 令牌签发审计（跨服聚合）=====
 
-    /** 登记一次签发（append-only；供 /soyshttp tokens 与审计）。 */
+    /**
+     * 登记一次签发（append-only；供 /soyshttp tokens 与审计）。
+     */
     void recordIssued(String serverId, String subject, String mode, boolean admin,
                       String jti, long issuedAt, long expiresAt);
 
     // ===== 实例心跳（跨服拓扑）=====
 
-    /** 注册/更新本服心跳（幂等 upsert）。 */
+    /**
+     * 注册/更新本服心跳（幂等 upsert）。
+     */
     void heartbeat(String serverId, String name, String host, int port);
 
     // ===== 统一跨服 JWT 密钥（集中下发）=====

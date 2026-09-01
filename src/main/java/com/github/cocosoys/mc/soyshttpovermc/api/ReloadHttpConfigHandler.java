@@ -18,6 +18,8 @@ package com.github.cocosoys.mc.soyshttpovermc.api;
 @FunctionalInterface
 public interface ReloadHttpConfigHandler {
 
-    /** 热重载回调：在此重新加载本插件与 HTTP 相关的配置（勿在此再次调用 /soyshttp reload，避免递归）。 */
+    /**
+     * 热重载回调：在此重新加载本插件与 HTTP 相关的配置（勿在此再次调用 /soyshttp reload，避免递归）。
+     */
     void onReload();
 }

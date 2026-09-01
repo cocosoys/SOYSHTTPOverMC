@@ -15,6 +15,7 @@ public abstract class AQuery<T extends AQuery> extends AParaTable<T> implements
         ICondAddByFn<T> {
     private Condition whereCond = Condition.where(getTableName());
     private boolean allowFullQuery = false;//是否允许全表查询，默认不允许
+
     protected AQuery(String tableName) {
         super(tableName);
     }
@@ -22,6 +23,7 @@ public abstract class AQuery<T extends AQuery> extends AParaTable<T> implements
     public Condition where() {
         return whereCond;
     }
+
     public T where(Condition cond) {
         this.whereCond = cond.clone();
         return me();
@@ -31,6 +33,7 @@ public abstract class AQuery<T extends AQuery> extends AParaTable<T> implements
         this.allowFullQuery = allowFullQuery;
         return me();
     }
+
     public boolean isAllowFullQuery() {
         return this.allowFullQuery;
     }

@@ -1,35 +1,28 @@
 package com.github.cocosoys.mc.soyshttpovermc.web.http.sniffer;
-import com.github.cocosoys.mc.soyshttpovermc.enums.RequestMethod;
-import com.github.cocosoys.mc.soyshttpovermc.enums.SnifferChannelState;
-import lombok.CustomLog;
-
-import io.netty.buffer.ByteBuf;
-import io.netty.buffer.Unpooled;
-import io.netty.channel.Channel;
-import io.netty.channel.ChannelFutureListener;
-import io.netty.channel.ChannelHandler;
-import io.netty.channel.ChannelHandlerContext;
-import io.netty.channel.ChannelInboundHandlerAdapter;
-import io.netty.channel.ChannelPipeline;
-import io.netty.handler.ssl.SslHandler;
-import io.netty.util.ReferenceCountUtil;
-
-import org.bukkit.Bukkit;
-import org.bukkit.plugin.java.JavaPlugin;
 
 import com.github.cocosoys.mc.soyshttpovermc.api.event.GatewayAccessDeniedEvent;
 import com.github.cocosoys.mc.soyshttpovermc.api.event.GatewayRequestEvent;
 import com.github.cocosoys.mc.soyshttpovermc.api.event.GatewayRequestServedEvent;
-import com.github.cocosoys.mc.soyshttpovermc.web.http.HttpRequestHandler;
+import com.github.cocosoys.mc.soyshttpovermc.enums.RequestMethod;
+import com.github.cocosoys.mc.soyshttpovermc.enums.SnifferChannelState;
+import com.github.cocosoys.mc.soyshttpovermc.util.HttpFrames;
+import com.github.cocosoys.mc.soyshttpovermc.web.ApiRequestContext;
+import com.github.cocosoys.mc.soyshttpovermc.web.MimeTypes;
+import com.github.cocosoys.mc.soyshttpovermc.web.RequestStats;
+import com.github.cocosoys.mc.soyshttpovermc.web.gateway.Credential;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.GatewayContext;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.GatewayFilter;
-import com.github.cocosoys.mc.soyshttpovermc.web.gateway.Credential;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.PolicyResult;
+import com.github.cocosoys.mc.soyshttpovermc.web.http.HttpRequestHandler;
 import com.github.cocosoys.mc.soyshttpovermc.web.proto.FrameProto;
-import com.github.cocosoys.mc.soyshttpovermc.util.HttpFrames;
-import com.github.cocosoys.mc.soyshttpovermc.web.RequestStats;
-import com.github.cocosoys.mc.soyshttpovermc.web.MimeTypes;
-import com.github.cocosoys.mc.soyshttpovermc.web.ApiRequestContext;
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
+import io.netty.channel.*;
+import io.netty.handler.ssl.SslHandler;
+import io.netty.util.ReferenceCountUtil;
+import lombok.CustomLog;
+import org.bukkit.Bukkit;
+import org.bukkit.plugin.java.JavaPlugin;
 
 import javax.net.ssl.SSLEngine;
 import java.io.ByteArrayOutputStream;
@@ -42,44 +35,40 @@ import java.security.MessageDigest;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ArrayBlockingQueue;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
 import java.util.zip.GZIPOutputStream;
 
 /**
  * 同端口嗅探器：在 Spigot 自身监听的 socket 上做 Geyser 式流量分流。
- *
+ * <p>
  * 原理（深度挂接 Spigot 的 Netty pipeline，访问端口 == Spigot 的 server-port）：
- *  - Spigot 的 {@code ServerConnection} 把每个监听端口存在字段 {@code g}(List<ChannelFuture>)，
- *    其 channel 是父(Server)Channel；每接受一个子连接，父 Channel 的 pipeline 会以
- *    {@code channelRead(childChannel)} 的形式把子 Channel 透传给内部的 ServerBootstrapAcceptor。
- *  - 我们在父 Channel pipeline 最前插入 ParentInjectorHandler：拿到每个子 Channel 后，
- *    在其 pipeline 最前插入 HttpSnifferHandler，再向下游 fire（让 Spigot 的 MC 解码器照常工作）。
- *  - HttpSnifferHandler 嗅探首包，三协议分流（server-port 即三协议端口）：
- *      明文 HTTP（A-Z 方法词）→ 网关策略链 → HTTP 后端处理并写回 HTTP 响应；
- *      TLS（0x16 0x03）→ 就地 addFirst(SslHandler) 解密 → 同一策略链 → 服务；
- *      MC（0xFE / varint+0x00）→ 原样放行给 Spigot 的 MC 解码器。
- *
+ * - Spigot 的 {@code ServerConnection} 把每个监听端口存在字段 {@code g}(List<ChannelFuture>)，
+ * 其 channel 是父(Server)Channel；每接受一个子连接，父 Channel 的 pipeline 会以
+ * {@code channelRead(childChannel)} 的形式把子 Channel 透传给内部的 ServerBootstrapAcceptor。
+ * - 我们在父 Channel pipeline 最前插入 ParentInjectorHandler：拿到每个子 Channel 后，
+ * 在其 pipeline 最前插入 HttpSnifferHandler，再向下游 fire（让 Spigot 的 MC 解码器照常工作）。
+ * - HttpSnifferHandler 嗅探首包，三协议分流（server-port 即三协议端口）：
+ * 明文 HTTP（A-Z 方法词）→ 网关策略链 → HTTP 后端处理并写回 HTTP 响应；
+ * TLS（0x16 0x03）→ 就地 addFirst(SslHandler) 解密 → 同一策略链 → 服务；
+ * MC（0xFE / varint+0x00）→ 原样放行给 Spigot 的 MC 解码器。
+ * <p>
  * 关键约束：本类使用 io.netty.* 必须复用 Spigot 运行时的 netty（pom 里 netty 为 provided），
  * 否则嗅探器里的 ByteBuf 与 Spigot pipeline 里的不是同一个 Class，instanceof 失效。
  *
  * <p>响应优化（省流量 + 快速加载）：
- *  - gzip 压缩：当客户端 {@code Accept-Encoding} 含 gzip 且响应体为可压缩类型且超过阈值时压缩；
- *  - ETag + 304：GET 200 响应计算实体摘要，命中 {@code If-None-Match} 时直接 304（无响应体）；
- *  - Cache-Control：静态资源 {@code public, max-age=300}，API/鉴权 {@code no-store}；
- *  - keep-alive：HTTP/1.1 默认复用同一条连接处理多个请求（autoRead 暂停/恢复 + 空闲关闭）。
+ * - gzip 压缩：当客户端 {@code Accept-Encoding} 含 gzip 且响应体为可压缩类型且超过阈值时压缩；
+ * - ETag + 304：GET 200 响应计算实体摘要，命中 {@code If-None-Match} 时直接 304（无响应体）；
+ * - Cache-Control：静态资源 {@code public, max-age=300}，API/鉴权 {@code no-store}；
+ * - keep-alive：HTTP/1.1 默认复用同一条连接处理多个请求（autoRead 暂停/恢复 + 空闲关闭）。
  */
 @CustomLog
 public class SocketSniffer {
 
-    /** 判断 HTTP 后端是否就绪，未就绪时 HTTP 返回 503 */
+    /**
+     * 判断 HTTP 后端是否就绪，未就绪时 HTTP 返回 503
+     */
     public interface ReadyChecker {
         boolean isReady();
     }
@@ -101,11 +90,15 @@ public class SocketSniffer {
         }
     }
 
-    /** 低于此字节数的响应体不压缩（压缩收益低于开销）。 */
+    /**
+     * 低于此字节数的响应体不压缩（压缩收益低于开销）。
+     */
     private static final int COMPRESS_THRESHOLD = 512;
-    /** keep-alive 空闲超时（秒）：超过未收到下一个请求则关闭连接，避免长连接泄漏。
-     *  可经 config 的 {@code sniffer.keep-alive-idle-seconds} 调整；适当延长可减少连接断开重建，
-     *  从而减少自签证书场景下浏览器（Chrome）因新建连接重校验证书而拒绝（certificate_unknown）的触发点。 */
+    /**
+     * keep-alive 空闲超时（秒）：超过未收到下一个请求则关闭连接，避免长连接泄漏。
+     * 可经 config 的 {@code sniffer.keep-alive-idle-seconds} 调整；适当延长可减少连接断开重建，
+     * 从而减少自签证书场景下浏览器（Chrome）因新建连接重校验证书而拒绝（certificate_unknown）的触发点。
+     */
     private final int keepAliveIdleSeconds;
 
     private final JavaPlugin plugin;
@@ -114,9 +107,13 @@ public class SocketSniffer {
     private final int maxBodyBytes;
     private final RequestStats stats;
     private volatile GatewayFilter gateway;
-    /** TLS 引擎提供者；null 表示未启用 HTTPS（0x16 0x03 不再判 TLS，直接按 MC 处理） */
+    /**
+     * TLS 引擎提供者；null 表示未启用 HTTPS（0x16 0x03 不再判 TLS，直接按 MC 处理）
+     */
     private volatile Supplier<SSLEngine> tlsEngineSupplier;
-    /** 是否信任前置代理注入的 X-Forwarded-For（仅当本服确在可信代理之后时开启，避免客户端伪造）。 */
+    /**
+     * 是否信任前置代理注入的 X-Forwarded-For（仅当本服确在可信代理之后时开启，避免客户端伪造）。
+     */
     private final boolean trustProxy;
 
     /**
@@ -126,9 +123,13 @@ public class SocketSniffer {
      * 避免高并发下任务无限堆积打爆内存。
      */
     private final ExecutorService executor;
-    /** 并发上限（构造注入；用于拒绝策略提示） */
+    /**
+     * 并发上限（构造注入；用于拒绝策略提示）
+     */
     private final int httpConcurrency;
-    /** keep-alive 空闲关闭调度（单线程，守护）。 */
+    /**
+     * keep-alive 空闲关闭调度（单线程，守护）。
+     */
     private static final ScheduledExecutorService idleExecutor = Executors.newSingleThreadScheduledExecutor(r -> {
         Thread t = new Thread(r, "HTTP-Over-MC-KeepAlive-Idle");
         t.setDaemon(true);
@@ -170,17 +171,23 @@ public class SocketSniffer {
         this.trustProxy = trustProxy;
     }
 
-    /** 热重载网关策略链（/soyshttp reload 调用） */
+    /**
+     * 热重载网关策略链（/soyshttp reload 调用）
+     */
     public void setGateway(GatewayFilter gateway) {
         this.gateway = gateway;
     }
 
-    /** 热重载 TLS 引擎提供者（/soyshttp reload 调用） */
+    /**
+     * 热重载 TLS 引擎提供者（/soyshttp reload 调用）
+     */
     public void setTlsEngineSupplier(Supplier<SSLEngine> tlsEngineSupplier) {
         this.tlsEngineSupplier = tlsEngineSupplier;
     }
 
-    /** 在 Spigot 自身监听的端口上安装 HTTP 嗅探器 */
+    /**
+     * 在 Spigot 自身监听的端口上安装 HTTP 嗅探器
+     */
     public void install() {
         try {
             Object serverConnection = getServerConnection();
@@ -255,11 +262,17 @@ public class SocketSniffer {
     // ===== 子连接处理器：嗅探首包决定 HTTP / TLS / MC =====
     private class HttpSnifferHandler extends ChannelInboundHandlerAdapter {
         private ByteBuf buffer;
-        /** 连接类型状态（首包分类结果；keep-alive 复用会重置回 {@link SnifferChannelState#UNKNOWN}）。 */
+        /**
+         * 连接类型状态（首包分类结果；keep-alive 复用会重置回 {@link SnifferChannelState#UNKNOWN}）。
+         */
         private SnifferChannelState state = SnifferChannelState.UNKNOWN;
-        /** 当前请求是否已处理（keep-alive 时等待下一请求 / 空闲关闭，见 onKeepAliveDone 重置）。 */
+        /**
+         * 当前请求是否已处理（keep-alive 时等待下一请求 / 空闲关闭，见 onKeepAliveDone 重置）。
+         */
         private boolean httpHandled = false;
-        /** keep-alive 空闲关闭任务（有则连接处于 keep-alive 等待下一请求状态）。 */
+        /**
+         * keep-alive 空闲关闭任务（有则连接处于 keep-alive 等待下一请求状态）。
+         */
         private ScheduledFuture<?> idleFuture;
 
         @Override
@@ -359,7 +372,9 @@ public class SocketSniffer {
             }
         }
 
-        /** 就地 TLS 升级：管道最前插入 SslHandler 并重放缓冲的 ClientHello 首包；监听握手结果并打日志。 */
+        /**
+         * 就地 TLS 升级：管道最前插入 SslHandler 并重放缓冲的 ClientHello 首包；监听握手结果并打日志。
+         */
         private void upgradeToTls(ChannelHandlerContext ctx) {
             SSLEngine engine = tlsEngineSupplier.get();
             final SslHandler ssl = new SslHandler(engine);
@@ -403,7 +418,10 @@ public class SocketSniffer {
 
         private void cancelIdle() {
             if (idleFuture != null) {
-                try { idleFuture.cancel(false); } catch (Throwable ignored) {}
+                try {
+                    idleFuture.cancel(false);
+                } catch (Throwable ignored) {
+                }
                 idleFuture = null;
             }
         }
@@ -418,7 +436,9 @@ public class SocketSniffer {
         byte[] body;
     }
 
-    /** 嗅探分类：依据首包前几个字节判断为明文 HTTP / TLS / MC */
+    /**
+     * 嗅探分类：依据首包前几个字节判断为明文 HTTP / TLS / MC
+     */
     private SnifferChannelState classify(ByteBuf buf) {
         int len = buf.readableBytes();
         if (len == 0) return SnifferChannelState.UNKNOWN;
@@ -439,7 +459,10 @@ public class SocketSniffer {
         boolean tokenComplete = false;
         for (; i < len && i < 16; i++) {
             byte b = buf.getByte(idx + i);
-            if (b == ' ') { tokenComplete = true; break; }
+            if (b == ' ') {
+                tokenComplete = true;
+                break;
+            }
             if (b < 'A' || b > 'Z') return SnifferChannelState.MC;
             tok.append((char) b);
         }
@@ -448,7 +471,10 @@ public class SocketSniffer {
         }
         boolean known = false;
         for (String m : METHODS) {
-            if (m.equals(tok.toString())) { known = true; break; }
+            if (m.equals(tok.toString())) {
+                known = true;
+                break;
+            }
         }
         if (!known) return SnifferChannelState.MC;
 
@@ -457,7 +483,10 @@ public class SocketSniffer {
         int limit = Math.min(len, j + 200);
         boolean foundNewline = false;
         for (; k < limit; k++) {
-            if (buf.getByte(idx + k) == '\n') { foundNewline = true; break; }
+            if (buf.getByte(idx + k) == '\n') {
+                foundNewline = true;
+                break;
+            }
         }
         String line = buf.toString(idx + j, Math.max(0, k - j), StandardCharsets.US_ASCII);
         if (line.contains(" HTTP/")) return SnifferChannelState.HTTP_PLAIN;
@@ -465,7 +494,9 @@ public class SocketSniffer {
         return SnifferChannelState.UNKNOWN;
     }
 
-    /** 尝试从缓冲区解析完整 HTTP 请求；不完整返回 null */
+    /**
+     * 尝试从缓冲区解析完整 HTTP 请求；不完整返回 null
+     */
     private RequestParsed tryParseHttp(ByteBuf buf) {
         int len = buf.readableBytes();
         int idx = buf.readerIndex();
@@ -635,7 +666,9 @@ public class SocketSniffer {
         }
     }
 
-    /** 触发网关事件（异步线程；监听器异常不影响请求处理） */
+    /**
+     * 触发网关事件（异步线程；监听器异常不影响请求处理）
+     */
     private static void fire(org.bukkit.event.Event e) {
         try {
             Bukkit.getPluginManager().callEvent(e);
@@ -666,7 +699,9 @@ public class SocketSniffer {
         }
     }
 
-    /** keep-alive 响应写完：重置状态、安排空闲关闭、恢复读取下一请求。 */
+    /**
+     * keep-alive 响应写完：重置状态、安排空闲关闭、恢复读取下一请求。
+     */
     private void onKeepAliveDone(ChannelHandlerContext ctx) {
         try {
             HttpSnifferHandler h = (HttpSnifferHandler) ctx.handler();
@@ -691,7 +726,9 @@ public class SocketSniffer {
         }
     }
 
-    /** 直接写出错误响应（413/503/502 等）：body 统一 JSON 信封（真实状态码 + {code,msg,data}）。 */
+    /**
+     * 直接写出错误响应（413/503/502 等）：body 统一 JSON 信封（真实状态码 + {code,msg,data}）。
+     */
     private void writeRaw(ChannelHandlerContext ctx, String bodyText, int code, boolean tls) {
         byte[] body = HttpFrames.jsonError(code, bodyText).getBody().toByteArray();
         StringBuilder sb = new StringBuilder();
@@ -719,7 +756,9 @@ public class SocketSniffer {
         writeResponse(ctx, out, tls, true);
     }
 
-    /** 写出网关策略拒绝响应（401/403/426/429/500），附带策略指定的响应头；body 统一 JSON 信封。 */
+    /**
+     * 写出网关策略拒绝响应（401/403/426/429/500），附带策略指定的响应头；body 统一 JSON 信封。
+     */
     private void writeDeny(ChannelHandlerContext ctx, PolicyResult res, boolean tls) {
         String msg = new String(res.getBodyBytes(), StandardCharsets.UTF_8);
         byte[] body = HttpFrames.jsonError(res.getStatusCode(), msg).getBody().toByteArray();
@@ -737,7 +776,9 @@ public class SocketSniffer {
         writeResponse(ctx, out, tls, false);
     }
 
-    /** TCP socket 上的客户端源 IP；trust-proxy 时优先取 X-Forwarded-For 首个 IP（真实访客 IP）。 */
+    /**
+     * TCP socket 上的客户端源 IP；trust-proxy 时优先取 X-Forwarded-For 首个 IP（真实访客 IP）。
+     */
     private String clientIp(ChannelHandlerContext ctx, Map<String, String> headers) {
         if (trustProxy && headers != null) {
             String xff = headers.get("X-Forwarded-For");
@@ -766,24 +807,38 @@ public class SocketSniffer {
 
     private static String statusText(int code) {
         switch (code) {
-            case 200: return "OK";
-            case 304: return "Not Modified";
-            case 400: return "Bad Request";
-            case 401: return "Unauthorized";
-            case 403: return "Forbidden";
-            case 413: return "Payload Too Large";
-            case 426: return "Upgrade Required";
-            case 429: return "Too Many Requests";
-            case 500: return "Internal Server Error";
-            case 502: return "Bad Gateway";
-            case 503: return "Service Unavailable";
-            default: return "Status";
+            case 200:
+                return "OK";
+            case 304:
+                return "Not Modified";
+            case 400:
+                return "Bad Request";
+            case 401:
+                return "Unauthorized";
+            case 403:
+                return "Forbidden";
+            case 413:
+                return "Payload Too Large";
+            case 426:
+                return "Upgrade Required";
+            case 429:
+                return "Too Many Requests";
+            case 500:
+                return "Internal Server Error";
+            case 502:
+                return "Bad Gateway";
+            case 503:
+                return "Service Unavailable";
+            default:
+                return "Status";
         }
     }
 
     // ===== 压缩 / 缓存辅助 =====
 
-    /** 是否为可压缩的响应内容类型（二进制媒体如 png/jpg/woff 已自带压缩，不重复压缩）。 */
+    /**
+     * 是否为可压缩的响应内容类型（二进制媒体如 png/jpg/woff 已自带压缩，不重复压缩）。
+     */
     private static boolean isCompressible(String contentType) {
         if (contentType == null) return false;
         String c = contentType.toLowerCase();
@@ -795,7 +850,9 @@ public class SocketSniffer {
         return false;
     }
 
-    /** gzip 压缩（失败时返回原字节）。 */
+    /**
+     * gzip 压缩（失败时返回原字节）。
+     */
     private static byte[] gzip(byte[] data) {
         try {
             ByteArrayOutputStream bos = new ByteArrayOutputStream(data.length);
@@ -808,7 +865,9 @@ public class SocketSniffer {
         }
     }
 
-    /** 实体摘要（SHA-256 十六进制），用作 ETag 基准（基于压缩前原文，避免编码不一致）。 */
+    /**
+     * 实体摘要（SHA-256 十六进制），用作 ETag 基准（基于压缩前原文，避免编码不一致）。
+     */
     private static String sha256hex(byte[] data) {
         try {
             MessageDigest md = MessageDigest.getInstance("SHA-256");
@@ -823,7 +882,9 @@ public class SocketSniffer {
         }
     }
 
-    /** 是否 keep-alive：HTTP/1.1 默认复用，除非客户端显式 Connection: close；HTTP/1.0 需显式 keep-alive。 */
+    /**
+     * 是否 keep-alive：HTTP/1.1 默认复用，除非客户端显式 Connection: close；HTTP/1.0 需显式 keep-alive。
+     */
     private static boolean isKeepAlive(RequestParsed p) {
         String conn = p.headers.get("Connection");
         boolean connClose = conn != null && conn.toLowerCase().contains("close");
@@ -833,7 +894,9 @@ public class SocketSniffer {
         return http11 || connKeep;
     }
 
-    /** 缓存策略：静态资源可公开缓存；API / 鉴权端点禁止缓存。 */
+    /**
+     * 缓存策略：静态资源可公开缓存；API / 鉴权端点禁止缓存。
+     */
     private static String cacheControlFor(RequestParsed p, String contentType) {
         String path = p.path == null ? "" : p.path;
         if (path.startsWith("/api/") || path.startsWith("/auth/")) return "no-store";

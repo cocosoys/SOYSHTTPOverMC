@@ -57,7 +57,6 @@ public class NativeSqlUtil {
     }
 
 
-
     public static void bindArgs(PreparedStatement ps, Object... args) throws SQLException {
         if (args == null) return;
         for (int i = 0; i < args.length; i++) {

@@ -10,9 +10,13 @@ package com.github.cocosoys.mc.soyshttpovermc.web;
  */
 public interface NetworkTransport {
 
-    /** 传输提供者唯一名称（日志/调试用）。 */
+    /**
+     * 传输提供者唯一名称（日志/调试用）。
+     */
     String name();
 
-    /** 按 URL 获取内容字节（自定义协议/加密在实现内处理；失败抛异常）。 */
+    /**
+     * 按 URL 获取内容字节（自定义协议/加密在实现内处理；失败抛异常）。
+     */
     byte[] fetch(String url) throws Exception;
 }

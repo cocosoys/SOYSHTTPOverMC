@@ -1,15 +1,10 @@
 package com.github.cocosoys.mc.soyshttpovermc.config;
-import lombok.CustomLog;
-
-import org.bukkit.plugin.java.JavaPlugin;
 
 import com.github.cocosoys.mc.soyshttpovermc.i18n.I18n;
+import lombok.CustomLog;
+import org.bukkit.plugin.java.JavaPlugin;
 
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
-import java.io.InputStream;
-import java.io.OutputStream;
+import java.io.*;
 import java.util.Enumeration;
 import java.util.Map;
 import java.util.Properties;
@@ -30,7 +25,9 @@ public final class ConfigManager {
     private ConfigManager() {
     }
 
-    /** 首次运行生成 gateway/ 目录默认配置；返回 gateway 目录。 */
+    /**
+     * 首次运行生成 gateway/ 目录默认配置；返回 gateway 目录。
+     */
     public static File ensureGatewayFiles(JavaPlugin plugin) {
         File gwDir = new File(plugin.getDataFolder(), "gateway");
         saveDefaultFile(plugin, "gateway/config.yml");
@@ -73,22 +70,30 @@ public final class ConfigManager {
         return cfg;
     }
 
-    /** 集中初始化 pages.yml 配置（web.* 前端资源段 + pages.page/auto 手动登记读源）。 */
+    /**
+     * 集中初始化 pages.yml 配置（web.* 前端资源段 + pages.page/auto 手动登记读源）。
+     */
     public static PagesConfig initPagesConfig(JavaPlugin plugin) {
         return PagesConfig.load(plugin);
     }
 
-    /** 集中初始化 EULA 协议配置（确保 EULA.yml 落盘并返回是否已同意）。 */
+    /**
+     * 集中初始化 EULA 协议配置（确保 EULA.yml 落盘并返回是否已同意）。
+     */
     public static EulaConfig initEulaConfig(JavaPlugin plugin) {
         return EulaConfig.load(plugin);
     }
 
-    /** 从 Object 安全取值（null 返回 null，比 String.valueOf 更安全）。 */
+    /**
+     * 从 Object 安全取值（null 返回 null，比 String.valueOf 更安全）。
+     */
     private static String stringOf(Object v) {
         return v == null ? null : String.valueOf(v);
     }
 
-    /** 从 jar 资源复制默认配置到数据目录（已存在则不覆盖）。 */
+    /**
+     * 从 jar 资源复制默认配置到数据目录（已存在则不覆盖）。
+     */
     public static void saveDefaultFile(JavaPlugin plugin, String path) {
         if (plugin.getResource(path) == null) return;
         File target = new File(plugin.getDataFolder(), path);
@@ -169,7 +174,7 @@ public final class ConfigManager {
      * {@code server.properties} 读取 {@code server-ip}；若其仍为空，再回退到
      * Bukkit 运行期 {@code getServer().getIp()}，最终回退 {@code 127.0.0.1}。
      *
-     * @param plugin   本插件实例（用于定位服务器根目录与运行期端口）
+     * @param plugin     本插件实例（用于定位服务器根目录与运行期端口）
      * @param configured 已从 config.yml 读到的 host（可能为空）
      * @return 非空 host
      */
@@ -194,7 +199,7 @@ public final class ConfigManager {
      * {@code server.properties} 读取 {@code server-ip}；若其仍为空，再回退到
      * Bukkit 运行期 {@code getServer().getIp()}，最终回退 {@code 127.0.0.1}。
      *
-     * @param plugin   本插件实例（用于定位服务器根目录与运行期端口）
+     * @param plugin 本插件实例（用于定位服务器根目录与运行期端口）
      * @return 非空 host
      */
     public static boolean resolveMcOnlineMode(JavaPlugin plugin) {
@@ -211,7 +216,7 @@ public final class ConfigManager {
      * {@code server.properties} 读取 {@code server-port}；解析失败再回退到
      * Bukkit 运行期 {@code getServer().getPort()}（即 Spigot 实际监听端口）。
      *
-     * @param plugin   本插件实例
+     * @param plugin     本插件实例
      * @param configured 已从 config.yml 读到的 port（可能为 0/负数表示未填）
      * @return 正整端口
      */
@@ -235,9 +240,9 @@ public final class ConfigManager {
      * 解析对外公布的公网 host：若 config.yml 的 {@code mc.public-host} 已填写则直接采用（群组服下覆盖内部地址），
      * 否则回退到 {@link #resolveMcHost}（server.properties server-ip → Bukkit 运行期 IP → 127.0.0.1）。
      *
-     * @param plugin       本插件实例
-     * @param configured   已从 config.yml 读到的 mc.host（可能为空）
-     * @param publicHost   已从 config.yml 读到的 mc.public-host（可能为空，群组服公网覆盖）
+     * @param plugin     本插件实例
+     * @param configured 已从 config.yml 读到的 mc.host（可能为空）
+     * @param publicHost 已从 config.yml 读到的 mc.public-host（可能为空，群组服公网覆盖）
      * @return 非空 host
      */
     public static String resolveMcPublicHost(JavaPlugin plugin, String configured, String publicHost) {
@@ -251,9 +256,9 @@ public final class ConfigManager {
      * 解析对外公布的公网 port：若 config.yml 的 {@code mc.public-port} 已填写(>0)则直接采用（群组服下覆盖内部端口），
      * 否则回退到 {@link #resolveMcPort}（server.properties server-port → Bukkit 运行期端口）。
      *
-     * @param plugin      本插件实例
-     * @param configured  已从 config.yml 读到的 mc.port（可能为 0/负数表示未填）
-     * @param publicPort  已从 config.yml 读到的 mc.public-port（可能为 0/负数表示未填）
+     * @param plugin     本插件实例
+     * @param configured 已从 config.yml 读到的 mc.port（可能为 0/负数表示未填）
+     * @param publicPort 已从 config.yml 读到的 mc.public-port（可能为 0/负数表示未填）
      * @return 正整端口
      */
     public static int resolveMcPublicPort(JavaPlugin plugin, int configured, int publicPort) {
@@ -263,7 +268,9 @@ public final class ConfigManager {
         return resolveMcPort(plugin, configured);
     }
 
-    /** 从服务器根目录的 server.properties 读取单个键（找不到返回 null）。 */
+    /**
+     * 从服务器根目录的 server.properties 读取单个键（找不到返回 null）。
+     */
     private static String readServerProperty(JavaPlugin plugin, String key) {
         // 插件数据目录为 <server>/plugins/<pluginName>，上溯两级即 <server> 根目录
         File root = plugin.getDataFolder().getParentFile();

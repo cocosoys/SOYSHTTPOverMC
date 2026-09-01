@@ -10,7 +10,9 @@ package com.github.cocosoys.mc.soyshttpovermc.i18n;
  */
 public interface ILanguageBundle {
 
-    /** 语言标识（小写，如 zh_cn / en_us）。 */
+    /**
+     * 语言标识（小写，如 zh_cn / en_us）。
+     */
     String languageCode();
 
     /**
@@ -32,6 +34,8 @@ public interface ILanguageBundle {
      */
     String format(String key, String defaultText, Object... args);
 
-    /** 是否已成功加载到内存中的翻译文本。 */
+    /**
+     * 是否已成功加载到内存中的翻译文本。
+     */
     boolean isLoaded();
 }

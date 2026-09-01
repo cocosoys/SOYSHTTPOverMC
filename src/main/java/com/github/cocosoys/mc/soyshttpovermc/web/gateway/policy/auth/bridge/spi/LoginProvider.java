@@ -1,8 +1,7 @@
 package com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.bridge.spi;
 
-import org.bukkit.configuration.ConfigurationSection;
-
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.bridge.AuthLoginBridge;
+import org.bukkit.configuration.ConfigurationSection;
 
 /**
  * 登录插件提供者抽象（SPI）：把"账号密码校验 / 玩家登录事件"统一抽象，
@@ -27,16 +26,24 @@ import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.bridge.Auth
  */
 public interface LoginProvider {
 
-    /** 提供者唯一标识（小写英文，如 authme / xauth）。 */
+    /**
+     * 提供者唯一标识（小写英文，如 authme / xauth）。
+     */
     String name();
 
-    /** 展示名（日志/页面用，如 AuthMe）。 */
+    /**
+     * 展示名（日志/页面用，如 AuthMe）。
+     */
     String displayName();
 
-    /** 描述（接入方式说明）。 */
+    /**
+     * 描述（接入方式说明）。
+     */
     String description();
 
-    /** 对应登录插件是否已加载可用（主线程调用）。 */
+    /**
+     * 对应登录插件是否已加载可用（主线程调用）。
+     */
     boolean isAvailable();
 
     /**
@@ -62,7 +69,9 @@ public interface LoginProvider {
     default void init(LoginProviderContext context) {
     }
 
-    /** 插件卸载清理。 */
+    /**
+     * 插件卸载清理。
+     */
     default void shutdown() {
     }
 

@@ -26,12 +26,16 @@ public final class DlzConnectionHolder {
     private DlzConnectionHolder() {
     }
 
-    /** 绑定一个连接到当前线程的指定数据源。 */
+    /**
+     * 绑定一个连接到当前线程的指定数据源。
+     */
     public static void bind(DataSource ds, Connection conn) {
         BINDINGS.get().put(ds, conn);
     }
 
-    /** 解绑当前线程的指定数据源连接（不关闭连接）。 */
+    /**
+     * 解绑当前线程的指定数据源连接（不关闭连接）。
+     */
     public static Connection unbind(DataSource ds) {
         Map<DataSource, Connection> map = BINDINGS.get();
         Connection conn = map.remove(ds);
@@ -41,12 +45,16 @@ public final class DlzConnectionHolder {
         return conn;
     }
 
-    /** 获取当前线程绑定到指定数据源的连接，未绑定返回 null。 */
+    /**
+     * 获取当前线程绑定到指定数据源的连接，未绑定返回 null。
+     */
     public static Connection get(DataSource ds) {
         return BINDINGS.get().get(ds);
     }
 
-    /** 是否当前线程对该数据源处于事务中。 */
+    /**
+     * 是否当前线程对该数据源处于事务中。
+     */
     public static boolean hasBinding(DataSource ds) {
         return BINDINGS.get().containsKey(ds);
     }

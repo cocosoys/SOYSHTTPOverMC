@@ -1,13 +1,12 @@
 package com.github.cocosoys.mc.soyshttpovermc.api.impl;
 
-import org.bukkit.plugin.Plugin;
-
-import com.github.cocosoys.mc.soyshttpovermc.web.ApiRegistry;
 import com.github.cocosoys.mc.soyshttpovermc.annotations.PermissionService;
 import com.github.cocosoys.mc.soyshttpovermc.api.ApiRegistrationApi;
 import com.github.cocosoys.mc.soyshttpovermc.api.event.ApiInfo;
 import com.github.cocosoys.mc.soyshttpovermc.exception.ApiException;
 import com.github.cocosoys.mc.soyshttpovermc.exception.ExceptionBus;
+import com.github.cocosoys.mc.soyshttpovermc.web.ApiRegistry;
+import org.bukkit.plugin.Plugin;
 
 import java.util.List;
 

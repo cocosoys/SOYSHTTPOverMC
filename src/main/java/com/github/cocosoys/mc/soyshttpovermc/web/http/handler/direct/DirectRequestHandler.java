@@ -20,7 +20,7 @@ public class DirectRequestHandler extends AbstractHttpRequestHandler {
 
     @Override
     protected FrameProto.HttpResponseFrame handleLocal(String method, String path,
-                                                          Map<String, String> headers, byte[] body) {
+                                                       Map<String, String> headers, byte[] body) {
         return web.handle(method, path, headers, body);
     }
 

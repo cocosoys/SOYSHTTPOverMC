@@ -1,11 +1,10 @@
 package com.github.cocosoys.mc.soyshttpovermc.command;
-import com.github.cocosoys.mc.soyshttpovermc.enums.ProxyPlatform;
-import lombok.CustomLog;
-
-import org.bukkit.command.CommandSender;
 
 import com.github.cocosoys.mc.soyshttpovermc.HttpOverMcPlugin;
+import com.github.cocosoys.mc.soyshttpovermc.enums.ProxyPlatform;
 import com.github.cocosoys.mc.soyshttpovermc.i18n.I18n;
+import lombok.CustomLog;
+import org.bukkit.command.CommandSender;
 
 /**
  * /soyshttp status —— 查看 HTTP 服务运行状态。
@@ -15,7 +14,7 @@ public class StatusSubCommand extends SubCommand {
 
     public StatusSubCommand(HttpOverMcPlugin plugin) {
         super(plugin);
-        hide=true;
+        hide = true;
     }
 
     @Override
@@ -32,7 +31,7 @@ public class StatusSubCommand extends SubCommand {
     public String detail() {
         return I18n.t("command.status.detail",
                 "/soyshttp status —— 查看HTTP服务运行状态\n"
-                + "展示监听地址、HTTPS 开关、网关策略、已注册页面/API 与运行拓扑等汇总信息。");
+                        + "展示监听地址、HTTPS 开关、网关策略、已注册页面/API 与运行拓扑等汇总信息。");
     }
 
     @Override

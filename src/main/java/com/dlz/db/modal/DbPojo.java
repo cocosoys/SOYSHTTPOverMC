@@ -18,6 +18,7 @@ public class DbPojo {
     public <T> PojoQuery<T> selectW(Class<T> re) {
         return PojoQuery.wrapper(re);
     }
+
     public <T> PojoDelete<T> deleteW(Class<T> beanClass) {
         return PojoDelete.wrapper(beanClass);
     }
@@ -25,6 +26,7 @@ public class DbPojo {
     public <T> PojoUpdate<T> updateW(Class<T> beanClass) {
         return new PojoUpdate(beanClass);
     }
+
     /**
      *
      * @param value
@@ -35,6 +37,7 @@ public class DbPojo {
     public <T> PojoUpdate<T> updateW(T value, Function<String, Boolean> ignore) {
         return new PojoUpdate((Class<T>) value.getClass()).set(value, ignore);
     }
+
     public <T> PojoUpdate<T> updateW(T value) {
         return new PojoUpdate((Class<T>) value.getClass()).set(value);
     }

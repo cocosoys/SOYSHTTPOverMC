@@ -2,9 +2,6 @@ package com.dlz.db.interceptor;
 
 import com.dlz.db.inf.IExecutorDelete;
 import com.dlz.db.modal.condition.Condition;
-import com.dlz.db.modal.wrapper.WrapperBuildUtil;
-import com.dlz.db.support.PojoCache;
-import com.dlz.db.support.SqlRunThreadHolder;
 import lombok.extern.slf4j.Slf4j;
 
 import java.lang.reflect.Field;
@@ -57,8 +54,8 @@ public class DbPlugin {
      */
     public static void registerInterceptor(SqlBuildInterceptor interceptor) {
         if (interceptor != null) {
-            if(interceptor.isEnabled()){
-                if(interceptor instanceof LogicDeleteInterceptor){
+            if (interceptor.isEnabled()) {
+                if (interceptor instanceof LogicDeleteInterceptor) {
                     logicDeleteInterceptor = (LogicDeleteInterceptor) interceptor;
                 }
                 interceptors.add(interceptor);
@@ -90,6 +87,7 @@ public class DbPlugin {
     }
 
     // ==================== SQL 构建 ====================
+
     /**
      * 生成查询条件sql
      * <p>先调用所有启用的插件的 {@link SqlBuildInterceptor#onBuildWhere}，
@@ -101,6 +99,7 @@ public class DbPlugin {
             interceptor.onBuildWhere(tableName, where);
         }
     }
+
     /**
      * 构建插入语句
      * <p>先调用所有启用的插件的 {@link SqlBuildInterceptor#onBuildInsert}，
@@ -109,38 +108,44 @@ public class DbPlugin {
     public static void onBuildInsert(String tableName, Map<String, Object> insertValues) {
         // 调用插件链：逻辑删除/租户 等自动注入插入字段
         for (SqlBuildInterceptor interceptor : interceptors) {
-             interceptor.onBuildInsert(tableName, insertValues);
+            interceptor.onBuildInsert(tableName, insertValues);
         }
     }
+
     /**
      * 逻辑删除处理，逻辑删除插件生效则进行逻辑删除拦截
+     *
      * @param maker
      * @return 逻辑删除结果 -1 放行物理 DELETE, 其他 逻辑删除条数
      */
     public static int doLogicDelete(IExecutorDelete maker) {
         // 调用插件：逻辑删除/租户 等自动注入插入字段
         // 调用插件链：逻辑删除插件会在此将 DELETE 改写为 UPDATE deleted=1
-        if(logicDeleteInterceptor == null){
+        if (logicDeleteInterceptor == null) {
             return -1;
         }
         return logicDeleteInterceptor.doLogicDelete(maker);
     }
+
     /**
+     *
      */
     public static Field getLogicDeleteField(String tableName, Class<?> beanClass) {
         // 调用插件：逻辑删除/租户 等自动注入插入字段
         // 调用插件链：逻辑删除插件会在此将 DELETE 改写为 UPDATE deleted=1
-        if(logicDeleteInterceptor == null){
+        if (logicDeleteInterceptor == null) {
             return null;
         }
         return logicDeleteInterceptor.getLogicDeleteField(tableName, beanClass);
     }
+
     /**
+     *
      */
     public static String getLogicDeleteField(String tableName) {
         // 调用插件：逻辑删除/租户 等自动注入插入字段
         // 调用插件链：逻辑删除插件会在此将 DELETE 改写为 UPDATE deleted=1
-        if(logicDeleteInterceptor == null){
+        if (logicDeleteInterceptor == null) {
             return null;
         }
         return logicDeleteInterceptor.getLogicDeleteField(tableName);

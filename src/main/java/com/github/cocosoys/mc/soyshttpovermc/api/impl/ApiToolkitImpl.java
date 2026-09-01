@@ -1,15 +1,14 @@
 package com.github.cocosoys.mc.soyshttpovermc.api.impl;
 
-import org.bukkit.Bukkit;
-import org.bukkit.entity.Player;
-import org.bukkit.plugin.Plugin;
-
 import com.github.cocosoys.mc.soyshttpovermc.api.ApiToolkitApi;
 import com.github.cocosoys.mc.soyshttpovermc.exception.ExceptionBus;
 import com.github.cocosoys.mc.soyshttpovermc.exception.ToolkitException;
 import com.github.cocosoys.mc.soyshttpovermc.util.JsonWriter;
 import com.github.cocosoys.mc.soyshttpovermc.util.LinkMessageUtil;
 import com.github.cocosoys.mc.soyshttpovermc.web.MimeTypes;
+import org.bukkit.Bukkit;
+import org.bukkit.entity.Player;
+import org.bukkit.plugin.Plugin;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -67,7 +66,9 @@ public class ApiToolkitImpl implements ApiToolkitApi {
         sendOnMain(new ArrayList<>(players), url, display);
     }
 
-    /** 确保 sendMessage 在主线程执行（Bukkit 发包要求）。 */
+    /**
+     * 确保 sendMessage 在主线程执行（Bukkit 发包要求）。
+     */
     private void sendOnMain(List<Player> players, String url, String display) {
         if (players.isEmpty()) return;
         Runnable r = () -> {

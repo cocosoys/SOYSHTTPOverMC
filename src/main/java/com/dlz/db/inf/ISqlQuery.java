@@ -19,15 +19,21 @@ public interface ISqlQuery<T extends ISqlQuery> extends
         ICondAndOr<T>,
         ICondAddByKey<T>,
         ICondAuto<T> {
-    /** 当前构造器持有的 WHERE 根条件节点。 */
+    /**
+     * 当前构造器持有的 WHERE 根条件节点。
+     */
     Condition where();
 
-    /** 向 {@link #where()} 根节点追加子条件（由 {@link ICondBase} 约定，业务代码不直接调用）。 */
+    /**
+     * 向 {@link #where()} 根节点追加子条件（由 {@link ICondBase} 约定，业务代码不直接调用）。
+     */
     default void addChildren(Condition child) {
         where().addChildren(child);
     }
 
-    /** 用给定条件整体替换 WHERE。 */
+    /**
+     * 用给定条件整体替换 WHERE。
+     */
     T where(Condition cond);
 
     /**
@@ -36,9 +42,13 @@ public interface ISqlQuery<T extends ISqlQuery> extends
      */
     T setAllowFullQuery(boolean allowFullQuery);
 
-    /** 目标表名。 */
+    /**
+     * 目标表名。
+     */
     String getTableName();
 
-    /** 是否允许在无 WHERE 条件时执行。 */
+    /**
+     * 是否允许在无 WHERE 条件时执行。
+     */
     boolean isAllowFullQuery();
 }

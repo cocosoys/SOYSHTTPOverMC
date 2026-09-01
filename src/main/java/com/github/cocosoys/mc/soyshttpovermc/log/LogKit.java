@@ -1,11 +1,10 @@
 package com.github.cocosoys.mc.soyshttpovermc.log;
 
-import java.util.logging.Level;
-import java.util.logging.Logger;
-
+import com.github.cocosoys.mc.soyshttpovermc.i18n.I18n;
 import org.bukkit.Bukkit;
 
-import com.github.cocosoys.mc.soyshttpovermc.i18n.I18n;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /**
  * 统一日志门面：全插件日志一律经此类打印，支持运行时级别过滤与热重载。
@@ -30,27 +29,38 @@ public class LogKit {
     private static volatile int tierIndex = 3; // INFO
     private static final String[] TIER_NAMES = {"OFF", "ERROR", "WARN", "INFO", "DEBUG", "TRACE"};
 
-    /** 初始化（宿主启动时调用；第一个参数仅兼容旧签名，级别判断以 JUL Level 映射为准）。 */
+    /**
+     * 初始化（宿主启动时调用；第一个参数仅兼容旧签名，级别判断以 JUL Level 映射为准）。
+     */
     public static synchronized void init(Object unusedLogger, String levelName) {
         setLevel(levelName);
     }
 
-    /** 设置运行时级别（用于 /soyshttp reload 热重载）。非法值忽略。 */
+    /**
+     * 设置运行时级别（用于 /soyshttp reload 热重载）。非法值忽略。
+     */
     public static synchronized void setLevel(String raw) {
         if (raw == null) return;
         String up = raw.trim().toUpperCase();
         for (int i = 0; i < TIER_NAMES.length; i++) {
-            if (TIER_NAMES[i].equals(up)) { tierIndex = i; return; }
+            if (TIER_NAMES[i].equals(up)) {
+                tierIndex = i;
+                return;
+            }
         }
     }
 
-    /** 当前级别名称（供指令/提示展示）。 */
+    /**
+     * 当前级别名称（供指令/提示展示）。
+     */
     public static String levelName() {
         int idx = Math.min(Math.max(tierIndex, 0), TIER_NAMES.length - 1);
         return TIER_NAMES[idx];
     }
 
-    /** 是否开启 DEBUG 级（含更细）输出（供条件分支避免拼接开销）。 */
+    /**
+     * 是否开启 DEBUG 级（含更细）输出（供条件分支避免拼接开销）。
+     */
     public static boolean isDebugEnabled() {
         return tierIndex >= 4;
     }
@@ -59,12 +69,18 @@ public class LogKit {
 
     private static Level levelFor(int tier) {
         switch (tier) {
-            case 5:  return Level.FINEST;   // TRACE
-            case 4:  return Level.FINE;     // DEBUG
-            case 2:  return Level.WARNING;  // WARN
-            case 1:  return Level.SEVERE;   // ERROR
-            case 0:  return Level.OFF;      // OFF（不打印）
-            default: return Level.INFO;
+            case 5:
+                return Level.FINEST;   // TRACE
+            case 4:
+                return Level.FINE;     // DEBUG
+            case 2:
+                return Level.WARNING;  // WARN
+            case 1:
+                return Level.SEVERE;   // ERROR
+            case 0:
+                return Level.OFF;      // OFF（不打印）
+            default:
+                return Level.INFO;
         }
     }
 
@@ -111,14 +127,14 @@ public class LogKit {
     }
 
     private void print(int tier, String i18nKey, String fmt, Object... args) {
-        print(tier,i18nKey,fmt,null,args);
+        print(tier, i18nKey, fmt, null, args);
     }
 
     private void print(int tier, String i18nKey, String fmt, Throwable throwable, Object... args) {
         String msg = I18n.resolve(i18nKey, fmt, args);
-        if(throwable==null){
+        if (throwable == null) {
             logger().log(levelFor(tier), formatMessage(msg, tier));
-        }else{
+        } else {
             logger().log(levelFor(tier), formatMessage(msg, tier), throwable);
         }
     }
@@ -174,12 +190,29 @@ public class LogKit {
     }
 
     // ========= 便捷单参（消息原样，不做占位符替换） =========
-    public void trace(String msg) { print(5, null, msg); }
-    public void debug(String msg) { print(4, null, msg); }
-    public void info(String msg) { print(3, null, msg); }
-    public void warn(String msg) { print(2, null, msg); }
-    public void error(String msg) { print(1, null, msg); }
-    public void error(String msg, Throwable throwable) { error(throwable, msg); }
+    public void trace(String msg) {
+        print(5, null, msg);
+    }
+
+    public void debug(String msg) {
+        print(4, null, msg);
+    }
+
+    public void info(String msg) {
+        print(3, null, msg);
+    }
+
+    public void warn(String msg) {
+        print(2, null, msg);
+    }
+
+    public void error(String msg) {
+        print(1, null, msg);
+    }
+
+    public void error(String msg, Throwable throwable) {
+        error(throwable, msg);
+    }
 
     // ========= Lombok 两个重载工厂 =========
     public static LogKit getLogger(Class<?> clazz) {

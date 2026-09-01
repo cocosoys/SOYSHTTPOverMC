@@ -18,7 +18,9 @@ public class LargeFileLoaderRegistry {
 
     private volatile LargeFileLoader defaultLoader;
     private final Map<String, LargeFileLoader> loaders = new ConcurrentHashMap<>();
-    /** pathPrefix -> loader 名（最长前缀优先匹配） */
+    /**
+     * pathPrefix -> loader 名（最长前缀优先匹配）
+     */
     private final Map<String, String> pathOverrides = new ConcurrentHashMap<>();
 
     public LargeFileLoaderRegistry(long thresholdBytes) {
@@ -26,18 +28,24 @@ public class LargeFileLoaderRegistry {
         this.loaders.put(DefaultLargeFileLoader.NAME, defaultLoader);
     }
 
-    /** 注册一个自定义加载器（同名覆盖）。 */
+    /**
+     * 注册一个自定义加载器（同名覆盖）。
+     */
     public void register(LargeFileLoader loader) {
         if (loader == null || loader.name() == null || loader.name().isEmpty()) return;
         loaders.put(loader.name(), loader);
     }
 
-    /** 按名称取加载器（不存在返回 null）。 */
+    /**
+     * 按名称取加载器（不存在返回 null）。
+     */
     public LargeFileLoader get(String name) {
         return name == null ? null : loaders.get(name);
     }
 
-    /** 切换全局默认加载器（按名称；未知名称忽略并告警）。 */
+    /**
+     * 切换全局默认加载器（按名称；未知名称忽略并告警）。
+     */
     public boolean setDefault(String loaderName) {
         LargeFileLoader l = loaderName == null ? null : loaders.get(loaderName);
         if (l == null) return false;
@@ -45,7 +53,9 @@ public class LargeFileLoaderRegistry {
         return true;
     }
 
-    /** 为某路径前缀强制指定加载方式（开发者强行切换；最长前缀优先）。 */
+    /**
+     * 为某路径前缀强制指定加载方式（开发者强行切换；最长前缀优先）。
+     */
     public void setPathLoader(String pathPrefix, String loaderName) {
         if (pathPrefix == null || pathPrefix.isEmpty() || loaderName == null) return;
         if (loaders.containsKey(loaderName)) {
@@ -53,7 +63,9 @@ public class LargeFileLoaderRegistry {
         }
     }
 
-    /** 解析某资源应使用的加载器（按路径前缀指定 > 全局默认）；无加载器命中返回 null。 */
+    /**
+     * 解析某资源应使用的加载器（按路径前缀指定 > 全局默认）；无加载器命中返回 null。
+     */
     public LargeFileLoader resolve(String path, File file, long sizeBytes, String contentType) {
         LargeFileLoader byPath = resolvePathOverride(path, file, sizeBytes, contentType);
         if (byPath != null) return byPath;

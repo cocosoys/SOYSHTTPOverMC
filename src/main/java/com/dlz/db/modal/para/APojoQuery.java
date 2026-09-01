@@ -30,10 +30,12 @@ public abstract class APojoQuery<ME extends APojoQuery, T, PM extends AQuery>
     public Condition where() {
         return getPm().where();
     }
+
     public ME where(Condition cond) {
         getPm().where(cond);
         return me();
     }
+
     public ME where(T bean) {
         this.bean = bean;
         return me();
@@ -43,12 +45,14 @@ public abstract class APojoQuery<ME extends APojoQuery, T, PM extends AQuery>
         getPm().setAllowFullQuery(allowFullQuery);
         return me();
     }
+
     public boolean isAllowFullQuery() {
         return getPm().isAllowFullQuery();
     }
+
     @Override
     protected void wrapValues(List<Field> fields, T bean) {
-        fields.forEach(field->{
+        fields.forEach(field -> {
             Object value = FieldReflections.getValue(bean, field);
             if (StringUtils.isNotEmpty(value)) {
                 getPm().eq(PojoCache.getColumnName(field), value);

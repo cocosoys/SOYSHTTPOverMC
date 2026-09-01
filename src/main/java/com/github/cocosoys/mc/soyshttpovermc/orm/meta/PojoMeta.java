@@ -89,7 +89,9 @@ public class PojoMeta {
         return beanClass;
     }
 
-    /** 表名（YAML=文件根节点名；SQL=表名）。 */
+    /**
+     * 表名（YAML=文件根节点名；SQL=表名）。
+     */
     public String getTableName() {
         return tableName;
     }
@@ -116,26 +118,34 @@ public class PojoMeta {
 
     // ===== 便捷（Query 条件链用） =====
 
-    /** 字段名 → 列名（lambda 条件解析后转列名）。 */
+    /**
+     * 字段名 → 列名（lambda 条件解析后转列名）。
+     */
     public static String columnOf(Class<?> beanClass, String fieldName) {
         PojoMeta meta = of(beanClass);
         FieldMeta fm = meta.byField(fieldName);
         return fm == null ? fieldName : fm.columnName;
     }
 
-    /** 列名 → 字段（YAML 内存过滤取列值用）。 */
+    /**
+     * 列名 → 字段（YAML 内存过滤取列值用）。
+     */
     public static Field fieldOfColumn(Class<?> beanClass, String column) {
         PojoMeta meta = of(beanClass);
         FieldMeta fm = meta.byColumn(column);
         return fm == null ? null : fm.field;
     }
 
-    /** 列名转换器（Camel ↔ Underline，借鉴 dlz convertor/columnname）。 */
+    /**
+     * 列名转换器（Camel ↔ Underline，借鉴 dlz convertor/columnname）。
+     */
     public static final class ColumnNameConvertor {
         private ColumnNameConvertor() {
         }
 
-        /** userName → user_name。 */
+        /**
+         * userName → user_name。
+         */
         public static String camelToUnderline(String name) {
             if (name == null || name.isEmpty()) return name;
             StringBuilder sb = new StringBuilder(name.length() + 4);

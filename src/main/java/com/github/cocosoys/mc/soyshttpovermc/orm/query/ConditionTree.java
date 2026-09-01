@@ -15,10 +15,14 @@ import java.util.List;
  */
 public class ConditionTree {
 
-    /** 排序方向。 */
-    public enum Order { ASC, DESC }
+    /**
+     * 排序方向。
+     */
+    public enum Order {ASC, DESC}
 
-    /** 排序项（列名 + 方向）。 */
+    /**
+     * 排序项（列名 + 方向）。
+     */
     public static final class OrderBy {
         public final String column;
         public final Order direction;
@@ -29,7 +33,9 @@ public class ConditionTree {
         }
     }
 
-    /** 单条条件：{@code 列 op 值}，逻辑由 {@code and} 决定（true=AND 连接上一条件）。 */
+    /**
+     * 单条条件：{@code 列 op 值}，逻辑由 {@code and} 决定（true=AND 连接上一条件）。
+     */
     public static final class Cond {
         public final String column;   // 列名（列名转换器输出）
         public final Op op;

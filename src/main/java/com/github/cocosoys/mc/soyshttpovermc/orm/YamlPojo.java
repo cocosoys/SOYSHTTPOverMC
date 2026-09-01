@@ -1,12 +1,11 @@
 package com.github.cocosoys.mc.soyshttpovermc.orm;
 
+import com.github.cocosoys.mc.soyshttpovermc.i18n.I18n;
 import com.github.cocosoys.mc.soyshttpovermc.orm.executor.IBackendExecutor;
 import com.github.cocosoys.mc.soyshttpovermc.orm.executor.YamlBackendExecutor;
 import com.github.cocosoys.mc.soyshttpovermc.orm.query.ConditionTree;
 import com.github.cocosoys.mc.soyshttpovermc.orm.query.Page;
 import com.github.cocosoys.mc.soyshttpovermc.orm.query.Query;
-import com.github.cocosoys.mc.soyshttpovermc.i18n.I18n;
-
 import org.bukkit.configuration.file.YamlConfiguration;
 
 import java.io.File;
@@ -30,13 +29,17 @@ public class YamlPojo {
     private volatile IBackendExecutor executor;
     private volatile File dataDir = new File("data");
 
-    /** 插件装配：设置数据目录（dataFolder），创建共享 YAML 后端。 */
+    /**
+     * 插件装配：设置数据目录（dataFolder），创建共享 YAML 后端。
+     */
     public void init(File dataFolder) {
         this.dataDir = dataFolder == null ? new File("data") : dataFolder;
         this.executor = YamlBackendExecutor.get(this.dataDir);
     }
 
-    /** 当前后端（未 init 时按默认 data/ 懒初始化）。 */
+    /**
+     * 当前后端（未 init 时按默认 data/ 懒初始化）。
+     */
     public IBackendExecutor executor() {
         IBackendExecutor e = executor;
         if (e == null) {
@@ -53,12 +56,16 @@ public class YamlPojo {
 
     // ===== 查询 =====
 
-    /** 查询全部（直接返回 List）。 */
+    /**
+     * 查询全部（直接返回 List）。
+     */
     public <T> List<T> select(Class<T> beanClass) {
         return executor().selectByTree(beanClass, null);
     }
 
-    /** 按条件查询（Consumer 构建条件链）。 */
+    /**
+     * 按条件查询（Consumer 构建条件链）。
+     */
     public <T> List<T> select(Class<T> beanClass, Consumer<Query<T>> condition) {
         Query<T> query = new Query<>(beanClass);
         query.setExecutor(executor());
@@ -68,19 +75,25 @@ public class YamlPojo {
         return executor().selectByTree(beanClass, query.tree());
     }
 
-    /** 链式查询构建器（返回 Query，可继续 eq/orderBy 后 queryBeanList()）。 */
+    /**
+     * 链式查询构建器（返回 Query，可继续 eq/orderBy 后 queryBeanList()）。
+     */
     public <T> Query<T> selectW(Class<T> beanClass) {
         Query<T> query = new Query<>(beanClass);
         query.setExecutor(executor());
         return query;
     }
 
-    /** 按主键取单条；无返回 null。 */
+    /**
+     * 按主键取单条；无返回 null。
+     */
     public <T> T get(Class<T> beanClass, Object id) {
         return executor().getById(beanClass, id);
     }
 
-    /** 分页查询（YAML 全量过滤后切片）。 */
+    /**
+     * 分页查询（YAML 全量过滤后切片）。
+     */
     public <T> Page<T> selectPage(Class<T> beanClass, long current, long size) {
         Query<T> query = new Query<>(beanClass);
         query.setExecutor(executor());
@@ -102,7 +115,9 @@ public class YamlPojo {
         throw new IllegalStateException(I18n.t("exception.orm.not-yaml-backend", "当前后端不是 YAML：{0}", e == null ? "null" : e.name()));
     }
 
-    /** 把 {@link #get(Class)} 视图的修改显式落盘（原子写）。 */
+    /**
+     * 把 {@link #get(Class)} 视图的修改显式落盘（原子写）。
+     */
     public void save(Class<?> beanClass) {
         IBackendExecutor e = executor();
         if (e instanceof YamlBackendExecutor) {
@@ -112,29 +127,39 @@ public class YamlPojo {
 
     // ===== 写 =====
 
-    /** 插入（主键必须已赋值）。 */
+    /**
+     * 插入（主键必须已赋值）。
+     */
     public <T> boolean insert(T bean) {
         return bean != null && executor().insert((Class<T>) bean.getClass(), bean);
     }
 
-    /** 按主键更新（YAML 端整体覆盖 = upsert）。 */
+    /**
+     * 按主键更新（YAML 端整体覆盖 = upsert）。
+     */
     public <T> boolean updateById(T bean) {
         return bean != null && executor().updateById((Class<T>) bean.getClass(), bean);
     }
 
-    /** 按主键删除。 */
+    /**
+     * 按主键删除。
+     */
     public <T> boolean deleteById(Class<T> beanClass, Object id) {
         return executor().deleteById(beanClass, id);
     }
 
     // ===== 内部（Query 委托） =====
 
-    /** 供 {@link Query#queryBeanList()} 委托。 */
+    /**
+     * 供 {@link Query#queryBeanList()} 委托。
+     */
     public <T> List<T> selectByTree(Class<T> beanClass, ConditionTree tree) {
         return executor().selectByTree(beanClass, tree);
     }
 
-    /** 供 {@link Query#queryBeanPage()} 委托。 */
+    /**
+     * 供 {@link Query#queryBeanPage()} 委托。
+     */
     public <T> Page<T> selectPageByTree(Class<T> beanClass, ConditionTree tree) {
         return executor().selectPageByTree(beanClass, tree);
     }

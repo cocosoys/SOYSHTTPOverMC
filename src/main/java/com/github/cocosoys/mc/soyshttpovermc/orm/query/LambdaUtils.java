@@ -14,7 +14,9 @@ public final class LambdaUtils {
     private LambdaUtils() {
     }
 
-    /** 从可序列化 Lambda 提取字段名；无法解析时抛 IllegalArgumentException。 */
+    /**
+     * 从可序列化 Lambda 提取字段名；无法解析时抛 IllegalArgumentException。
+     */
     public static String resolve(SFunction<?, ?> fn) {
         if (fn == null) return null;
         try {
@@ -29,7 +31,7 @@ public final class LambdaUtils {
             String field = methodToField(implMethod);
             if (field == null) {
                 throw new IllegalArgumentException(I18n.t("exception.orm.lambda-extract-fail",
-                            "无法从 Lambda 提取字段名: {0}（请使用 getter/is 方法引用，如 User::getName）", implMethod));
+                        "无法从 Lambda 提取字段名: {0}（请使用 getter/is 方法引用，如 User::getName）", implMethod));
             }
             return field;
         } catch (ReflectiveOperationException e) {
@@ -37,7 +39,9 @@ public final class LambdaUtils {
         }
     }
 
-    /** getXxx/isXxx → xxx（首字母小写）。 */
+    /**
+     * getXxx/isXxx → xxx（首字母小写）。
+     */
     private static String methodToField(String method) {
         if (method == null || method.isEmpty()) return null;
         String name = method;

@@ -78,7 +78,9 @@ public class LuckPermsProvider implements PermissionProvider {
 
     // ===== 反射工具方法 =====
 
-    /** 获取 LuckPerms 单例实例（LuckPermsProvider.get()）。 */
+    /**
+     * 获取 LuckPerms 单例实例（LuckPermsProvider.get()）。
+     */
     private Object getLuckPermsInstance() {
         try {
             Class<?> providerClass = Class.forName("net.luckperms.api.LuckPermsProvider");
@@ -89,7 +91,9 @@ public class LuckPermsProvider implements PermissionProvider {
         }
     }
 
-    /** 从在线玩家获取 LuckPerms User 对象。 */
+    /**
+     * 从在线玩家获取 LuckPerms User 对象。
+     */
     private Object getUserByPlayer(Object lp, Player player) {
         try {
             Object userManager = invokeMethod(lp, "getUserManager");
@@ -105,7 +109,9 @@ public class LuckPermsProvider implements PermissionProvider {
         }
     }
 
-    /** 通过 LuckPerms User 对象判断权限。 */
+    /**
+     * 通过 LuckPerms User 对象判断权限。
+     */
     private boolean checkPermissionViaUser(Object user, String permission) {
         try {
             // user.getCachedData().getPermissionData().checkPermission(permission).asBoolean()
@@ -124,12 +130,16 @@ public class LuckPermsProvider implements PermissionProvider {
         }
     }
 
-    /** 反射调用无参方法。 */
+    /**
+     * 反射调用无参方法。
+     */
     private Object invokeMethod(Object target, String methodName) {
         return invokeMethod(target, methodName, new Class<?>[0], new Object[0]);
     }
 
-    /** 反射调用单参方法。 */
+    /**
+     * 反射调用单参方法。
+     */
     private Object invokeMethod(Object target, String methodName, Class<?>[] paramTypes, Object... args) {
         try {
             Method method = target.getClass().getMethod(methodName, paramTypes);

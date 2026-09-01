@@ -17,8 +17,8 @@ import java.util.concurrent.Callable;
  * 从数据库中取得单条map类型数据：{adEnddate=2015-04-08 13:47:12.0}
  * sql语句，可以带参数如：select AD_ENDDATE from JOB_AD t where ad_id=#{ad_id}
  * paraMap ：Map<String,Object> m=new HashMap<String,Object>();m.put("ad_id", "47");
-
-  * @throws Exception
+ *
+ * @throws Exception
  */
 public interface IDbJdbcService {
     ISqlExecutor getSqlExecutor();
@@ -26,6 +26,7 @@ public interface IDbJdbcService {
     default List<ResultMap> getMapList(String sql, Object... para) {
         return doJdbc(() -> getSqlExecutor().getList(sql, para));
     }
+
     default <T> List<T> getList(String sql, IRowMapper<T> rowMapper, Object... para) {
         return doJdbc(() -> {
             List<T> list = DBHolder.getSqlExecutor().getList(sql, rowMapper::mapRow, para);
@@ -38,17 +39,18 @@ public interface IDbJdbcService {
             return executor.call();
         } catch (Exception e) {
             if (e instanceof DbException) {
-                throw (DbException)e;
+                throw (DbException) e;
             }
             throw new DbException(e.getMessage(), 1005, e);
         }
     }
+
     default <T> List<T> getColumnList(String sql, Class<T> tClass, Object... para) {
         return doJdbc(() -> DbConvertUtil.getColumnList(getSqlExecutor().getList(sql, para), tClass));
     }
 
     default <T> T getFirstColumn(String sql, Class<T> tClass, Object... para) {
-        return doJdbc(() -> getSqlExecutor().getFirstColumn(sql,tClass, para));
+        return doJdbc(() -> getSqlExecutor().getFirstColumn(sql, tClass, para));
     }
 
     /**
@@ -63,7 +65,7 @@ public interface IDbJdbcService {
 
 
     default ResultMap getMap(String sql, Boolean throwEx, Object... para) {
-        return doJdbc(() -> getSqlExecutor().getOne(sql,throwEx, para));
+        return doJdbc(() -> getSqlExecutor().getOne(sql, throwEx, para));
     }
 
     default String getStr(String sql, Object... para) {
@@ -119,10 +121,10 @@ public interface IDbJdbcService {
     }
 
     default <T> T getBean(String sql, Class<T> t, Object... para) {
-        return doJdbc(() -> ConvertUtil.convert(getSqlExecutor().getOne(sql, true,para),t));
+        return doJdbc(() -> ConvertUtil.convert(getSqlExecutor().getOne(sql, true, para), t));
     }
 
     default <T> List<T> getBeanList(String sql, Class<T> t, Object... para) {
-        return doJdbc(() -> ConvertUtil.convertList(getSqlExecutor().getList(sql, para),t));
+        return doJdbc(() -> ConvertUtil.convertList(getSqlExecutor().getList(sql, para), t));
     }
 }

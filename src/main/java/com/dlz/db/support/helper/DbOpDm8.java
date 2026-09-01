@@ -2,7 +2,6 @@ package com.dlz.db.support.helper;
 
 import com.dlz.db.annotation.IdType;
 import com.dlz.db.annotation.TableId;
-import com.dlz.db.modal.dto.ResultMap;
 import com.dlz.db.support.DBHolder;
 import com.dlz.db.support.PojoCache;
 import com.dlz.db.support.bean.ColumnInfo;
@@ -42,7 +41,7 @@ public class DbOpDm8 extends SqlHelper {
                 }).filter(Objects::nonNull)
                 .collect(Collectors.joining(","));
 
-        String sql = StringUtils.formatMsg("CREATE TABLE \"{}\" ({});", tableName,columns);
+        String sql = StringUtils.formatMsg("CREATE TABLE \"{}\" ({});", tableName, columns);
 
         String tableComment = PojoCache.getTableComment(clazz);
         if (StringUtils.isNotEmpty(tableComment)) {
@@ -60,7 +59,7 @@ public class DbOpDm8 extends SqlHelper {
                 }).filter(Objects::nonNull)
                 .collect(Collectors.joining(";"));
         if (StringUtils.isNotEmpty(columnsComment)) {
-            sql += ";"+columnsComment;
+            sql += ";" + columnsComment;
         }
 
 
@@ -102,7 +101,7 @@ public class DbOpDm8 extends SqlHelper {
 
 
         // 查询字段信息（补全 nullable/defaultValue/dataLength/dataPrecision/dataScale）
-        sql="   SELECT A.COLUMN_NAME, " +
+        sql = "   SELECT A.COLUMN_NAME, " +
                 "          A.DATA_TYPE, " +
                 "          A.DATA_LENGTH, " +
                 "          A.DATA_PRECISION, " +
@@ -144,6 +143,7 @@ public class DbOpDm8 extends SqlHelper {
         tableInfo.setColumnInfos(columnInfos);
         return tableInfo;
     }
+
     @Override
     public void createColumn(String tableName, String name, Field field) {
         String sql = "ALTER TABLE \"" + tableName.toUpperCase() + "\" ADD \"" + name.toUpperCase() + "\" " + getDbColumnType(field);

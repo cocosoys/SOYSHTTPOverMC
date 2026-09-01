@@ -1,22 +1,16 @@
 package com.github.cocosoys.mc.soyshttpovermc.command;
 
+import com.github.cocosoys.mc.soyshttpovermc.HttpOverMcPlugin;
+import com.github.cocosoys.mc.soyshttpovermc.i18n.I18n;
+import com.github.cocosoys.mc.soyshttpovermc.util.StringListUtil;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.TabCompleter;
 
-import com.github.cocosoys.mc.soyshttpovermc.HttpOverMcPlugin;
-import com.github.cocosoys.mc.soyshttpovermc.i18n.I18n;
-
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 import static com.github.cocosoys.mc.soyshttpovermc.util.StringListUtil.matchByPrefix;
-
-import com.github.cocosoys.mc.soyshttpovermc.util.StringListUtil;
 
 /**
  * /soyshttp 命令执行器（从 {@code HttpOverMcPlugin} 抽离）：
@@ -41,7 +35,9 @@ import com.github.cocosoys.mc.soyshttpovermc.util.StringListUtil;
 public class SoysHttpCommand implements CommandExecutor, TabCompleter {
 
     private final HttpOverMcPlugin plugin;
-    /** 子指令注册表：name(小写) -> 实例（LinkedHashMap 保持 help 展示顺序）。 */
+    /**
+     * 子指令注册表：name(小写) -> 实例（LinkedHashMap 保持 help 展示顺序）。
+     */
     private final Map<String, SubCommand> subs = new LinkedHashMap<>();
 
     public SoysHttpCommand(HttpOverMcPlugin plugin) {
@@ -64,18 +60,24 @@ public class SoysHttpCommand implements CommandExecutor, TabCompleter {
         registerSubCommand(new HelpSubCommand(plugin, this));
     }
 
-    /** 注册一个子指令（name 自动转小写作为匹配键）。 */
+    /**
+     * 注册一个子指令（name 自动转小写作为匹配键）。
+     */
     private void register(SubCommand sub) {
         getSubCommands().put(sub.name().toLowerCase(), sub);
     }
 
-    /** 公开注册入口（第三方插件经门面 {@code getExtension().registerSubCommand(...)} 调用；name 重复时覆盖）。 */
+    /**
+     * 公开注册入口（第三方插件经门面 {@code getExtension().registerSubCommand(...)} 调用；name 重复时覆盖）。
+     */
     public void registerSubCommand(SubCommand sub) {
         if (sub == null) return;
         register(sub);
     }
 
-    /** 子指令名 → 实例（门面 / 补全器使用）。 */
+    /**
+     * 子指令名 → 实例（门面 / 补全器使用）。
+     */
     public Map<String, SubCommand> getSubCommands() {
         return subs;
     }
@@ -116,7 +118,7 @@ public class SoysHttpCommand implements CommandExecutor, TabCompleter {
                 if (sub.isHide()) continue;
                 if (e.getKey().startsWith(prefix)) out.add(e.getKey());
             }
-            return matchByPrefix(args[args.length-1],out);
+            return matchByPrefix(args[args.length - 1], out);
         }
         // 二级及以后参数：交给对应子指令的 tabComplete（含 help 的二级参数补全）
         SubCommand sub = getSubCommands().get(args[0].toLowerCase());
@@ -124,7 +126,7 @@ public class SoysHttpCommand implements CommandExecutor, TabCompleter {
         if (!(sub.requireOp() && !sender.isOp())) {
             List<String> out = sub.tabComplete(sender, args);
             if (out != null) out.removeIf(s -> !s.toLowerCase().startsWith(prefix));
-            return out == null ? Collections.emptyList() : matchByPrefix(args[args.length-1],out);
+            return out == null ? Collections.emptyList() : matchByPrefix(args[args.length - 1], out);
         }
         return Collections.emptyList();
     }
@@ -142,7 +144,7 @@ public class SoysHttpCommand implements CommandExecutor, TabCompleter {
         List<String[]> rows = new ArrayList<>();
         for (SubCommand sub : getSubCommands().values()) {
             if (sub.isHide()) continue;                      // 隐藏子指令不进帮助列表
-            String usage=sub.usage().substring(sub.usage().lastIndexOf(" —— "));
+            String usage = sub.usage().substring(sub.usage().lastIndexOf(" —— "));
             rows.add(new String[]{sub.name(), usage});
         }
 
@@ -168,12 +170,18 @@ public class SoysHttpCommand implements CommandExecutor, TabCompleter {
         }
     }
 
-    /** 树形分支前缀（与页眉「§7/{label} -」同组 §7；后端说明用 §8 已在拼装时区分）。 */
+    /**
+     * 树形分支前缀（与页眉「§7/{label} -」同组 §7；后端说明用 §8 已在拼装时区分）。
+     */
     private static final String BRANCH_PREFIX = "command.common.help-prefix";
 
-    /** 页眉 i18n 键（树根「/{label} -」，{0} 为命令标签）。 */
+    /**
+     * 页眉 i18n 键（树根「/{label} -」，{0} 为命令标签）。
+     */
     private static final String HELP_HEADER_KEY = "command.common.help-title";
-    /** 页尾 i18n 键（帮助分页展露时统一静态控制）。 */
+    /**
+     * 页尾 i18n 键（帮助分页展露时统一静态控制）。
+     */
     private static final String HELP_FOOTER_KEY = "command.common.help-footer";
 
     private static String spaces(int n) {
@@ -187,7 +195,9 @@ public class SoysHttpCommand implements CommandExecutor, TabCompleter {
         SubCommand.sendColored(sender, "§a[SOYSHTTPOverMC]§r " + text);
     }
 
-    /** 按 i18n 键翻译后发送（带统一前缀）：key 缺失回退 {@code fallback}，占位符用 {@code args} 替换。 */
+    /**
+     * 按 i18n 键翻译后发送（带统一前缀）：key 缺失回退 {@code fallback}，占位符用 {@code args} 替换。
+     */
     private void msgT(CommandSender sender, String key, String fallback, Object... args) {
         msg(sender, I18n.t(key, fallback, args));
     }

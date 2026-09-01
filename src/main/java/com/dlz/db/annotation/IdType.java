@@ -42,19 +42,19 @@ public enum IdType {
         this.key = key;
     }
 
-    public String mkId(){
-        if(this == IdType.AUTO || this == IdType.INPUT){
+    public String mkId() {
+        if (this == IdType.AUTO || this == IdType.INPUT) {
             return null;
         }
-    	if(this == IdType.ASSIGN_ID){
-    		return SnowFlakeUtil.id();
-    	}
-    	if(this == IdType.ASSIGN_UUID){
-    		return UuidUtil.uuid();
-    	}
+        if (this == IdType.ASSIGN_ID) {
+            return SnowFlakeUtil.id();
+        }
+        if (this == IdType.ASSIGN_UUID) {
+            return UuidUtil.uuid();
+        }
 //    	if(this == IdType.SEQ){
 //            return DBHolder.sequence(tableName, initSeq);
 //    	}
-        throw new SystemException(this+"not support mkId !");
+        throw new SystemException(this + "not support mkId !");
     }
 }

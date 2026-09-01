@@ -12,6 +12,7 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class SqlExecute extends ParaMap<SqlExecute> implements IExecutorUDI {
     private static final long serialVersionUID = 8374167270612933157L;
+
     public SqlExecute(String sql) {
         super(sql);
     }

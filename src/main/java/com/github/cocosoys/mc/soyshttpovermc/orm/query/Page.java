@@ -53,7 +53,9 @@ public class Page<T> {
         this.records = records == null ? new ArrayList<>() : records;
     }
 
-    /** 偏移量（SQL LIMIT 用）。 */
+    /**
+     * 偏移量（SQL LIMIT 用）。
+     */
     public long offset() {
         return (current - 1) * size;
     }

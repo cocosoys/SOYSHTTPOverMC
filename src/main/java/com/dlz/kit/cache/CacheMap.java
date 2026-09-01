@@ -20,7 +20,9 @@ public class CacheMap<K, V> implements Map<K, V> {
     public CacheMap(int initialCapacity) {
     }
 
-    /** 取缓存，缺失时用 supplier 计算并写入（PojoCache 元数据惰性构建使用）。 */
+    /**
+     * 取缓存，缺失时用 supplier 计算并写入（PojoCache 元数据惰性构建使用）。
+     */
     public V getAndSet(K key, Supplier<V> supplier) {
         V v = delegate.get(key);
         if (v == null && supplier != null) {

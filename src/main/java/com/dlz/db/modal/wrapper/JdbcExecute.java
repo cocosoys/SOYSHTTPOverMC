@@ -12,7 +12,8 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class JdbcExecute extends ParaJdbc implements IExecutorUDI {
     private static final long serialVersionUID = 8374167270612933157L;
+
     public JdbcExecute(String sql, Object... paras) {
-        super(sql,paras);
+        super(sql, paras);
     }
 }

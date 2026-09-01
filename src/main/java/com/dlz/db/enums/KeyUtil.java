@@ -12,6 +12,6 @@ class KeyUtil {
      * @return 增加后的值
      */
     static String getKeyName(String prefix) {
-        return prefix+paraNameIndex.get().addAndGet(1);
+        return prefix + paraNameIndex.get().addAndGet(1);
     }
 }

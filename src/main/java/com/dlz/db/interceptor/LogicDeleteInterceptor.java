@@ -6,7 +6,6 @@ import com.dlz.db.modal.para.ParaMap;
 import com.dlz.db.modal.wrapper.PojoUpdate;
 import com.dlz.db.modal.wrapper.TableDelete;
 import com.dlz.db.modal.wrapper.TableUpdate;
-import com.dlz.db.modal.wrapper.WrapperBuildUtil;
 import com.dlz.db.support.DBHolder;
 import com.dlz.db.support.PojoCache;
 import com.dlz.db.support.SqlRunThreadHolder;
@@ -67,8 +66,9 @@ public class LogicDeleteInterceptor implements SqlBuildInterceptor {
 
     /**
      * 拦截逻辑查询
+     *
      * @param tableName 表名
-     * @param where 查询条件
+     * @param where     查询条件
      */
     @Override
     public void onBuildWhere(String tableName, Condition where) {
@@ -86,7 +86,8 @@ public class LogicDeleteInterceptor implements SqlBuildInterceptor {
 
     /**
      * 拦截逻辑插入
-     * @param tableName 表名
+     *
+     * @param tableName    表名
      * @param insertValues 插入字段
      */
     @Override
@@ -105,6 +106,7 @@ public class LogicDeleteInterceptor implements SqlBuildInterceptor {
 
     /**
      * 逻辑删除执行
+     *
      * @param executor
      * @return
      */
@@ -128,8 +130,10 @@ public class LogicDeleteInterceptor implements SqlBuildInterceptor {
         }
         return DBHolder.doDb(s -> s.execute(update));
     }
+
     /**
      * 逻辑删除执行
+     *
      * @return
      */
     public Field getLogicDeleteField(String tableName, Class<?> beanClass) {
@@ -144,6 +148,7 @@ public class LogicDeleteInterceptor implements SqlBuildInterceptor {
 
     /**
      * 逻辑删除执行
+     *
      * @return
      */
     public String getLogicDeleteField(String tableName) {

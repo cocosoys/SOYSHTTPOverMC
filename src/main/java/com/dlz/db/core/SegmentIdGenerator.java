@@ -4,7 +4,6 @@ import com.dlz.db.core.anno.SqlAction;
 import com.dlz.db.exception.DbException;
 import com.dlz.db.modal.DB;
 import com.dlz.db.util.DbLogUtil;
-import com.dlz.kit.exception.SystemException;
 import com.dlz.kit.fn.DlzFn2;
 import lombok.extern.slf4j.Slf4j;
 
@@ -145,7 +144,11 @@ public class SegmentIdGenerator {
                         if (e instanceof DbException) throw (DbException) e;
                     }
                     if (++retries < maxRetries) {
-                        try { Thread.sleep(50); } catch (InterruptedException ie) { Thread.currentThread().interrupt(); }
+                        try {
+                            Thread.sleep(50);
+                        } catch (InterruptedException ie) {
+                            Thread.currentThread().interrupt();
+                        }
                     } else throw new DbException("Failed to fetch segment", 1004);
                 }
             }

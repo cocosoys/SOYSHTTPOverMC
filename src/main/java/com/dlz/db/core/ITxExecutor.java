@@ -37,10 +37,12 @@ public interface ITxExecutor {
     }
 
     DataSource getDataSource();
-    boolean hasBinding(DataSource dataSource);
-    void bind(DataSource dataSource,Connection connection);
-    void unBind(DataSource dataSource);
 
+    boolean hasBinding(DataSource dataSource);
+
+    void bind(DataSource dataSource, Connection connection);
+
+    void unBind(DataSource dataSource);
 
 
     default <T> T runInExisting(Supplier<T> task) {

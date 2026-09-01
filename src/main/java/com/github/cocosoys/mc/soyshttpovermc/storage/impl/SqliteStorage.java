@@ -1,4 +1,5 @@
 package com.github.cocosoys.mc.soyshttpovermc.storage.impl;
+
 import com.github.cocosoys.mc.soyshttpovermc.enums.StorageType;
 
 import com.github.cocosoys.mc.soyshttpovermc.i18n.I18n;

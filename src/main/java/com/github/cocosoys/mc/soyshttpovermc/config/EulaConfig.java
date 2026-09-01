@@ -43,12 +43,16 @@ public final class EulaConfig {
         }
     }
 
-    /** 是否已同意协议（eula: true）。 */
+    /**
+     * 是否已同意协议（eula: true）。
+     */
     public boolean isAccepted() {
         return accepted;
     }
 
-    /** 输出 EULA 未同意时的禁用提示（服务器启动阶段打印，引导用户阅读 EULA.yml 并填写 eula: true）。 */
+    /**
+     * 输出 EULA 未同意时的禁用提示（服务器启动阶段打印，引导用户阅读 EULA.yml 并填写 eula: true）。
+     */
     public static void promptDisabled(Logger logger) {
         logger.severe("==============================SOYSHTTPOverMC==============================");
         logger.severe("【简体中文】SOYSHTTPOverMC 尚未启用！");

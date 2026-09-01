@@ -12,19 +12,29 @@ import java.util.function.Supplier;
  */
 public interface AuthCredentialApi {
 
-    /** 注册一个凭证颁发器工厂（登录插件接入点；注册名对应 gateway/issuers/&lt;name&gt;.yml） */
+    /**
+     * 注册一个凭证颁发器工厂（登录插件接入点；注册名对应 gateway/issuers/&lt;name&gt;.yml）
+     */
     void registerCredentialIssuer(String name, Supplier<CredentialIssuer> factory);
 
-    /** 是否有启用的 auth 策略（决定 API 是否需鉴权） */
+    /**
+     * 是否有启用的 auth 策略（决定 API 是否需鉴权）
+     */
     boolean isAuthEnabled();
 
-    /** 列出所有启用的颁发器名 */
+    /**
+     * 列出所有启用的颁发器名
+     */
     List<String> getIssuerNames();
 
-    /** 用首个启用的颁发器为已认证主体签发凭证；无启用颁发器返回 null */
+    /**
+     * 用首个启用的颁发器为已认证主体签发凭证；无启用颁发器返回 null
+     */
     IssuedCredential issueCredential(String subject);
 
-    /** 用指定颁发器签发；issuerName 为 null 时取首个启用的 */
+    /**
+     * 用指定颁发器签发；issuerName 为 null 时取首个启用的
+     */
     IssuedCredential issueCredential(String issuerName, String subject);
 
     /**
@@ -34,6 +44,8 @@ public interface AuthCredentialApi {
      */
     IssuedCredential issueCredential(String subject, java.util.Map<String, String> claims);
 
-    /** 用指定颁发器签发携带自定义 claims 的凭证；issuerName 为 null 时取首个启用的 */
+    /**
+     * 用指定颁发器签发携带自定义 claims 的凭证；issuerName 为 null 时取首个启用的
+     */
     IssuedCredential issueCredential(String issuerName, String subject, java.util.Map<String, String> claims);
 }

@@ -1,11 +1,11 @@
 package com.github.cocosoys.mc.soyshttpovermc.spring.controller;
 
-import com.github.cocosoys.mc.soyshttpovermc.util.AjaxResult;
 import com.github.cocosoys.mc.soyshttpovermc.annotations.ApiName;
 import com.github.cocosoys.mc.soyshttpovermc.annotations.ApiPublic;
 import com.github.cocosoys.mc.soyshttpovermc.annotations.GetMapping;
-import com.github.cocosoys.mc.soyshttpovermc.web.ApiRequestContext;
 import com.github.cocosoys.mc.soyshttpovermc.spring.service.ISystemService;
+import com.github.cocosoys.mc.soyshttpovermc.util.AjaxResult;
+import com.github.cocosoys.mc.soyshttpovermc.web.ApiRequestContext;
 
 import java.util.HashMap;
 import java.util.Map;

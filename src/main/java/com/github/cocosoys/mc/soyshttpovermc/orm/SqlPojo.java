@@ -22,12 +22,16 @@ import java.util.function.Consumer;
  */
 public class SqlPojo {
 
-    /** 当前 SQL 后端（未装配时 null）。 */
+    /**
+     * 当前 SQL 后端（未装配时 null）。
+     */
     public IBackendExecutor executor() {
         return SqlBackendExecutor.get();
     }
 
-    /** SQL 后端是否可用。 */
+    /**
+     * SQL 后端是否可用。
+     */
     public boolean isAvailable() {
         SqlBackendExecutor e = SqlBackendExecutor.get();
         return e != null && e.isAvailable();
@@ -82,7 +86,9 @@ public class SqlPojo {
         return e != null && e.deleteById(beanClass, id);
     }
 
-    /** 跨端搜索（LIKE 查询）。 */
+    /**
+     * 跨端搜索（LIKE 查询）。
+     */
     public <T> List<T> search(Class<T> beanClass, String keyword, String... fields) {
         IBackendExecutor e = executor();
         return e == null ? java.util.Collections.emptyList() : e.search(beanClass, keyword, fields);

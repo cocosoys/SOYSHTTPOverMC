@@ -12,29 +12,43 @@ import java.util.List;
  */
 public interface IBackendExecutor {
 
-    /** 后端标识（yaml / sql）。 */
+    /**
+     * 后端标识（yaml / sql）。
+     */
     String name();
 
     // ===== 读 =====
 
-    /** 按主键取单条；无返回 null。 */
+    /**
+     * 按主键取单条；无返回 null。
+     */
     <T> T getById(Class<T> beanClass, Object id);
 
-    /** 按条件树查询全部命中（YAML=内存过滤；SQL=WHERE 翻译）。 */
+    /**
+     * 按条件树查询全部命中（YAML=内存过滤；SQL=WHERE 翻译）。
+     */
     <T> List<T> selectByTree(Class<T> beanClass, ConditionTree tree);
 
-    /** 按条件树分页查询（YAML=内存过滤后切片；SQL=LIMIT）。 */
+    /**
+     * 按条件树分页查询（YAML=内存过滤后切片；SQL=LIMIT）。
+     */
     <T> Page<T> selectPageByTree(Class<T> beanClass, ConditionTree tree);
 
     // ===== 写 =====
 
-    /** 插入（主键已赋值）。 */
+    /**
+     * 插入（主键已赋值）。
+     */
     <T> boolean insert(Class<T> beanClass, Object bean);
 
-    /** 按主键更新（整体覆盖字段）。 */
+    /**
+     * 按主键更新（整体覆盖字段）。
+     */
     <T> boolean updateById(Class<T> beanClass, Object bean);
 
-    /** 按主键删除。 */
+    /**
+     * 按主键删除。
+     */
     <T> boolean deleteById(Class<T> beanClass, Object id);
 
     // ===== 预留：跨端搜索配置文件通道（二期实现） =====

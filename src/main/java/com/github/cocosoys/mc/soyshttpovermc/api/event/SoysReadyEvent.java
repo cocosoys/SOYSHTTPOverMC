@@ -1,9 +1,8 @@
 package com.github.cocosoys.mc.soyshttpovermc.api.event;
 
+import com.github.cocosoys.mc.soyshttpovermc.api.SoysHttpOverMcApi;
 import org.bukkit.event.Event;
 import org.bukkit.event.HandlerList;
-
-import com.github.cocosoys.mc.soyshttpovermc.api.SoysHttpOverMcApi;
 
 /**
  * SOYSHTTPOverMC 就绪事件：宿主插件 onEnable 完成全部初始化（API 门面 / 网页 / 网关 / 前端）
@@ -27,7 +26,9 @@ public class SoysReadyEvent extends Event {
         this.api = api;
     }
 
-    /** 就绪后的对外门面（注册 API / 网页 / 凭证 / 拦截器等）。 */
+    /**
+     * 就绪后的对外门面（注册 API / 网页 / 凭证 / 拦截器等）。
+     */
     public SoysHttpOverMcApi getApi() {
         return api;
     }

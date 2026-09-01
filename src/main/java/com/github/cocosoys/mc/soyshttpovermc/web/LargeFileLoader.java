@@ -13,16 +13,18 @@ import java.io.File;
  */
 public interface LargeFileLoader {
 
-    /** 加载器唯一名称（注册/切换用）。 */
+    /**
+     * 加载器唯一名称（注册/切换用）。
+     */
     String name();
 
     /**
      * 是否接管该资源的加载。命中任一 loader 即由该 loader 加载（默认实现按
      * 文件大小超过阈值判定；开发者自定义 loader 可按路径/类型自行判断）。
      *
-     * @param path       请求路径（以 / 开头）
-     * @param file       磁盘文件（jar 内资源为 null，sizeBytes 为 -1）
-     * @param sizeBytes  文件大小（未知为 -1）
+     * @param path        请求路径（以 / 开头）
+     * @param file        磁盘文件（jar 内资源为 null，sizeBytes 为 -1）
+     * @param sizeBytes   文件大小（未知为 -1）
      * @param contentType 推断出的 Content-Type（可能为 null）
      */
     boolean supports(String path, File file, long sizeBytes, String contentType);

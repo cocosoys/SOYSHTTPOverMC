@@ -45,7 +45,9 @@ final class LanguageSource {
     private final boolean template;  // 是否含 {0} 占位符
     private volatile boolean enabled = true;   // 是否参与加载（可经 /soyshttp lang sources on/off 运行时停用/启用）
 
-    /** 语言占位符（language 为空时 source 必须含它）。 */
+    /**
+     * 语言占位符（language 为空时 source 必须含它）。
+     */
     static final String PLACEHOLDER = "{0}";
 
     LanguageSource(String name, String description, String language, String source, File baseDir) {
@@ -58,53 +60,73 @@ final class LanguageSource {
         this.template = this.raw.contains(PLACEHOLDER);
     }
 
-    /** 来源名称（配置/展示用）。 */
+    /**
+     * 来源名称（配置/展示用）。
+     */
     String name() {
         return name;
     }
 
-    /** 来源描述。 */
+    /**
+     * 来源描述。
+     */
     String description() {
         return description;
     }
 
-    /** 绑定语言代码；空串 = 语言模板源（适用于任意语言）。 */
+    /**
+     * 绑定语言代码；空串 = 语言模板源（适用于任意语言）。
+     */
     String language() {
         return language;
     }
 
-    /** 原始 source 描述（日志/展示用）。 */
+    /**
+     * 原始 source 描述（日志/展示用）。
+     */
     String raw() {
         return raw;
     }
 
-    /** 该来源当前是否启用。 */
+    /**
+     * 该来源当前是否启用。
+     */
     boolean enabled() {
         return enabled;
     }
 
-    /** 设置启用状态（停用后该来源不再参与语言合并）。 */
+    /**
+     * 设置启用状态（停用后该来源不再参与语言合并）。
+     */
     void setEnabled(boolean enabled) {
         this.enabled = enabled;
     }
 
-    /** 是否为网络来源（http/https URL）。 */
+    /**
+     * 是否为网络来源（http/https URL）。
+     */
     boolean isUrl() {
         return url;
     }
 
-    /** 解析后的 source（{0} 占位符已替换为指定语言代码）。 */
+    /**
+     * 解析后的 source（{0} 占位符已替换为指定语言代码）。
+     */
     String resolvedSource(String code) {
         return resolved(code);
     }
 
-    /** 仅网络源：拉取翻译文本（UTF-8）；非网络源或失败返回 null。 */
+    /**
+     * 仅网络源：拉取翻译文本（UTF-8）；非网络源或失败返回 null。
+     */
     String fetchText(String code) {
         if (!url) return null;
         return fetch(resolved(code));
     }
 
-    /** 从本地文件加载翻译键值（供网络源本地缓存读取）。 */
+    /**
+     * 从本地文件加载翻译键值（供网络源本地缓存读取）。
+     */
     Map<String, String> loadLocal(File file) {
         if (file == null || !file.isFile()) return null;
         try {
@@ -117,7 +139,9 @@ final class LanguageSource {
         }
     }
 
-    /** 该来源是否适用于要加载的语言代码（指定语言源仅匹配自身语言；模板源对任意语言生效）。 */
+    /**
+     * 该来源是否适用于要加载的语言代码（指定语言源仅匹配自身语言；模板源对任意语言生效）。
+     */
     boolean appliesToLanguage(String code) {
         if (code == null) return false;
         return language.isEmpty() || language.equalsIgnoreCase(code);
@@ -169,12 +193,16 @@ final class LanguageSource {
         }
     }
 
-    /** 把 {@code {0}} 替换为当前语言代码（无占位符则原样使用）。 */
+    /**
+     * 把 {@code {0}} 替换为当前语言代码（无占位符则原样使用）。
+     */
     private String resolved(String code) {
         return template ? raw.replace(PLACEHOLDER, code) : raw;
     }
 
-    /** 解析本地路径到具体语言文件。 */
+    /**
+     * 解析本地路径到具体语言文件。
+     */
     private File resolveLocal(String code) {
         String p = resolved(code);
         File f = new File(p);
@@ -219,7 +247,9 @@ final class LanguageSource {
         return null;
     }
 
-    /** 单次网络拉取（无重试）。 */
+    /**
+     * 单次网络拉取（无重试）。
+     */
     private String fetchOnce(String urlString) {
         HttpURLConnection conn = null;
         try {
@@ -252,7 +282,9 @@ final class LanguageSource {
         }
     }
 
-    /** 从 YAML 文本解析键值（平铺点路径）。 */
+    /**
+     * 从 YAML 文本解析键值（平铺点路径）。
+     */
     private Map<String, String> parse(String yamlText) {
         YamlConfiguration cfg = loadFromText(yamlText);
         return cfg == null ? null : flatten(cfg);

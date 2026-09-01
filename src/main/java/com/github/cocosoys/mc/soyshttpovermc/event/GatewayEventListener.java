@@ -1,16 +1,9 @@
 package com.github.cocosoys.mc.soyshttpovermc.event;
-import lombok.CustomLog;
 
+import com.github.cocosoys.mc.soyshttpovermc.api.event.*;
+import lombok.CustomLog;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
-
-import com.github.cocosoys.mc.soyshttpovermc.api.event.ApiInfo;
-import com.github.cocosoys.mc.soyshttpovermc.api.event.ApiRegisteredEvent;
-import com.github.cocosoys.mc.soyshttpovermc.api.event.ApiUnregisteredEvent;
-import com.github.cocosoys.mc.soyshttpovermc.api.event.GatewayAccessDeniedEvent;
-import com.github.cocosoys.mc.soyshttpovermc.api.event.GatewayCredentialIssuedEvent;
-import com.github.cocosoys.mc.soyshttpovermc.api.event.GatewayRequestEvent;
-import com.github.cocosoys.mc.soyshttpovermc.api.event.GatewayRequestServedEvent;
 
 /**
  * 内置网关事件调试监听器（从 {@code HttpOverMcPlugin} 抽离）：

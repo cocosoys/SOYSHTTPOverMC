@@ -23,7 +23,9 @@ public final class PlayerTargetUtil {
     private PlayerTargetUtil() {
     }
 
-    /** 把参数解析为玩家列表；非 @ 开头按玩家名精确/模糊匹配。 */
+    /**
+     * 把参数解析为玩家列表；非 @ 开头按玩家名精确/模糊匹配。
+     */
     public static List<Player> resolve(CommandSender sender, String arg) {
         if (arg == null || arg.isEmpty()) return Collections.emptyList();
         if (arg.charAt(0) == '@') {

@@ -1,7 +1,7 @@
 package com.github.cocosoys.mc.soyshttpovermc.spring.entity;
 
-import lombok.Data;
 import com.github.cocosoys.mc.soyshttpovermc.util.JsonWriter;
+import lombok.Data;
 
 import java.io.Serializable;
 import java.util.Date;
@@ -31,7 +31,9 @@ public abstract class BaseEntity implements Serializable {
     private String remark;
     private Map<String, Object> params;
 
-    /** 自定义实现（Lombok 检测到同名方法不会重复生成）：惰性初始化，保持 getParams().put() 可用 */
+    /**
+     * 自定义实现（Lombok 检测到同名方法不会重复生成）：惰性初始化，保持 getParams().put() 可用
+     */
     public Map<String, Object> getParams() {
         if (params == null) {
             params = new HashMap<>();
@@ -39,7 +41,9 @@ public abstract class BaseEntity implements Serializable {
         return params;
     }
 
-    /** 反射转换为 Map（用于 AjaxResult 数据序列化 / 调试输出） */
+    /**
+     * 反射转换为 Map（用于 AjaxResult 数据序列化 / 调试输出）
+     */
     public Map<String, Object> toMap() {
         return JsonWriter.beanToMap(this);
     }

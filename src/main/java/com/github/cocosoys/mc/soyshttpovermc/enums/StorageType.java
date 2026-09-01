@@ -35,7 +35,9 @@ public enum StorageType {
         return I18n.t("storage.type." + id, displayName);
     }
 
-    /** 按 id 解析（忽略大小写）；未匹配返回 null。 */
+    /**
+     * 按 id 解析（忽略大小写）；未匹配返回 null。
+     */
     public static StorageType fromId(String input) {
         if (input == null) return null;
         String normalized = input.trim().toLowerCase();

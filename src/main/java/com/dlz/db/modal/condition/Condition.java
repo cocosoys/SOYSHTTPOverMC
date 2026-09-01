@@ -64,6 +64,7 @@ public class Condition implements ICondAndOr<Condition>, ICondAddByKey<Condition
     public static Condition where(String tableName) {
         return DbBuildEnum.where.build(tableName);
     }
+
     public static Condition where() {
         return DbBuildEnum.where.build(null);
     }

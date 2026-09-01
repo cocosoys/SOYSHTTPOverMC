@@ -1,23 +1,16 @@
 package com.github.cocosoys.mc.soyshttpovermc.storage;
-import com.github.cocosoys.mc.soyshttpovermc.enums.StorageType;
-import lombok.CustomLog;
 
+import com.github.cocosoys.mc.soyshttpovermc.enums.StorageType;
 import com.github.cocosoys.mc.soyshttpovermc.i18n.I18n;
 import com.github.cocosoys.mc.soyshttpovermc.log.LogKit;
 import com.github.cocosoys.mc.soyshttpovermc.storage.impl.MysqlStorage;
 import com.github.cocosoys.mc.soyshttpovermc.storage.impl.SqlStorage;
 import com.github.cocosoys.mc.soyshttpovermc.storage.impl.SqliteStorage;
 import com.github.cocosoys.mc.soyshttpovermc.storage.impl.YamlStorage;
-
+import lombok.CustomLog;
 import org.bukkit.plugin.java.JavaPlugin;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.EnumMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -39,18 +32,26 @@ public class StorageManager {
 
     private final JavaPlugin plugin;
 
-    /** 全部已成功初始化的后端 */
+    /**
+     * 全部已成功初始化的后端
+     */
     private final Map<StorageType, DataStorage> storages = new EnumMap<>(StorageType.class);
 
     private DataStorage primary;
     private final List<DataStorage> secondaries = new ArrayList<>();
 
-    /** 串行写入线程，保证写顺序 */
+    /**
+     * 串行写入线程，保证写顺序
+     */
     private ExecutorService writeExecutor;
 
-    /** 当前数据 schema 版本：升级时表结构变更需递增此版本号并在 migrateSchema() 中添加迁移逻辑。 */
+    /**
+     * 当前数据 schema 版本：升级时表结构变更需递增此版本号并在 migrateSchema() 中添加迁移逻辑。
+     */
     private static final int SCHEMA_VERSION = 1;
-    /** 存储 schema 版本号的特殊 key（SyncRecord 的 key 字段）。 */
+    /**
+     * 存储 schema 版本号的特殊 key（SyncRecord 的 key 字段）。
+     */
     private static final String SCHEMA_VERSION_KEY = "_meta:schema_version";
 
     public StorageManager(JavaPlugin plugin) {
@@ -59,7 +60,9 @@ public class StorageManager {
 
     // ===== 生命周期 =====
 
-    /** 构建并初始化所有启用的后端，选出主存储；无任何可用后端时抛 IllegalStateException。 */
+    /**
+     * 构建并初始化所有启用的后端，选出主存储；无任何可用后端时抛 IllegalStateException。
+     */
     public void initialize() {
         shutdownInternal(false);
 
@@ -81,10 +84,10 @@ public class StorageManager {
                 storage.initialize();
                 storages.put(type, storage);
                 log.infoT("log.storage.backend-enabled",
-                    "已启用存储后端: {0} ({1})", type.getDisplayName(), storage.describe());
+                        "已启用存储后端: {0} ({1})", type.getDisplayName(), storage.describe());
             } catch (Exception e) {
                 log.warnT("log.storage.backend-init-failed",
-                    "存储后端 {0} 初始化失败，已跳过: {1}", type.getDisplayName(), e.getMessage());
+                        "存储后端 {0} 初始化失败，已跳过: {1}", type.getDisplayName(), e.getMessage());
             }
         }
 
@@ -105,8 +108,8 @@ public class StorageManager {
         if (isCrossServer() && primary.getType() != StorageType.MYSQL) {
             log.warnT("log.storage.cross-server-not-mysql",
                     "已启用跨服数据同步（storage.cross-server: true），"
-                    + "但主存储并非 MySQL，多实例将无法共享数据！请在所有实例的 config.yml 中"
-                    + "将 storage.backends.mysql.enabled 设为 true 并指向同一数据库。");
+                            + "但主存储并非 MySQL，多实例将无法共享数据！请在所有实例的 config.yml 中"
+                            + "将 storage.backends.mysql.enabled 设为 true 并指向同一数据库。");
         }
 
         // Schema 版本检查与迁移（升级时表结构变更需递增 SCHEMA_VERSION 并在 migrateSchema() 中添加迁移逻辑）
@@ -136,7 +139,9 @@ public class StorageManager {
         }
     }
 
-    /** 关闭所有后端，等待写队列排空。 */
+    /**
+     * 关闭所有后端，等待写队列排空。
+     */
     public void shutdown() {
         shutdownInternal(true);
     }
@@ -186,7 +191,7 @@ public class StorageManager {
                 storage.shutdown();
             } catch (Exception e) {
                 log.warnT("log.storage.shutdown-failed",
-                "关闭存储后端 {0} 时出错: {1}", storage.getType().getId(), e.getMessage());
+                        "关闭存储后端 {0} 时出错: {1}", storage.getType().getId(), e.getMessage());
             }
         }
         storages.clear();
@@ -194,7 +199,9 @@ public class StorageManager {
         primary = null;
     }
 
-    /** 构建后端实例。新增后端类型时在此注册即可。 */
+    /**
+     * 构建后端实例。新增后端类型时在此注册即可。
+     */
     private DataStorage buildStorage(StorageType type) {
         switch (type) {
             case YAML:
@@ -335,7 +342,9 @@ public class StorageManager {
 
     // ===== 异步调度 =====
 
-    /** 提交任务到串行写入线程；关服阶段直接当前线程执行（保证不丢）。 */
+    /**
+     * 提交任务到串行写入线程；关服阶段直接当前线程执行（保证不丢）。
+     */
     public void submit(Runnable task) {
         ExecutorService executor = this.writeExecutor;
         if (executor == null || executor.isShutdown()) {
@@ -353,7 +362,9 @@ public class StorageManager {
 
     // ===== 读（仅主存储） =====
 
-    /** 从主存储同步读取单条记录（可能阻塞，勿在主线程调用 SQL 后端）。 */
+    /**
+     * 从主存储同步读取单条记录（可能阻塞，勿在主线程调用 SQL 后端）。
+     */
     public SyncRecord load(String key) throws Exception {
         return primary.load(key);
     }
@@ -362,7 +373,9 @@ public class StorageManager {
         return primary.loadAll();
     }
 
-    /** 与 loadAll 相同但吞异常返回空集合（管理指令安全遍历）。 */
+    /**
+     * 与 loadAll 相同但吞异常返回空集合（管理指令安全遍历）。
+     */
     public Collection<SyncRecord> loadAllSafe() {
         try {
             return primary.loadAll();
@@ -381,12 +394,16 @@ public class StorageManager {
 
     // ===== 写（主存储 + 镜像） =====
 
-    /** 异步保存：主存储写入后镜像到辅助存储。 */
+    /**
+     * 异步保存：主存储写入后镜像到辅助存储。
+     */
     public void saveAsync(SyncRecord record) {
         submit(() -> saveBlocking(record));
     }
 
-    /** 同步保存（阻塞当前线程，关服流程使用）。 */
+    /**
+     * 同步保存（阻塞当前线程，关服流程使用）。
+     */
     public void saveBlocking(SyncRecord record) {
         if (record == null) return;
         try {
@@ -394,13 +411,15 @@ public class StorageManager {
             debug("已保存记录 " + record.getKey() + " 到 " + primary.getType().getId());
         } catch (Exception e) {
             log.warnT("log.storage.save-failed",
-                "保存记录 {0} 到主存储失败: {1}", record.getKey(), e.getMessage());
+                    "保存记录 {0} 到主存储失败: {1}", record.getKey(), e.getMessage());
             return;
         }
         mirror(storage -> storage.save(record), "保存记录 " + record.getKey());
     }
 
-    /** 批量保存（关服 / 同步）。 */
+    /**
+     * 批量保存（关服 / 同步）。
+     */
     public void saveAllBlocking(Collection<SyncRecord> records) {
         if (records == null || records.isEmpty()) return;
         try {
@@ -413,7 +432,9 @@ public class StorageManager {
         mirror(storage -> storage.saveAll(records), "批量保存 " + records.size() + " 条记录");
     }
 
-    /** 异步删除记录。 */
+    /**
+     * 异步删除记录。
+     */
     public void deleteAsync(String key) {
         submit(() -> {
             try {
@@ -421,14 +442,16 @@ public class StorageManager {
                 debug("已从 " + primary.getType().getId() + " 删除记录 " + key);
             } catch (Exception e) {
                 log.warnT("log.storage.delete-failed",
-                "从主存储删除记录 {0} 失败: {1}", key, e.getMessage());
+                        "从主存储删除记录 {0} 失败: {1}", key, e.getMessage());
                 return;
             }
             mirror(storage -> storage.delete(key), "删除记录 " + key);
         });
     }
 
-    /** 把一次写操作镜像到所有辅助存储。 */
+    /**
+     * 把一次写操作镜像到所有辅助存储。
+     */
     private void mirror(StorageAction action, String description) {
         if (secondaries.isEmpty() || !isMirrorEnabled()) {
             return;
@@ -440,7 +463,7 @@ public class StorageManager {
                     action.execute(storage);
                 } catch (Exception e) {
                     log.warnT("log.storage.mirror-write-failed",
-                    "[镜像] {0} 写入 {1} 失败: {2}", description, storage.getType().getId(), e.getMessage());
+                            "[镜像] {0} 写入 {1} 失败: {2}", description, storage.getType().getId(), e.getMessage());
                 }
             }
         };
@@ -453,12 +476,16 @@ public class StorageManager {
 
     // ===== 迁移与同步 =====
 
-    /** 在两个后端之间迁移数据（overwrite=true 先清空目标）。返回迁移记录数。 */
+    /**
+     * 在两个后端之间迁移数据（overwrite=true 先清空目标）。返回迁移记录数。
+     */
     public int migrate(StorageType from, StorageType to, boolean overwrite) throws Exception {
         DataStorage source = storages.get(from);
         DataStorage target = storages.get(to);
-        if (source == null) throw new IllegalStateException(I18n.t("exception.storage.source-not-enabled", "来源后端 {0} 未启用", from.getId()));
-        if (target == null) throw new IllegalStateException(I18n.t("exception.storage.target-not-enabled", "目标后端 {0} 未启用", to.getId()));
+        if (source == null)
+            throw new IllegalStateException(I18n.t("exception.storage.source-not-enabled", "来源后端 {0} 未启用", from.getId()));
+        if (target == null)
+            throw new IllegalStateException(I18n.t("exception.storage.target-not-enabled", "目标后端 {0} 未启用", to.getId()));
         Collection<SyncRecord> records = source.loadAll();
         if (overwrite) {
             target.clear();
@@ -467,7 +494,9 @@ public class StorageManager {
         return records.size();
     }
 
-    /** 把主存储全量数据覆盖同步到所有辅助存储。返回同步记录数。 */
+    /**
+     * 把主存储全量数据覆盖同步到所有辅助存储。返回同步记录数。
+     */
     public int syncToSecondaries() throws Exception {
         if (secondaries.isEmpty()) {
             return 0;
@@ -480,7 +509,7 @@ public class StorageManager {
                 storage.saveAll(records);
             } catch (Exception e) {
                 log.warnT("log.storage.sync-failed",
-                "同步到 {0} 失败: {1}", storage.getType().getId(), e.getMessage());
+                        "同步到 {0} 失败: {1}", storage.getType().getId(), e.getMessage());
             }
         }
         return records.size();
@@ -492,7 +521,9 @@ public class StorageManager {
         }
     }
 
-    /** 可抛异常的存储操作，用于镜像写入。 */
+    /**
+     * 可抛异常的存储操作，用于镜像写入。
+     */
     @FunctionalInterface
     private interface StorageAction {
         void execute(DataStorage storage) throws Exception;

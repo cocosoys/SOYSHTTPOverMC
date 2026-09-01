@@ -4,7 +4,6 @@ import com.dlz.db.core.*;
 import com.dlz.db.ds.DataSourceConfig;
 import com.dlz.db.interceptor.DbPlugin;
 import com.dlz.db.interceptor.LogicDeleteInterceptor;
-import com.dlz.db.modal.wrapper.WrapperBuildUtil;
 import com.dlz.db.service.ICommService;
 import com.dlz.db.service.impl.CommServiceImpl;
 import lombok.extern.slf4j.Slf4j;
@@ -57,10 +56,10 @@ public class DBHolder {
 
 
     public static DlzDbAdapter init(DlzDbProperties sqlConfig,
-                            Supplier<DataSource> dataSourceMaker,
-                            Supplier<ISqlExecutor> sqlExecutorMaker,
-                            Function<DataSource, ITxExecutor> txExecutorMaker) {
-        if(dbAdapter==null){
+                                    Supplier<DataSource> dataSourceMaker,
+                                    Supplier<ISqlExecutor> sqlExecutorMaker,
+                                    Function<DataSource, ITxExecutor> txExecutorMaker) {
+        if (dbAdapter == null) {
             dbAdapter = new DlzDbAdapter(sqlConfig, dataSourceMaker, sqlExecutorMaker, txExecutorMaker);
             // 自动注册逻辑删除插件（根据配置判断是否启用）
             String logicDeleteField = sqlConfig.getLogicDeleteField();
@@ -85,6 +84,7 @@ public class DBHolder {
     public static long sequence(String tableName, long initSeq) {
         return segmentIdGenerator.nextId(tableName, initSeq);
     }
+
     public static long sequence(String tableName) {
         return sequence(tableName, 1);
     }

@@ -1,10 +1,9 @@
 package com.github.cocosoys.mc.soyshttpovermc.command;
-import lombok.CustomLog;
-
-import org.bukkit.command.CommandSender;
 
 import com.github.cocosoys.mc.soyshttpovermc.HttpOverMcPlugin;
 import com.github.cocosoys.mc.soyshttpovermc.i18n.I18n;
+import lombok.CustomLog;
+import org.bukkit.command.CommandSender;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -20,7 +19,7 @@ public class EulaSubCommand extends SubCommand {
 
     public EulaSubCommand(HttpOverMcPlugin plugin) {
         super(plugin);
-        hide=true;
+        hide = true;
     }
 
     @Override
@@ -37,8 +36,8 @@ public class EulaSubCommand extends SubCommand {
     public String detail() {
         return I18n.t("command.eula.detail",
                 "/soyshttp eula —— 显示EULA协议内容\n"
-                + "逐行展示 plugins/SOYSHTTPOverMC/EULA.yml 中的《使用与开发协议》条款全文；\n"
-                + "协议同意后需在 EULA.yml 中填写 eula: true 并重启服务器生效。");
+                        + "逐行展示 plugins/SOYSHTTPOverMC/EULA.yml 中的《使用与开发协议》条款全文；\n"
+                        + "协议同意后需在 EULA.yml 中填写 eula: true 并重启服务器生效。");
     }
 
     @Override

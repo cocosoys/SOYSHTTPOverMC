@@ -8,7 +8,6 @@ import com.dlz.db.support.PojoCache;
 import com.dlz.db.util.DbConvertUtil;
 import com.dlz.kit.fn.DlzFn;
 import com.dlz.kit.json.JSONMap;
-import com.dlz.kit.util.system.FieldReflections;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.HashMap;
@@ -26,6 +25,7 @@ import java.util.stream.Collectors;
 public class TableInsert extends AParaTable implements IExecutorInsert {
     private static final long serialVersionUID = 8374167270612933157L;
     public final Map<String, Object> insertValues = new HashMap<>();
+
     public TableInsert(String tableName) {
         super(tableName);
     }
@@ -55,6 +55,7 @@ public class TableInsert extends AParaTable implements IExecutorInsert {
         }
         return this;
     }
+
     public boolean batch(List<JSONMap> valueBeans) {
         return batch(valueBeans, 1000);
     }
@@ -83,7 +84,7 @@ public class TableInsert extends AParaTable implements IExecutorInsert {
             final List<JSONMap> ts = valueBeans.subList(0, batchSize);
             List<Object[]> paramValues = ts.stream()
                     .map(v -> {
-                        if(logicDeleteField!=null){
+                        if (logicDeleteField != null) {
                             v.set(logicDeleteField, 0);
                         }
                         return WrapperBuildUtil.buildInsertParams(v, fields);

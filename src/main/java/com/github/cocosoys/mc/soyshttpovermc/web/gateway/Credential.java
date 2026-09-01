@@ -35,12 +35,16 @@ public class Credential {
                 ? null : Collections.unmodifiableSet(new LinkedHashSet<>(permissions));
     }
 
-    /** 脱敏后的主体标识（如 api-key:1a2b3c4d），可用于日志/事件，不泄露原始密钥。 */
+    /**
+     * 脱敏后的主体标识（如 api-key:1a2b3c4d），可用于日志/事件，不泄露原始密钥。
+     */
     public String getSubject() {
         return subject;
     }
 
-    /** 凭证来源：api-key / bearer / basic / issuer:<name>。 */
+    /**
+     * 凭证来源：api-key / bearer / basic / issuer:<name>。
+     */
     public String getSource() {
         return source;
     }
@@ -53,12 +57,16 @@ public class Credential {
         return true; // 预留：未来 return permissions == null || permissions.contains(permission);
     }
 
-    /** 是否已认证（恒为 true，因为构造即代表已通过校验）。 */
+    /**
+     * 是否已认证（恒为 true，因为构造即代表已通过校验）。
+     */
     public boolean isAuthenticated() {
         return true;
     }
 
-    /** 预留权限集合（null 表示全部权限）。 */
+    /**
+     * 预留权限集合（null 表示全部权限）。
+     */
     public Set<String> getPermissions() {
         return permissions == null ? Collections.<String>emptySet() : permissions;
     }

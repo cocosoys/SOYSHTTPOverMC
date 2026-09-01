@@ -1,12 +1,11 @@
 package com.github.cocosoys.mc.soyshttpovermc.api;
 
 import com.github.cocosoys.mc.soyshttpovermc.web.LargeFileLoader;
+import com.github.cocosoys.mc.soyshttpovermc.web.NetworkPage;
+import com.github.cocosoys.mc.soyshttpovermc.web.NetworkTransport;
 import org.bukkit.plugin.Plugin;
 
 import java.io.File;
-
-import com.github.cocosoys.mc.soyshttpovermc.web.NetworkPage;
-import com.github.cocosoys.mc.soyshttpovermc.web.NetworkTransport;
 
 /**
  * 能力组 2：网页登记（委托 {@link WebRegistry}）。
@@ -18,7 +17,9 @@ public interface WebPageApi {
 
     void registerPage(Plugin owner, String path, byte[] content, String contentType);
 
-    /** 登记网页（直接内容；显式 Content-Type；force=true 强制覆盖重复登记并打印强制登记的插件） */
+    /**
+     * 登记网页（直接内容；显式 Content-Type；force=true 强制覆盖重复登记并打印强制登记的插件）
+     */
     void registerPage(Plugin owner, String path, byte[] content, String contentType, boolean force);
 
     /**
@@ -33,7 +34,9 @@ public interface WebPageApi {
 
     void registerResource(Plugin owner, String path, ClassLoader resourceClassLoader, String resourcePath, String contentType);
 
-    /** 登记网页（来自插件自有 jar 的资源；显式 Content-Type；force=true 强制覆盖重复登记并打印强制登记的插件） */
+    /**
+     * 登记网页（来自插件自有 jar 的资源；显式 Content-Type；force=true 强制覆盖重复登记并打印强制登记的插件）
+     */
     void registerResource(Plugin owner, String path, ClassLoader resourceClassLoader, String resourcePath, String contentType, boolean force);
 
     /**
@@ -42,7 +45,7 @@ public interface WebPageApi {
      * {@link #registerResource(Plugin, String, ClassLoader, String, String, boolean)} 但带方法与元数据。
      */
     void registerResource(Plugin owner, String path, String httpMethod, ClassLoader resourceClassLoader, String resourcePath,
-                           String contentType, boolean force, String description, java.util.List<String> nicknames);
+                          String contentType, boolean force, String description, java.util.List<String> nicknames);
 
     void registerProxyPage(Plugin owner, String path, byte[] content);
 
@@ -66,21 +69,31 @@ public interface WebPageApi {
      * 但无 /plugins 前缀。
      */
     void registerProxyResource(Plugin owner, String path, String httpMethod, ClassLoader resourceClassLoader, String resourcePath,
-                                String contentType, boolean force, String description, java.util.List<String> nicknames);
+                               String contentType, boolean force, String description, java.util.List<String> nicknames);
 
-    /** 批量登记磁盘目录（递归扫描 dir 下文件挂到 basePath；请求时惰性读，支持热替换） */
+    /**
+     * 批量登记磁盘目录（递归扫描 dir 下文件挂到 basePath；请求时惰性读，支持热替换）
+     */
     void registerDirectory(Plugin owner, String basePath, File dir);
 
-    /** 批量登记磁盘目录（显式是否强制代理无前缀） */
+    /**
+     * 批量登记磁盘目录（显式是否强制代理无前缀）
+     */
     void registerDirectory(Plugin owner, String basePath, File dir, boolean proxy);
 
-    /** 批量登记插件 jar 内资源目录（扫描 resourceRoot 前缀下全部条目挂到 basePath） */
+    /**
+     * 批量登记插件 jar 内资源目录（扫描 resourceRoot 前缀下全部条目挂到 basePath）
+     */
     void registerResourceDirectory(Plugin owner, String basePath, ClassLoader resourceClassLoader, String resourceRoot);
 
-    /** 批量登记插件 jar 内资源目录（显式是否强制代理无前缀） */
+    /**
+     * 批量登记插件 jar 内资源目录（显式是否强制代理无前缀）
+     */
     void registerResourceDirectory(Plugin owner, String basePath, ClassLoader resourceClassLoader, String resourceRoot, boolean proxy);
 
-    /** 卸载指定插件名登记的全部网页 */
+    /**
+     * 卸载指定插件名登记的全部网页
+     */
     void unregisterPluginPages(String pluginName);
 
     // ===== 网络文件/网络网页页面（NetworkPage 抽象） =====
@@ -127,7 +140,9 @@ public interface WebPageApi {
      */
     void registerErrorPage(Plugin owner, int status, byte[] content);
 
-    /** 注册自定义错误页（便捷：HTML 字符串）。 */
+    /**
+     * 注册自定义错误页（便捷：HTML 字符串）。
+     */
     void registerErrorPage(Plugin owner, int status, String html);
 
     // ===== CORS 声明 =====

@@ -10,18 +10,22 @@ import java.util.Collection;
  */
 public interface ApiToolkitApi {
 
-    /** 任意对象 → JSON 字符串（复用 JsonWriter） */
+    /**
+     * 任意对象 → JSON 字符串（复用 JsonWriter）
+     */
     String toJson(Object obj);
 
-    /** 扩展名 → Content-Type（复用 MimeTypes） */
+    /**
+     * 扩展名 → Content-Type（复用 MimeTypes）
+     */
     String guessContentType(String path);
 
     /**
      * 注册/覆盖扩展名的 Content-Type（全局生效，线程安全）。自定义扩展名（如 vue / ts / json5）
      * 需先注册，浏览器才会按正确类型渲染/执行对应静态资源。
      *
-     * @param ext          扩展名（不含点，如 {@code "vue"}）
-     * @param contentType  完整 Content-Type（如 {@code "text/html; charset=utf-8"}）
+     * @param ext         扩展名（不含点，如 {@code "vue"}）
+     * @param contentType 完整 Content-Type（如 {@code "text/html; charset=utf-8"}）
      */
     void registerMimeType(String ext, String contentType);
 
@@ -31,6 +35,8 @@ public interface ApiToolkitApi {
      */
     void sendLink(Player player, String url, String display);
 
-    /** 批量向多名玩家发送同一条链接消息。 */
+    /**
+     * 批量向多名玩家发送同一条链接消息。
+     */
     void sendLink(Collection<? extends Player> players, String url, String display);
 }

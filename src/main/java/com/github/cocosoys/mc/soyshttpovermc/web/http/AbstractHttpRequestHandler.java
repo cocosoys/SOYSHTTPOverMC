@@ -28,7 +28,7 @@ public abstract class AbstractHttpRequestHandler implements HttpRequestHandler {
      * 处理本地请求（由子类实现）。
      */
     protected abstract FrameProto.HttpResponseFrame handleLocal(String method, String path,
-                                                                  Map<String, String> headers, byte[] body)
+                                                                Map<String, String> headers, byte[] body)
             throws Exception;
 
     @Override

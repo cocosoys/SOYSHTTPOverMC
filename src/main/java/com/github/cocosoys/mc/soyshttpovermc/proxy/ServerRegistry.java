@@ -16,7 +16,9 @@ import java.util.concurrent.ConcurrentHashMap;
 public class ServerRegistry {
 
     private final Map<String, ServerTag> tags = new ConcurrentHashMap<>();
-    /** discovery 心跳有效期（毫秒）：超过未刷新的标签标记为离线 */
+    /**
+     * discovery 心跳有效期（毫秒）：超过未刷新的标签标记为离线
+     */
     private static final long TTL_MS = 90_000;
 
     public void register(ServerTag tag) {
@@ -38,7 +40,9 @@ public class ServerRegistry {
         return new ArrayList<>(tags.values());
     }
 
-    /** 过期清理：超过 TTL 未刷新的标签置离线（不删除，保留最后已知信息）。 */
+    /**
+     * 过期清理：超过 TTL 未刷新的标签置离线（不删除，保留最后已知信息）。
+     */
     public void sweep() {
         long now = System.currentTimeMillis();
         for (ServerTag t : tags.values()) {

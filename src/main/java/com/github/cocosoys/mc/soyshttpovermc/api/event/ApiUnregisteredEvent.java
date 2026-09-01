@@ -29,12 +29,16 @@ public class ApiUnregisteredEvent extends GatewayEvent {
         this.apis = apis == null ? Collections.<ApiInfo>emptyList() : apis;
     }
 
-    /** 卸载这批 API 的插件名（由网关自动标记） */
+    /**
+     * 卸载这批 API 的插件名（由网关自动标记）
+     */
     public String getOwnerPlugin() {
         return ownerPlugin;
     }
 
-    /** 本次卸载的端点清单 */
+    /**
+     * 本次卸载的端点清单
+     */
     public List<ApiInfo> getApis() {
         return apis;
     }

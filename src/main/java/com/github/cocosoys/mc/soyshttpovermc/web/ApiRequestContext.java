@@ -49,7 +49,9 @@ import java.util.concurrent.FutureTask;
  */
 public final class ApiRequestContext {
 
-    /** SocketSniffer 注入的内部客户端 IP 头（仅内部使用，不对外转发）。 */
+    /**
+     * SocketSniffer 注入的内部客户端 IP 头（仅内部使用，不对外转发）。
+     */
     public static final String HEADER_REMOTE_IP = "X-Soys-Remote-Ip";
 
     private final String httpMethod;
@@ -59,12 +61,18 @@ public final class ApiRequestContext {
     private final CredentialPresentation credential;
     private final Plugin plugin;
     private final String playerName;
-    /** 派发时刻快照：worker 线程在请求派发开始时一次性解析的玩家实体，可能已离线/悬空（仅供比对与向后兼容）。 */
+    /**
+     * 派发时刻快照：worker 线程在请求派发开始时一次性解析的玩家实体，可能已离线/悬空（仅供比对与向后兼容）。
+     */
     private final Player asyncPlayer;
     private final boolean authenticated;
-    /** 跨服请求来源服名（独立服 / 本服直连为 null） */
+    /**
+     * 跨服请求来源服名（独立服 / 本服直连为 null）
+     */
     private final String sourceServer;
-    /** 跨服链路追踪 ID（无关联为 null） */
+    /**
+     * 跨服链路追踪 ID（无关联为 null）
+     */
     private final String traceId;
 
     public ApiRequestContext(Plugin plugin, String httpMethod, String path, String ip, Map<String, String> headers,
@@ -89,32 +97,44 @@ public final class ApiRequestContext {
         this.traceId = traceId;
     }
 
-    /** 实际请求方法（GET/POST/...）。 */
+    /**
+     * 实际请求方法（GET/POST/...）。
+     */
     public String getHttpMethod() {
         return httpMethod;
     }
 
-    /** 完整路径（含 api-prefix，如 /api/status）。 */
+    /**
+     * 完整路径（含 api-prefix，如 /api/status）。
+     */
     public String getPath() {
         return path;
     }
 
-    /** 客户端 IP（0.0.0.0=未知）。 */
+    /**
+     * 客户端 IP（0.0.0.0=未知）。
+     */
     public String getIp() {
         return ip;
     }
 
-    /** 请求头（只读视图）。 */
+    /**
+     * 请求头（只读视图）。
+     */
     public Map<String, String> getHeaders() {
         return headers;
     }
 
-    /** 请求凭证（可为 null）。 */
+    /**
+     * 请求凭证（可为 null）。
+     */
     public CredentialPresentation getCredential() {
         return credential;
     }
 
-    /** 经 token/cookie 解析的玩家名（未登录/非玩家令牌=null）。 */
+    /**
+     * 经 token/cookie 解析的玩家名（未登录/非玩家令牌=null）。
+     */
     public String getPlayerName() {
         return playerName;
     }
@@ -162,17 +182,23 @@ public final class ApiRequestContext {
         return asyncPlayer;
     }
 
-    /** 请求是否携带有效凭证。 */
+    /**
+     * 请求是否携带有效凭证。
+     */
     public boolean isAuthenticated() {
         return authenticated;
     }
 
-    /** 跨服请求来源服名（独立服 / 本服直连为 null）。 */
+    /**
+     * 跨服请求来源服名（独立服 / 本服直连为 null）。
+     */
     public String getSourceServer() {
         return sourceServer;
     }
 
-    /** 跨服链路追踪 ID（无关联为 null）。 */
+    /**
+     * 跨服链路追踪 ID（无关联为 null）。
+     */
     public String getTraceId() {
         return traceId;
     }

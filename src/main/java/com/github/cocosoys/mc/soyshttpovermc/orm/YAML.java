@@ -15,6 +15,8 @@ public final class YAML {
     private YAML() {
     }
 
-    /** 基于 Pojo + 条件链操作 YAML 存储（仿 {@code DB.Pojo}）。 */
+    /**
+     * 基于 Pojo + 条件链操作 YAML 存储（仿 {@code DB.Pojo}）。
+     */
     public static final YamlPojo Pojo = new YamlPojo();
 }

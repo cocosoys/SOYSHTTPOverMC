@@ -1,11 +1,10 @@
 package com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.issuer;
 
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.Base64;
-
-import javax.crypto.Mac;
-import javax.crypto.spec.SecretKeySpec;
 
 /**
  * 轻量 JWT（HS256）编解码器：零第三方依赖，纯 JDK 实现（Java 8+）。
@@ -26,12 +25,13 @@ public final class JwtCodec {
 
     /**
      * 签发 JWT。
-     * @param secret     HMAC 密钥（建议 ≥32 字节）
-     * @param subject    主体（玩家名）
-     * @param mode       登录模式（ONLINE / OFFLINE）
-     * @param ttlMillis  有效期毫秒
-     * @param jti        令牌唯一 ID（退出登录黑名单用）
-     * @param prefix     令牌前缀（如 "st_"；可空）
+     *
+     * @param secret    HMAC 密钥（建议 ≥32 字节）
+     * @param subject   主体（玩家名）
+     * @param mode      登录模式（ONLINE / OFFLINE）
+     * @param ttlMillis 有效期毫秒
+     * @param jti       令牌唯一 ID（退出登录黑名单用）
+     * @param prefix    令牌前缀（如 "st_"；可空）
      */
     public static String create(byte[] secret, String subject, String mode,
                                 long ttlMillis, String jti, String prefix) {
@@ -40,13 +40,14 @@ public final class JwtCodec {
 
     /**
      * 签发 JWT。
-     * @param secret     HMAC 密钥（建议 ≥32 字节）
-     * @param subject    主体（玩家名）
-     * @param mode       登录模式（ONLINE / OFFLINE）
-     * @param ttlMillis  有效期毫秒
-     * @param jti        令牌唯一 ID（退出登录黑名单用）
-     * @param prefix     令牌前缀（如 "st_"；可空）
-     * @param admin      是否服主最高权限 key（adm 标记，仅 /soyshttp key 命令颁发）
+     *
+     * @param secret    HMAC 密钥（建议 ≥32 字节）
+     * @param subject   主体（玩家名）
+     * @param mode      登录模式（ONLINE / OFFLINE）
+     * @param ttlMillis 有效期毫秒
+     * @param jti       令牌唯一 ID（退出登录黑名单用）
+     * @param prefix    令牌前缀（如 "st_"；可空）
+     * @param admin     是否服主最高权限 key（adm 标记，仅 /soyshttp key 命令颁发）
      */
     public static String create(byte[] secret, String subject, String mode,
                                 long ttlMillis, String jti, String prefix, boolean admin) {
@@ -55,6 +56,7 @@ public final class JwtCodec {
 
     /**
      * 签发 JWT（支持自定义 claims）。
+     *
      * @param claims 附加到 payload 的自定义键值（键限 [a-zA-Z0-9_-]，值限长度 256；可空）。
      *               保留键 sub/mode/exp/iat/jti/adm 不可用。供业务方携带自定义声明（权限范围/标签等）。
      */
@@ -88,6 +90,7 @@ public final class JwtCodec {
 
     /**
      * 解析并验签 JWT（含过期检查）；无效返回 null。
+     *
      * @param secret HMAC 密钥（与签发时一致）
      * @param token  完整令牌（可带前缀，如 st_eyJ...）
      */
@@ -97,6 +100,7 @@ public final class JwtCodec {
 
     /**
      * 解析并验签 JWT（含过期检查）；无效返回 null。
+     *
      * @param prefix 签发时使用的前缀（如 "st_"）；token 以该前缀开头时先剥离再验签。可空。
      */
     public static Payload parse(byte[] secret, String token, String prefix) {
@@ -105,6 +109,7 @@ public final class JwtCodec {
 
     /**
      * 解析并验签 JWT（含过期检查与时钟容差）；无效返回 null。
+     *
      * @param prefix          签发时使用的前缀（如 "st_"）；token 以该前缀开头时先剥离再验签。可空。
      * @param clockSkewMillis 时钟容差（毫秒）：跨服校验时容忍各服时钟偏移，过期判定为
      *                        {@code exp + skew < now}（防误拒）；签发时间在 {@code iat > now + skew}
@@ -151,25 +156,35 @@ public final class JwtCodec {
         return p;
     }
 
-    /** JWT payload 解析结果。 */
+    /**
+     * JWT payload 解析结果。
+     */
     public static final class Payload {
         public String subject;
         public String mode;
         public long exp;
         public long iat;
         public String jti;
-        /** 服主最高权限 key（/soyshttp key 命令颁发，adm=1）。 */
+        /**
+         * 服主最高权限 key（/soyshttp key 命令颁发，adm=1）。
+         */
         public boolean adm;
-        /** 自定义 claims（签发时附加的非保留键值，字符串形式）。 */
+        /**
+         * 自定义 claims（签发时附加的非保留键值，字符串形式）。
+         */
         public final java.util.Map<String, String> claims = new java.util.HashMap<>();
     }
 
     // ===== 内部 =====
 
-    /** payload 保留键（不视为自定义 claims）。 */
+    /**
+     * payload 保留键（不视为自定义 claims）。
+     */
     private static final java.util.Set<String> RESERVED = new java.util.HashSet<>(
             java.util.Arrays.asList("sub", "mode", "exp", "iat", "jti", "adm"));
-    /** 提取自定义 claims 用的顶层键值对匹配（字符串值）。 */
+    /**
+     * 提取自定义 claims 用的顶层键值对匹配（字符串值）。
+     */
     private static final java.util.regex.Pattern CLAIM_PATTERN =
             java.util.regex.Pattern.compile("\"([A-Za-z0-9_\\-]+)\":\"((?:[^\"\\\\]|\\\\.)*)\"");
 

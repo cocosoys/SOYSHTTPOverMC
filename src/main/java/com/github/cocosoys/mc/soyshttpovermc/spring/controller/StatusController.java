@@ -1,10 +1,10 @@
 package com.github.cocosoys.mc.soyshttpovermc.spring.controller;
 
-import com.github.cocosoys.mc.soyshttpovermc.util.AjaxResult;
 import com.github.cocosoys.mc.soyshttpovermc.annotations.ApiName;
 import com.github.cocosoys.mc.soyshttpovermc.annotations.ApiPermission;
 import com.github.cocosoys.mc.soyshttpovermc.annotations.GetMapping;
 import com.github.cocosoys.mc.soyshttpovermc.spring.service.IStatusService;
+import com.github.cocosoys.mc.soyshttpovermc.util.AjaxResult;
 
 /**
  * 隧道状态 API（控制器层，仿 Spring MVC / MyBatis-Plus）：

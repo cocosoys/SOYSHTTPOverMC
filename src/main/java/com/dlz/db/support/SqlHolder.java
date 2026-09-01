@@ -33,7 +33,8 @@ public class SqlHolder {
     // 方言sql
     static final Map<String, Map<String, String>> m_dialect_sql = new ConcurrentHashMap<>(DbTypeEnum.values().length);
     private static boolean initIng = false;
-    static{
+
+    static {
         DbTypeEnum[] values = DbTypeEnum.values();
         for (DbTypeEnum value : values) {
             m_dialect_sql.put(value.getEnd(), new ConcurrentHashMap<>());
@@ -59,9 +60,9 @@ public class SqlHolder {
                 }
             }
         } catch (FileNotFoundException e) {
-            log.error(ExceptionUtils.getStackTrace(file.getAbsolutePath() + " 文件找不到！",e));
+            log.error(ExceptionUtils.getStackTrace(file.getAbsolutePath() + " 文件找不到！", e));
         } catch (Exception e) {
-            log.error(ExceptionUtils.getStackTrace(file.getAbsolutePath() + " 加载异常！",e));
+            log.error(ExceptionUtils.getStackTrace(file.getAbsolutePath() + " 加载异常！", e));
         }
     }
 
@@ -75,44 +76,45 @@ public class SqlHolder {
                 addSqlSetting(sql.attributeValue("sqlId"), sql.getData().toString(), false);
             }
         } catch (DocumentException e) {
-            log.error(ExceptionUtils.getStackTrace(" 文件读取异常！",e));
+            log.error(ExceptionUtils.getStackTrace(" 文件读取异常！", e));
         } finally {
             if (is != null) {
                 try {
                     is.close();
                 } catch (IOException e) {
-                    log.error(ExceptionUtils.getStackTrace(" 文件关闭异常！",e));
+                    log.error(ExceptionUtils.getStackTrace(" 文件关闭异常！", e));
                 }
             }
         }
     }
-    public static void addSqlSetting(String sqlId,String sqlStr,boolean force){
-        String sqlDB = sqlId.substring(sqlId.lastIndexOf(".")+1);
+
+    public static void addSqlSetting(String sqlId, String sqlStr, boolean force) {
+        String sqlDB = sqlId.substring(sqlId.lastIndexOf(".") + 1);
         Map<String, String> m_sqlList = m_dialect_sql.get(sqlDB);
-        if(m_sqlList!=null){
+        if (m_sqlList != null) {
             //表示带数据库，key中删除数据库标记
-            sqlId = sqlId.substring(0, sqlId.length() - sqlDB.length() -1);
-        }else{
+            sqlId = sqlId.substring(0, sqlId.length() - sqlDB.length() - 1);
+        } else {
             m_sqlList = m_comm_sql;
         }
 
-        if(sqlId==null||sqlStr==null){
+        if (sqlId == null || sqlStr == null) {
             return;
         }
-        if(!force && m_sqlList.containsKey(sqlId)){
+        if (!force && m_sqlList.containsKey(sqlId)) {
             return;
         }
         sqlStr = clearSql(sqlStr);
         m_sqlList.put(sqlId, sqlStr);
-        if (log.isDebugEnabled()){
+        if (log.isDebugEnabled()) {
             log.debug(sqlId + ":" + sqlStr);
         }
     }
 
     private static void loadResources(String path) throws Exception {
-        InputStream[] inputStreams =  DlzResourceLoader.getResourceStreams("classpath*:sql/" + path + ".sql");
+        InputStream[] inputStreams = DlzResourceLoader.getResourceStreams("classpath*:sql/" + path + ".sql");
         for (InputStream is : inputStreams) {
-            if (log.isDebugEnabled()){
+            if (log.isDebugEnabled()) {
                 log.debug("Loading SQL resource: " + path);
             }
             readSqlXml(is);
@@ -122,7 +124,7 @@ public class SqlHolder {
     private static String sql(String key) {
         Map<String, String> m_sqlList = m_dialect_sql.get(DB.Dynamic.getDbType().getEnd());
         final String sql = m_sqlList.get(key);
-        if(sql!=null){
+        if (sql != null) {
             return sql;
         }
 
@@ -138,10 +140,10 @@ public class SqlHolder {
         try {
             loadResources("framework/*");
             loadResources("sys/*");
-        }catch (Exception e){
+        } catch (Exception e) {
             log.error(ExceptionUtils.getStackTrace(e));
         }
-        DBHolder.getSqlConfig().getSqllist().forEach(name->{
+        DBHolder.getSqlConfig().getSqllist().forEach(name -> {
             if (name.startsWith(STR_SQL_FILE)) {
                 final String sqlRoot = SqlHolder.class.getClassLoader().getResource("sql/").getPath();
                 String path = name.substring(STR_SQL_FILE.length());
@@ -157,15 +159,15 @@ public class SqlHolder {
         initIng = false;
     }
 
-    public static void loadDbSql(){
-        if(DBHolder.getSqlConfig().isUseDbSql()){
+    public static void loadDbSql() {
+        if (DBHolder.getSqlConfig().isUseDbSql()) {
             String sql = clearSql(DBHolder.getSqlConfig().getSql());
             try {
                 List<ResultMap> mapList = DBHolder.getSqlExecutor().getList(sql);
-                mapList.forEach(item->addSqlSetting("key."+item.getStr("k"),item.getStr("s"),true));
-            }catch (Exception e){
+                mapList.forEach(item -> addSqlSetting("key." + item.getStr("k"), item.getStr("s"), true));
+            } catch (Exception e) {
                 log.error(ExceptionUtils.getStackTrace(e));
-                log.warn("取得数据库配置无效：sql="+sql);
+                log.warn("取得数据库配置无效：sql=" + sql);
                 throw e;
             }
         }
@@ -177,16 +179,18 @@ public class SqlHolder {
         load();
         loadDbSql();
     }
-    private static String clearSql(String sqlStr){
+
+    private static String clearSql(String sqlStr) {
         return sqlStr.replaceAll("--.*", "").replaceAll("[\\s]+", " ");
     }
 
     private static final Pattern sqlRegex = Pattern.compile("[\\s]*(?i)(select|update|delete|insert).*");
+
     public static String getSql(String key) {
         if (key == null) {
             throw new DbException("输入的sql为空！", 1002);
         }
-        if(sqlRegex.matcher(key).matches()){
+        if (sqlRegex.matcher(key).matches()) {
             return key;
         }
         if (!key.startsWith("key.")) {

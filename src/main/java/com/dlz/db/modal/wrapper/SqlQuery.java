@@ -17,17 +17,21 @@ import lombok.extern.slf4j.Slf4j;
 @SuppressWarnings("rawtypes")
 public class SqlQuery extends ParaMap<SqlQuery> implements ISqlPage<SqlQuery>, IExecutorQuery<SqlQuery> {
     private static final long serialVersionUID = 8374167270612933157L;
+
     public SqlQuery(String sql) {
         super(sql);
     }
+
     public SqlQuery(String sql, Page page) {
         super(sql);
         this.setPage(page);
     }
+
     @Override
     public SqlQuery me() {
         return this;
     }
+
     @Override
     public SqlQuery page(Page page) {
         if (page != null) {
@@ -35,6 +39,7 @@ public class SqlQuery extends ParaMap<SqlQuery> implements ISqlPage<SqlQuery>, I
         }
         return this;
     }
+
     public SqlQuery convert(IConvertorToFieldName convertor) {
         SqlRunThreadHolder.setConvertorToFieldName(convertor);
         return this;

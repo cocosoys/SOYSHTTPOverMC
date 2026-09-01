@@ -1,13 +1,12 @@
 package com.github.cocosoys.mc.soyshttpovermc.event;
 
+import com.github.cocosoys.mc.soyshttpovermc.web.ApiRegistry;
+import com.github.cocosoys.mc.soyshttpovermc.web.WebRegistry;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.server.PluginDisableEvent;
 import org.bukkit.plugin.Plugin;
-
-import com.github.cocosoys.mc.soyshttpovermc.web.ApiRegistry;
-import com.github.cocosoys.mc.soyshttpovermc.web.WebRegistry;
 
 /**
  * API / 网页 自动生命周期监听器（从 {@code HttpOverMcPlugin} 抽离）：

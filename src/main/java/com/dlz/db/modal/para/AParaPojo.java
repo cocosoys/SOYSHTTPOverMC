@@ -16,7 +16,7 @@ import java.util.List;
  *
  * @author dk
  */
-public abstract class AParaPojo<T,P extends ParaMap> implements ISqlPara {
+public abstract class AParaPojo<T, P extends ParaMap> implements ISqlPara {
     private final Class<T> beanClass;
     protected T bean;
     private final String tableName;
@@ -28,23 +28,27 @@ public abstract class AParaPojo<T,P extends ParaMap> implements ISqlPara {
 
     public AParaPojo(Class<T> beanClass) {
         this.beanClass = beanClass;
-        if(beanClass == Class.class){
-            throw new DbException("bean需要为实体对象",1002);
+        if (beanClass == Class.class) {
+            throw new DbException("bean需要为实体对象", 1002);
         }
-        this.bean=null;
-        tableName= PojoCache.getTableName(beanClass);
-        fields= PojoCache.getBeanFields(beanClass);
+        this.bean = null;
+        tableName = PojoCache.getTableName(beanClass);
+        fields = PojoCache.getBeanFields(beanClass);
     }
+
     public AParaPojo(T bean) {
         this.bean = bean;
-        if(bean == null){
-            throw new DbException("bean不能为空",1002);
+        if (bean == null) {
+            throw new DbException("bean不能为空", 1002);
         }
         this.beanClass = (Class<T>) bean.getClass();
-        tableName= PojoCache.getTableName(beanClass);
-        fields= PojoCache.getBeanFields(beanClass);
+        tableName = PojoCache.getTableName(beanClass);
+        fields = PojoCache.getBeanFields(beanClass);
     }
-    /** 当前构造器持有的 bean（从 Class 构造时为 null）。 */
+
+    /**
+     * 当前构造器持有的 bean（从 Class 构造时为 null）。
+     */
     public T getBean() {
         return bean;
     }
@@ -66,7 +70,7 @@ public abstract class AParaPojo<T,P extends ParaMap> implements ISqlPara {
      * @param fields
      * @param bean
      */
-    protected abstract void wrapValues(List<Field> fields, T bean) ;
+    protected abstract void wrapValues(List<Field> fields, T bean);
 
     public Class<T> getBeanClass() {
         return beanClass;

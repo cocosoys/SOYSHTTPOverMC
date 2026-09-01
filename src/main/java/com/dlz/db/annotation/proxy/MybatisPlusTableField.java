@@ -8,6 +8,7 @@ public class MybatisPlusTableField {
     private final Class<Annotation> idTypeAnnotation;
     private final Method valueMethod;
     private final Method existMethod;
+
     protected MybatisPlusTableField() {
         Class<Annotation> idType1;
         Method valueMethodTmp;
@@ -32,8 +33,8 @@ public class MybatisPlusTableField {
         existMethod = existMethodTmp;
     }
 
-    public String value(Field field){
-        if (field == null || idTypeAnnotation==null){
+    public String value(Field field) {
+        if (field == null || idTypeAnnotation == null) {
             return null;
         }
         if (field.isAnnotationPresent(idTypeAnnotation)) {

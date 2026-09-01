@@ -18,6 +18,7 @@ public class DbTable {
     public TableInsert insertW(String tableName) {
         return new TableInsert(tableName);
     }
+
     public TableDelete deleteW(String tableName) {
         return new TableDelete(tableName);
     }
@@ -25,6 +26,7 @@ public class DbTable {
     public TableUpdate updateW(String tableName) {
         return new TableUpdate(tableName);
     }
+
     public TableQuery selectW(String tableName) {
         return new TableQuery(tableName);
     }
@@ -33,6 +35,7 @@ public class DbTable {
     public int insert(String tableName, JSONMap value) {
         return new TableInsert(tableName).value(value).execute();
     }
+
     public Long insertWithAutoKey(String tableName, JSONMap value) {
         return new TableInsert(tableName).value(value).insertWithAutoKey();
     }
@@ -42,7 +45,7 @@ public class DbTable {
         final String idName = PojoCache.getIdName(tableName);
         final Object id = value.get(idName);
         if (StringUtils.isEmpty(id)) {
-            return insert(tableName,value);
+            return insert(tableName, value);
         }
         value.remove(idName);
         final int updateResult = updateW(tableName).set(value).eq(idName, id).execute();
@@ -65,10 +68,12 @@ public class DbTable {
         log.warn("更新数据条数应为1,实际更新数据为:{}", updateResult);
         return updateResult;
     }
+
     public ResultMap selectById(String tableName, Object id) {
         final String idName = PojoCache.getIdName(tableName);
         return selectW(tableName).eq(idName, id).queryOne();
     }
+
     public List<ResultMap> selectByIds(String tableName, Object ids) {
         final String idName = PojoCache.getIdName(tableName);
         if (StringUtils.isEmpty(ids)) {

@@ -1,14 +1,18 @@
 package com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.bridge.provider;
-import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.bridge.spi.LoginProviderFactory;
-import lombok.CustomLog;
 
+import com.github.cocosoys.mc.soyshttpovermc.i18n.I18n;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.bridge.AuthLoginBridge;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.bridge.spi.LoginProvider;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.bridge.spi.LoginProviderContext;
-import com.github.cocosoys.mc.soyshttpovermc.i18n.I18n;
-
+import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.bridge.spi.LoginProviderFactory;
+import fr.xephi.authme.api.v3.AuthMeApi;
+import fr.xephi.authme.data.auth.PlayerAuth;
+import fr.xephi.authme.datasource.DataSource;
+import fr.xephi.authme.events.LoginEvent;
+import fr.xephi.authme.security.PasswordSecurity;
+import fr.xephi.authme.security.crypts.HashedPassword;
+import lombok.CustomLog;
 import org.bukkit.configuration.ConfigurationSection;
-
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -17,17 +21,8 @@ import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.plugin.Plugin;
 
-import fr.xephi.authme.api.v3.AuthMeApi;
-import fr.xephi.authme.data.auth.PlayerAuth;
-import fr.xephi.authme.datasource.DataSource;
-import fr.xephi.authme.events.LoginEvent;
-import fr.xephi.authme.security.PasswordSecurity;
-import fr.xephi.authme.security.crypts.HashedPassword;
-
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
-import java.util.HashSet;
-import java.util.Set;
 
 /**
  * AuthMe 登录插件提供者（软依赖：仅在 AuthMe 已加载时由宿主实例化并注册到
@@ -51,9 +46,13 @@ public class AuthMeLoginProvider implements LoginProvider, Listener {
     private volatile boolean initialized;
     private volatile boolean shutdown;
 
-    /** AuthMe 底层数据源（反射 AuthMe.database 字段）；null=未初始化/反射失败。 */
+    /**
+     * AuthMe 底层数据源（反射 AuthMe.database 字段）；null=未初始化/反射失败。
+     */
     private volatile DataSource authMeDataSource;
-    /** AuthMe 密码比对器（反射 injector.getSingleton / AuthMeApi 单例字段）；null=不可用。 */
+    /**
+     * AuthMe 密码比对器（反射 injector.getSingleton / AuthMeApi 单例字段）；null=不可用。
+     */
     private volatile PasswordSecurity authMePasswordSecurity;
 
     public AuthMeLoginProvider() {
@@ -310,7 +309,9 @@ public class AuthMeLoginProvider implements LoginProvider, Listener {
         }
     }
 
-    /** 按字段类型扫描实例上的字段（结构变化兜底）。 */
+    /**
+     * 按字段类型扫描实例上的字段（结构变化兜底）。
+     */
     private static <T> T findFieldByType(Class<?> cls, Object target, Class<T> type) {
         Class<?> c = cls;
         while (c != null) {
@@ -331,7 +332,9 @@ public class AuthMeLoginProvider implements LoginProvider, Listener {
         return null;
     }
 
-    /** 沿继承链查找形如 {@code <T> T getSingleton(Class<T>)} 的方法。 */
+    /**
+     * 沿继承链查找形如 {@code <T> T getSingleton(Class<T>)} 的方法。
+     */
     private static Method findMethodByName(Class<?> cls, String name) {
         Class<?> c = cls;
         while (c != null) {
@@ -350,7 +353,9 @@ public class AuthMeLoginProvider implements LoginProvider, Listener {
         return null;
     }
 
-    /** 沿类继承链按方法名 + 参数个数查找方法（含父类 protected；兼容泛型擦除签名）。 */
+    /**
+     * 沿类继承链按方法名 + 参数个数查找方法（含父类 protected；兼容泛型擦除签名）。
+     */
     private static Method findMethodByArity(Class<?> clazz, String name, int arity) {
         Class<?> c = clazz;
         while (c != null) {

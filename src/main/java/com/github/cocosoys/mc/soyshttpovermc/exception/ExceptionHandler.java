@@ -8,6 +8,8 @@ package com.github.cocosoys.mc.soyshttpovermc.exception;
  */
 public interface ExceptionHandler {
 
-    /** 处理一条已登记的异常（实现内请勿再向外抛异常，否则会被总线静默吞掉）。 */
+    /**
+     * 处理一条已登记的异常（实现内请勿再向外抛异常，否则会被总线静默吞掉）。
+     */
     void handle(SoysHttpException e);
 }

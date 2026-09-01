@@ -16,21 +16,33 @@ import java.util.List;
  */
 public interface IBaseService<T extends BaseEntity> {
 
-    /** 按主键获取实体 */
+    /**
+     * 按主键获取实体
+     */
     T getById(Serializable id);
 
-    /** 查询全部 */
+    /**
+     * 查询全部
+     */
     List<T> list();
 
-    /** 计数 */
+    /**
+     * 计数
+     */
     long count();
 
-    /** 保存（新增或更新） */
+    /**
+     * 保存（新增或更新）
+     */
     boolean save(T entity);
 
-    /** 按主键删除 */
+    /**
+     * 按主键删除
+     */
     boolean removeById(Serializable id);
 
-    /** 按主键更新 */
+    /**
+     * 按主键更新
+     */
     boolean updateById(T entity);
 }

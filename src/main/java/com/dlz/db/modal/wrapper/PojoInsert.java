@@ -6,7 +6,6 @@ import com.dlz.db.interceptor.DbPlugin;
 import com.dlz.db.modal.para.AParaPojo;
 import com.dlz.db.support.DBHolder;
 import com.dlz.db.support.PojoCache;
-import com.dlz.db.support.SqlRunThreadHolder;
 import com.dlz.db.support.bean.IdInfo;
 import com.dlz.kit.util.system.FieldReflections;
 
@@ -66,12 +65,12 @@ public class PojoInsert<T> extends AParaPojo<T, TableInsert> implements IExecuto
                 batchSize = valueBeans.size();
             }
             final List<T> ts = valueBeans.subList(0, batchSize);
-            if(doAutoId){
+            if (doAutoId) {
                 WrapperBuildUtil.fillAutoIds(dbName, idInfo, ts);
             }
             List<Object[]> paramValues = ts.stream()
                     .map(v -> {
-                        if(logicDeleteField!=null){
+                        if (logicDeleteField != null) {
                             FieldReflections.setValue(v, logicDeleteField, 0);
                         }
                         return WrapperBuildUtil.buildInsertParams(v, fields);

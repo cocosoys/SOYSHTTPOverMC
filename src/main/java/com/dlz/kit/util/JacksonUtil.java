@@ -1,7 +1,5 @@
 package com.dlz.kit.util;
 
-import java.util.Collection;
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -33,7 +31,9 @@ public final class JacksonUtil {
         return cur;
     }
 
-    /** 便捷：字符串化。 */
+    /**
+     * 便捷：字符串化。
+     */
     public static String toStr(Object obj) {
         return obj == null ? null : String.valueOf(obj);
     }

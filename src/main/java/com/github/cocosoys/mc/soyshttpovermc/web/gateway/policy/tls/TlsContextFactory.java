@@ -1,18 +1,13 @@
 package com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.tls;
-import lombok.CustomLog;
 
 import com.github.cocosoys.mc.soyshttpovermc.i18n.I18n;
-
+import lombok.CustomLog;
 import org.bukkit.configuration.ConfigurationSection;
 
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLEngine;
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.InputStream;
-import java.io.InputStreamReader;
+import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.security.KeyFactory;
 import java.security.KeyStore;
@@ -20,12 +15,7 @@ import java.security.PrivateKey;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateFactory;
 import java.security.spec.PKCS8EncodedKeySpec;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Base64;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
 /**
  * TLS 上下文工厂：为 MC 端口就地 TLS 升级提供服务端 SSLEngine（每个连接一个，线程安全）。
@@ -81,7 +71,9 @@ public class TlsContextFactory {
         log.infoT("log.tls.context-ready", "TLS 上下文就绪 (服务端模式, protocols={0})", String.join(",", enabledProtocols));
     }
 
-    /** 每个新 TLS 连接调用一次，返回已配置为服务端模式的新引擎（线程安全）。 */
+    /**
+     * 每个新 TLS 连接调用一次，返回已配置为服务端模式的新引擎（线程安全）。
+     */
     public SSLEngine newServerEngine() {
         SSLEngine e = sslContext.createSSLEngine();
         e.setUseClientMode(false);
@@ -99,7 +91,9 @@ public class TlsContextFactory {
         return e;
     }
 
-    /** 默认协议范围：自 minTls 起开放全部更高版本的 TLS；minTls 为空/未知则全开 TLS1.0~1.3。 */
+    /**
+     * 默认协议范围：自 minTls 起开放全部更高版本的 TLS；minTls 为空/未知则全开 TLS1.0~1.3。
+     */
     private static List<String> defaultProtocols(String minTls) {
         String[] all = {"TLSv1.3", "TLSv1.2", "TLSv1.1", "TLSv1"};
         int floor = protocolIndex(minTls);
@@ -115,11 +109,16 @@ public class TlsContextFactory {
     private static int protocolIndex(String p) {
         if (p == null) return 1;
         switch (p) {
-            case "TLSv1.3": return 4;
-            case "TLSv1.2": return 3;
-            case "TLSv1.1": return 2;
-            case "TLSv1": return 1;
-            default: return 1; // 未知协议 → 一律放开
+            case "TLSv1.3":
+                return 4;
+            case "TLSv1.2":
+                return 3;
+            case "TLSv1.1":
+                return 2;
+            case "TLSv1":
+                return 1;
+            default:
+                return 1; // 未知协议 → 一律放开
         }
     }
 
@@ -142,7 +141,8 @@ public class TlsContextFactory {
         try (InputStream in = new FileInputStream(certFile)) {
             for (Certificate c : cf.generateCertificates(in)) chain.add(c);
         }
-        if (chain.isEmpty()) throw new IllegalArgumentException(I18n.t("exception.tls.pem-empty", "PEM 证书为空: {0}", certFile));
+        if (chain.isEmpty())
+            throw new IllegalArgumentException(I18n.t("exception.tls.pem-empty", "PEM 证书为空: {0}", certFile));
         PrivateKey priv = parsePrivateKey(readAll(keyFile), keyFile);
         KeyStore ks = KeyStore.getInstance("JKS");
         ks.load(null, null);
@@ -187,16 +187,26 @@ public class TlsContextFactory {
             List<String> cmd = new ArrayList<>();
             cmd.add(keytoolPath());
             cmd.add("-genkeypair");
-            cmd.add("-alias"); cmd.add("soyshttp");
-            cmd.add("-keyalg"); cmd.add("RSA");
-            cmd.add("-keysize"); cmd.add("2048");
-            cmd.add("-validity"); cmd.add("3650");
-            cmd.add("-dname"); cmd.add("CN=" + host);
-            cmd.add("-ext"); cmd.add("SAN=" + san);
-            cmd.add("-storetype"); cmd.add("PKCS12");
-            cmd.add("-keystore"); cmd.add(p12.getAbsolutePath());
-            cmd.add("-storepass"); cmd.add(pass);
-            cmd.add("-keypass"); cmd.add(pass);
+            cmd.add("-alias");
+            cmd.add("soyshttp");
+            cmd.add("-keyalg");
+            cmd.add("RSA");
+            cmd.add("-keysize");
+            cmd.add("2048");
+            cmd.add("-validity");
+            cmd.add("3650");
+            cmd.add("-dname");
+            cmd.add("CN=" + host);
+            cmd.add("-ext");
+            cmd.add("SAN=" + san);
+            cmd.add("-storetype");
+            cmd.add("PKCS12");
+            cmd.add("-keystore");
+            cmd.add(p12.getAbsolutePath());
+            cmd.add("-storepass");
+            cmd.add(pass);
+            cmd.add("-keypass");
+            cmd.add(pass);
             cmd.add("-noprompt");
             ProcessBuilder pb = new ProcessBuilder(cmd);
             pb.redirectErrorStream(true);
@@ -216,7 +226,9 @@ public class TlsContextFactory {
         return loadKeyStore(p12, pass, pass);
     }
 
-    /** 解析证书/私钥路径：绝对路径直接用；相对路径相对于插件数据目录（与自签证书生成位置一致）。 */
+    /**
+     * 解析证书/私钥路径：绝对路径直接用；相对路径相对于插件数据目录（与自签证书生成位置一致）。
+     */
     private File resolvePath(String path) {
         File f = new File(path);
         return f.isAbsolute() ? f : new File(dataFolder, path);

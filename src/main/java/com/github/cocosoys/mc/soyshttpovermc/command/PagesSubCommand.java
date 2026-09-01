@@ -1,11 +1,10 @@
 package com.github.cocosoys.mc.soyshttpovermc.command;
 
-import org.bukkit.command.CommandSender;
-
 import com.github.cocosoys.mc.soyshttpovermc.HttpOverMcPlugin;
 import com.github.cocosoys.mc.soyshttpovermc.i18n.I18n;
 import com.github.cocosoys.mc.soyshttpovermc.util.StringListUtil;
 import com.github.cocosoys.mc.soyshttpovermc.web.WebRegistry;
+import org.bukkit.command.CommandSender;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -25,9 +24,13 @@ import java.util.List;
  */
 public class PagesSubCommand extends SubCommand {
 
-    /** “查看全部”的别名参数（忽略大小写）。 */
+    /**
+     * “查看全部”的别名参数（忽略大小写）。
+     */
     private static final List<String> ALL_ARGS = Arrays.asList("all", "resources", "*");
-    /** 每页行数（页眉/内容/页尾由 static final 统一静态控制，默认见 {@link StringListUtil#DEFAULT_PAGE_SIZE}）。 */
+    /**
+     * 每页行数（页眉/内容/页尾由 static final 统一静态控制，默认见 {@link StringListUtil#DEFAULT_PAGE_SIZE}）。
+     */
     private static final int PAGE_SIZE = StringListUtil.DEFAULT_PAGE_SIZE;
     private static final String HEADER_KEY = "command.pages.title-default";
     private static final String HEADER_ALL_KEY = "command.pages.title-all";
@@ -52,11 +55,11 @@ public class PagesSubCommand extends SubCommand {
     public String detail() {
         return I18n.t("command.pages.detail",
                 "/soyshttp pages [all] [页码] —— 查看已登记的网页（分页展示）。\n"
-                + "  无参数       仅列出可打开界面（.html 页 + 跳转入口），隐藏 .js/.css/.vue/图片等纯资源。\n"
-                + "  all          列出全部登记项（含资源/脚本），并标注种类 [页]/[资源]/[跳转→目标]。\n"
-                + "  页码         翻页查看（每页 10 条，如 /soyshttp pages 2）。\n"
-                + "登记项含说明时自动追加 “ —— ”+说明；昵称路由以 (昵称: ...) 标注。\n"
-                + "别名：resources、* 与 all 等价。");
+                        + "  无参数       仅列出可打开界面（.html 页 + 跳转入口），隐藏 .js/.css/.vue/图片等纯资源。\n"
+                        + "  all          列出全部登记项（含资源/脚本），并标注种类 [页]/[资源]/[跳转→目标]。\n"
+                        + "  页码         翻页查看（每页 10 条，如 /soyshttp pages 2）。\n"
+                        + "登记项含说明时自动追加 “ —— ”+说明；昵称路由以 (昵称: ...) 标注。\n"
+                        + "别名：resources、* 与 all 等价。");
     }
 
     @Override
@@ -93,18 +96,12 @@ public class PagesSubCommand extends SubCommand {
                 line += " §7(昵称: " + String.join(" / ", e.nicknames) + ")";
             }
             content.add(line);
-            
+
         }
         if (content.isEmpty()) {
             sender.sendMessage(I18n.t("command.pages.empty-thirdparty", "  §7（无第三方插件登记的网页）"));
             return;
         }
-
-
-
-
-
-
 
 
         int size = PAGE_SIZE;
@@ -123,7 +120,9 @@ public class PagesSubCommand extends SubCommand {
         printHome(sender, reg);
     }
 
-    /** 首页 "/" 若已在注册表中（核心默认登记 / 第三方）则上方列表已展示；否则补一行静态解析源提示。 */
+    /**
+     * 首页 "/" 若已在注册表中（核心默认登记 / 第三方）则上方列表已展示；否则补一行静态解析源提示。
+     */
     private void printHome(CommandSender sender, WebRegistry reg) {
         for (WebRegistry.Entry e : reg.listEntries()) {
             if ("/".equals(e.path)) return;

@@ -21,16 +21,20 @@ public enum SnifferChannelState {
 
     public final int value;
 
-    SnifferChannelState(int value){
-        this.value=value;
+    SnifferChannelState(int value) {
+        this.value = value;
     }
 
-    /** 是否为 HTTP 处理路径（明文或 TLS 解密后）。 */
+    /**
+     * 是否为 HTTP 处理路径（明文或 TLS 解密后）。
+     */
     public boolean isHttp() {
         return this == HTTP_PLAIN || this == HTTP_TLS;
     }
 
-    /** 是否为 TLS 就地升级连接（写响应时需经 SslHandler 出口）。 */
+    /**
+     * 是否为 TLS 就地升级连接（写响应时需经 SslHandler 出口）。
+     */
     public boolean isTls() {
         return this == HTTP_TLS;
     }

@@ -1,15 +1,10 @@
 package com.github.cocosoys.mc.soyshttpovermc.web;
-import lombok.CustomLog;
 
 import com.github.cocosoys.mc.soyshttpovermc.i18n.I18n;
-
+import lombok.CustomLog;
 import org.bukkit.plugin.Plugin;
 
-import java.io.ByteArrayOutputStream;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.IOException;
-import java.io.InputStream;
+import java.io.*;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.jar.JarEntry;
@@ -40,7 +35,9 @@ import java.util.jar.JarFile;
 @CustomLog
 public class WebRegistry {
 
-    /** 路由表：key = "<METHOD> <路径>"（如 "GET /api/users"），value = 登记项 */
+    /**
+     * 路由表：key = "<METHOD> <路径>"（如 "GET /api/users"），value = 登记项
+     */
     private final Map<String, Entry> pages = new ConcurrentHashMap<>();
     /**
      * 参数化路由表：key = "<METHOD> <模板>"（如 "GET /api/users/{id}"），value = 登记项。
@@ -48,49 +45,69 @@ public class WebRegistry {
      * 仅在精确匹配未命中时启用，避免影响默认 GET 路由性能。
      */
     private final Map<String, Entry> parameterizedPages = new ConcurrentHashMap<>();
-    /** 网络文件/网络网页页面：key = "<METHOD> <路径>"（NetworkPage 抽象，按需 load） */
+    /**
+     * 网络文件/网络网页页面：key = "<METHOD> <路径>"（NetworkPage 抽象，按需 load）
+     */
     private final Map<String, RegisteredNetworkPage> networkPages = new ConcurrentHashMap<>();
-    /** 昵称路由索引：key = 昵称路径（规范化后），value = 登记项。注册时构建，O(1) 匹配，避免遍历全部页面。 */
+    /**
+     * 昵称路由索引：key = 昵称路径（规范化后），value = 登记项。注册时构建，O(1) 匹配，避免遍历全部页面。
+     */
     private final Map<String, Entry> nicknameIndex = new ConcurrentHashMap<>();
-    /** 宿主插件名（SOYSHTTPOverMC 本体）：其登记不加 /plugins 前缀 */
+    /**
+     * 宿主插件名（SOYSHTTPOverMC 本体）：其登记不加 /plugins 前缀
+     */
     private final String hostName;
 
-    /** 默认 HTTP 方法（保持向后兼容：未显式指定方法时按 GET 登记）。 */
+    /**
+     * 默认 HTTP 方法（保持向后兼容：未显式指定方法时按 GET 登记）。
+     */
     public static final String DEFAULT_METHOD = "GET";
 
     public WebRegistry(String hostName) {
         this.hostName = hostName == null ? "" : hostName;
     }
 
-    /** 规范化 HTTP 方法（大写；null/空 → GET）。 */
+    /**
+     * 规范化 HTTP 方法（大写；null/空 → GET）。
+     */
     private static String normalizeMethod(String method) {
         String m = method == null ? "" : method.trim().toUpperCase();
         return m.isEmpty() ? DEFAULT_METHOD : m;
     }
 
-    /** 判定路径是否含 {name} 占位符段（参数化路由）。 */
+    /**
+     * 判定路径是否含 {name} 占位符段（参数化路由）。
+     */
     private static boolean isParameterized(String path) {
         return path != null && path.indexOf('{') >= 0 && path.indexOf('}') > path.indexOf('{');
     }
 
     // ===== 普通登记（自动 /plugins/<插件名> 前缀） =====
 
-    /** 登记网页（直接内容；Content-Type 按路径扩展名推断）；重复路径默认阻止（force=true 可强制覆盖）。 */
+    /**
+     * 登记网页（直接内容；Content-Type 按路径扩展名推断）；重复路径默认阻止（force=true 可强制覆盖）。
+     */
     public void registerPage(Plugin owner, String path, byte[] content) {
         registerPage(owner, path, content, null, false);
     }
 
-    /** 登记网页（直接内容；显式 Content-Type）；重复路径默认阻止（force=true 可强制覆盖）。 */
+    /**
+     * 登记网页（直接内容；显式 Content-Type）；重复路径默认阻止（force=true 可强制覆盖）。
+     */
     public void registerPage(Plugin owner, String path, byte[] content, String contentType) {
         registerPage(owner, path, content, contentType, false);
     }
 
-    /** 登记网页（直接内容；显式 Content-Type；force=true 强制覆盖重复登记并打印强制登记的插件）。 */
+    /**
+     * 登记网页（直接内容；显式 Content-Type；force=true 强制覆盖重复登记并打印强制登记的插件）。
+     */
     public void registerPage(Plugin owner, String path, byte[] content, String contentType, boolean force) {
         register(owner, path, content, contentType, false, force);
     }
 
-    /** 登记网页（直接内容；显式 Content-Type；force=true；附带界面说明与昵称路由）。 */
+    /**
+     * 登记网页（直接内容；显式 Content-Type；force=true；附带界面说明与昵称路由）。
+     */
     public void registerPage(Plugin owner, String path, byte[] content, String contentType, boolean force,
                              String description, List<String> nicknames) {
         register(owner, path, content, contentType, false, force, description, nicknames);
@@ -107,17 +124,23 @@ public class WebRegistry {
         register(owner, path, httpMethod, content, contentType, false, force, description, nicknames);
     }
 
-    /** 登记网页（来自插件自有 jar 的资源；Content-Type 按路径扩展名推断）；重复路径默认阻止。 */
+    /**
+     * 登记网页（来自插件自有 jar 的资源；Content-Type 按路径扩展名推断）；重复路径默认阻止。
+     */
     public void registerResource(Plugin owner, String path, ClassLoader resourceClassLoader, String resourcePath) {
         registerResource(owner, path, resourceClassLoader, resourcePath, null, false);
     }
 
-    /** 登记网页（来自插件自有 jar 的资源；显式 Content-Type）；重复路径默认阻止。 */
+    /**
+     * 登记网页（来自插件自有 jar 的资源；显式 Content-Type）；重复路径默认阻止。
+     */
     public void registerResource(Plugin owner, String path, ClassLoader resourceClassLoader, String resourcePath, String contentType) {
         registerResource(owner, path, resourceClassLoader, resourcePath, contentType, false);
     }
 
-    /** 登记网页（来自插件自有 jar 的资源；显式 Content-Type；force=true 强制覆盖重复登记并打印强制登记的插件）。 */
+    /**
+     * 登记网页（来自插件自有 jar 的资源；显式 Content-Type；force=true 强制覆盖重复登记并打印强制登记的插件）。
+     */
     public void registerResource(Plugin owner, String path, ClassLoader resourceClassLoader, String resourcePath, String contentType, boolean force) {
         registerRes(owner, path, resourceClassLoader, resourcePath, contentType, false, force);
     }
@@ -127,28 +150,36 @@ public class WebRegistry {
      * 用于注册 POST/PUT/DELETE/PATCH 等非 GET 的 jar 资源响应；路径含 {name} 时自动登记到参数化路由表。
      */
     public void registerResource(Plugin owner, String path, String httpMethod, ClassLoader resourceClassLoader, String resourcePath,
-                                  String contentType, boolean force, String description, List<String> nicknames) {
+                                 String contentType, boolean force, String description, List<String> nicknames) {
         registerRes(owner, path, httpMethod, resourceClassLoader, resourcePath, contentType, false, force, description, nicknames);
     }
 
     // ===== 强制代理登记（无 /plugins/<插件名> 前缀） =====
 
-    /** 强制以主插件代理登记网页（直接内容；Content-Type 按路径扩展名推断）；重复路径默认阻止。 */
+    /**
+     * 强制以主插件代理登记网页（直接内容；Content-Type 按路径扩展名推断）；重复路径默认阻止。
+     */
     public void registerProxyPage(Plugin owner, String path, byte[] content) {
         registerProxyPage(owner, path, content, null);
     }
 
-    /** 强制以主插件代理登记网页（直接内容；显式 Content-Type）；重复路径默认阻止（force=true 可强制覆盖）。 */
+    /**
+     * 强制以主插件代理登记网页（直接内容；显式 Content-Type）；重复路径默认阻止（force=true 可强制覆盖）。
+     */
     public void registerProxyPage(Plugin owner, String path, byte[] content, String contentType) {
         register(owner, path, content, contentType, true, false);
     }
 
-    /** 强制以主插件代理登记网页（直接内容；显式 Content-Type；force=true 强制覆盖重复登记）。 */
+    /**
+     * 强制以主插件代理登记网页（直接内容；显式 Content-Type；force=true 强制覆盖重复登记）。
+     */
     public void registerProxyPage(Plugin owner, String path, byte[] content, String contentType, boolean force) {
         register(owner, path, content, contentType, true, force);
     }
 
-    /** 强制以主插件代理登记网页（直接内容；显式 Content-Type；force=true；附带界面说明与昵称路由）。 */
+    /**
+     * 强制以主插件代理登记网页（直接内容；显式 Content-Type；force=true；附带界面说明与昵称路由）。
+     */
     public void registerProxyPage(Plugin owner, String path, byte[] content, String contentType, boolean force,
                                   String description, List<String> nicknames) {
         register(owner, path, content, contentType, true, force, description, nicknames);
@@ -164,12 +195,16 @@ public class WebRegistry {
         register(owner, path, httpMethod, content, contentType, true, force, description, nicknames);
     }
 
-    /** 强制以主插件代理登记网页（来自插件自有 jar 的资源）；重复路径默认阻止。 */
+    /**
+     * 强制以主插件代理登记网页（来自插件自有 jar 的资源）；重复路径默认阻止。
+     */
     public void registerProxyResource(Plugin owner, String path, ClassLoader resourceClassLoader, String resourcePath) {
         registerProxyResource(owner, path, resourceClassLoader, resourcePath, null);
     }
 
-    /** 强制以主插件代理登记网页（来自插件自有 jar 的资源；显式 Content-Type）；重复路径默认阻止。 */
+    /**
+     * 强制以主插件代理登记网页（来自插件自有 jar 的资源；显式 Content-Type）；重复路径默认阻止。
+     */
     public void registerProxyResource(Plugin owner, String path, ClassLoader resourceClassLoader, String resourcePath, String contentType) {
         registerRes(owner, path, resourceClassLoader, resourcePath, contentType, true, false);
     }
@@ -186,22 +221,30 @@ public class WebRegistry {
 
     // ===== 跳转登记（A 网址 → B 网址，302/301） =====
 
-    /** 登记跳转（默认 302，路径自动补 /plugins/<插件名> 前缀）。访问 A 时浏览器自动跳转到 B。 */
+    /**
+     * 登记跳转（默认 302，路径自动补 /plugins/<插件名> 前缀）。访问 A 时浏览器自动跳转到 B。
+     */
     public void registerRedirect(Plugin owner, String fromPath, String toPath) {
         registerRedirect(owner, fromPath, toPath, false, 302);
     }
 
-    /** 登记跳转（显式状态码 301/302 等）。 */
+    /**
+     * 登记跳转（显式状态码 301/302 等）。
+     */
     public void registerRedirect(Plugin owner, String fromPath, String toPath, int statusCode) {
         registerRedirect(owner, fromPath, toPath, false, statusCode);
     }
 
-    /** 强制代理跳转（无 /plugins/<插件名> 前缀；默认 302）。 */
+    /**
+     * 强制代理跳转（无 /plugins/<插件名> 前缀；默认 302）。
+     */
     public void registerProxyRedirect(Plugin owner, String fromPath, String toPath) {
         registerRedirect(owner, fromPath, toPath, true, 302);
     }
 
-    /** 强制代理跳转（显式状态码）。 */
+    /**
+     * 强制代理跳转（显式状态码）。
+     */
     public void registerProxyRedirect(Plugin owner, String fromPath, String toPath, int statusCode) {
         registerRedirect(owner, fromPath, toPath, true, statusCode);
     }
@@ -245,12 +288,16 @@ public class WebRegistry {
         return true;
     }
 
-    /** 内部：登记跳转项（force=true 强制覆盖重复路径）。 */
+    /**
+     * 内部：登记跳转项（force=true 强制覆盖重复路径）。
+     */
     private void registerRedirect(Plugin owner, String fromPath, String toPath, boolean proxy, int statusCode) {
         registerRedirect(owner, fromPath, toPath, proxy, statusCode, false);
     }
 
-    /** 内部：登记跳转项（显式 force）。 */
+    /**
+     * 内部：登记跳转项（显式 force）。
+     */
     private void registerRedirect(Plugin owner, String fromPath, String toPath, boolean proxy, int statusCode, boolean force) {
         if (fromPath == null || toPath == null) return;
         String ownerName = owner == null ? null : owner.getName();
@@ -259,7 +306,7 @@ public class WebRegistry {
             return;
         }
         log.infoT("log.web.register-redirect", "登记跳转: GET {0} → {1} ({2}) 插件={3}{4}", full, toPath, statusCode,
-                    ownerName, proxy ? " (代理无前缀)" : "");
+                ownerName, proxy ? " (代理无前缀)" : "");
     }
 
     // ===== 目录批量登记（一行托管整个前端文件夹） =====
@@ -276,13 +323,17 @@ public class WebRegistry {
         registerDirectory(owner, basePath, dir, false);
     }
 
-    /** 目录批量登记（显式是否强制代理无前缀）。 */
+    /**
+     * 目录批量登记（显式是否强制代理无前缀）。
+     */
     public void registerDirectory(Plugin owner, String basePath, File dir, boolean proxy) {
         if (owner == null || basePath == null || dir == null || !dir.isDirectory()) return;
         walkDirectory(owner.getName(), basePath, dir, proxy);
     }
 
-    /** 强制代理目录批量登记（无 /plugins/&lt;插件名&gt; 前缀）。 */
+    /**
+     * 强制代理目录批量登记（无 /plugins/&lt;插件名&gt; 前缀）。
+     */
     public void registerProxyDirectory(Plugin owner, String basePath, File dir) {
         registerDirectory(owner, basePath, dir, true);
     }
@@ -337,7 +388,9 @@ public class WebRegistry {
         registerResourceDirectory(owner, basePath, resourceClassLoader, resourceRoot, false);
     }
 
-    /** jar 资源目录批量登记（显式是否强制代理无前缀）。 */
+    /**
+     * jar 资源目录批量登记（显式是否强制代理无前缀）。
+     */
     public void registerResourceDirectory(Plugin owner, String basePath, ClassLoader resourceClassLoader, String resourceRoot, boolean proxy) {
         if (owner == null || basePath == null || resourceClassLoader == null || resourceRoot == null) return;
         File jar = pluginJar(owner);
@@ -364,7 +417,9 @@ public class WebRegistry {
         }
     }
 
-    /** 强制代理 jar 资源目录批量登记。 */
+    /**
+     * 强制代理 jar 资源目录批量登记。
+     */
     public void registerProxyResourceDirectory(Plugin owner, String basePath, ClassLoader resourceClassLoader, String resourceRoot) {
         registerResourceDirectory(owner, basePath, resourceClassLoader, resourceRoot, true);
     }
@@ -380,7 +435,9 @@ public class WebRegistry {
         registerNetworkPage(ownerPlugin, page, false);
     }
 
-    /** 登记网络页（显式 force；重复路径默认阻止，force=true 强制覆盖并打印强制登记的插件）。 */
+    /**
+     * 登记网络页（显式 force；重复路径默认阻止，force=true 强制覆盖并打印强制登记的插件）。
+     */
     public void registerNetworkPage(String ownerPlugin, NetworkPage page, boolean force) {
         if (page == null || page.path() == null) return;
         String full = resolvePath(ownerPlugin, page.path(), false);
@@ -399,7 +456,9 @@ public class WebRegistry {
                 ownerPlugin, page.cacheTtlSeconds());
     }
 
-    /** 按方法 + 路径匹配网络页（精确 + .html 智能匹配）；未命中返回 null。 */
+    /**
+     * 按方法 + 路径匹配网络页（精确 + .html 智能匹配）；未命中返回 null。
+     */
     public NetworkPage resolveNetworkPage(String httpMethod, String cleanPath) {
         String method = httpMethod == null ? "GET" : httpMethod.toUpperCase();
         if (cleanPath == null) return null;
@@ -413,7 +472,9 @@ public class WebRegistry {
         return e == null ? null : e.page;
     }
 
-    /** 网络页登记项包装（记录归属插件与完整路径）。 */
+    /**
+     * 网络页登记项包装（记录归属插件与完整路径）。
+     */
     private static final class RegisteredNetworkPage {
         final String ownerPlugin;
         final String path;
@@ -471,7 +532,9 @@ public class WebRegistry {
         return null;
     }
 
-    /** 在一个表中做主键命中 + .html 后缀智能匹配。 */
+    /**
+     * 在一个表中做主键命中 + .html 后缀智能匹配。
+     */
     private static Entry lookup(Map<String, Entry> table, String method, String cleanPath) {
         Entry e = table.get(method + " " + cleanPath);
         if (e != null) return e;
@@ -520,7 +583,9 @@ public class WebRegistry {
         return null;
     }
 
-    /** 按段比对模板与请求路径；模板段 {name} 提取为 path variable，普通段严格相等。 */
+    /**
+     * 按段比对模板与请求路径；模板段 {name} 提取为 path variable，普通段严格相等。
+     */
     private static ResolveResult matchPattern(String pattern, String[] reqSegments, Entry entry) {
         String[] patSegments = splitSegments(pattern);
         if (patSegments.length != reqSegments.length) return null;
@@ -541,7 +606,9 @@ public class WebRegistry {
         return new ResolveResult(entry, vars == null ? java.util.Collections.emptyMap() : vars);
     }
 
-    /** 按 "/" 切分路径段（去除前导斜杠与空段，保留中间空段表示 //）。 */
+    /**
+     * 按 "/" 切分路径段（去除前导斜杠与空段，保留中间空段表示 //）。
+     */
     private static String[] splitSegments(String path) {
         if (path == null || path.isEmpty()) return new String[0];
         String p = path.startsWith("/") ? path.substring(1) : path;
@@ -551,7 +618,9 @@ public class WebRegistry {
         return p.split("/", -1);
     }
 
-    /** 解析结果：命中的登记项 + 路径变量（参数化路由时填充，否则为空 Map）。 */
+    /**
+     * 解析结果：命中的登记项 + 路径变量（参数化路由时填充，否则为空 Map）。
+     */
     public static final class ResolveResult {
         public final Entry entry;
         public final Map<String, String> pathVariables;
@@ -564,7 +633,9 @@ public class WebRegistry {
         }
     }
 
-    /** 卸载指定插件名登记的全部网页（监听 PluginDisableEvent 时调用） */
+    /**
+     * 卸载指定插件名登记的全部网页（监听 PluginDisableEvent 时调用）
+     */
     public void unregisterPlugin(String pluginName) {
         if (pluginName == null || pluginName.isEmpty()) return;
         int n = pages.size();
@@ -589,23 +660,31 @@ public class WebRegistry {
 
     // ===== 自定义错误页（registerErrorPage） =====
 
-    /** 自定义错误页：status -> (owner, content) */
+    /**
+     * 自定义错误页：status -> (owner, content)
+     */
     private final Map<Integer, ErrorPage> errorPages = new ConcurrentHashMap<>();
 
-    /** 注册自定义错误页（替换通用 404/500 等错误响应；content 为完整 HTML/文本字节）。 */
+    /**
+     * 注册自定义错误页（替换通用 404/500 等错误响应；content 为完整 HTML/文本字节）。
+     */
     public void registerErrorPage(String ownerPlugin, int status, byte[] content) {
         if (content == null || content.length == 0 || status <= 0) return;
         errorPages.put(status, new ErrorPage(ownerPlugin, content));
         log.infoT("log.web.register-error-page", "已登记自定义错误页 status={0} owner={1}", status, ownerPlugin);
     }
 
-    /** 查询自定义错误页（未注册返回 null）。 */
+    /**
+     * 查询自定义错误页（未注册返回 null）。
+     */
     public byte[] errorPage(int status) {
         ErrorPage e = errorPages.get(status);
         return e == null ? null : e.content;
     }
 
-    /** 错误页条目。 */
+    /**
+     * 错误页条目。
+     */
     private static final class ErrorPage {
         final String ownerPlugin;
         final byte[] content;
@@ -616,7 +695,9 @@ public class WebRegistry {
         }
     }
 
-    /** 列出全部已登记网页路径（含归属插件），按路径排序；供 /soyshttp pages 查看。 */
+    /**
+     * 列出全部已登记网页路径（含归属插件），按路径排序；供 /soyshttp pages 查看。
+     */
     public List<String> listPaths() {
         List<String> out = new ArrayList<>();
         for (Entry e : pages.values()) {
@@ -633,7 +714,9 @@ public class WebRegistry {
     // 首页的多实例注册/切换/持久化属于上层业务（由 ihomepages 的 HomepageRegistry 负责），
     // base 仅保留把指定内容安装到 GET / 路由的伺服能力；第三方可经此方法覆盖默认首页。
 
-    /** 直接设置站点首页 {@code GET /} 路由（content 为空则忽略）。 */
+    /**
+     * 直接设置站点首页 {@code GET /} 路由（content 为空则忽略）。
+     */
     public void setHomePage(String ownerPlugin, byte[] content, String contentType) {
         if (content == null || content.length == 0) return;
         String key = "GET /";
@@ -642,7 +725,9 @@ public class WebRegistry {
         log.infoT("log.web.switch-home", "切换首页: GET / current={0}", ownerPlugin == null ? "?" : ownerPlugin);
     }
 
-    /** 列出全部已登记项（Entry 原对象），按路径排序；供 /soyshttp pages 分类展示（区分页/资源/跳转）。 */
+    /**
+     * 列出全部已登记项（Entry 原对象），按路径排序；供 /soyshttp pages 分类展示（区分页/资源/跳转）。
+     */
     public List<Entry> listEntries() {
         List<Entry> out = new ArrayList<>(pages.values());
         out.addAll(parameterizedPages.values());
@@ -656,12 +741,16 @@ public class WebRegistry {
         register(owner, path, content, contentType, proxy, false);
     }
 
-    /** 内部：登记直接内容（显式 force；force=true 强制覆盖重复路径并打印强制登记插件）。 */
+    /**
+     * 内部：登记直接内容（显式 force；force=true 强制覆盖重复路径并打印强制登记插件）。
+     */
     private void register(Plugin owner, String path, byte[] content, String contentType, boolean proxy, boolean force) {
         register(owner, path, DEFAULT_METHOD, content, contentType, proxy, force, null, null);
     }
 
-    /** 内部：登记直接内容（显式 force + 界面说明 + 昵称路由）。 */
+    /**
+     * 内部：登记直接内容（显式 force + 界面说明 + 昵称路由）。
+     */
     private void register(Plugin owner, String path, byte[] content, String contentType, boolean proxy, boolean force,
                           String description, List<String> nicknames) {
         register(owner, path, DEFAULT_METHOD, content, contentType, proxy, force, description, nicknames);
@@ -693,18 +782,24 @@ public class WebRegistry {
         registerRes(owner, path, DEFAULT_METHOD, cl, resource, contentType, proxy, false, null, null);
     }
 
-    /** 内部：登记 jar 资源（显式 force；force=true 强制覆盖重复路径并打印强制登记插件）。 */
+    /**
+     * 内部：登记 jar 资源（显式 force；force=true 强制覆盖重复路径并打印强制登记插件）。
+     */
     private void registerRes(Plugin owner, String path, ClassLoader cl, String resource, String contentType, boolean proxy, boolean force) {
         registerRes(owner, path, DEFAULT_METHOD, cl, resource, contentType, proxy, force, null, null);
     }
 
-    /** 内部：登记 jar 资源（显式 force + 界面说明 + 昵称路由）。 */
+    /**
+     * 内部：登记 jar 资源（显式 force + 界面说明 + 昵称路由）。
+     */
     private void registerRes(Plugin owner, String path, ClassLoader cl, String resource, String contentType, boolean proxy, boolean force,
                              String description, List<String> nicknames) {
         registerRes(owner, path, DEFAULT_METHOD, cl, resource, contentType, proxy, force, description, nicknames);
     }
 
-    /** 内部：登记 jar 资源（显式 HTTP 方法 + force + 界面说明 + 昵称路由）。 */
+    /**
+     * 内部：登记 jar 资源（显式 HTTP 方法 + force + 界面说明 + 昵称路由）。
+     */
     private void registerRes(Plugin owner, String path, String httpMethod, ClassLoader cl, String resource,
                              String contentType, boolean proxy, boolean force,
                              String description, List<String> nicknames) {
@@ -723,7 +818,9 @@ public class WebRegistry {
                 param ? I18n.t("log.web.label.parameterized", " (参数化)") : "");
     }
 
-    /** 计算最终路径：非主插件且非代理 → 前置 /plugins/<插件名> */
+    /**
+     * 计算最终路径：非主插件且非代理 → 前置 /plugins/<插件名>
+     */
     private String resolvePath(String ownerName, String path, boolean proxy) {
         String p = path.startsWith("/") ? path : "/" + path;
         if (!proxy && ownerName != null && !ownerName.equals(hostName)) {
@@ -732,7 +829,9 @@ public class WebRegistry {
         return p;
     }
 
-    /** 递归扫描磁盘目录并逐项登记为磁盘惰性资源（请求时再读文件，支持热替换）。 */
+    /**
+     * 递归扫描磁盘目录并逐项登记为磁盘惰性资源（请求时再读文件，支持热替换）。
+     */
     private void walkDirectory(String ownerName, String basePath, File dir, boolean proxy) {
         File[] files = dir.listFiles();
         if (files == null) return;
@@ -749,14 +848,18 @@ public class WebRegistry {
         log.infoT("log.web.register-disk-dir", "批量登记磁盘目录: {0} base={1} dir={2}", ownerName, basePath, dir.getAbsolutePath());
     }
 
-    /** 拼接 web 路径片段（保证单层斜杠，根前缀 / 不产生双斜杠）。 */
+    /**
+     * 拼接 web 路径片段（保证单层斜杠，根前缀 / 不产生双斜杠）。
+     */
     private static String joinWeb(String a, String b) {
         String x = a.endsWith("/") ? a.substring(0, a.length() - 1) : a;
         String y = b.startsWith("/") ? b : "/" + b;
         return x + y;
     }
 
-    /** 取插件 jar 文件（用于扫描 jar 内资源目录）；取不到返回 null。 */
+    /**
+     * 取插件 jar 文件（用于扫描 jar 内资源目录）；取不到返回 null。
+     */
     private static File pluginJar(Plugin p) {
         try {
             java.security.CodeSource cs = p.getClass().getProtectionDomain().getCodeSource();
@@ -771,7 +874,9 @@ public class WebRegistry {
         return null;
     }
 
-    /** 读取磁盘文件为字节（登记目录用的惰性资源）。 */
+    /**
+     * 读取磁盘文件为字节（登记目录用的惰性资源）。
+     */
     private static byte[] readFile(File f) throws IOException {
         try (FileInputStream in = new FileInputStream(f)) {
             ByteArrayOutputStream out = new ByteArrayOutputStream();
@@ -782,10 +887,14 @@ public class WebRegistry {
         }
     }
 
-    /** 登记项：保存来源与元数据，按需解析字节内容；redirectTo 非空时表示跳转。 */
+    /**
+     * 登记项：保存来源与元数据，按需解析字节内容；redirectTo 非空时表示跳转。
+     */
     public static final class Entry {
         public final String ownerPlugin;
-        /** HTTP 方法（大写：GET/POST/PUT/DELETE/PATCH 等；默认 GET）。 */
+        /**
+         * HTTP 方法（大写：GET/POST/PUT/DELETE/PATCH 等；默认 GET）。
+         */
         public final String httpMethod;
         public final String path;
         public final String contentType;
@@ -795,12 +904,18 @@ public class WebRegistry {
         private final ClassLoader resCl;     // 资源类加载器（按需读 jar 内资源）
         private final String resource;
         private final File diskFile;         // 磁盘文件（登记目录用，惰性读取，支持热替换）
-        /** 界面说明：/soyshttp pages 展示时若存在自动拼接 “ —— ”+description。 */
+        /**
+         * 界面说明：/soyshttp pages 展示时若存在自动拼接 “ —— ”+description。
+         */
         public final String description;
-        /** 昵称路由（别名 URL 路径，如 "/主页"）：访问昵称同样命中本登记项内容。 */
+        /**
+         * 昵称路由（别名 URL 路径，如 "/主页"）：访问昵称同样命中本登记项内容。
+         */
         public final List<String> nicknames;
 
-        /** 磁盘文件（null=非磁盘来源）；供内容缓存做热替换失效（lastModified）与大文件加载器判定。 */
+        /**
+         * 磁盘文件（null=非磁盘来源）；供内容缓存做热替换失效（lastModified）与大文件加载器判定。
+         */
         public File getDiskFile() {
             return diskFile;
         }
@@ -818,6 +933,7 @@ public class WebRegistry {
 
         /**
          * 全参数构造器（带显式 HTTP 方法）。
+         *
          * @param httpMethod HTTP 方法（GET/POST/PUT/DELETE/PATCH 等；null/空 → GET）
          */
         Entry(String ownerPlugin, String httpMethod, String path, String contentType, byte[] content,
@@ -866,23 +982,31 @@ public class WebRegistry {
             return MimeTypes.forPath(path);
         }
 
-        /** 是否为跳转入口（302/301 等）。 */
+        /**
+         * 是否为跳转入口（302/301 等）。
+         */
         public boolean isRedirect() {
             return redirectTo != null;
         }
 
-        /** 是否为可在浏览器直接打开的 HTML 页（.html 后缀或 text/html 类型或站点首页 /）。 */
+        /**
+         * 是否为可在浏览器直接打开的 HTML 页（.html 后缀或 text/html 类型或站点首页 /）。
+         */
         public boolean isHtmlPage() {
             if (path.equals("/") || MimeTypes.isHtmlPath(path)) return true;
             return MimeTypes.isHtmlType(effectiveContentType());
         }
 
-        /** 是否归类为“可打开界面”：HTML 页或跳转入口（点击即可到达某 UI）。脚本/图片/字体等纯资源返回 false。 */
+        /**
+         * 是否归类为“可打开界面”：HTML 页或跳转入口（点击即可到达某 UI）。脚本/图片/字体等纯资源返回 false。
+         */
         public boolean isNavigable() {
             return isRedirect() || isHtmlPage();
         }
 
-        /** 简要种类标签：用于 /soyshttp pages 展示（页 / 资源 / 跳转→目标，i18n）。 */
+        /**
+         * 简要种类标签：用于 /soyshttp pages 展示（页 / 资源 / 跳转→目标，i18n）。
+         */
         public String kindLabel() {
             if (isRedirect()) return I18n.t("web.entry.kind-redirect", "跳转→") + redirectTo;
             if (isHtmlPage()) return I18n.t("web.entry.kind-page", "页");

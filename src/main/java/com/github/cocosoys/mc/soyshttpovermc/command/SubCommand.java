@@ -1,12 +1,11 @@
 package com.github.cocosoys.mc.soyshttpovermc.command;
 
+import com.github.cocosoys.mc.soyshttpovermc.HttpOverMcPlugin;
+import com.github.cocosoys.mc.soyshttpovermc.i18n.I18n;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
-
-import com.github.cocosoys.mc.soyshttpovermc.HttpOverMcPlugin;
-import com.github.cocosoys.mc.soyshttpovermc.i18n.I18n;
 
 import java.util.List;
 
@@ -37,7 +36,9 @@ import java.util.List;
  */
 public abstract class SubCommand {
 
-    /** 插件实例（子类按需取 WebRegistry / getMcHost 等）。 */
+    /**
+     * 插件实例（子类按需取 WebRegistry / getMcHost 等）。
+     */
     protected final HttpOverMcPlugin plugin;
 
     /**
@@ -47,7 +48,9 @@ public abstract class SubCommand {
      */
     protected boolean hide = false;
 
-    /** @return 是否隐藏（仅注册、不进 help 列表与 tab 补全）。 */
+    /**
+     * @return 是否隐藏（仅注册、不进 help 列表与 tab 补全）。
+     */
     public boolean isHide() {
         return hide;
     }
@@ -56,15 +59,21 @@ public abstract class SubCommand {
         this.plugin = plugin;
     }
 
-    /** 子指令名（小写，用于匹配 {@code args[0]}）。 */
+    /**
+     * 子指令名（小写，用于匹配 {@code args[0]}）。
+     */
     public abstract String name();
 
-    /** 是否需要 op 权限（默认 true）。 */
+    /**
+     * 是否需要 op 权限（默认 true）。
+     */
     public boolean requireOp() {
         return true;
     }
 
-    /** 单行用法提示（展示在 /soyshttp 无参 help 中）。 */
+    /**
+     * 单行用法提示（展示在 /soyshttp 无参 help 中）。
+     */
     public abstract String usage();
 
     /**
@@ -75,7 +84,9 @@ public abstract class SubCommand {
         return usage();
     }
 
-    /** 执行逻辑；args 为完整命令参数（args[0] 即子指令名本身）。 */
+    /**
+     * 执行逻辑；args 为完整命令参数（args[0] 即子指令名本身）。
+     */
     public abstract void execute(CommandSender sender, String label, String[] args);
 
     /**
@@ -86,7 +97,9 @@ public abstract class SubCommand {
         return java.util.Collections.emptyList();
     }
 
-    /** 统一前缀发送消息；玩家保留 § 颜色码，控制台（非玩家）剥离 § 避免被转写成 ANSI 控制符污染 latest.log。 */
+    /**
+     * 统一前缀发送消息；玩家保留 § 颜色码，控制台（非玩家）剥离 § 避免被转写成 ANSI 控制符污染 latest.log。
+     */
     protected void msg(CommandSender sender, String text) {
         if (sender instanceof Player) {
             sender.sendMessage("§a[SOYSHTTPOverMC]§r " + text);
@@ -95,7 +108,9 @@ public abstract class SubCommand {
         }
     }
 
-    /** 发送消息：玩家保留 § 颜色码；控制台（非玩家）剥离 § 避免被转写成 ANSI 控制符污染 latest.log。 */
+    /**
+     * 发送消息：玩家保留 § 颜色码；控制台（非玩家）剥离 § 避免被转写成 ANSI 控制符污染 latest.log。
+     */
     protected static void sendColored(CommandSender sender, String text) {
         if (sender instanceof Player) {
             sender.sendMessage(text);
@@ -104,19 +119,25 @@ public abstract class SubCommand {
         }
     }
 
-    /** 按 i18n 键翻译后发送（带统一前缀）：key 缺失回退 {@code fallback}，占位符用 {@code args} 替换。 */
+    /**
+     * 按 i18n 键翻译后发送（带统一前缀）：key 缺失回退 {@code fallback}，占位符用 {@code args} 替换。
+     */
     protected void msgT(CommandSender sender, String key, String fallback, Object... args) {
         msg(sender, I18n.t(key, fallback, args));
     }
 
-    /** 该 token 是否像“目标玩家”（@ 选择器或在线玩家名）。 */
+    /**
+     * 该 token 是否像“目标玩家”（@ 选择器或在线玩家名）。
+     */
     protected static boolean isTargetToken(String s) {
         if (s == null || s.isEmpty()) return false;
         if (s.charAt(0) == '@') return true;
         return Bukkit.getPlayerExact(s) != null || Bukkit.getPlayer(s) != null;
     }
 
-    /** 用空格拼接参数列表。 */
+    /**
+     * 用空格拼接参数列表。
+     */
     protected static String join(List<String> list) {
         return String.join(" ", list);
     }

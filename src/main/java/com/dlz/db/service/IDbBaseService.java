@@ -12,7 +12,7 @@ import java.util.function.Function;
  * sql语句，可以带参数如：select AD_ENDDATE from JOB_AD t where ad_id=#{ad_id}
  * paraMap ：Map<String,Object> m=new HashMap<String,Object>();m.put("ad_id", "47");
  *
-  * @throws Exception
+ * @throws Exception
  */
 public interface IDbBaseService {
     ISqlExecutor getSqlExecutor();
@@ -27,6 +27,7 @@ public interface IDbBaseService {
             throw new DbException(e.getMessage() + " sqkKey:" + paraMap.getSqlItem().getSqlKey(), 1005, e);
         }
     }
+
     default <T> T doDb(ISqlPara paraMap, Function<JdbcItem, T> executor) {
         try {
             return executor.apply(paraMap.jdbcSql());

@@ -1,12 +1,10 @@
 package com.dlz.db.support.helper;
 
 import com.dlz.db.core.anno.SqlAction;
-import com.dlz.db.modal.dto.ResultMap;
 import com.dlz.db.support.DBHolder;
 import com.dlz.db.support.bean.TableInfo;
 
 import java.lang.reflect.Field;
-import java.sql.Connection;
 import java.sql.DatabaseMetaData;
 import java.sql.ResultSet;
 import java.util.ArrayList;
@@ -16,6 +14,7 @@ import java.util.Set;
 public abstract class SqlHelper {
     /**
      * 创建表
+     *
      * @param tableName
      * @param clazz
      */
@@ -23,18 +22,21 @@ public abstract class SqlHelper {
 
     /**
      * 获取表所有字段
+     *
      * @param tableName
-          */
+     */
     public abstract Set<String> getTableColumnNames(String tableName);
 
     /**
      * 获取表详细信息（含字段、主键、注释）
+     *
      * @param tableName
-          */
+     */
     public abstract TableInfo getTableInfo(String tableName);
 
     /**
      * 根据bean属性创建字段
+     *
      * @param tableName
      * @param name
      * @param field
@@ -43,11 +45,12 @@ public abstract class SqlHelper {
 
     /**
      * 更新默认值
+     *
      * @param tableName
      * @param columnName
      * @param value
      */
-    public void updateDefaultValue(String tableName, String columnName, String value){
+    public void updateDefaultValue(String tableName, String columnName, String value) {
         String sql = "SELECT COUNT(*) FROM " + tableName + " WHERE `" + columnName + "` IS NULL";
         Long count = DBHolder.getSqlExecutor().getFirstColumn(sql, Long.class);
         if (count > 0) {
@@ -58,8 +61,9 @@ public abstract class SqlHelper {
 
     /**
      * 根据属性取得数据库字段属性
+     *
      * @param field
-          */
+     */
     public abstract String getDbColumnType(Field field);
 
     /**

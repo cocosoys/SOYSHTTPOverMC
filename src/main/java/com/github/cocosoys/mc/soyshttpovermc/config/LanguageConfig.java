@@ -26,7 +26,9 @@ public final class LanguageConfig {
         this.cfg = cfg;
     }
 
-    /** 装载 language.yml（文件缺失时落内置默认），由 ConfigManager 初始化时调用。 */
+    /**
+     * 装载 language.yml（文件缺失时落内置默认），由 ConfigManager 初始化时调用。
+     */
     public static LanguageConfig load(JavaPlugin plugin) {
         File f = new File(plugin.getDataFolder(), "language.yml");
         if (!f.isFile() && plugin.getResource("language.yml") != null) {
@@ -35,27 +37,37 @@ public final class LanguageConfig {
         return new LanguageConfig(YamlConfiguration.loadConfiguration(f));
     }
 
-    /** 原始配置对象（lang 命令等按路径直接读取）。 */
+    /**
+     * 原始配置对象（lang 命令等按路径直接读取）。
+     */
     public YamlConfiguration raw() {
         return cfg;
     }
 
-    /** 当前语言代码（优先 current，兼容旧键 language；缺省 zh_cn）。 */
+    /**
+     * 当前语言代码（优先 current，兼容旧键 language；缺省 zh_cn）。
+     */
     public String current() {
         return cfg.getString("language.current", cfg.getString("language", "zh_cn"));
     }
 
-    /** 语言加载策略（clear / overlay / internationalization；空=按 I18n 默认）。 */
+    /**
+     * 语言加载策略（clear / overlay / internationalization；空=按 I18n 默认）。
+     */
     public String rule() {
         return cfg.getString("language.rule", "");
     }
 
-    /** 额外语言源列表（name/description/language/source 规则列表；可能为 null）。 */
+    /**
+     * 额外语言源列表（name/description/language/source 规则列表；可能为 null）。
+     */
     public java.util.List<?> sources() {
         return cfg.getList("language.sources");
     }
 
-    /** 持久化 language.yml（切换语言 / 修改语言源后调用）。 */
+    /**
+     * 持久化 language.yml（切换语言 / 修改语言源后调用）。
+     */
     public void save(JavaPlugin plugin) {
         try {
             cfg.save(new File(plugin.getDataFolder(), "language.yml"));

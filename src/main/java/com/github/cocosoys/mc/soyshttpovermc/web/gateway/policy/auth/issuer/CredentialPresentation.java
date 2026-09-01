@@ -52,7 +52,9 @@ public class CredentialPresentation implements Serializable {
         return cookies;
     }
 
-    /** 大小写不敏感读取 cookie 值 */
+    /**
+     * 大小写不敏感读取 cookie 值
+     */
     public String getCookie(String name) {
         if (name == null) return null;
         for (Map.Entry<String, String> e : cookies.entrySet()) {
@@ -61,7 +63,9 @@ public class CredentialPresentation implements Serializable {
         return null;
     }
 
-    /** 是否携带了任一凭证形态（X-API-Key / Bearer / Basic / Cookie）；无头解析出的空对象返回 false。 */
+    /**
+     * 是否携带了任一凭证形态（X-API-Key / Bearer / Basic / Cookie）；无头解析出的空对象返回 false。
+     */
     public boolean hasAnyCredential() {
         return (apiKey != null && !apiKey.isEmpty())
                 || (bearer != null && !bearer.isEmpty())

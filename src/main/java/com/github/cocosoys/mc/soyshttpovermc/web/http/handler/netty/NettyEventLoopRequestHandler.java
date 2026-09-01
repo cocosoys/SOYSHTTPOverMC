@@ -33,7 +33,7 @@ public class NettyEventLoopRequestHandler extends AbstractHttpRequestHandler {
 
     @Override
     protected FrameProto.HttpResponseFrame handleLocal(String method, String path,
-                                                          Map<String, String> headers, byte[] body)
+                                                       Map<String, String> headers, byte[] body)
             throws Exception {
         CompletableFuture<FrameProto.HttpResponseFrame> future = new CompletableFuture<>();
         eventLoop.execute(() -> {

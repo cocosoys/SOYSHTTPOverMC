@@ -1,10 +1,9 @@
 package com.github.cocosoys.mc.soyshttpovermc.command;
 
-import org.bukkit.command.CommandSender;
-
 import com.github.cocosoys.mc.soyshttpovermc.HttpOverMcPlugin;
 import com.github.cocosoys.mc.soyshttpovermc.i18n.I18n;
 import com.github.cocosoys.mc.soyshttpovermc.log.LogKit;
+import org.bukkit.command.CommandSender;
 
 import java.util.Arrays;
 import java.util.List;
@@ -18,7 +17,9 @@ import java.util.List;
  */
 public class LogLevelSubCommand extends SubCommand {
 
-    /** 合法等级列表（与 {@link LogKit} 一致，忽略大小写）。 */
+    /**
+     * 合法等级列表（与 {@link LogKit} 一致，忽略大小写）。
+     */
     private static final List<String> LEVELS = Arrays.asList("OFF", "ERROR", "WARN", "INFO", "DEBUG", "TRACE");
 
     public LogLevelSubCommand(HttpOverMcPlugin plugin) {
@@ -40,9 +41,9 @@ public class LogLevelSubCommand extends SubCommand {
     public String detail() {
         return I18n.t("command.log.detail",
                 "/soyshttp log [级别] —— 查看或修改日志打印等级。\n"
-                + "  无参数        仅展示当前等级。\n"
-                + "  log <级别>    立即切换并持久化到 config.yml 的 log.level（reload 后仍生效）。\n"
-                + "等级: OFF > ERROR > WARN > INFO > DEBUG > TRACE（默认 INFO）。");
+                        + "  无参数        仅展示当前等级。\n"
+                        + "  log <级别>    立即切换并持久化到 config.yml 的 log.level（reload 后仍生效）。\n"
+                        + "等级: OFF > ERROR > WARN > INFO > DEBUG > TRACE（默认 INFO）。");
     }
 
     @Override

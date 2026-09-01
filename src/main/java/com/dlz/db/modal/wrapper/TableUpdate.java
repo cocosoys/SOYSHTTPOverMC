@@ -2,19 +2,15 @@ package com.dlz.db.modal.wrapper;
 
 import com.dlz.db.inf.IExecutorUDI;
 import com.dlz.db.interceptor.DbPlugin;
-import com.dlz.db.modal.DB;
 import com.dlz.db.modal.para.AQuery;
 import com.dlz.db.support.DBHolder;
 import com.dlz.db.support.PojoCache;
-import com.dlz.db.support.bean.IdInfo;
 import com.dlz.db.util.DbConvertUtil;
 import com.dlz.db.util.SqlUtil;
 import com.dlz.kit.fn.DlzFn;
 import com.dlz.kit.json.JSONMap;
-import com.dlz.kit.util.system.FieldReflections;
 import lombok.extern.slf4j.Slf4j;
 
-import java.lang.reflect.Field;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -39,7 +35,7 @@ public class TableUpdate extends AQuery<TableUpdate> implements IExecutorUDI {
 
     public TableUpdate set(String paraName, Object value) {
         paraName = DbConvertUtil.toDbColumnName(paraName);
-        if (!PojoCache.isColumnExists(getTableName(),paraName)) {
+        if (!PojoCache.isColumnExists(getTableName(), paraName)) {
             log.warn("column is not exists:" + getTableName() + "." + paraName);
             return this;
         }
@@ -55,9 +51,9 @@ public class TableUpdate extends AQuery<TableUpdate> implements IExecutorUDI {
      * 添加要更新的值集合
      *
      * @param setValues
-          */
+     */
     public TableUpdate set(Map<String, Object> setValues) {
-        return set(setValues,null);
+        return set(setValues, null);
     }
 
     public TableUpdate set(Map<String, Object> setValues, Function<String, Boolean> ignore) {
@@ -82,9 +78,11 @@ public class TableUpdate extends AQuery<TableUpdate> implements IExecutorUDI {
     public String getSql() {
         return WrapperBuildUtil.MAKER_SQL_UPDATE;
     }
+
     public boolean batch(List<JSONMap> valueBeans) {
         return batch(valueBeans, 1000);
     }
+
     public boolean batch(List<JSONMap> valueBeans, int batchSize) {
         if (valueBeans.isEmpty()) {
             return false;
@@ -108,7 +106,7 @@ public class TableUpdate extends AQuery<TableUpdate> implements IExecutorUDI {
 
             List<Object[]> paramValues = ts.stream()
                     .map(v -> {
-                        if(logicDeleteField!=null && v.get(logicDeleteField)==null){
+                        if (logicDeleteField != null && v.get(logicDeleteField) == null) {
                             v.set(logicDeleteField, 0);
                         }
                         return WrapperBuildUtil.buildUpdateParams(v, fields, idName);

@@ -1,4 +1,5 @@
 package com.github.cocosoys.mc.soyshttpovermc.annotations;
+
 import com.github.cocosoys.mc.soyshttpovermc.enums.RequestMethod;
 
 import java.lang.annotation.ElementType;
@@ -19,9 +20,13 @@ import java.lang.annotation.Target;
 @RequestMapping(method = RequestMethod.GET)
 public @interface GetMapping {
 
-    /** 路径别名 */
+    /**
+     * 路径别名
+     */
     String value() default "";
 
-    /** 路由路径（与 value 二选一） */
+    /**
+     * 路由路径（与 value 二选一）
+     */
     String path() default "";
 }

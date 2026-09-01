@@ -47,7 +47,9 @@ public class GatewayRequestServedEvent extends GatewayEvent {
         return statusCode;
     }
 
-    /** 端到端耗时（微秒，含隧道往返） */
+    /**
+     * 端到端耗时（微秒，含隧道往返）
+     */
     public long getLatencyUs() {
         return latencyUs;
     }

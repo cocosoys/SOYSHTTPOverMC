@@ -1,27 +1,21 @@
 package com.github.cocosoys.mc.soyshttpovermc.web.gateway;
+
+import com.github.cocosoys.mc.soyshttpovermc.i18n.I18n;
+import com.github.cocosoys.mc.soyshttpovermc.log.LogKit;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.AccessLimiterPolicy;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.IpAllowlistPolicy;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.RateLimitPolicy;
-import lombok.CustomLog;
-
-import com.github.cocosoys.mc.soyshttpovermc.log.LogKit;
-import com.github.cocosoys.mc.soyshttpovermc.i18n.I18n;
-
-import org.bukkit.configuration.ConfigurationSection;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.AuthPolicy;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.bridge.spi.LoginProvider;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.bridge.spi.LoginProviderFactory;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.issuer.CredentialIssuer;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.issuer.SessionTokenIssuer;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.tls.TlsPolicy;
+import lombok.CustomLog;
+import org.bukkit.configuration.ConfigurationSection;
 
 import java.io.File;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Comparator;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.function.Supplier;
 
 /**
@@ -42,7 +36,9 @@ import java.util.function.Supplier;
 @CustomLog
 public class GatewayFilter {
 
-    /** 策略注册表：策略名（= policies 目录下的文件名）→ 工厂。新增策略在此注册。 */
+    /**
+     * 策略注册表：策略名（= policies 目录下的文件名）→ 工厂。新增策略在此注册。
+     */
     private static final Map<String, Supplier<SecurityPolicy>> REGISTRY = new LinkedHashMap<>();
 
     static {
@@ -53,7 +49,9 @@ public class GatewayFilter {
         REGISTRY.put("access-limiter", AccessLimiterPolicy::new);
     }
 
-    /** 凭证颁发器注册表：颁发器名（= issuers 目录下的文件名）→ 工厂。登录插件在此注册。 */
+    /**
+     * 凭证颁发器注册表：颁发器名（= issuers 目录下的文件名）→ 工厂。登录插件在此注册。
+     */
     private static final Map<String, Supplier<CredentialIssuer>> ISSUER_REGISTRY = new LinkedHashMap<>();
 
     static {
@@ -72,20 +70,28 @@ public class GatewayFilter {
 
     private volatile List<SecurityPolicy> policies = new ArrayList<>();
     private volatile List<CredentialIssuer> issuers = new ArrayList<>();
-    /** 插件注入的附加策略（gateway/policies/ 之外由第三方贡献；reload 后保留） */
+    /**
+     * 插件注入的附加策略（gateway/policies/ 之外由第三方贡献；reload 后保留）
+     */
     private final List<SecurityPolicy> pluginPolicies = new java.util.concurrent.CopyOnWriteArrayList<>();
-    /** 网关统一的 API 前缀（gateway/config.yml api-prefix，默认 /api；始终生效） */
+    /**
+     * 网关统一的 API 前缀（gateway/config.yml api-prefix，默认 /api；始终生效）
+     */
     private volatile String apiPrefix = "/api";
 
     public GatewayFilter() {
     }
 
-    /** 网关统一的 API 前缀（auth 策略匹配 exempt/paths 时自动兼容逻辑路径）。 */
+    /**
+     * 网关统一的 API 前缀（auth 策略匹配 exempt/paths 时自动兼容逻辑路径）。
+     */
     public String getApiPrefix() {
         return apiPrefix;
     }
 
-    /** 从 gateway/ 目录重建策略链与颁发器（启动与 /soyshttp reload 均走这里）。 */
+    /**
+     * 从 gateway/ 目录重建策略链与颁发器（启动与 /soyshttp reload 均走这里）。
+     */
     public synchronized void reload(File gatewayDir) {
         List<CredentialIssuer> issuerList = loadIssuers(gatewayDir);
         this.issuers = issuerList;
@@ -146,7 +152,9 @@ public class GatewayFilter {
         }
     }
 
-    /** 扫描 gateway/issuers/*.yml，实例化并启用注册过的颁发器。 */
+    /**
+     * 扫描 gateway/issuers/*.yml，实例化并启用注册过的颁发器。
+     */
     private List<CredentialIssuer> loadIssuers(File gatewayDir) {
         List<CredentialIssuer> list = new ArrayList<>();
         if (gatewayDir == null || !gatewayDir.isDirectory()) return list;
@@ -168,7 +176,9 @@ public class GatewayFilter {
         return list;
     }
 
-    /** 扫描 gateway/providers/*.yml，为每个已注册的登录提供者加载专属配置。 */
+    /**
+     * 扫描 gateway/providers/*.yml，为每个已注册的登录提供者加载专属配置。
+     */
     private void loadProviders(File gatewayDir) {
         if (gatewayDir == null || !gatewayDir.isDirectory()) return;
         File dir = new File(gatewayDir, "providers");
@@ -206,12 +216,16 @@ public class GatewayFilter {
         return sb.toString();
     }
 
-    /** 遍历策略链；返回第一个 DENY 或 ALLOW。策略执行异常按拒绝处理（fail-closed）。 */
+    /**
+     * 遍历策略链；返回第一个 DENY 或 ALLOW。策略执行异常按拒绝处理（fail-closed）。
+     */
     public PolicyResult filter(GatewayContext ctx) {
         return filterDetailed(ctx).result;
     }
 
-    /** 与 {@link #filter} 相同，但额外返回拒绝该请求的策略（供事件/日志使用）。 */
+    /**
+     * 与 {@link #filter} 相同，但额外返回拒绝该请求的策略（供事件/日志使用）。
+     */
     public Outcome filterDetailed(GatewayContext ctx) {
         for (SecurityPolicy p : policies) {
             if (!p.isEnabled() || !p.appliesTo(ctx)) continue;
@@ -226,7 +240,9 @@ public class GatewayFilter {
         return new Outcome(null, PolicyResult.ALLOW);
     }
 
-    /** 判定结果 + 拒绝该请求的策略（null=放行） */
+    /**
+     * 判定结果 + 拒绝该请求的策略（null=放行）
+     */
     public static final class Outcome {
         public final SecurityPolicy policy;
         public final PolicyResult result;
@@ -256,7 +272,9 @@ public class GatewayFilter {
         return null;
     }
 
-    /** auth 鉴权策略是否启用（决定注解式 API 是否自动加 /api 全局前缀） */
+    /**
+     * auth 鉴权策略是否启用（决定注解式 API 是否自动加 /api 全局前缀）
+     */
     public boolean isAuthEnabled() {
         for (SecurityPolicy p : policies) {
             if (p instanceof AuthPolicy && p.isEnabled()) return true;
@@ -264,7 +282,9 @@ public class GatewayFilter {
         return false;
     }
 
-    /** 已启用的凭证颁发器（供 /soyshttp key 下发命令使用） */
+    /**
+     * 已启用的凭证颁发器（供 /soyshttp key 下发命令使用）
+     */
     public List<CredentialIssuer> getIssuers() {
         return issuers;
     }
@@ -285,12 +305,16 @@ public class GatewayFilter {
         log.infoT("log.gateway.plugin-policy-injected", "插件策略已注入: {0}(order={1})", policy.name(), policy.order());
     }
 
-    /** 插件注入的策略列表（只读）。 */
+    /**
+     * 插件注入的策略列表（只读）。
+     */
     public List<SecurityPolicy> getPluginPolicies() {
         return java.util.Collections.unmodifiableList(pluginPolicies);
     }
 
-    /** 网页登录使用的登录插件提供者名（gateway/policies/auth.yml login-provider；空=自动选第一个可用）。 */
+    /**
+     * 网页登录使用的登录插件提供者名（gateway/policies/auth.yml login-provider；空=自动选第一个可用）。
+     */
     public String getLoginProviderName() {
         for (SecurityPolicy p : policies) {
             if (p instanceof AuthPolicy) {

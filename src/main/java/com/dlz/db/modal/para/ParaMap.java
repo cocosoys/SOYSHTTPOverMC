@@ -1,6 +1,5 @@
 package com.dlz.db.modal.para;
 
-import com.dlz.db.enums.ParaTypeEnum;
 import com.dlz.db.inf.IChained;
 import com.dlz.db.inf.ISqlPara;
 import com.dlz.db.modal.dto.Page;
@@ -16,7 +15,7 @@ import lombok.Setter;
 import java.io.Serializable;
 import java.util.Map;
 
-public class ParaMap<ME extends ParaMap> implements Serializable , ISqlPara, IChained<ME> {
+public class ParaMap<ME extends ParaMap> implements Serializable, ISqlPara, IChained<ME> {
     private static final long serialVersionUID = 8374167270612933157L;
     @Getter
     private final SqlItem sqlItem = new SqlItem();
@@ -29,6 +28,7 @@ public class ParaMap<ME extends ParaMap> implements Serializable , ISqlPara, ICh
 
     public ParaMap() {
     }
+
     public ParaMap(String sqlKey) {
         sqlItem.setSqlKey(sqlKey);
     }
@@ -43,30 +43,32 @@ public class ParaMap<ME extends ParaMap> implements Serializable , ISqlPara, ICh
      *
      * @param key
      * @param value
-          */
+     */
     public ME addPara(String key, Object value) {
-		para.put(key, value == null ? "" : value);
-        return (ME)me();
+        para.put(key, value == null ? "" : value);
+        return (ME) me();
     }
-    public <T> ME addPara(DlzFn<T, ?> column, Object value){
-        return addPara(PojoCache.fnName(column),value);
+
+    public <T> ME addPara(DlzFn<T, ?> column, Object value) {
+        return addPara(PojoCache.fnName(column), value);
     }
 
     public JdbcItem jdbcSql() {
         if (this.getPage() == null) {
-            SqlUtil.dealParm(this,1);
-        }else{
-            SqlUtil.dealParm(this,3);
+            SqlUtil.dealParm(this, 1);
+        } else {
+            SqlUtil.dealParm(this, 3);
         }
         return SqlUtil.dealParmToJdbc(this);
     }
+
     public JdbcItem jdbcCnt() {
-        SqlUtil.dealParm(this,2);
+        SqlUtil.dealParm(this, 2);
         return SqlUtil.dealParmToJdbc(this);
     }
 
     @Override
     public ME me() {
-        return (ME)this;
+        return (ME) this;
     }
 }

@@ -1,32 +1,28 @@
 package com.github.cocosoys.mc.soyshttpovermc.web;
-import lombok.CustomLog;
 
+import com.github.cocosoys.mc.soyshttpovermc.i18n.I18n;
 import com.github.cocosoys.mc.soyshttpovermc.util.AjaxResult;
 import com.github.cocosoys.mc.soyshttpovermc.util.ApiResponse;
 import com.github.cocosoys.mc.soyshttpovermc.util.HttpFrames;
-import com.github.cocosoys.mc.soyshttpovermc.i18n.I18n;
 import com.github.cocosoys.mc.soyshttpovermc.web.proto.FrameProto;
 import com.google.protobuf.ByteString;
+import lombok.CustomLog;
 
-import java.io.ByteArrayOutputStream;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.IOException;
-import java.io.InputStream;
+import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
 /**
  * 服务端 HTTP 处理器：把一次经 HTTP 后端送达的 HTTP 请求，路由为注解式 API 或静态资源。
- *
+ * <p>
  * 路由优先级：
- *  1) 注解式 API（@GetMapping 注册，如 /api/status、/api/ping、/api/auth/*）→ dispatch；
- *  2) /favicon.ico → 优先本地插件配置目录 web/favicon.ico（磁盘，可热替换），
- *     再 jar 内置 /dist/favicon.ico，仍缺失才 204 无内容；
- *  3) 插件登记网页（WebRegistry：第三方插件注册，默认 /plugins/&lt;插件名&gt; 前缀；
- *     支持强制代理、302/301 跳转与 .html 后缀智能匹配）；
- *  4) 静态资源：web.root 磁盘目录（含 .. 穿越防护）→ jar 内置 /dist/ → 404。
- *     无扩展名路径同时支持带/不带 .html（/login 与 /login.html 等价）。
+ * 1) 注解式 API（@GetMapping 注册，如 /api/status、/api/ping、/api/auth/*）→ dispatch；
+ * 2) /favicon.ico → 优先本地插件配置目录 web/favicon.ico（磁盘，可热替换），
+ * 再 jar 内置 /dist/favicon.ico，仍缺失才 204 无内容；
+ * 3) 插件登记网页（WebRegistry：第三方插件注册，默认 /plugins/&lt;插件名&gt; 前缀；
+ * 支持强制代理、302/301 跳转与 .html 后缀智能匹配）；
+ * 4) 静态资源：web.root 磁盘目录（含 .. 穿越防护）→ jar 内置 /dist/ → 404。
+ * 无扩展名路径同时支持带/不带 .html（/login 与 /login.html 等价）。
  *
  * <p>业务端点（票据登录 /api/auth/login|issue|mode、状态 /api/status 等）
  * 一律归属 spring 包（controller/service/impl 分层），经 {@link ApiRegistry} 注册分发；
@@ -39,17 +35,29 @@ public class WebFrontendHandler {
     private final String webRootCanonical;
     private final ApiRegistry apiRegistry; // 注解式 API 注册表（可为 null）
     private final WebRegistry webRegistry; // 插件登记网页（可为 null）
-    /** 首页解析器（web.home；null=未配置/禁用，走默认 index.html）；setHomeSpec 可热替换 */
+    /**
+     * 首页解析器（web.home；null=未配置/禁用，走默认 index.html）；setHomeSpec 可热替换
+     */
     private HomePageResolver homeResolver;
-    /** Web 内容存活缓存（常驻 pinned + LRU + 大文件加载器），null=禁用缓存 */
+    /**
+     * Web 内容存活缓存（常驻 pinned + LRU + 大文件加载器），null=禁用缓存
+     */
     private final WebContentCache webContent;
-    /** 大文件安全上限（超过直接 413；防单文件把内存打爆，默认 128MB） */
+    /**
+     * 大文件安全上限（超过直接 413；防单文件把内存打爆，默认 128MB）
+     */
     private final long largeFileMaxBytes;
-    /** CORS 声明注册中心（null=禁用） */
+    /**
+     * CORS 声明注册中心（null=禁用）
+     */
     private final CorsRegistry corsRegistry;
-    /** 请求级拦截器注册中心（null=禁用） */
+    /**
+     * 请求级拦截器注册中心（null=禁用）
+     */
     private final WebInterceptorRegistry interceptorRegistry;
-    /** 网络页内容缓存：path -> (bytes, contentType, cachedAt)（按 NetworkPage.cacheTtlSeconds 失效） */
+    /**
+     * 网络页内容缓存：path -> (bytes, contentType, cachedAt)（按 NetworkPage.cacheTtlSeconds 失效）
+     */
     private final java.util.concurrent.ConcurrentHashMap<String, NetworkCacheEntry> networkCache =
             new java.util.concurrent.ConcurrentHashMap<>();
 
@@ -139,7 +147,9 @@ public class WebFrontendHandler {
         return cors == null ? resp : corsRegistry.attach(cors, resp);
     }
 
-    /** 实际路由：注解式 API → favicon → 插件登记网页 → 静态资源。 */
+    /**
+     * 实际路由：注解式 API → favicon → 插件登记网页 → 静态资源。
+     */
     private FrameProto.HttpResponseFrame handleInner(String m, String rawPath, Map<String, String> headers, byte[] body) {
 
         // 1) 注解式 API 优先（@GetMapping 等注册的路由；业务端点一律归属 spring 包）
@@ -244,11 +254,15 @@ public class WebFrontendHandler {
         }
     }
 
-    /** 来源解析器复用池：key=来源描述（保证 URL 缓存/文件热替换语义跨调用生效）。 */
+    /**
+     * 来源解析器复用池：key=来源描述（保证 URL 缓存/文件热替换语义跨调用生效）。
+     */
     private final java.util.concurrent.ConcurrentHashMap<String, HomePageResolver> sourceResolvers =
             new java.util.concurrent.ConcurrentHashMap<>();
 
-    /** 网络页缓存条目。 */
+    /**
+     * 网络页缓存条目。
+     */
     private static final class NetworkCacheEntry {
         final byte[] bytes;
         final String contentType;
@@ -294,7 +308,9 @@ public class WebFrontendHandler {
                 .build();
     }
 
-    /** 404 响应帧（路径不存在）：优先伺服 dist/404.html 静态页 → webRegistry 自定义错误页（字节，非拼串）→ JSON 错误体。 */
+    /**
+     * 404 响应帧（路径不存在）：优先伺服 dist/404.html 静态页 → webRegistry 自定义错误页（字节，非拼串）→ JSON 错误体。
+     */
     private FrameProto.HttpResponseFrame notFound(String cleanPath) {
         byte[] page404 = readResource("/dist/404.html");
         if (page404 != null) {
@@ -319,7 +335,9 @@ public class WebFrontendHandler {
         return HttpFrames.jsonError(404, I18n.t("log.web.not-found", "资源不存在: {0}", cleanPath));
     }
 
-    /** 500 响应帧（支持自定义错误页 registerErrorPage(500)；否则 JSON 错误体，无 text/plain 例外）。 */
+    /**
+     * 500 响应帧（支持自定义错误页 registerErrorPage(500)；否则 JSON 错误体，无 text/plain 例外）。
+     */
     private FrameProto.HttpResponseFrame internalError(String path) {
         byte[] custom = webRegistry == null ? null : webRegistry.errorPage(500);
         if (custom != null) {
@@ -335,7 +353,10 @@ public class WebFrontendHandler {
     }
 
     // ===== 资源解析 =====
-    /** favicon 解析顺序：1) 本地插件配置目录 web/favicon.ico（磁盘，可热替换）→ 2) jar 内置 /dist/favicon.ico */
+
+    /**
+     * favicon 解析顺序：1) 本地插件配置目录 web/favicon.ico（磁盘，可热替换）→ 2) jar 内置 /dist/favicon.ico
+     */
     private byte[] resolveFavicon() {
         if (webRoot != null) {
             File f = new File(webRoot, "favicon.ico");
@@ -404,7 +425,9 @@ public class WebFrontendHandler {
         return null;
     }
 
-    /** 自定义首页（web.home）解析；未配置/失败返回 null（走默认 index.html）。 */
+    /**
+     * 自定义首页（web.home）解析；未配置/失败返回 null（走默认 index.html）。
+     */
     private Hit resolveHome() {
         if (homeResolver == null) return null;
         try {
@@ -417,12 +440,16 @@ public class WebFrontendHandler {
         }
     }
 
-    /** 经 Web 内容缓存取字节（无磁盘文件来源：注册页 / jar 资源）。 */
+    /**
+     * 经 Web 内容缓存取字节（无磁盘文件来源：注册页 / jar 资源）。
+     */
     private byte[] loadBytes(String path, java.util.function.Supplier<byte[]> loader) {
         return webContent == null ? safeGet(loader) : webContent.bytes(path, loader);
     }
 
-    /** 经 Web 内容缓存取字节（磁盘静态资源：支持 pinned / 大文件加载器 / LRU / 热替换失效）。 */
+    /**
+     * 经 Web 内容缓存取字节（磁盘静态资源：支持 pinned / 大文件加载器 / LRU / 热替换失效）。
+     */
     private byte[] loadBytes(String path, File file, java.util.function.Supplier<byte[]> loader) {
         return webContent == null ? safeGet(loader) : webContent.bytes(path, file, loader);
     }
@@ -435,7 +462,9 @@ public class WebFrontendHandler {
         }
     }
 
-    /** 命中的静态资源（文件名 + 字节内容 + 可选显式 Content-Type；ct=null 按扩展名推断）。 */
+    /**
+     * 命中的静态资源（文件名 + 字节内容 + 可选显式 Content-Type；ct=null 按扩展名推断）。
+     */
     private static final class Hit {
         final String name;
         final byte[] bytes;
@@ -452,7 +481,9 @@ public class WebFrontendHandler {
         }
     }
 
-    /** 路径最后一段是否含扩展名（无扩展名视为目录 → 找 index.html） */
+    /**
+     * 路径最后一段是否含扩展名（无扩展名视为目录 → 找 index.html）
+     */
     private static boolean hasExtension(String p) {
         String last = p;
         int slash = p.lastIndexOf('/');
@@ -488,7 +519,9 @@ public class WebFrontendHandler {
         return jsonResponse(code, json, null);
     }
 
-    /** 带附加响应头（如离线 cookie 升级的 Set-Cookie / X-Soys-New-Token）。 */
+    /**
+     * 带附加响应头（如离线 cookie 升级的 Set-Cookie / X-Soys-New-Token）。
+     */
     private static FrameProto.HttpResponseFrame jsonResponse(int code, String json, Map<String, String> extra) {
         FrameProto.HttpResponseFrame.Builder b = FrameProto.HttpResponseFrame.newBuilder()
                 .setStatusCode(code)
@@ -504,7 +537,9 @@ public class WebFrontendHandler {
         return b.build();
     }
 
-    /** 合并 ApiResponse 自带响应头与网关附加头（extra 优先，避免 Set-Cookie 冲突）。 */
+    /**
+     * 合并 ApiResponse 自带响应头与网关附加头（extra 优先，避免 Set-Cookie 冲突）。
+     */
     private static Map<String, String> mergeHeaders(Map<String, String> base, Map<String, String> extra) {
         if ((base == null || base.isEmpty()) && (extra == null || extra.isEmpty())) return null;
         Map<String, String> m = new java.util.HashMap<>();

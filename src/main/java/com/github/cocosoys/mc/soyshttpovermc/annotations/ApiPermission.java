@@ -19,6 +19,8 @@ import java.lang.annotation.Target;
 @Target({ElementType.METHOD, ElementType.TYPE})
 public @interface ApiPermission {
 
-    /** 权限标识，如 "system:user:list"；空串表示不设限 */
+    /**
+     * 权限标识，如 "system:user:list"；空串表示不设限
+     */
     String value() default "";
 }

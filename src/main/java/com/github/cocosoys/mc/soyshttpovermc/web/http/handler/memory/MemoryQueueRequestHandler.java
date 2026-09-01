@@ -6,11 +6,7 @@ import com.github.cocosoys.mc.soyshttpovermc.web.http.AbstractHttpRequestHandler
 import com.github.cocosoys.mc.soyshttpovermc.web.proto.FrameProto;
 
 import java.util.Map;
-import java.util.concurrent.ArrayBlockingQueue;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.*;
 
 /**
  * 内存队列模式：请求提交到有界 ArrayBlockingQueue，worker 线程从队列取任务处理。
@@ -79,7 +75,7 @@ public class MemoryQueueRequestHandler extends AbstractHttpRequestHandler {
 
     @Override
     protected FrameProto.HttpResponseFrame handleLocal(String method, String path,
-                                                          Map<String, String> headers, byte[] body)
+                                                       Map<String, String> headers, byte[] body)
             throws Exception {
         CompletableFuture<FrameProto.HttpResponseFrame> future = new CompletableFuture<>();
         Task task = new Task(method, path, headers, body, future);

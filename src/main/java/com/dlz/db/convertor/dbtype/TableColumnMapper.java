@@ -1,9 +1,7 @@
 package com.dlz.db.convertor.dbtype;
 
-import com.dlz.db.core.ISqlExecutor;
 import com.dlz.db.support.PojoCache;
 import com.dlz.kit.util.ValUtil;
-import lombok.AllArgsConstructor;
 
 import java.sql.Types;
 import java.util.Locale;
@@ -16,7 +14,7 @@ public class TableColumnMapper implements ITableColumnMapper {
         Map<String, Integer> map = PojoCache.getTableColumnsInfo(tableName);
         if (map != null) {
             Integer dbClass = map.get(columnName.toUpperCase(Locale.ROOT));
-            if(dbClass==null){
+            if (dbClass == null) {
                 return value;
             }
             return cover(dbClass, value);
@@ -29,8 +27,8 @@ public class TableColumnMapper implements ITableColumnMapper {
         switch (dbClass) {
             // 整数族：统一 Long，避免 Integer 溢出问题，也避免 BigDecimal 的 overkill
             case Types.TINYINT:
-                if(obj instanceof Boolean){
-                    return (Boolean)obj ? 1 : 0;
+                if (obj instanceof Boolean) {
+                    return (Boolean) obj ? 1 : 0;
                 }
                 return ValUtil.toInt(obj);
             case Types.SMALLINT:

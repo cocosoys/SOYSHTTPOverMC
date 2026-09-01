@@ -27,7 +27,9 @@ import java.util.regex.Pattern;
  */
 @Slf4j
 public class SqlUtil {
-    private SqlUtil(){}
+    private SqlUtil() {
+    }
+
     /**
      * 参数匹配符：如  ?
      */

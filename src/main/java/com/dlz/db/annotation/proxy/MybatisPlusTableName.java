@@ -6,6 +6,7 @@ import java.lang.reflect.Method;
 public class MybatisPlusTableName {
     private final Class<Annotation> idTypeAnnotation;
     private final Method valueMethod;
+
     protected MybatisPlusTableName() {
         Class<Annotation> idType1;
         Method valueMethodTmp;
@@ -25,8 +26,8 @@ public class MybatisPlusTableName {
         valueMethod = valueMethodTmp;
     }
 
-    public String value(Class<?> field){
-        if (field == null||idTypeAnnotation==null){
+    public String value(Class<?> field) {
+        if (field == null || idTypeAnnotation == null) {
             return null;
         }
         if (field.isAnnotationPresent(idTypeAnnotation)) {

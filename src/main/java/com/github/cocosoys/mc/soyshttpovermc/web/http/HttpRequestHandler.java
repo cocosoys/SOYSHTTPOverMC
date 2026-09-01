@@ -35,10 +35,15 @@ public interface HttpRequestHandler {
     FrameProto.HttpResponseFrame handle(String method, String path, Map<String, String> headers, byte[] body)
             throws Exception;
 
-    /** 关闭后端处理器，释放资源（线程池、连接等）。 */
-    default void shutdown() {}
+    /**
+     * 关闭后端处理器，释放资源（线程池、连接等）。
+     */
+    default void shutdown() {
+    }
 
-    /** 后端模式名称（用于日志和状态显示）。 */
+    /**
+     * 后端模式名称（用于日志和状态显示）。
+     */
     String name();
 
     /**

@@ -1,62 +1,54 @@
 package com.github.cocosoys.mc.soyshttpovermc;
 
+import com.github.cocosoys.mc.soyshttpovermc.api.ReloadHttpConfigHandler;
+import com.github.cocosoys.mc.soyshttpovermc.api.event.HttpConfigReloadEvent;
 import com.github.cocosoys.mc.soyshttpovermc.api.event.SoysReadyEvent;
+import com.github.cocosoys.mc.soyshttpovermc.api.impl.SoysHttpOverMcApiImpl;
+import com.github.cocosoys.mc.soyshttpovermc.command.SoysHttpCommand;
+import com.github.cocosoys.mc.soyshttpovermc.config.ConfigManager;
 import com.github.cocosoys.mc.soyshttpovermc.config.EulaConfig;
 import com.github.cocosoys.mc.soyshttpovermc.config.LanguageConfig;
+import com.github.cocosoys.mc.soyshttpovermc.config.PagesConfig;
+import com.github.cocosoys.mc.soyshttpovermc.enums.ProxyPlatform;
+import com.github.cocosoys.mc.soyshttpovermc.event.ApiLifecycleListener;
+import com.github.cocosoys.mc.soyshttpovermc.event.GatewayEventListener;
+import com.github.cocosoys.mc.soyshttpovermc.i18n.I18n;
+import com.github.cocosoys.mc.soyshttpovermc.log.LogKit;
 import com.github.cocosoys.mc.soyshttpovermc.orm.YAML;
 import com.github.cocosoys.mc.soyshttpovermc.orm.executor.SqlBackendExecutor;
+import com.github.cocosoys.mc.soyshttpovermc.permission.CombinedPermissionService;
+import com.github.cocosoys.mc.soyshttpovermc.proxy.ProxyDetector;
+import com.github.cocosoys.mc.soyshttpovermc.spring.controller.AuthController;
+import com.github.cocosoys.mc.soyshttpovermc.spring.controller.StatusController;
+import com.github.cocosoys.mc.soyshttpovermc.spring.controller.SystemController;
+import com.github.cocosoys.mc.soyshttpovermc.spring.impl.AuthServiceImpl;
+import com.github.cocosoys.mc.soyshttpovermc.spring.impl.StatusServiceImpl;
+import com.github.cocosoys.mc.soyshttpovermc.spring.impl.SystemServiceImpl;
+import com.github.cocosoys.mc.soyshttpovermc.spring.service.IStatusService;
+import com.github.cocosoys.mc.soyshttpovermc.spring.service.ISystemService;
 import com.github.cocosoys.mc.soyshttpovermc.storage.RecordSyncStorage;
 import com.github.cocosoys.mc.soyshttpovermc.storage.StorageManager;
 import com.github.cocosoys.mc.soyshttpovermc.storage.SyncStorage;
 import com.github.cocosoys.mc.soyshttpovermc.storage.impl.YamlStorage;
-import com.github.cocosoys.mc.soyshttpovermc.config.PagesConfig;
-import com.github.cocosoys.mc.soyshttpovermc.enums.ProxyPlatform;
 import com.github.cocosoys.mc.soyshttpovermc.web.*;
-import lombok.CustomLog;
-
-import com.github.cocosoys.mc.soyshttpovermc.log.LogKit;
-
-import com.github.cocosoys.mc.soyshttpovermc.command.SoysHttpCommand;
-import com.github.cocosoys.mc.soyshttpovermc.config.ConfigManager;
-import com.github.cocosoys.mc.soyshttpovermc.event.ApiLifecycleListener;
-import com.github.cocosoys.mc.soyshttpovermc.event.GatewayEventListener;
-
-import org.bukkit.configuration.ConfigurationSection;
-import org.bukkit.Bukkit;
-
-import com.github.cocosoys.mc.soyshttpovermc.api.ReloadHttpConfigHandler;
-import com.github.cocosoys.mc.soyshttpovermc.api.event.HttpConfigReloadEvent;
-import com.github.cocosoys.mc.soyshttpovermc.api.impl.SoysHttpOverMcApiImpl;
-import com.github.cocosoys.mc.soyshttpovermc.spring.impl.StatusServiceImpl;
-import com.github.cocosoys.mc.soyshttpovermc.spring.impl.SystemServiceImpl;
-import com.github.cocosoys.mc.soyshttpovermc.spring.controller.StatusController;
-import com.github.cocosoys.mc.soyshttpovermc.spring.controller.SystemController;
-import com.github.cocosoys.mc.soyshttpovermc.spring.controller.AuthController;
-import com.github.cocosoys.mc.soyshttpovermc.spring.impl.AuthServiceImpl;
-import com.github.cocosoys.mc.soyshttpovermc.spring.service.IStatusService;
-import com.github.cocosoys.mc.soyshttpovermc.spring.service.ISystemService;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.GatewayConfig;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.GatewayFilter;
-import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.tls.TlsContextFactory;
-import com.github.cocosoys.mc.soyshttpovermc.web.http.sniffer.SocketSniffer;
-import com.github.cocosoys.mc.soyshttpovermc.proxy.ProxyDetector;
-import com.github.cocosoys.mc.soyshttpovermc.web.http.HttpBackendMode;
-import com.github.cocosoys.mc.soyshttpovermc.web.http.HttpRequestHandler;
-import com.github.cocosoys.mc.soyshttpovermc.web.http.handler.direct.DirectRequestHandler;
-import com.github.cocosoys.mc.soyshttpovermc.web.http.handler.netty.NettyEventLoopRequestHandler;
-import com.github.cocosoys.mc.soyshttpovermc.web.http.handler.memory.MemoryQueueRequestHandler;
-import com.github.cocosoys.mc.soyshttpovermc.web.http.handler.standalone.StandaloneHttpServer;
-
-import com.github.cocosoys.mc.soyshttpovermc.proxy.ServerTag;
-import com.github.cocosoys.mc.soyshttpovermc.i18n.I18n;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.bridge.AuthLoginBridge;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.bridge.provider.AuthMeLoginProvider;
-import com.github.cocosoys.mc.soyshttpovermc.permission.PlayerPermissionService;
-import com.github.cocosoys.mc.soyshttpovermc.permission.CombinedPermissionService;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.bridge.spi.LoginProviderContext;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.bridge.spi.LoginProviderFactory;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.issuer.CredentialIssuer;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.issuer.SessionTokenIssuer;
+import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.tls.TlsContextFactory;
+import com.github.cocosoys.mc.soyshttpovermc.web.http.HttpBackendMode;
+import com.github.cocosoys.mc.soyshttpovermc.web.http.HttpRequestHandler;
+import com.github.cocosoys.mc.soyshttpovermc.web.http.handler.direct.DirectRequestHandler;
+import com.github.cocosoys.mc.soyshttpovermc.web.http.handler.memory.MemoryQueueRequestHandler;
+import com.github.cocosoys.mc.soyshttpovermc.web.http.handler.netty.NettyEventLoopRequestHandler;
+import com.github.cocosoys.mc.soyshttpovermc.web.http.handler.standalone.StandaloneHttpServer;
+import com.github.cocosoys.mc.soyshttpovermc.web.http.sniffer.SocketSniffer;
+import lombok.CustomLog;
+import org.bukkit.configuration.ConfigurationSection;
 
 import javax.net.ssl.SSLEngine;
 import java.io.File;
@@ -74,7 +66,9 @@ import java.util.function.Supplier;
 public class HttpOverMcPluginProxy {
 
     private final HttpOverMcPlugin plugin;
-    /** 组合权限服务（多权限插件组合判断，含离线权限查询能力）。 */
+    /**
+     * 组合权限服务（多权限插件组合判断，含离线权限查询能力）。
+     */
     private volatile CombinedPermissionService combinedPermissionService;
 
     public HttpOverMcPluginProxy(HttpOverMcPlugin plugin) {
@@ -83,7 +77,9 @@ public class HttpOverMcPluginProxy {
 
     // ===== 生命周期入口（由上帝类 onEnable/onDisable 委托调用） =====
 
-    /** onEnable 业务流程（不含 instance 赋值，由上帝类处理）。 */
+    /**
+     * onEnable 业务流程（不含 instance 赋值，由上帝类处理）。
+     */
     public void onEnable() {
         // 0) EULA 使用/开发协议校验
         plugin.setEulaConfig(ConfigManager.initEulaConfig(plugin));
@@ -159,7 +155,9 @@ public class HttpOverMcPluginProxy {
         logStartup(webRoot);
     }
 
-    /** onDisable 业务流程（不含 instance 清空，由上帝类处理）。 */
+    /**
+     * onDisable 业务流程（不含 instance 清空，由上帝类处理）。
+     */
     public void onDisable() {
         LoginProviderFactory.shutdownAll();
         plugin.setLoginProvider(null);
@@ -169,12 +167,14 @@ public class HttpOverMcPluginProxy {
         if (plugin.getStandaloneServer() != null) {
             try {
                 plugin.getStandaloneServer().shutdown();
-            } catch (Throwable ignored) {}
+            } catch (Throwable ignored) {
+            }
         }
         if (plugin.getHttpBackend() != null) {
             try {
                 plugin.getHttpBackend().shutdown();
-            } catch (Throwable ignored) {}
+            } catch (Throwable ignored) {
+            }
         }
         if (plugin.getSyncStorage() != null) {
             try {
@@ -195,13 +195,17 @@ public class HttpOverMcPluginProxy {
 
     // ===== 配置 / 状态查询（public，外部经 getDelegate() 调用） =====
 
-    /** language.yml 配置对象（国际化：current/rule/sources）；reload 时由 ConfigManager 重新装配。 */
+    /**
+     * language.yml 配置对象（国际化：current/rule/sources）；reload 时由 ConfigManager 重新装配。
+     */
     public org.bukkit.configuration.file.YamlConfiguration getLanguageConfig() {
         LanguageConfig cfg = plugin.getLanguageConfig();
         return cfg == null ? null : cfg.raw();
     }
 
-    /** 持久化 language.yml（切换语言 / 修改语言源后调用）。 */
+    /**
+     * 持久化 language.yml（切换语言 / 修改语言源后调用）。
+     */
     public void saveLanguageConfig() {
         LanguageConfig cfg = plugin.getLanguageConfig();
         if (cfg != null) cfg.save(plugin);
@@ -214,13 +218,17 @@ public class HttpOverMcPluginProxy {
         plugin.setPagesConfig(ConfigManager.initPagesConfig(plugin));
     }
 
-    /** pages.yml 配置对象（web.* 段 / pages 段统一在此；可能为 null=文件落盘失败）。 */
+    /**
+     * pages.yml 配置对象（web.* 段 / pages 段统一在此；可能为 null=文件落盘失败）。
+     */
     public org.bukkit.configuration.file.YamlConfiguration getPagesConfig() {
         PagesConfig cfg = plugin.getPagesConfig();
         return cfg == null ? null : cfg.raw();
     }
 
-    /** 读取 pages.yml web.* 配置项（如 web.home / web.root / web.cache.max-bytes）。缺省返回默认值。 */
+    /**
+     * 读取 pages.yml web.* 配置项（如 web.home / web.root / web.cache.max-bytes）。缺省返回默认值。
+     */
     public String webConfig(String path, String def) {
         PagesConfig cfg = plugin.getPagesConfig();
         return cfg == null ? def : cfg.web(path, def);
@@ -242,12 +250,16 @@ public class HttpOverMcPluginProxy {
         if (handler != null) plugin.getReloadHooks().add(handler);
     }
 
-    /** HTTPS（TLS 引擎）是否可用 */
+    /**
+     * HTTPS（TLS 引擎）是否可用
+     */
     public boolean isTlsEnabled() {
         return plugin.getTlsFactory() != null;
     }
 
-    /** 本服存储标识（群组服=server-name；独立服=standalone-&lt;host&gt;:&lt;port&gt;）。 */
+    /**
+     * 本服存储标识（群组服=server-name；独立服=standalone-&lt;host&gt;:&lt;port&gt;）。
+     */
     public String storageServerId() {
         if (plugin.getProxyPlatform() != ProxyPlatform.STANDALONE
                 && plugin.getServerName() != null && !plugin.getServerName().isEmpty()) {
@@ -256,12 +268,16 @@ public class HttpOverMcPluginProxy {
         return "standalone-" + getMcHost() + ":" + getMcPort();
     }
 
-    /** 手动上报入口（/soyshttp report）。 */
+    /**
+     * 手动上报入口（/soyshttp report）。
+     */
     public void reportContribution() {
         uploadContribution();
     }
 
-    /** /soyshttp reload：热重载日志级别 + 网关策略与 TLS 配置 + 存储后端。 */
+    /**
+     * /soyshttp reload：热重载日志级别 + 网关策略与 TLS 配置 + 存储后端。
+     */
     public void reloadHttpConfig() {
         plugin.reloadConfig();
         initLanguageConfig();
@@ -303,15 +319,19 @@ public class HttpOverMcPluginProxy {
 
     // ===== 本服地址 / 拓扑查询（原 public，有逻辑，移至代理类） =====
 
-    /** 本服对外 host：优先 config.yml 的 {@code mc.public-host}，
-     *  否则 {@code mc.host}，再回退 server.properties 的 server-ip → 127.0.0.1。 */
+    /**
+     * 本服对外 host：优先 config.yml 的 {@code mc.public-host}，
+     * 否则 {@code mc.host}，再回退 server.properties 的 server-ip → 127.0.0.1。
+     */
     public String getMcHost() {
         return ConfigManager.resolveMcPublicHost(plugin,
                 plugin.getConfig().getString("mc.host", ""), plugin.getConfig().getString("mc.public-host", ""));
     }
 
-    /** 本服对外 port：优先 config.yml 的 {@code mc.public-port}，
-     *  否则 {@code mc.port}，再回退 server.properties 的 server-port → 运行期端口。 */
+    /**
+     * 本服对外 port：优先 config.yml 的 {@code mc.public-port}，
+     * 否则 {@code mc.port}，再回退 server.properties 的 server-port → 运行期端口。
+     */
     public int getMcPort() {
         return ConfigManager.resolveMcPublicPort(plugin,
                 plugin.getConfig().getInt("mc.port", 0), plugin.getConfig().getInt("mc.public-port", 0));
@@ -319,7 +339,9 @@ public class HttpOverMcPluginProxy {
 
     // ===== private 初始化方法 =====
 
-    /** 解析 ORM（YAML 后端）实体数据存放目录。 */
+    /**
+     * 解析 ORM（YAML 后端）实体数据存放目录。
+     */
     private File resolveYamlOrmDir() {
         String fileCfg = plugin.getConfig().getString("storage.backends.yaml.file", "data");
         File dir = YamlStorage.resolveDir(plugin, fileCfg);
@@ -329,7 +351,9 @@ public class HttpOverMcPluginProxy {
         return dir;
     }
 
-    /** 装配 Web 内容缓存（pages.yml web.cache.* / web.large-file-*）。 */
+    /**
+     * 装配 Web 内容缓存（pages.yml web.cache.* / web.large-file-*）。
+     */
     private void initWebCache() {
         try {
             long cacheMaxBytes = Long.parseLong(webConfig("web.cache.max-bytes", null));
@@ -356,7 +380,9 @@ public class HttpOverMcPluginProxy {
         }
     }
 
-    /** 装配多后端数据存储。 */
+    /**
+     * 装配多后端数据存储。
+     */
     private void initStorage() {
         StorageManager manager = null;
         try {
@@ -385,7 +411,9 @@ public class HttpOverMcPluginProxy {
         }
     }
 
-    /** 解析 JWT 密钥。 */
+    /**
+     * 解析 JWT 密钥。
+     */
     private byte[] resolveJwtSecret() {
         byte[] local = ConfigManager.loadOrCreateTokenSecret(plugin);
         SyncStorage s = plugin.getSyncStorage();
@@ -400,7 +428,9 @@ public class HttpOverMcPluginProxy {
         return local;
     }
 
-    /** 数据贡献自动上报（受 upload.enabled 开关控制）。 */
+    /**
+     * 数据贡献自动上报（受 upload.enabled 开关控制）。
+     */
     private void handleUploadContribution() {
         if (!plugin.getConfig().getBoolean("upload.enabled", false)) {
             return;
@@ -433,12 +463,16 @@ public class HttpOverMcPluginProxy {
         });
     }
 
-    /** 装配国际化环境（language.yml）。 */
+    /**
+     * 装配国际化环境（language.yml）。
+     */
     private void initLanguageConfig() {
         plugin.setLanguageConfig(ConfigManager.initLanguageConfig(plugin));
     }
 
-    /** 从 config.yml 读取核心运行参数。 */
+    /**
+     * 从 config.yml 读取核心运行参数。
+     */
     private void loadCoreConfig() {
         // 读取 HTTP 后端模式
         HttpBackendMode backendMode = HttpBackendMode.from(plugin.getConfig().getString("http-backend.mode", "netty-eventloop"));
@@ -454,7 +488,9 @@ public class HttpOverMcPluginProxy {
         plugin.setMaxBody(plugin.getConfig().getInt("sniffer.max-body-bytes", 8 * 1024 * 1024));
     }
 
-    /** 初始化注解式 API 框架。 */
+    /**
+     * 初始化注解式 API 框架。
+     */
     private void initApiFramework(File gatewayDir) {
         ConfigurationSection gwCfg = GatewayConfig.loadYml(new File(gatewayDir, "config.yml"));
         String apiPrefix = gwCfg == null ? "/api" : gwCfg.getString("api-prefix", "/api");
@@ -484,7 +520,9 @@ public class HttpOverMcPluginProxy {
         plugin.getApiRegistry().register(new AuthController(plugin.getAuthService()));
     }
 
-    /** 装配网页登录接入（登录插件 SPI）。 */
+    /**
+     * 装配网页登录接入（登录插件 SPI）。
+     */
     private void setupAuthIntegration() {
         plugin.setAuthLoginBridge(null);
         if (plugin.getApiRegistry() != null) {
@@ -531,13 +569,17 @@ public class HttpOverMcPluginProxy {
                 plugin.getLoginProvider().name(), plugin.getLoginProvider().displayName());
     }
 
-    /** 构造对外集成门面。 */
+    /**
+     * 构造对外集成门面。
+     */
     private void initApiImpl() {
         plugin.setApi(new SoysHttpOverMcApiImpl(plugin, plugin.getApiRegistry(), plugin.getWebRegistry(),
                 plugin.getGateway(), plugin.getLargeFileLoaderRegistry(), plugin.getCorsRegistry()));
     }
 
-    /** 装配统计 / 状态 API / 前端处理器；返回统计实例供嗅探器复用。 */
+    /**
+     * 装配统计 / 状态 API / 前端处理器；返回统计实例供嗅探器复用。
+     */
     private RequestStats initFrontend(File webRoot) {
         RequestStats stats = new RequestStats();
         IStatusService statusService = new StatusServiceImpl(stats, plugin.getMcPort());
@@ -554,7 +596,9 @@ public class HttpOverMcPluginProxy {
         return stats;
     }
 
-    /** 启动 HTTP 服务：同端口嗅探模式安装 SocketSniffer，独立服务器模式启动 StandaloneHttpServer。 */
+    /**
+     * 启动 HTTP 服务：同端口嗅探模式安装 SocketSniffer，独立服务器模式启动 StandaloneHttpServer。
+     */
     private void initSniffer(RequestStats stats) {
         // 读取 HTTP 后端模式
         String modeStr = plugin.getConfig().getString("http-backend.mode", "netty-eventloop");
@@ -587,7 +631,9 @@ public class HttpOverMcPluginProxy {
         plugin.getSniffer().install();
     }
 
-    /** 启动独立 HTTP 服务器（standalone-server 模式）。 */
+    /**
+     * 启动独立 HTTP 服务器（standalone-server 模式）。
+     */
     private void initStandaloneServer(HttpRequestHandler handler, RequestStats stats) {
         String host = getBackendString("standalone-server", "host", "standalone-host", "0.0.0.0");
         int port = getBackendInt("standalone-server", "port", "standalone-port", 25565);
@@ -604,7 +650,9 @@ public class HttpOverMcPluginProxy {
         }
     }
 
-    /** 根据模式创建对应的 HTTP 后端处理器。配置结构：http-backend.<mode>.<key>（向后兼容旧的扁平结构）。 */
+    /**
+     * 根据模式创建对应的 HTTP 后端处理器。配置结构：http-backend.<mode>.<key>（向后兼容旧的扁平结构）。
+     */
     private HttpRequestHandler createHttpBackend(HttpBackendMode mode) {
         switch (mode) {
             case NETTY_EVENTLOOP: {
@@ -636,7 +684,9 @@ public class HttpOverMcPluginProxy {
         return plugin.getConfig().getInt(legacy, def);
     }
 
-    /** 读取 HTTP 后端字符串配置（分层结构优先，回退旧结构）。 */
+    /**
+     * 读取 HTTP 后端字符串配置（分层结构优先，回退旧结构）。
+     */
     private String getBackendString(String mode, String key, String legacyKey, String def) {
         String layered = "http-backend." + mode + "." + key;
         if (plugin.getConfig().contains(layered)) {
@@ -646,12 +696,16 @@ public class HttpOverMcPluginProxy {
         return plugin.getConfig().getString(legacy, def);
     }
 
-    /** TLS 服务端引擎供应器（无 TLS 工厂时返回 null）。 */
+    /**
+     * TLS 服务端引擎供应器（无 TLS 工厂时返回 null）。
+     */
     private Supplier<SSLEngine> getTlsEngineSupplier() {
         return plugin.getTlsFactory() == null ? null : plugin.getTlsFactory()::newServerEngine;
     }
 
-    /** 装配 /soyshttp 与简写 /shttp 命令。 */
+    /**
+     * 装配 /soyshttp 与简写 /shttp 命令。
+     */
     private void initCommand() {
         SoysHttpCommand cmd = new SoysHttpCommand(plugin);
         plugin.setCommand(cmd);
@@ -665,7 +719,9 @@ public class HttpOverMcPluginProxy {
         }
     }
 
-    /** 启动 Banner。 */
+    /**
+     * 启动 Banner。
+     */
     private void printStartupBanner() {
         String[] lines = {
                 "█   █ █████ █████ ████       ███  █   █ ████  ████      █   █  ███",
@@ -679,7 +735,9 @@ public class HttpOverMcPluginProxy {
         }
     }
 
-    /** 启动完成日志。 */
+    /**
+     * 启动完成日志。
+     */
     private void logStartup(File webRoot) {
         printStartupBanner();
         log.infoT("log.plugin.startup",
@@ -693,7 +751,9 @@ public class HttpOverMcPluginProxy {
                 plugin.getMcPort());
     }
 
-    /** 从 gateway/ 目录重建网关（策略链 + TLS + debug-events 开关）。 */
+    /**
+     * 从 gateway/ 目录重建网关（策略链 + TLS + debug-events 开关）。
+     */
     private void rebuildGateway(File gatewayDir) {
         plugin.setGateway(null);
         plugin.setTlsFactory(null);

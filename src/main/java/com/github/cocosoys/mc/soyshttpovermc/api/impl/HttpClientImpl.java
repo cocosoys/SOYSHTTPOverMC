@@ -1,13 +1,12 @@
 package com.github.cocosoys.mc.soyshttpovermc.api.impl;
-import com.github.cocosoys.mc.soyshttpovermc.enums.ProxyPlatform;
 
-import com.github.cocosoys.mc.soyshttpovermc.web.ApiRegistry;
-import com.github.cocosoys.mc.soyshttpovermc.web.HttpResponse;
 import com.github.cocosoys.mc.soyshttpovermc.HttpOverMcPlugin;
 import com.github.cocosoys.mc.soyshttpovermc.api.HttpClientApi;
+import com.github.cocosoys.mc.soyshttpovermc.enums.ProxyPlatform;
 import com.github.cocosoys.mc.soyshttpovermc.exception.ExceptionBus;
 import com.github.cocosoys.mc.soyshttpovermc.exception.HttpClientException;
-
+import com.github.cocosoys.mc.soyshttpovermc.web.ApiRegistry;
+import com.github.cocosoys.mc.soyshttpovermc.web.HttpResponse;
 import org.bukkit.Bukkit;
 import org.bukkit.plugin.Plugin;
 
@@ -88,16 +87,24 @@ public class HttpClientImpl implements HttpClientApi {
     }
 
     @Override
-    public HttpResponse sendGet(String url) { return sendHttp("GET", url, null, null); }
+    public HttpResponse sendGet(String url) {
+        return sendHttp("GET", url, null, null);
+    }
 
     @Override
-    public HttpResponse sendGet(String url, Map<String, String> headers) { return sendHttp("GET", url, headers, null); }
+    public HttpResponse sendGet(String url, Map<String, String> headers) {
+        return sendHttp("GET", url, headers, null);
+    }
 
     @Override
-    public HttpResponse sendPost(String url, byte[] body) { return sendHttp("POST", url, null, body); }
+    public HttpResponse sendPost(String url, byte[] body) {
+        return sendHttp("POST", url, null, body);
+    }
 
     @Override
-    public HttpResponse sendPost(String url, Map<String, String> headers, byte[] body) { return sendHttp("POST", url, headers, body); }
+    public HttpResponse sendPost(String url, Map<String, String> headers, byte[] body) {
+        return sendHttp("POST", url, headers, body);
+    }
 
     // ===== 本地回环 =====
 

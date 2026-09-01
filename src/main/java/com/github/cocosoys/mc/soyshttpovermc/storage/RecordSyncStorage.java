@@ -1,4 +1,5 @@
 package com.github.cocosoys.mc.soyshttpovermc.storage;
+
 import com.github.cocosoys.mc.soyshttpovermc.enums.StorageType;
 import lombok.CustomLog;
 
@@ -29,7 +30,9 @@ public class RecordSyncStorage implements SyncStorage {
     private static final String T_META = "META";
 
     private final StorageManager manager;
-    /** 黑名单命中缓存：jti -> 缓存到期时间（仅缓存「已注销」肯定结果）。 */
+    /**
+     * 黑名单命中缓存：jti -> 缓存到期时间（仅缓存「已注销」肯定结果）。
+     */
     private final Map<String, Long> revokedCache = new ConcurrentHashMap<>();
     private static final long CACHE_TTL_MS = 5_000;
 

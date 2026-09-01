@@ -47,14 +47,18 @@ public class PlayerPermissionService implements PermissionService {
         return Bukkit.getOfflinePlayer(player).isOp();
     }
 
-    /** 解析凭证绑定的玩家名（token/cookie → 玩家；无会话颁发器/非玩家令牌返回 null）。供 API 访问事件用。 */
+    /**
+     * 解析凭证绑定的玩家名（token/cookie → 玩家；无会话颁发器/非玩家令牌返回 null）。供 API 访问事件用。
+     */
     public String subjectOf(CredentialPresentation credential) {
         if (credential == null) return null;
         SessionTokenIssuer issuer = findSessionIssuer();
         return issuer == null ? null : issuer.subjectOf(credential);
     }
 
-    /** 从网关已启用的颁发器中找到会话令牌颁发器（用于解析令牌→玩家）。 */
+    /**
+     * 从网关已启用的颁发器中找到会话令牌颁发器（用于解析令牌→玩家）。
+     */
     private SessionTokenIssuer findSessionIssuer() {
         if (gateway == null) return null;
         for (CredentialIssuer i : gateway.getIssuers()) {

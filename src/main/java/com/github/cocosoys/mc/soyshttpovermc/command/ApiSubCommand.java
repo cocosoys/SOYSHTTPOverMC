@@ -1,12 +1,11 @@
 package com.github.cocosoys.mc.soyshttpovermc.command;
 
-import org.bukkit.command.CommandSender;
-
 import com.github.cocosoys.mc.soyshttpovermc.HttpOverMcPlugin;
-import com.github.cocosoys.mc.soyshttpovermc.web.ApiRegistry;
 import com.github.cocosoys.mc.soyshttpovermc.api.event.ApiInfo;
 import com.github.cocosoys.mc.soyshttpovermc.i18n.I18n;
 import com.github.cocosoys.mc.soyshttpovermc.util.StringListUtil;
+import com.github.cocosoys.mc.soyshttpovermc.web.ApiRegistry;
+import org.bukkit.command.CommandSender;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -41,8 +40,8 @@ public class ApiSubCommand extends SubCommand {
     public String detail() {
         return I18n.t("command.api.detail",
                 "/soyshttp api [插件名] —— 查看已注册的注解式 API 端点（便于开发者自查路由）。\n"
-                + "  无参数      列出全部端点（HTTP 方法 + 路径 + 端点名 + 所属插件 + 所需权限）。\n"
-                + "  <插件名>    仅列出该插件注册的端点。");
+                        + "  无参数      列出全部端点（HTTP 方法 + 路径 + 端点名 + 所属插件 + 所需权限）。\n"
+                        + "  <插件名>    仅列出该插件注册的端点。");
     }
 
     @Override

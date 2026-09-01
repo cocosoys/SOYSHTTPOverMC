@@ -1,9 +1,9 @@
 package com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy;
 
-import org.bukkit.configuration.ConfigurationSection;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.GatewayContext;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.PolicyResult;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.SecurityPolicy;
+import org.bukkit.configuration.ConfigurationSection;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -72,7 +72,9 @@ public class IpAllowlistPolicy extends SecurityPolicy {
         return ctx.getSocketIp();
     }
 
-    /** IPv4 精确地址或 CIDR 段（a.b.c.d/n，n=0..32） */
+    /**
+     * IPv4 精确地址或 CIDR 段（a.b.c.d/n，n=0..32）
+     */
     private static final class Cidr {
         final int base;
         final int mask;

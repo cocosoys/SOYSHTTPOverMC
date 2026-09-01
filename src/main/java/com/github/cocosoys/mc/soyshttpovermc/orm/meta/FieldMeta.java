@@ -35,7 +35,9 @@ public class FieldMeta {
         return ignored;
     }
 
-    /** 是否为标量类型（YAML 直接存标量 / SQL 直接映射列）；否则为嵌套类型（YAML Section / SQL JSON）。 */
+    /**
+     * 是否为标量类型（YAML 直接存标量 / SQL 直接映射列）；否则为嵌套类型（YAML Section / SQL JSON）。
+     */
     public boolean isScalar() {
         Class<?> t = type;
         return t == String.class || t == Integer.class || t == int.class
@@ -44,7 +46,9 @@ public class FieldMeta {
                 || t == java.util.Date.class || t.isEnum();
     }
 
-    /** 表主键标识（@TableId 存在与否；供 PojoMeta 主键检索）。 */
+    /**
+     * 表主键标识（@TableId 存在与否；供 PojoMeta 主键检索）。
+     */
     boolean annotatedId() {
         return field.getAnnotation(TableId.class) != null;
     }

@@ -98,7 +98,7 @@ public class DbConvertUtil {
     }
 
     public static String toDbColumnName(String beanKey) {
-        if(beanKey==null || beanKey.isEmpty()){
+        if (beanKey == null || beanKey.isEmpty()) {
             return beanKey;
         }
         return SqlRunThreadHolder.getColumnNameConvertor(defaultColumnMapper).toDbColumnName(beanKey).toUpperCase(Locale.ROOT);

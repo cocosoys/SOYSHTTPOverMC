@@ -1,9 +1,9 @@
 package com.github.cocosoys.mc.soyshttpovermc.api;
 
-import com.github.cocosoys.mc.soyshttpovermc.web.gateway.SecurityPolicy;
 import com.github.cocosoys.mc.soyshttpovermc.command.SubCommand;
-import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.bridge.spi.LoginProvider;
 import com.github.cocosoys.mc.soyshttpovermc.web.WebInterceptor;
+import com.github.cocosoys.mc.soyshttpovermc.web.gateway.SecurityPolicy;
+import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.bridge.spi.LoginProvider;
 
 /**
  * 能力组 8：扩展接入（登录插件提供者 / /soyshttp 子指令）。
@@ -23,10 +23,14 @@ import com.github.cocosoys.mc.soyshttpovermc.web.WebInterceptor;
  */
 public interface ExtensionApi {
 
-    /** 注册登录插件提供者（LoginProvider SPI；建议在检测到对应插件已加载后调用）。 */
+    /**
+     * 注册登录插件提供者（LoginProvider SPI；建议在检测到对应插件已加载后调用）。
+     */
     void registerLoginProvider(LoginProvider provider);
 
-    /** 注册 /soyshttp 子指令（需在宿主 onEnable 完成后调用，否则命令未初始化会抛异常）。 */
+    /**
+     * 注册 /soyshttp 子指令（需在宿主 onEnable 完成后调用，否则命令未初始化会抛异常）。
+     */
     void registerSubCommand(SubCommand subCommand);
 
     /**

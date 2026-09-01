@@ -25,15 +25,19 @@ import java.util.List;
  * <p>{@code IConvertorToFieldName} 参数用于本次查询临时覆盖默认"列名→属性名"转换策略
  * （例如禁用下划线转驼峰），仅作用于当前线程本次调用。
  */
-public interface IExecutorQuery<ME extends IExecutorQuery> extends ISqlPara ,IChained<ME>{
-    /** 当前绑定的分页对象（由分页构造器设置）。 */
+public interface IExecutorQuery<ME extends IExecutorQuery> extends ISqlPara, IChained<ME> {
+    /**
+     * 当前绑定的分页对象（由分页构造器设置）。
+     */
     Page<?> getPage();
 
-    /** 由分页构造器调用，注入分页对象。业务代码通常不直接调用。 */
+    /**
+     * 由分页构造器调用，注入分页对象。业务代码通常不直接调用。
+     */
     void setPage(Page<?> page);
 
     default ME convert(IConvertorToFieldName convertor) {
-        if(convertor != null){
+        if (convertor != null) {
             SqlRunThreadHolder.setConvertorToFieldName(convertor);
         }
         return me();
@@ -59,17 +63,21 @@ public interface IExecutorQuery<ME extends IExecutorQuery> extends ISqlPara ,ICh
      * <pre>ResultMap row = ...queryOne();</pre>
      */
     default ResultMap queryOne() {
-        return DBHolder.doDb(s->s.getMap(this));
+        return DBHolder.doDb(s -> s.getMap(this));
     }
 
-    /** 查询列表，返回 {@link ResultMap} 列表。 */
+    /**
+     * 查询列表，返回 {@link ResultMap} 列表。
+     */
     default List<ResultMap> queryList() {
-        return DBHolder.doDb(s->s.getMapList(this));
+        return DBHolder.doDb(s -> s.getMapList(this));
     }
 
-    /** 分页查询，返回 {@link ResultMap} 分页（附带总数、页号等）。 */
+    /**
+     * 分页查询，返回 {@link ResultMap} 分页（附带总数、页号等）。
+     */
     default Page<ResultMap> queryPage() {
-        return DBHolder.doDb(s->s.getPage(this));
+        return DBHolder.doDb(s -> s.getPage(this));
     }
 
     /**
@@ -77,60 +85,80 @@ public interface IExecutorQuery<ME extends IExecutorQuery> extends ISqlPara ,ICh
      * <pre>User u = ...queryOne(User.class);</pre>
      */
     default <T> T queryOne(Class<T> tClass) {
-        return DBHolder.doDb(s->s.getBean(this,tClass));
+        return DBHolder.doDb(s -> s.getBean(this, tClass));
     }
 
-    /** 查询列表并映射为指定 Bean 列表。 */
+    /**
+     * 查询列表并映射为指定 Bean 列表。
+     */
     default <T> List<T> queryList(Class<T> tClass) {
-        return DBHolder.doDb(s->s.getBeanList(this,tClass));
+        return DBHolder.doDb(s -> s.getBeanList(this, tClass));
     }
 
-    /** 分页查询并映射为指定 Bean 分页。 */
+    /**
+     * 分页查询并映射为指定 Bean 分页。
+     */
     default <T> Page<T> queryPage(Class<T> tClass) {
-        return DBHolder.doDb(s->s.getPage(this,tClass));
+        return DBHolder.doDb(s -> s.getPage(this, tClass));
     }
 
 
-    /** 查询单值字符串（通常 SELECT 单列单行）。 */
+    /**
+     * 查询单值字符串（通常 SELECT 单列单行）。
+     */
     default String queryStr() {
-        return DBHolder.doDb(s->s.getStr(this));
+        return DBHolder.doDb(s -> s.getStr(this));
     }
 
-    /** 查询字符串列表（单列多行）。 */
+    /**
+     * 查询字符串列表（单列多行）。
+     */
     default List<String> queryStrList() {
-        return DBHolder.doDb(s->s.getStrList(this));
+        return DBHolder.doDb(s -> s.getStrList(this));
     }
 
-    /** 查询单值 Long。 */
+    /**
+     * 查询单值 Long。
+     */
     default Long queryLong() {
-        return DBHolder.doDb(s->s.getLong(this));
+        return DBHolder.doDb(s -> s.getLong(this));
     }
 
-    /** 查询 Long 列表（单列多行）。 */
+    /**
+     * 查询 Long 列表（单列多行）。
+     */
     default List<Long> queryLongList() {
-        return DBHolder.doDb(s->s.getLongList(this));
+        return DBHolder.doDb(s -> s.getLongList(this));
     }
 
 
-    /** 查询单值 Double。 */
+    /**
+     * 查询单值 Double。
+     */
     default Double queryDouble() {
-        return DBHolder.doDb(s->s.getDouble(this));
+        return DBHolder.doDb(s -> s.getDouble(this));
     }
 
-    /** 查询 Double 列表（单列多行）。 */
+    /**
+     * 查询 Double 列表（单列多行）。
+     */
     default List<Double> queryDoubleList() {
-        return DBHolder.doDb(s->s.getDoubleList(this));
+        return DBHolder.doDb(s -> s.getDoubleList(this));
     }
 
 
-    /** 查询单值 Integer。 */
+    /**
+     * 查询单值 Integer。
+     */
     default Integer queryInt() {
-        return DBHolder.doDb(s->s.getInt(this));
+        return DBHolder.doDb(s -> s.getInt(this));
     }
 
-    /** 查询 Integer 列表（单列多行）。 */
+    /**
+     * 查询 Integer 列表（单列多行）。
+     */
     default List<Integer> queryIntList() {
-        return DBHolder.doDb(s->s.getIntList(this));
+        return DBHolder.doDb(s -> s.getIntList(this));
     }
 
     /**
@@ -138,6 +166,6 @@ public interface IExecutorQuery<ME extends IExecutorQuery> extends ISqlPara ,ICh
      * <pre>int n = ...count();</pre>
      */
     default long count() {
-        return DBHolder.doDb(s->s.getCnt(this));
+        return DBHolder.doDb(s -> s.getCnt(this));
     }
 }

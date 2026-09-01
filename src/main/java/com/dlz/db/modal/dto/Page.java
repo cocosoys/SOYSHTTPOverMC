@@ -49,11 +49,13 @@ public class Page<T> extends Sort<Page> implements Serializable {
     public Page(Order... order) {
         super(order);
     }
+
     public Page() {
         super();
     }
+
     public <E> Page<E> cover(Function<T, E> c) {
-        Page<E> page = new Page<>(current,size);
+        Page<E> page = new Page<>(current, size);
         page.setTotal(this.total);
         page.setRecords(this.records.stream().map(c).collect(Collectors.toList()));
         return page;
@@ -80,7 +82,7 @@ public class Page<T> extends Sort<Page> implements Serializable {
 
 
     public Page<T> doPage(Supplier<Long> total, Supplier<List<T>> record) {
-        if(getCurrent()<=0){
+        if (getCurrent() <= 0) {
             setCurrent(1);
         }
         setTotal(total.get());

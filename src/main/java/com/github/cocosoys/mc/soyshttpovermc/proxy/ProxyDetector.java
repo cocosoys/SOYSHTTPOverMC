@@ -48,14 +48,18 @@ public final class ProxyDetector {
         return ProxyPlatform.STANDALONE;
     }
 
-    /** 解析 <server>/<fileName> 的绝对路径；定位失败返回 null（仅打一次告警）。 */
+    /**
+     * 解析 <server>/<fileName> 的绝对路径；定位失败返回 null（仅打一次告警）。
+     */
     private static File resolveFile(JavaPlugin plugin, String fileName) {
         File root = serverRoot(plugin);
         if (root == null) return null;
         return new File(root, fileName);
     }
 
-    /** 读取某 YAML 文件的布尔键（文件缺失返回 false，解析异常打印日志）。 */
+    /**
+     * 读取某 YAML 文件的布尔键（文件缺失返回 false，解析异常打印日志）。
+     */
     private static boolean readBool(File file, String path) {
         if (!file.isFile()) return false;
         try {
@@ -67,7 +71,9 @@ public final class ProxyDetector {
         }
     }
 
-    /** 插件数据目录上溯两级定位服务器根目录（<server>/plugins/<plugin> → <server>）。 */
+    /**
+     * 插件数据目录上溯两级定位服务器根目录（<server>/plugins/<plugin> → <server>）。
+     */
     private static File serverRoot(JavaPlugin plugin) {
         File dir = plugin.getDataFolder();
         if (dir == null) return null;

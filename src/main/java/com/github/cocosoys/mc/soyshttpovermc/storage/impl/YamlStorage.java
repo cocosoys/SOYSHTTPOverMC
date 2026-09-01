@@ -1,12 +1,10 @@
 package com.github.cocosoys.mc.soyshttpovermc.storage.impl;
-import com.github.cocosoys.mc.soyshttpovermc.enums.StorageType;
-import lombok.CustomLog;
 
+import com.github.cocosoys.mc.soyshttpovermc.enums.StorageType;
 import com.github.cocosoys.mc.soyshttpovermc.i18n.I18n;
 import com.github.cocosoys.mc.soyshttpovermc.storage.DataStorage;
-
 import com.github.cocosoys.mc.soyshttpovermc.storage.SyncRecord;
-
+import lombok.CustomLog;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -32,11 +30,15 @@ public class YamlStorage implements DataStorage {
 
     private static final String ROOT = "records";
 
-    /** KV 记录固定文件名（位于 file 指定文件夹内）。 */
+    /**
+     * KV 记录固定文件名（位于 file 指定文件夹内）。
+     */
     private static final String RECORDS_FILE = "records.yml";
 
     private final JavaPlugin plugin;
-    /** 读写分离锁：读操作共享读锁（并发读不阻塞），写操作独占写锁。 */
+    /**
+     * 读写分离锁：读操作共享读锁（并发读不阻塞），写操作独占写锁。
+     */
     private final ReentrantReadWriteLock rwLock = new ReentrantReadWriteLock();
 
     private File file;
@@ -116,7 +118,7 @@ public class YamlStorage implements DataStorage {
                 }
             } catch (IOException e) {
                 log.warnT("log.storage.yaml-shutdown-save-failed",
-                "[YAML] 关闭时保存失败: {0}", e.getMessage());
+                        "[YAML] 关闭时保存失败: {0}", e.getMessage());
             }
             available = false;
         } finally {

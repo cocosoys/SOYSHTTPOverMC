@@ -5,7 +5,6 @@ import com.dlz.db.enums.DbTypeEnum;
 import com.dlz.db.exception.DbException;
 import com.dlz.db.support.helper.SqlHelper;
 import com.dlz.kit.exception.SystemException;
-import com.dlz.kit.util.ExceptionUtils;
 import com.dlz.kit.util.StringUtils;
 import com.zaxxer.hikari.HikariDataSource;
 import lombok.extern.slf4j.Slf4j;
@@ -66,6 +65,7 @@ public class DBDynamic {
             return null;
         });
     }
+
     /**
      * 获取当前线程的数据源配置（包级可见，供 {@link DBTx} 使用）
      */

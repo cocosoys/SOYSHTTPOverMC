@@ -8,6 +8,7 @@ import java.util.function.Consumer;
 
 /**
  * 添加and or条件
+ *
  * @param <ME>
  */
 public interface ICondAndOr<ME extends ICondAndOr> extends ICondBase<ME> {
@@ -33,11 +34,11 @@ public interface ICondAndOr<ME extends ICondAndOr> extends ICondBase<ME> {
      * @return 当前条件对象，支持链式调用
      */
     default ME sql(boolean is, String sql, JSONMap paras) {
-        if(is){
+        if (is) {
             // 实现思路：交给 DbBuildEnum.sql 解析模板（处理中括号、预设 key、占位符替换），
             // 产物是一个 Condition 节点；build 可能返回 null（如 sql 为空），需过滤。
             Condition sqlCond = DbBuildEnum.sql.build(getTableName(), sql, paras);
-            if(sqlCond != null){
+            if (sqlCond != null) {
                 addChildren(sqlCond);
             }
         }

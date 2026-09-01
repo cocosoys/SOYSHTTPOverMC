@@ -1,15 +1,14 @@
 package com.github.cocosoys.mc.soyshttpovermc.command;
 
-import org.bukkit.command.CommandSender;
-import org.bukkit.entity.Player;
-
 import com.github.cocosoys.mc.soyshttpovermc.HttpOverMcPlugin;
 import com.github.cocosoys.mc.soyshttpovermc.api.event.GatewayCredentialIssuedEvent;
+import com.github.cocosoys.mc.soyshttpovermc.i18n.I18n;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.GatewayFilter;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.issuer.CredentialIssuer;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.issuer.IssuedCredential;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.issuer.SessionTokenIssuer;
-import com.github.cocosoys.mc.soyshttpovermc.i18n.I18n;
+import org.bukkit.command.CommandSender;
+import org.bukkit.entity.Player;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -40,10 +39,10 @@ public class KeySubCommand extends SubCommand {
     public String detail() {
         return I18n.t("command.key.detail",
                 "/soyshttp key <subject> —— 为指定主体下发最高权限凭证（admin key，ak_ 前缀）。\n"
-                + "  <subject>   主体标识（通常为玩家名或外部服务名）。\n"
-                + "会话令牌颁发器启用时，签发的 ak_ key 带 adm 标记，权限层直接放行，可免权限访问全部 API\n"
-                + "（仅用于可信外部服务，请勿外泄）；其它颁发器按普通凭证签发（不具最高权限）。\n"
-                + "Tab 补全在线玩家名；仅 op 可执行。");
+                        + "  <subject>   主体标识（通常为玩家名或外部服务名）。\n"
+                        + "会话令牌颁发器启用时，签发的 ak_ key 带 adm 标记，权限层直接放行，可免权限访问全部 API\n"
+                        + "（仅用于可信外部服务，请勿外泄）；其它颁发器按普通凭证签发（不具最高权限）。\n"
+                        + "Tab 补全在线玩家名；仅 op 可执行。");
     }
 
     @Override
@@ -81,7 +80,8 @@ public class KeySubCommand extends SubCommand {
             sb.append(I18n.t("command.key.issued", "已为 {0} 下发凭证（{1}）:", subject, issuer.name()));
             if (c.getApiKey() != null) sb.append("\n  X-API-Key: ").append(c.getApiKey());
             if (c.getBearer() != null) sb.append("\n  Authorization: Bearer ").append(c.getBearer());
-            if (c.getCookieName() != null) sb.append("\n  Cookie: ").append(c.getCookieName()).append('=').append(c.getCookieValue());
+            if (c.getCookieName() != null)
+                sb.append("\n  Cookie: ").append(c.getCookieName()).append('=').append(c.getCookieValue());
             int port = plugin.getDelegate().getMcPort();
             sb.append("\n  curl -sk https://").append(plugin.getDelegate().getMcHost()).append(":").append(port).append("/api/status -H \"X-API-Key: ").append(c.getApiKey()).append('"');
             if (issuer instanceof SessionTokenIssuer) {

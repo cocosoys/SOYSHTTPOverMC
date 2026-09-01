@@ -1,8 +1,7 @@
 package com.github.cocosoys.mc.soyshttpovermc.util;
 
-import com.github.cocosoys.mc.soyshttpovermc.web.proto.FrameProto;
 import com.github.cocosoys.mc.soyshttpovermc.web.MimeTypes;
-
+import com.github.cocosoys.mc.soyshttpovermc.web.proto.FrameProto;
 import com.google.protobuf.ByteString;
 
 import java.nio.charset.StandardCharsets;
@@ -21,12 +20,16 @@ public final class HttpFrames {
     private HttpFrames() {
     }
 
-    /** 通用 JSON 帧（application/json；可附加 Set-Cookie 等响应头）。 */
+    /**
+     * 通用 JSON 帧（application/json；可附加 Set-Cookie 等响应头）。
+     */
     public static FrameProto.HttpResponseFrame json(int statusCode, AjaxResult ar) {
         return json(statusCode, ar, null);
     }
 
-    /** 通用 JSON 帧 + 附加响应头（如离线 cookie 升级的 Set-Cookie / X-Soys-New-Token）。 */
+    /**
+     * 通用 JSON 帧 + 附加响应头（如离线 cookie 升级的 Set-Cookie / X-Soys-New-Token）。
+     */
     public static FrameProto.HttpResponseFrame json(int statusCode, AjaxResult ar, Map<String, String> extra) {
         FrameProto.HttpResponseFrame.Builder b = FrameProto.HttpResponseFrame.newBuilder()
                 .setStatusCode(statusCode)
@@ -42,22 +45,30 @@ public final class HttpFrames {
         return b.build();
     }
 
-    /** 成功帧（200 + 自定义 msg）。 */
+    /**
+     * 成功帧（200 + 自定义 msg）。
+     */
     public static FrameProto.HttpResponseFrame jsonOk(String msg) {
         return json(200, AjaxResult.success(msg));
     }
 
-    /** 错误帧：真实 HTTP 状态码 + {@code {code:code,msg,...}} 信封（data=null）。 */
+    /**
+     * 错误帧：真实 HTTP 状态码 + {@code {code:code,msg,...}} 信封（data=null）。
+     */
     public static FrameProto.HttpResponseFrame jsonError(int code, String msg) {
         return json(code, AjaxResult.error(code, msg));
     }
 
-    /** 302 跳转帧（默认 302）：仅带 Location，浏览器原生跳转，body 为纯文本提示（非 HTML）。 */
+    /**
+     * 302 跳转帧（默认 302）：仅带 Location，浏览器原生跳转，body 为纯文本提示（非 HTML）。
+     */
     public static FrameProto.HttpResponseFrame redirect(String loc) {
         return redirect(302, loc);
     }
 
-    /** 跳转帧（支持 301/302）：JSON 信封 body + Location 头，浏览器原生跳转（无 text/plain 例外）。 */
+    /**
+     * 跳转帧（支持 301/302）：JSON 信封 body + Location 头，浏览器原生跳转（无 text/plain 例外）。
+     */
     public static FrameProto.HttpResponseFrame redirect(int code, String loc) {
         int sc = code > 0 ? code : 302;
         String target = loc == null ? "/" : loc;

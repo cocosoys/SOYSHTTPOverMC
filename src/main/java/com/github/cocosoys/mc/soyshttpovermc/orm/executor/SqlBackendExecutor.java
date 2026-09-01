@@ -1,11 +1,4 @@
 package com.github.cocosoys.mc.soyshttpovermc.orm.executor;
-import lombok.CustomLog;
-
-import com.github.cocosoys.mc.soyshttpovermc.orm.meta.FieldMeta;
-import com.github.cocosoys.mc.soyshttpovermc.orm.meta.PojoMeta;
-import com.github.cocosoys.mc.soyshttpovermc.orm.query.ConditionTree;
-import com.github.cocosoys.mc.soyshttpovermc.orm.query.Op;
-import com.github.cocosoys.mc.soyshttpovermc.orm.query.Page;
 
 import com.dlz.db.convertor.columnname.ColumnNameLower;
 import com.dlz.db.core.DlzDbProperties;
@@ -15,13 +8,17 @@ import com.dlz.db.core.jdbc.JdbcTxExecutor;
 import com.dlz.db.modal.DB;
 import com.dlz.db.modal.dto.ResultMap;
 import com.dlz.db.support.DBHolder;
+import com.github.cocosoys.mc.soyshttpovermc.enums.StorageType;
+import com.github.cocosoys.mc.soyshttpovermc.orm.meta.FieldMeta;
+import com.github.cocosoys.mc.soyshttpovermc.orm.meta.PojoMeta;
+import com.github.cocosoys.mc.soyshttpovermc.orm.query.ConditionTree;
+import com.github.cocosoys.mc.soyshttpovermc.orm.query.Op;
+import com.github.cocosoys.mc.soyshttpovermc.orm.query.Page;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
-
+import lombok.CustomLog;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.plugin.java.JavaPlugin;
-
-import com.github.cocosoys.mc.soyshttpovermc.enums.StorageType;
 
 import java.sql.Date;
 import java.util.ArrayList;
@@ -46,13 +43,15 @@ public class SqlBackendExecutor implements IBackendExecutor {
 
     // ===== 初始化 =====
 
-    /** 从 config storage.backends 装配（mysql 优先，其次 sqlite）；失败返回 null。 */
+    /**
+     * 从 config storage.backends 装配（mysql 优先，其次 sqlite）；失败返回 null。
+     */
     public static SqlBackendExecutor init(JavaPlugin plugin) {
         try {
             HikariDataSource ds = buildDataSource(plugin);
             if (ds == null) {
                 log.warnT("log.orm.sql-not-enabled",
-                    "[ORM] 未启用 SQL 后端（storage.backends.mysql/sqlite），SQL.Pojo 不可用");
+                        "[ORM] 未启用 SQL 后端（storage.backends.mysql/sqlite），SQL.Pojo 不可用");
                 return null;
             }
             return initDirect(ds, ds.getJdbcUrl().startsWith("jdbc:sqlite:")
@@ -63,7 +62,9 @@ public class SqlBackendExecutor implements IBackendExecutor {
         }
     }
 
-    /** 直接装配（本地测试 / 二次接入用）：Hikari 数据源 + dlz DBHolder 初始化 + 列名统一。 */
+    /**
+     * 直接装配（本地测试 / 二次接入用）：Hikari 数据源 + dlz DBHolder 初始化 + 列名统一。
+     */
     public static SqlBackendExecutor initDirect(HikariDataSource ds, String name) {
         try {
             DB.Dynamic.setDefaultDataSource(ds);
@@ -110,7 +111,9 @@ public class SqlBackendExecutor implements IBackendExecutor {
         return new HikariDataSource(cfg);
     }
 
-    /** 当前实例（未装配时 null）。 */
+    /**
+     * 当前实例（未装配时 null）。
+     */
     public static SqlBackendExecutor get() {
         return instance;
     }
@@ -130,14 +133,18 @@ public class SqlBackendExecutor implements IBackendExecutor {
         return PojoMeta.of(beanClass).getTableName();
     }
 
-    /** 执行器可用性（数据源未装配/失败时 false）。 */
+    /**
+     * 执行器可用性（数据源未装配/失败时 false）。
+     */
     public boolean isAvailable() {
         return available;
     }
 
     // ===== DDL 自动生成 =====
 
-    /** 建表（CREATE TABLE IF NOT EXISTS）+ 缺列补列（容忍式 ALTER）。 */
+    /**
+     * 建表（CREATE TABLE IF NOT EXISTS）+ 缺列补列（容忍式 ALTER）。
+     */
     public void ensureTable(Class<?> beanClass) {
         PojoMeta meta = PojoMeta.of(beanClass);
         StringBuilder ddl = new StringBuilder("CREATE TABLE IF NOT EXISTS `").append(meta.getTableName()).append("` (");
@@ -183,7 +190,9 @@ public class SqlBackendExecutor implements IBackendExecutor {
 
     // ===== 条件树 → SQL =====
 
-    /** 翻译 WHERE + 参数；无条件返回空串与空参。 */
+    /**
+     * 翻译 WHERE + 参数；无条件返回空串与空参。
+     */
     private SqlParts buildWhere(ConditionTree tree) {
         StringBuilder where = new StringBuilder();
         List<Object> args = new ArrayList<>();
@@ -194,14 +203,36 @@ public class SqlBackendExecutor implements IBackendExecutor {
                 }
                 where.append('`').append(c.column).append('`');
                 switch (c.op) {
-                    case EQ: where.append(" = ?"); args.add(c.value); break;
-                    case NE: where.append(" <> ?"); args.add(c.value); break;
-                    case GT: where.append(" > ?"); args.add(c.value); break;
-                    case GE: where.append(" >= ?"); args.add(c.value); break;
-                    case LT: where.append(" < ?"); args.add(c.value); break;
-                    case LE: where.append(" <= ?"); args.add(c.value); break;
-                    case LIKE: where.append(" LIKE ?"); args.add("%" + String.valueOf(c.value).replace("%", "") + "%"); break;
-                    case IN: case NOT_IN: {
+                    case EQ:
+                        where.append(" = ?");
+                        args.add(c.value);
+                        break;
+                    case NE:
+                        where.append(" <> ?");
+                        args.add(c.value);
+                        break;
+                    case GT:
+                        where.append(" > ?");
+                        args.add(c.value);
+                        break;
+                    case GE:
+                        where.append(" >= ?");
+                        args.add(c.value);
+                        break;
+                    case LT:
+                        where.append(" < ?");
+                        args.add(c.value);
+                        break;
+                    case LE:
+                        where.append(" <= ?");
+                        args.add(c.value);
+                        break;
+                    case LIKE:
+                        where.append(" LIKE ?");
+                        args.add("%" + String.valueOf(c.value).replace("%", "") + "%");
+                        break;
+                    case IN:
+                    case NOT_IN: {
                         where.append(c.op == Op.IN ? " IN (" : " NOT IN (");
                         List<?> vals = c.value instanceof List ? (List<?>) c.value : java.util.Collections.singletonList(c.value);
                         for (int i = 0; i < vals.size(); i++) {
@@ -212,8 +243,12 @@ public class SqlBackendExecutor implements IBackendExecutor {
                         where.append(')');
                         break;
                     }
-                    case IS_NULL: where.append(" IS NULL"); break;
-                    case NOT_NULL: where.append(" IS NOT NULL"); break;
+                    case IS_NULL:
+                        where.append(" IS NULL");
+                        break;
+                    case NOT_NULL:
+                        where.append(" IS NOT NULL");
+                        break;
                 }
             }
         }
@@ -274,16 +309,23 @@ public class SqlBackendExecutor implements IBackendExecutor {
 
     private static Object convertValue(Object raw, Class<?> type) {
         if (type == String.class) return String.valueOf(raw);
-        if (type == Integer.class || type == int.class) return raw instanceof Number ? ((Number) raw).intValue() : Integer.parseInt(String.valueOf(raw));
-        if (type == Long.class || type == long.class) return raw instanceof Number ? ((Number) raw).longValue() : Long.parseLong(String.valueOf(raw));
-        if (type == Double.class || type == double.class) return raw instanceof Number ? ((Number) raw).doubleValue() : Double.parseDouble(String.valueOf(raw));
-        if (type == Boolean.class || type == boolean.class) return raw instanceof Boolean ? raw : raw instanceof Number ? ((Number) raw).intValue() != 0 : Boolean.parseBoolean(String.valueOf(raw));
-        if (type == java.util.Date.class) return raw instanceof java.util.Date ? raw : new java.util.Date(raw instanceof Number ? ((Number) raw).longValue() : Long.parseLong(String.valueOf(raw)));
+        if (type == Integer.class || type == int.class)
+            return raw instanceof Number ? ((Number) raw).intValue() : Integer.parseInt(String.valueOf(raw));
+        if (type == Long.class || type == long.class)
+            return raw instanceof Number ? ((Number) raw).longValue() : Long.parseLong(String.valueOf(raw));
+        if (type == Double.class || type == double.class)
+            return raw instanceof Number ? ((Number) raw).doubleValue() : Double.parseDouble(String.valueOf(raw));
+        if (type == Boolean.class || type == boolean.class)
+            return raw instanceof Boolean ? raw : raw instanceof Number ? ((Number) raw).intValue() != 0 : Boolean.parseBoolean(String.valueOf(raw));
+        if (type == java.util.Date.class)
+            return raw instanceof java.util.Date ? raw : new java.util.Date(raw instanceof Number ? ((Number) raw).longValue() : Long.parseLong(String.valueOf(raw)));
         if (type.isEnum()) return Enum.valueOf((Class<Enum>) type, String.valueOf(raw));
         return raw;
     }
 
-    /** 实体 → 列值数组（写路径）。 */
+    /**
+     * 实体 → 列值数组（写路径）。
+     */
     private Object[] beanToValues(PojoMeta meta, Object bean, boolean includeId) {
         List<Object> vals = new ArrayList<>();
         for (FieldMeta fm : meta.getFields()) {
@@ -403,7 +445,9 @@ public class SqlBackendExecutor implements IBackendExecutor {
         return upsert(beanClass, bean);
     }
 
-    /** REPLACE INTO（MySQL/SQLite 均支持）= upsert，与 YAML 端语义一致。 */
+    /**
+     * REPLACE INTO（MySQL/SQLite 均支持）= upsert，与 YAML 端语义一致。
+     */
     private <T> boolean upsert(Class<T> beanClass, Object bean) {
         if (!available || bean == null) return false;
         ensureTable(beanClass);

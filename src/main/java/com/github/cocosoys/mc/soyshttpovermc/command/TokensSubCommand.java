@@ -1,12 +1,11 @@
 package com.github.cocosoys.mc.soyshttpovermc.command;
 
-import org.bukkit.command.CommandSender;
-
 import com.github.cocosoys.mc.soyshttpovermc.HttpOverMcPlugin;
+import com.github.cocosoys.mc.soyshttpovermc.i18n.I18n;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.GatewayFilter;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.issuer.CredentialIssuer;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.issuer.SessionTokenIssuer;
-import com.github.cocosoys.mc.soyshttpovermc.i18n.I18n;
+import org.bukkit.command.CommandSender;
 
 import java.text.SimpleDateFormat;
 import java.util.Date;
@@ -38,8 +37,8 @@ public class TokensSubCommand extends SubCommand {
     public String detail() {
         return I18n.t("command.tokens.detail",
                 "/soyshttp tokens —— 查询所有已颁发的会话令牌（签发审计）。\n"
-                + "展示：主体 / 模式 / 是否 admin / 状态（有效 | 已注销）/ 签发时间 / 过期时间。\n"
-                + "令牌本体不回显（避免泄露有效凭据）；注销后记录标记为“已注销”；仅 op 可执行。");
+                        + "展示：主体 / 模式 / 是否 admin / 状态（有效 | 已注销）/ 签发时间 / 过期时间。\n"
+                        + "令牌本体不回显（避免泄露有效凭据）；注销后记录标记为“已注销”；仅 op 可执行。");
     }
 
     @Override

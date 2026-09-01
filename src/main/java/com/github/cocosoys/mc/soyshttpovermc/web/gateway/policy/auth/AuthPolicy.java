@@ -4,9 +4,9 @@ import com.github.cocosoys.mc.soyshttpovermc.web.gateway.Credential;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.GatewayContext;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.PolicyResult;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.SecurityPolicy;
-import org.bukkit.configuration.ConfigurationSection;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.issuer.CredentialIssuer;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.util.AuthUtils;
+import org.bukkit.configuration.ConfigurationSection;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -31,14 +31,18 @@ public class AuthPolicy extends SecurityPolicy {
     private final List<String> pathPatterns = new ArrayList<>();
     private final List<String> exemptPatterns = new ArrayList<>(); // 豁免路径（公开端点，跳过鉴权）
     private String header = "X-API-Key";
-    /** 网页登录使用的登录插件提供者名（gateway/policies/auth.yml login-provider；空=自动选第一个可用） */
+    /**
+     * 网页登录使用的登录插件提供者名（gateway/policies/auth.yml login-provider；空=自动选第一个可用）
+     */
     private String loginProviderName = "";
     private boolean acceptHeader = true;
     private boolean acceptBearer = true;
     private boolean acceptBasic = true;
     private boolean acceptCookie = true;
     private volatile List<CredentialIssuer> issuers = new ArrayList<>();
-    /** 网关统一的 API 前缀（config.yml api-prefix，默认 /api）：匹配 exempt/paths 时自动兼容逻辑路径 */
+    /**
+     * 网关统一的 API 前缀（config.yml api-prefix，默认 /api）：匹配 exempt/paths 时自动兼容逻辑路径
+     */
     private volatile String apiPrefix = "/api";
 
     @Override
@@ -75,17 +79,23 @@ public class AuthPolicy extends SecurityPolicy {
         acceptCookie = acc == null || acc.getBoolean("cookie", true);
     }
 
-    /** 网页登录使用的登录插件提供者名（gateway/policies/auth.yml login-provider；空=自动）。 */
+    /**
+     * 网页登录使用的登录插件提供者名（gateway/policies/auth.yml login-provider；空=自动）。
+     */
     public String getLoginProviderName() {
         return loginProviderName == null ? "" : loginProviderName;
     }
 
-    /** 由 GatewayFilter 注入启用的颁发器列表 */
+    /**
+     * 由 GatewayFilter 注入启用的颁发器列表
+     */
     public void setIssuers(List<CredentialIssuer> issuers) {
         this.issuers = issuers == null ? new ArrayList<CredentialIssuer>() : issuers;
     }
 
-    /** 由 GatewayFilter 注入网关统一的 API 前缀（config.yml api-prefix）；匹配 exempt/paths 时自动兼容逻辑路径 */
+    /**
+     * 由 GatewayFilter 注入网关统一的 API 前缀（config.yml api-prefix）；匹配 exempt/paths 时自动兼容逻辑路径
+     */
     public void setApiPrefix(String prefix) {
         this.apiPrefix = prefix == null ? "" : prefix.trim();
     }
@@ -124,7 +134,9 @@ public class AuthPolicy extends SecurityPolicy {
         return prefixed != null && !prefixed.equals(pattern) && AuthUtils.matchesPath(cleanPath, prefixed);
     }
 
-    /** 给逻辑路径补 api-prefix（已带前缀 / 空前缀 / 通配前缀则不处理） */
+    /**
+     * 给逻辑路径补 api-prefix（已带前缀 / 空前缀 / 通配前缀则不处理）
+     */
     private String applyApiPrefix(String pattern) {
         if (apiPrefix == null || apiPrefix.isEmpty() || apiPrefix.equals("/")) return null;
         if (pattern.startsWith(apiPrefix)) return null; // 已显式带前缀
@@ -146,7 +158,9 @@ public class AuthPolicy extends SecurityPolicy {
         return resolveFromHeaders(ctx.getHeaders());
     }
 
-    /** 从原始请求头解析凭证（无需构建 GatewayContext，便于 GatewayFilter 在链路最前复用）。 */
+    /**
+     * 从原始请求头解析凭证（无需构建 GatewayContext，便于 GatewayFilter 在链路最前复用）。
+     */
     public Credential resolveFromHeaders(java.util.Map<String, String> headers) {
         return AuthUtils.resolveCredential(headers, header,
                 acceptHeader, acceptBearer, acceptBasic, acceptCookie, issuers, keys);

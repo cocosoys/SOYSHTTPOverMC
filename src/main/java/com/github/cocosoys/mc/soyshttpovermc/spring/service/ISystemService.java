@@ -10,9 +10,13 @@ import java.util.Map;
  */
 public interface ISystemService extends IBaseService<SystemInfoEntity> {
 
-    /** 存活检测数据：{pong, time, name, port, online} */
+    /**
+     * 存活检测数据：{pong, time, name, port, online}
+     */
     Map<String, Object> ping();
 
-    /** 网关版本信息实体 */
+    /**
+     * 网关版本信息实体
+     */
     SystemInfoEntity getVersion();
 }

@@ -4,7 +4,9 @@ import com.dlz.db.ds.DBDynamic;
 import com.dlz.db.ds.DBTx;
 
 public class DB {
-    private DB(){}
+    private DB() {
+    }
+
     /**
      * 原生JDBC操作，适合简单的少参数sql.可快速构建功能
      * 建议采用Sql操作
@@ -18,9 +20,9 @@ public class DB {
     /**
      * 预设sql语句操作,支持复杂自定义sql，支持参数设置，支持动态判断
      * sql:
-     *   1.直接写：select * from user where id=#{id}
-     *   2.xml预设sql：<sql id="key.selectUser">select * from user where id=#{id}</sql>
-     *   3.db 预设sql：selectUser= select * from user where id=#{id}
+     * 1.直接写：select * from user where id=#{id}
+     * 2.xml预设sql：<sql id="key.selectUser">select * from user where id=#{id}</sql>
+     * 3.db 预设sql：selectUser= select * from user where id=#{id}
      */
     public final static DbSql Sql = new DbSql();
     /**

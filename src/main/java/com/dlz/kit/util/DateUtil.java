@@ -15,7 +15,9 @@ public final class DateUtil {
     private DateUtil() {
     }
 
-    /** 线程安全的 yyyy-MM-dd HH:mm:ss 格式化器。 */
+    /**
+     * 线程安全的 yyyy-MM-dd HH:mm:ss 格式化器。
+     */
     public static final DateFormat DATETIME = new DateFormat() {
         private static final long serialVersionUID = 1L;
         private final ThreadLocal<SimpleDateFormat> holder = ThreadLocal.withInitial(

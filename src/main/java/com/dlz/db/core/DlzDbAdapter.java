@@ -16,7 +16,7 @@ import java.util.function.Supplier;
  * 用于单元测试，提供真实的数据库连接
  */
 @Slf4j
-public class DlzDbAdapter{
+public class DlzDbAdapter {
     private ISqlExecutor sqlExecutor;
     private final Supplier<DataSource> dataSourceMaker;
     private final Supplier<ISqlExecutor> sqlExecutorMaker;

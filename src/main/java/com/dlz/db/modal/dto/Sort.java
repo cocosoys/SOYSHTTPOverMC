@@ -20,25 +20,27 @@ import java.util.stream.Collectors;
 public class Sort<T extends Sort> implements Serializable, IChained<T> {
     private static final long serialVersionUID = 1L;
     @ApiModelProperty(value = "排序")
-    private List<Order> orders=new ArrayList<>();
+    private List<Order> orders = new ArrayList<>();
 
-    public Sort(Order... order){
-        this.orders.addAll( Arrays.asList(order));
+    public Sort(Order... order) {
+        this.orders.addAll(Arrays.asList(order));
     }
-    public Sort(List<Order> orders){
+
+    public Sort(List<Order> orders) {
         this.orders.addAll(orders);
     }
+
     public String getSortSql() {
-        if(orders ==null|| orders.isEmpty()){
+        if (orders == null || orders.isEmpty()) {
             return null;
         }
-        return " order by "+orders.stream()
-                .map(o-> DbConvertUtil.toDbColumnNames(o.getColumn())+(o.isAsc()?" asc":" desc"))
+        return " order by " + orders.stream()
+                .map(o -> DbConvertUtil.toDbColumnNames(o.getColumn()) + (o.isAsc() ? " asc" : " desc"))
                 .collect(Collectors.joining(","));
     }
 
     public T removeOrder(Predicate<Order> filter) {
-        for(int i = this.orders.size() - 1; i >= 0; --i) {
+        for (int i = this.orders.size() - 1; i >= 0; --i) {
             if (filter.test(this.orders.get(i))) {
                 this.orders.remove(i);
             }
@@ -52,7 +54,7 @@ public class Sort<T extends Sort> implements Serializable, IChained<T> {
 
     public T addOrder(List<Order> items) {
         List<Order> collect = items.stream().filter(o -> o.getColumn() != null).collect(Collectors.toList());
-        if(!collect.isEmpty()){
+        if (!collect.isEmpty()) {
             this.orders.addAll(collect);
         }
         return me();
@@ -60,6 +62,6 @@ public class Sort<T extends Sort> implements Serializable, IChained<T> {
 
     @Override
     public T me() {
-        return (T)this;
+        return (T) this;
     }
 }

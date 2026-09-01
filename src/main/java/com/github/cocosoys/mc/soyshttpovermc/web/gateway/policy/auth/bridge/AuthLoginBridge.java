@@ -1,16 +1,14 @@
 package com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.bridge;
-import com.github.cocosoys.mc.soyshttpovermc.enums.LoginMode;
 
-import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.util.AuthUtils;
+import com.github.cocosoys.mc.soyshttpovermc.enums.LoginMode;
+import com.github.cocosoys.mc.soyshttpovermc.util.AjaxResult;
+import com.github.cocosoys.mc.soyshttpovermc.util.ApiResponse;
+import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.bridge.spi.LoginProvider;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.issuer.CredentialPresentation;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.issuer.SessionTokenIssuer;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.login.DefaultLoginModePolicy;
-
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.login.LoginModePolicy;
-import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.bridge.spi.LoginProvider;
-import com.github.cocosoys.mc.soyshttpovermc.util.AjaxResult;
-import com.github.cocosoys.mc.soyshttpovermc.util.ApiResponse;
-
+import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.util.AuthUtils;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 
@@ -41,52 +39,76 @@ import java.util.concurrent.ConcurrentHashMap;
 public class AuthLoginBridge {
 
     private final SessionTokenIssuer issuer;
-    /** 登录插件提供者（AuthMe 等，负责纯账号密码校验）；null=未接入登录插件。 */
+    /**
+     * 登录插件提供者（AuthMe 等，负责纯账号密码校验）；null=未接入登录插件。
+     */
     private volatile LoginProvider loginProvider;
-    /** 登录模式策略（决定在线/离线签发）；默认允许离线登录。 */
+    /**
+     * 登录模式策略（决定在线/离线签发）；默认允许离线登录。
+     */
     private volatile LoginModePolicy loginModePolicy = new DefaultLoginModePolicy();
 
-    /** 一次性登录票据 → 玩家名（使用即删除）。 */
+    /**
+     * 一次性登录票据 → 玩家名（使用即删除）。
+     */
     private final Map<String, String> loginTickets = new ConcurrentHashMap<>();
-    /** 玩家名 → 已签发的会话令牌（LoginEvent 时登记）。 */
+    /**
+     * 玩家名 → 已签发的会话令牌（LoginEvent 时登记）。
+     */
     private final Map<String, String> playerTokens = new ConcurrentHashMap<>();
-    /** 玩家名 → 网页端登录 IP（网页登录成功时登记，用于 IP 匹配免登录）。 */
+    /**
+     * 玩家名 → 网页端登录 IP（网页登录成功时登记，用于 IP 匹配免登录）。
+     */
     private final Map<String, String> webLoginIps = new ConcurrentHashMap<>();
-    /** 玩家名 → 游戏端登录 IP（AuthMe LoginEvent 时登记，用于 IP 匹配免登录）。 */
+    /**
+     * 玩家名 → 游戏端登录 IP（AuthMe LoginEvent 时登记，用于 IP 匹配免登录）。
+     */
     private final Map<String, String> gameLoginIps = new ConcurrentHashMap<>();
 
     public AuthLoginBridge(SessionTokenIssuer issuer) {
         this.issuer = issuer;
     }
 
-    /** 绑定登录插件提供者（bridge 创建/重建后由网关调用；幂等）。 */
+    /**
+     * 绑定登录插件提供者（bridge 创建/重建后由网关调用；幂等）。
+     */
     public void setLoginProvider(LoginProvider provider) {
         this.loginProvider = provider;
     }
 
-    /** 当前登录插件提供者（null=未接入）。 */
+    /**
+     * 当前登录插件提供者（null=未接入）。
+     */
     public LoginProvider getLoginProvider() {
         return loginProvider;
     }
 
-    /** 替换登录模式策略（服务端可定制离线登录许可 / 模式判定）。 */
+    /**
+     * 替换登录模式策略（服务端可定制离线登录许可 / 模式判定）。
+     */
     public void setLoginModePolicy(LoginModePolicy policy) {
         this.loginModePolicy = policy == null ? new DefaultLoginModePolicy() : policy;
     }
 
-    /** 当前登录模式策略。 */
+    /**
+     * 当前登录模式策略。
+     */
     public LoginModePolicy getLoginModePolicy() {
         return loginModePolicy;
     }
 
-    /** 生成一次性登录票据（返回给玩家点开的链接）。 */
+    /**
+     * 生成一次性登录票据（返回给玩家点开的链接）。
+     */
     public String mintTicket(String player) {
         String ticket = AuthUtils.generateToken("tk_", 16);
         loginTickets.put(ticket, player);
         return ticket;
     }
 
-    /** 登记玩家已签发的会话令牌（LoginEvent 时调用）。 */
+    /**
+     * 登记玩家已签发的会话令牌（LoginEvent 时调用）。
+     */
     public void storeToken(String player, String token) {
         playerTokens.put(player, token);
     }
@@ -102,7 +124,9 @@ public class AuthLoginBridge {
         return issueByUsername0(username);
     }
 
-    /** 网页登录是否需要密码（有登录插件=需要；无登录插件=免密码，仅凭用户名）。 */
+    /**
+     * 网页登录是否需要密码（有登录插件=需要；无登录插件=免密码，仅凭用户名）。
+     */
     public boolean loginRequiresPassword() {
         return loginProvider != null;
     }
@@ -118,7 +142,9 @@ public class AuthLoginBridge {
         return issueByUsername0(name);
     }
 
-    /** 内部：按登录模式策略签发令牌（校验通过后调用）。 */
+    /**
+     * 内部：按登录模式策略签发令牌（校验通过后调用）。
+     */
     private String issueByUsername0(String name) {
         LoginModePolicy policy = loginModePolicy;
         LoginMode mode = policy.decideLogin(name);
@@ -128,12 +154,16 @@ public class AuthLoginBridge {
         return issueToken(name, mode);
     }
 
-    /** 纯签发（在线默认）：为玩家签发新会话令牌并登记（LoginEvent / 密码已校验时调用），返回令牌。 */
+    /**
+     * 纯签发（在线默认）：为玩家签发新会话令牌并登记（LoginEvent / 密码已校验时调用），返回令牌。
+     */
     public String issueToken(String player) {
         return issueToken(player, LoginMode.ONLINE);
     }
 
-    /** 按指定登录模式签发并登记令牌（返回 JWT 令牌字符串，同 token 可作 Bearer / X-API-Key / Cookie）。 */
+    /**
+     * 按指定登录模式签发并登记令牌（返回 JWT 令牌字符串，同 token 可作 Bearer / X-API-Key / Cookie）。
+     */
     public String issueToken(String player, LoginMode mode) {
         String token = issuer.issueToken(player, mode);
         playerTokens.put(player, token);
@@ -142,35 +172,47 @@ public class AuthLoginBridge {
 
     // ===== 登录 IP 记录与双向免登录 =====
 
-    /** 记录网页端登录 IP（网页登录成功时调用，用于后续游戏端 IP 匹配免登录）。 */
+    /**
+     * 记录网页端登录 IP（网页登录成功时调用，用于后续游戏端 IP 匹配免登录）。
+     */
     public void recordWebLogin(String player, String ip) {
         if (player == null || ip == null) return;
         webLoginIps.put(player, ip);
     }
 
-    /** 记录游戏端登录 IP（AuthMe LoginEvent 时调用，用于后续网页端 IP 匹配自动登录）。 */
+    /**
+     * 记录游戏端登录 IP（AuthMe LoginEvent 时调用，用于后续网页端 IP 匹配自动登录）。
+     */
     public void recordGameLogin(String player, String ip) {
         if (player == null || ip == null) return;
         gameLoginIps.put(player, ip);
     }
 
-    /** 获取网页端登录 IP（未登录返回 null）。 */
+    /**
+     * 获取网页端登录 IP（未登录返回 null）。
+     */
     public String getWebLoginIp(String player) {
         return player == null ? null : webLoginIps.get(player);
     }
 
-    /** 获取游戏端登录 IP（未登录返回 null）。 */
+    /**
+     * 获取游戏端登录 IP（未登录返回 null）。
+     */
     public String getGameLoginIp(String player) {
         return player == null ? null : gameLoginIps.get(player);
     }
 
-    /** 网页端是否已登录（有令牌记录 + 有登录 IP）。 */
+    /**
+     * 网页端是否已登录（有令牌记录 + 有登录 IP）。
+     */
     public boolean isWebLoggedIn(String player) {
         if (player == null) return false;
         return playerTokens.containsKey(player) && webLoginIps.containsKey(player);
     }
 
-    /** 游戏端是否已登录（玩家当前在线 + 有登录 IP 记录）。 */
+    /**
+     * 游戏端是否已登录（玩家当前在线 + 有登录 IP 记录）。
+     */
     public boolean isGameLoggedIn(String player) {
         if (player == null) return false;
         if (!gameLoginIps.containsKey(player)) return false;
@@ -199,19 +241,25 @@ public class AuthLoginBridge {
         return ipEquals(recorded, ip);
     }
 
-    /** 清除网页端登录记录（退出登录时调用）。 */
+    /**
+     * 清除网页端登录记录（退出登录时调用）。
+     */
     public void clearWebLogin(String player) {
         if (player == null) return;
         webLoginIps.remove(player);
     }
 
-    /** 清除游戏端登录记录（玩家退出时调用）。 */
+    /**
+     * 清除游戏端登录记录（玩家退出时调用）。
+     */
     public void clearGameLogin(String player) {
         if (player == null) return;
         gameLoginIps.remove(player);
     }
 
-    /** IP 比较：回环地址等价（127.0.0.1 / ::1 / localhost），其余精确匹配。 */
+    /**
+     * IP 比较：回环地址等价（127.0.0.1 / ::1 / localhost），其余精确匹配。
+     */
     private static boolean ipEquals(String a, String b) {
         if (a == null || b == null) return false;
         if (a.equals(b)) return true;
@@ -235,7 +283,9 @@ public class AuthLoginBridge {
         return 1;
     }
 
-    /** 校验玩家登录插件密码（未接入提供者 → false）。纯账号密码校验，不要求玩家在线。 */
+    /**
+     * 校验玩家登录插件密码（未接入提供者 → false）。纯账号密码校验，不要求玩家在线。
+     */
     public boolean verifyPassword(String player, String password) {
         LoginProvider provider = loginProvider;
         if (provider == null) return false;
@@ -246,27 +296,37 @@ public class AuthLoginBridge {
         }
     }
 
-    /** 由请求凭证解析绑定主体（玩家名），供登录信息接口查询；无效凭证返回 null。 */
+    /**
+     * 由请求凭证解析绑定主体（玩家名），供登录信息接口查询；无效凭证返回 null。
+     */
     public String subjectOf(CredentialPresentation p) {
         return p == null ? null : issuer.subjectOf(p);
     }
 
-    /** 由请求凭证解析登录模式（ONLINE/OFFLINE），供登录信息接口返回"离线模式登录"标签；无效凭证返回 null。 */
+    /**
+     * 由请求凭证解析登录模式（ONLINE/OFFLINE），供登录信息接口返回"离线模式登录"标签；无效凭证返回 null。
+     */
     public LoginMode modeOf(CredentialPresentation p) {
         return p == null ? null : issuer.modeOf(p);
     }
 
-    /** Cookie 名称（默认 soys_session），供登录接口返回给前端保存。 */
+    /**
+     * Cookie 名称（默认 soys_session），供登录接口返回给前端保存。
+     */
     public String getCookieName() {
         return issuer.getCookieName();
     }
 
-    /** 会话令牌 TTL（秒），供登录接口返回给前端（Max-Age / 过期提示）。 */
+    /**
+     * 会话令牌 TTL（秒），供登录接口返回给前端（Max-Age / 过期提示）。
+     */
     public long getTtlSeconds() {
         return issuer.getTtlSeconds();
     }
 
-    /** 退出登录：按请求携带的凭证撤销会话令牌。 */
+    /**
+     * 退出登录：按请求携带的凭证撤销会话令牌。
+     */
     public boolean logout(CredentialPresentation p) {
         return p != null && issuer.revoke(p);
     }
@@ -323,7 +383,9 @@ public class AuthLoginBridge {
         return ApiResponse.redirect(loc);
     }
 
-    /** POST /api/auth/issue（免密码模式）：仅凭用户名直接签发会话 Cookie（JSON 成功体 + Set-Cookie）。 */
+    /**
+     * POST /api/auth/issue（免密码模式）：仅凭用户名直接签发会话 Cookie（JSON 成功体 + Set-Cookie）。
+     */
     public ApiResponse issueByUsername(String username) {
         String token = loginByUsername(username);
         if (token == null) {
@@ -332,7 +394,9 @@ public class AuthLoginBridge {
         return jsonWithCookie(username.trim(), token);
     }
 
-    /** POST /api/auth/issue：校验 AuthMe 密码，验证通过下发会话 Cookie（JSON 成功体 + Set-Cookie）。 */
+    /**
+     * POST /api/auth/issue：校验 AuthMe 密码，验证通过下发会话 Cookie（JSON 成功体 + Set-Cookie）。
+     */
     public ApiResponse issue(String ticket, String password) {
         String player = (ticket == null) ? null : loginTickets.remove(ticket);
         if (player == null) {

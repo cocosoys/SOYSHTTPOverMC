@@ -1,18 +1,12 @@
 package com.github.cocosoys.mc.soyshttpovermc.storage.impl;
-import lombok.CustomLog;
 
 import com.github.cocosoys.mc.soyshttpovermc.i18n.I18n;
 import com.github.cocosoys.mc.soyshttpovermc.storage.DataStorage;
 import com.github.cocosoys.mc.soyshttpovermc.storage.SyncRecord;
-
+import lombok.CustomLog;
 import org.bukkit.plugin.java.JavaPlugin;
 
-import java.sql.Connection;
-import java.sql.DriverManager;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.sql.Statement;
+import java.sql.*;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashMap;
@@ -43,16 +37,24 @@ public abstract class SqlStorage implements DataStorage {
 
     // ===== 子类需实现的方言部分 =====
 
-    /** JDBC 驱动类名 */
+    /**
+     * JDBC 驱动类名
+     */
     protected abstract String getDriverClass();
 
-    /** 创建一个全新的数据库连接 */
+    /**
+     * 创建一个全新的数据库连接
+     */
     protected abstract Connection createConnection() throws SQLException;
 
-    /** 建表与建索引语句（按顺序执行） */
+    /**
+     * 建表与建索引语句（按顺序执行）
+     */
     protected abstract String[] getSchemaStatements();
 
-    /** 为已存在旧表补列的 ALTER（容忍式执行，列已存在忽略） */
+    /**
+     * 为已存在旧表补列的 ALTER（容忍式执行，列已存在忽略）
+     */
     protected abstract String[] getMigrationStatements();
 
     // ===== 表名 =====
@@ -86,7 +88,7 @@ public abstract class SqlStorage implements DataStorage {
                             continue; // 列已存在，预期情况
                         }
                         log.warnT("log.storage.schema-migration-skip",
-                            "[{0}] 表结构迁移跳过: {1}", getType().getId(), e.getMessage());
+                                "[{0}] 表结构迁移跳过: {1}", getType().getId(), e.getMessage());
                     }
                 }
             }
@@ -113,7 +115,9 @@ public abstract class SqlStorage implements DataStorage {
         return available;
     }
 
-    /** 主动探测连接（保活任务调用）。 */
+    /**
+     * 主动探测连接（保活任务调用）。
+     */
     public void keepAlive() {
         synchronized (lock) {
             try {
@@ -125,7 +129,9 @@ public abstract class SqlStorage implements DataStorage {
         }
     }
 
-    /** 获取可用连接，失效自动重建；调用方须持有 {@link #lock}。 */
+    /**
+     * 获取可用连接，失效自动重建；调用方须持有 {@link #lock}。
+     */
     protected Connection connection() throws SQLException {
         if (connection == null || connection.isClosed() || !connection.isValid(3)) {
             if (connection != null) {
@@ -257,7 +263,9 @@ public abstract class SqlStorage implements DataStorage {
         }
     }
 
-    /** 便捷连接创建（子类复用：url 直连 + 超时）。 */
+    /**
+     * 便捷连接创建（子类复用：url 直连 + 超时）。
+     */
     protected static Connection connect(String url, String username, String password) throws SQLException {
         if (username == null && password == null) {
             return DriverManager.getConnection(url);

@@ -101,7 +101,9 @@ public final class ValUtil {
         return new Date(Long.parseLong(String.valueOf(obj).trim()));
     }
 
-    /** 通用对象转换（目标类型推断）。 */
+    /**
+     * 通用对象转换（目标类型推断）。
+     */
     public static <T> T toObj(Object obj, Class<T> clazz) {
         if (obj == null) return null;
         if (clazz == null || clazz.isInstance(obj)) return (T) obj;
@@ -115,17 +117,21 @@ public final class ValUtil {
         return (T) obj;
     }
 
-    /** 按泛型 Type 转换（支持 ParameterizedType 的原始类型）。 */
+    /**
+     * 按泛型 Type 转换（支持 ParameterizedType 的原始类型）。
+     */
     public static Object toObj(Object obj, java.lang.reflect.Type type) {
         if (obj == null || type == null) return obj;
         Class<?> raw = type instanceof Class ? (Class<?>) type
                 : type instanceof java.lang.reflect.ParameterizedType
-                ? (Class<?>) ((java.lang.reflect.ParameterizedType) type).getRawType() : null;
+                  ? (Class<?>) ((java.lang.reflect.ParameterizedType) type).getRawType() : null;
         if (raw == null || raw == Object.class || raw.isInstance(obj)) return obj;
         return toObj(obj, raw);
     }
 
-    /** 转数组（逗号分隔字符串 / 集合 → Object[]）。 */
+    /**
+     * 转数组（逗号分隔字符串 / 集合 → Object[]）。
+     */
     public static Object[] toArray(Object obj) {
         if (obj == null) return new Object[0];
         if (obj.getClass().isArray()) {

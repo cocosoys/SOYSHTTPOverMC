@@ -1,9 +1,9 @@
 package com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.tls;
 
-import org.bukkit.configuration.ConfigurationSection;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.GatewayContext;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.PolicyResult;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.SecurityPolicy;
+import org.bukkit.configuration.ConfigurationSection;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -35,7 +35,9 @@ public class TlsPolicy extends SecurityPolicy {
         }
     }
 
-    /** 由 GatewayFilter 用 https.host 覆盖（与证书主机名保持一致） */
+    /**
+     * 由 GatewayFilter 用 https.host 覆盖（与证书主机名保持一致）
+     */
     public void setHost(String h) {
         if (h != null && !h.isEmpty()) host = h;
     }

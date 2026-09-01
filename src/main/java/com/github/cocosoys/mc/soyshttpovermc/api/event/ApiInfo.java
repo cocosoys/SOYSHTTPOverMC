@@ -30,32 +30,44 @@ public class ApiInfo implements Serializable {
         this.ownerPlugin = ownerPlugin == null ? "" : ownerPlugin;
     }
 
-    /** HTTP 方法（GET/POST/... 或 * 表示不限定方法） */
+    /**
+     * HTTP 方法（GET/POST/... 或 * 表示不限定方法）
+     */
     public String getHttpMethod() {
         return httpMethod;
     }
 
-    /** 实际挂载路径（含网关自动添加的 /api 前缀，如 /api/ping） */
+    /**
+     * 实际挂载路径（含网关自动添加的 /api 前缀，如 /api/ping）
+     */
     public String getPath() {
         return path;
     }
 
-    /** 端点展示名（@ApiName，缺省为处理器类名） */
+    /**
+     * 端点展示名（@ApiName，缺省为处理器类名）
+     */
     public String getApiName() {
         return apiName;
     }
 
-    /** 所需权限（@ApiPermission，未声明为空字符串） */
+    /**
+     * 所需权限（@ApiPermission，未声明为空字符串）
+     */
     public String getPermission() {
         return permission;
     }
 
-    /** 处理器类的全限定名 */
+    /**
+     * 处理器类的全限定名
+     */
     public String getHandlerClass() {
         return handlerClass;
     }
 
-    /** 注册该 API 的插件名（由 ApiRegistry 自动标记） */
+    /**
+     * 注册该 API 的插件名（由 ApiRegistry 自动标记）
+     */
     public String getOwnerPlugin() {
         return ownerPlugin;
     }

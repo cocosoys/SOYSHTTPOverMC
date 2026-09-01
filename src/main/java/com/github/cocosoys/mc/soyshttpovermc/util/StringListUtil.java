@@ -9,7 +9,9 @@ import java.util.List;
  */
 public class StringListUtil {
 
-    /** 默认每页行数（help / pages 等命令的分页内容，可经静态常量统一调整）。 */
+    /**
+     * 默认每页行数（help / pages 等命令的分页内容，可经静态常量统一调整）。
+     */
     public static final int DEFAULT_PAGE_SIZE = 10;
 
     private StringListUtil() {
@@ -17,7 +19,8 @@ public class StringListUtil {
 
     /**
      * 根据输入前缀，匹配list中以前缀开头的字符串（大小写忽略）
-     * @param inputStr 输入的前缀字符
+     *
+     * @param inputStr   输入的前缀字符
      * @param sourceList 候选数据源list
      * @return 匹配结果集合
      */
@@ -46,9 +49,13 @@ public class StringListUtil {
      * 翻页结果：页眉 + 当前页内容 + 页尾 组成的可打印行，附带分页元信息。
      */
     public static final class PagedResult {
-        /** 整页可打印行（页眉 + 当前页内容 + 页尾）；未命中内容时为空 list。 */
+        /**
+         * 整页可打印行（页眉 + 当前页内容 + 页尾）；未命中内容时为空 list。
+         */
         public final List<String> lines;
-        /** 1-based 当前页（已夹到合法区间）。 */
+        /**
+         * 1-based 当前页（已夹到合法区间）。
+         */
         public final int page;
         public final int totalPages;
         public final int totalItems;

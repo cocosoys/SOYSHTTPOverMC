@@ -1,4 +1,5 @@
 package com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.login;
+
 import com.github.cocosoys.mc.soyshttpovermc.enums.LoginMode;
 
 /**
@@ -12,7 +13,9 @@ import com.github.cocosoys.mc.soyshttpovermc.enums.LoginMode;
  */
 public abstract class LoginModePolicy {
 
-    /** 策略唯一标识（日志/事件用）。 */
+    /**
+     * 策略唯一标识（日志/事件用）。
+     */
     public abstract String name();
 
     /**
@@ -21,12 +24,16 @@ public abstract class LoginModePolicy {
      */
     public abstract LoginMode decideLogin(String player);
 
-    /** 玩家不在线时是否允许以离线模式登录网页（默认允许；false=必须游戏内在线才能登录）。 */
+    /**
+     * 玩家不在线时是否允许以离线模式登录网页（默认允许；false=必须游戏内在线才能登录）。
+     */
     public boolean allowOfflineLogin(String player) {
         return true;
     }
 
-    /** 便捷判定：玩家是否在线（默认按 Bukkit 在线判定，子类可覆盖）。 */
+    /**
+     * 便捷判定：玩家是否在线（默认按 Bukkit 在线判定，子类可覆盖）。
+     */
     protected boolean isOnline(String player) {
         return org.bukkit.Bukkit.getPlayerExact(player) != null;
     }

@@ -1,20 +1,14 @@
 package com.github.cocosoys.mc.soyshttpovermc.i18n;
-import lombok.CustomLog;
-
-import org.bukkit.configuration.file.YamlConfiguration;
-import org.bukkit.plugin.java.JavaPlugin;
 
 import com.github.cocosoys.mc.soyshttpovermc.enums.LanguagePolicy;
+import lombok.CustomLog;
+import org.bukkit.configuration.file.YamlConfiguration;
+import org.bukkit.plugin.java.JavaPlugin;
 
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 /**
  * 国际化门面：全局多作用域翻译环境，从磁盘 {@code language/} 目录加载语言包到内存。
@@ -37,22 +31,38 @@ import java.util.Map;
 @CustomLog
 public final class I18n {
 
-    /** jar 内默认语言文件根目录。 */
+    /**
+     * jar 内默认语言文件根目录。
+     */
     private static final String DEFAULT_RESOURCE_DIR = "language/";
 
-    /** 当前语言代码（当前仅中文 zh_cn）。 */
+    /**
+     * 当前语言代码（当前仅中文 zh_cn）。
+     */
     private static volatile String lang = "zh_cn";
-    /** 默认（无前缀）语言包：本插件自身消息。 */
+    /**
+     * 默认（无前缀）语言包：本插件自身消息。
+     */
     private static volatile ILanguageBundle current = new YamlLanguageBundle(lang);
-    /** 插件作用域：插件名 → I18nScope。 */
+    /**
+     * 插件作用域：插件名 → I18nScope。
+     */
     private static volatile Map<String, I18nScope> pluginScopes = new LinkedHashMap<>();
-    /** 无头作用域：单独列表（按注册顺序）。 */
+    /**
+     * 无头作用域：单独列表（按注册顺序）。
+     */
     private static volatile List<I18nScope> headlessScopes = new ArrayList<>();
-    /** 磁盘语言目录（{@code <dataFolder>/language/}）。 */
+    /**
+     * 磁盘语言目录（{@code <dataFolder>/language/}）。
+     */
     private static volatile File languageDir;
-    /** 当前语言加载策略（默认国际化为基底 en_us + 叠加目标语言）。 */
+    /**
+     * 当前语言加载策略（默认国际化为基底 en_us + 叠加目标语言）。
+     */
     private static volatile LanguagePolicy languagePolicy = LanguagePolicy.INTERNATIONALIZATION;
-    /** 额外语言源（其他插件/配置注册）。 */
+    /**
+     * 额外语言源（其他插件/配置注册）。
+     */
     private static volatile List<LanguageSource> languageSources = new ArrayList<>();
 
     private I18n() {
@@ -60,12 +70,16 @@ public final class I18n {
 
     // ==================== 初始化 ====================
 
-    /** 初始化默认语言环境：补齐 language 目录 + 内置中文包，加载进内存（语言取系统属性 soys.i18n.language，默认 zh_cn）。 */
+    /**
+     * 初始化默认语言环境：补齐 language 目录 + 内置中文包，加载进内存（语言取系统属性 soys.i18n.language，默认 zh_cn）。
+     */
     public static void init(File dataFolder) {
         init(dataFolder, System.getProperty("soys.i18n.language", ""));
     }
 
-    /** 初始化默认语言环境并加载指定语言包（code 为空则回退系统属性 / zh_cn）。 */
+    /**
+     * 初始化默认语言环境并加载指定语言包（code 为空则回退系统属性 / zh_cn）。
+     */
     public static void init(File dataFolder, String code) {
         if (dataFolder == null) return;
         File dir = new File(dataFolder, "language");
@@ -126,7 +140,9 @@ public final class I18n {
         t.start();
     }
 
-    /** 加载默认作用域的语言包（磁盘 {@code language/<code>.yml} + 已注册的额外语言源，按当前策略合并）。 */
+    /**
+     * 加载默认作用域的语言包（磁盘 {@code language/<code>.yml} + 已注册的额外语言源，按当前策略合并）。
+     */
     public static boolean load(String code) {
         if (code == null || code.isEmpty() || languageDir == null) return false;
         String c = code.toLowerCase();
@@ -179,7 +195,9 @@ public final class I18n {
         return true;
     }
 
-    /** 读取磁盘 {code}.yml 到键值表（供国际化策略取 en_us 基底；文件不存在返回空表）。 */
+    /**
+     * 读取磁盘 {code}.yml 到键值表（供国际化策略取 en_us 基底；文件不存在返回空表）。
+     */
     private static Map<String, String> loadFileEntries(String code) {
         Map<String, String> m = new HashMap<>();
         File f = new File(languageDir, code + ".yml");
@@ -191,22 +209,30 @@ public final class I18n {
 
     // ==================== 语言源注册 / 加载策略 ====================
 
-    /** 设置语言加载策略（{@link LanguagePolicy} 对应配置字符串；null/未知回退默认国际化）。 */
+    /**
+     * 设置语言加载策略（{@link LanguagePolicy} 对应配置字符串；null/未知回退默认国际化）。
+     */
     public static void setLanguageRule(String rule) {
         languagePolicy = LanguagePolicy.from(rule);
     }
 
-    /** 设置语言加载策略（枚举直接指定）。 */
+    /**
+     * 设置语言加载策略（枚举直接指定）。
+     */
     public static void setLanguagePolicy(LanguagePolicy policy) {
         languagePolicy = policy == null ? LanguagePolicy.INTERNATIONALIZATION : policy;
     }
 
-    /** 当前语言加载策略（枚举值）。 */
+    /**
+     * 当前语言加载策略（枚举值）。
+     */
     public static LanguagePolicy languagePolicy() {
         return languagePolicy;
     }
 
-    /** 当前语言加载策略（配置字符串形式）。 */
+    /**
+     * 当前语言加载策略（配置字符串形式）。
+     */
     public static String languageRule() {
         return languagePolicy.configName();
     }
@@ -254,7 +280,9 @@ public final class I18n {
         return true;
     }
 
-    /** 去除首尾反引号（仅当整串被一对反引号包裹时）。 */
+    /**
+     * 去除首尾反引号（仅当整串被一对反引号包裹时）。
+     */
     private static String stripBackticks(String s) {
         if (s.length() >= 2 && s.charAt(0) == '`' && s.charAt(s.length() - 1) == '`') {
             return s.substring(1, s.length() - 1);
@@ -262,12 +290,16 @@ public final class I18n {
         return s;
     }
 
-    /** 清空全部已注册的语言源（配置重载/重新初始化时调用）。 */
+    /**
+     * 清空全部已注册的语言源（配置重载/重新初始化时调用）。
+     */
     public static void clearLanguageSources() {
         languageSources = new ArrayList<>();
     }
 
-    /** 当前已注册的语言源数量（调试用）。 */
+    /**
+     * 当前已注册的语言源数量（调试用）。
+     */
     public static int languageSourceCount() {
         return languageSources.size();
     }
@@ -301,43 +333,57 @@ public final class I18n {
         return true;
     }
 
-    /** 停用指定索引的语言源（便捷方法，见 {@link #setLanguageSourceEnabled}）。 */
+    /**
+     * 停用指定索引的语言源（便捷方法，见 {@link #setLanguageSourceEnabled}）。
+     */
     public static boolean disableLanguageSource(int index) {
         return setLanguageSourceEnabled(index, false);
     }
 
-    /** 启用指定索引的语言源（便捷方法，见 {@link #setLanguageSourceEnabled}）。 */
+    /**
+     * 启用指定索引的语言源（便捷方法，见 {@link #setLanguageSourceEnabled}）。
+     */
     public static boolean enableLanguageSource(int index) {
         return setLanguageSourceEnabled(index, true);
     }
 
     // ==================== 网络源本地化管理 ====================
 
-    /** 网络翻译本地缓存根目录：<dataFolder>/lang/network/。 */
+    /**
+     * 网络翻译本地缓存根目录：<dataFolder>/lang/network/。
+     */
     private static File networkRoot() {
         if (languageDir == null || languageDir.getParentFile() == null) return null;
         return new File(languageDir.getParentFile(), "lang" + File.separator + "network");
     }
 
-    /** 指定网络源的本地缓存目录：<dataFolder>/lang/network/<safeName>/。 */
+    /**
+     * 指定网络源的本地缓存目录：<dataFolder>/lang/network/<safeName>/。
+     */
     private static File networkSourceDir(String name) {
         String safe = (name == null || name.isEmpty()) ? "unnamed" : name.replaceAll("[^\\w.-]", "_");
         return new File(networkRoot(), safe);
     }
 
-    /** 指定网络源指定语言的本地翻译文件：<dir>/lang/<code>.yml。 */
+    /**
+     * 指定网络源指定语言的本地翻译文件：<dir>/lang/<code>.yml。
+     */
     private static File networkLangFile(String name, String code) {
         File root = networkSourceDir(name);
         if (root == null) return null;
         return new File(new File(root, "lang"), code + ".yml");
     }
 
-    /** 指定网络源的本地 config.yml（记录名称/介绍/语言）。 */
+    /**
+     * 指定网络源的本地 config.yml（记录名称/介绍/语言）。
+     */
     private static File networkConfigFile(String name) {
         return new File(networkSourceDir(name), "config.yml");
     }
 
-    /** 取出指定索引的语言源（越界返回 null）。 */
+    /**
+     * 取出指定索引的语言源（越界返回 null）。
+     */
     private static LanguageSource getLanguageSource(int index) {
         List<LanguageSource> list = languageSources;
         if (index < 0 || index >= list.size()) return null;
@@ -473,7 +519,9 @@ public final class I18n {
         return sb.toString();
     }
 
-    /** 取出当前默认语言包的全部键值（供覆盖策略起步）。 */
+    /**
+     * 取出当前默认语言包的全部键值（供覆盖策略起步）。
+     */
     private static Map<String, String> currentEntries() {
         if (current instanceof YamlLanguageBundle) {
             return ((YamlLanguageBundle) current).entries();
@@ -481,7 +529,9 @@ public final class I18n {
         return new HashMap<>();
     }
 
-    /** 把 YAML 配置平铺进目标 Map（叶子键写入，忽略中间节点）。 */
+    /**
+     * 把 YAML 配置平铺进目标 Map（叶子键写入，忽略中间节点）。
+     */
     private static void putAll(Map<String, String> target, org.bukkit.configuration.file.YamlConfiguration cfg) {
         for (String key : cfg.getKeys(true)) {
             Object v = cfg.get(key);
@@ -498,8 +548,8 @@ public final class I18n {
      * 读取 {@code <folder>/<语言>.yml}，逻辑前缀自动写为 {@code plugins.<插件名称>.language.<语言>}，
      * 翻译时也自动带此前缀。
      *
-     * @param plugin   插件实例（以 {@code plugin.getName()} 命名作用域）
-     * @param folder   语言文件夹（内含 {@code zh_cn.yml} 等语言文件）
+     * @param plugin 插件实例（以 {@code plugin.getName()} 命名作用域）
+     * @param folder 语言文件夹（内含 {@code zh_cn.yml} 等语言文件）
      * @return 该插件的作用域（可立即 {@code .t(key, fallback)} 使用）
      */
     public static I18nScope registerPlugin(JavaPlugin plugin, File folder) {
@@ -550,23 +600,31 @@ public final class I18n {
 
     // ==================== 作用域访问 ====================
 
-    /** 默认作用域（本插件，无前缀）。 */
+    /**
+     * 默认作用域（本插件，无前缀）。
+     */
     public static ILanguageBundle bundle() {
         return current;
     }
 
-    /** 替换默认作用域实现（第三方可注入）。 */
+    /**
+     * 替换默认作用域实现（第三方可注入）。
+     */
     public static void setBundle(ILanguageBundle b) {
         if (b != null) current = b;
     }
 
-    /** 取指定插件名的作用域；未注册返回 null。 */
+    /**
+     * 取指定插件名的作用域；未注册返回 null。
+     */
     public static I18nScope plugin(String pluginName) {
         if (pluginName == null) return null;
         return pluginScopes.get(pluginName);
     }
 
-    /** 取指定标识的无头作用域；未登记返回 null。 */
+    /**
+     * 取指定标识的无头作用域；未登记返回 null。
+     */
     public static I18nScope headless(String id) {
         if (id == null) return null;
         for (I18nScope s : headlessScopes) {
@@ -575,22 +633,30 @@ public final class I18n {
         return null;
     }
 
-    /** 全部插件作用域（不可变视图）。 */
+    /**
+     * 全部插件作用域（不可变视图）。
+     */
     public static Map<String, I18nScope> pluginScopes() {
         return Collections.unmodifiableMap(pluginScopes);
     }
 
-    /** 无头作用域列表（不可变视图）。 */
+    /**
+     * 无头作用域列表（不可变视图）。
+     */
     public static List<I18nScope> headlessScopes() {
         return Collections.unmodifiableList(headlessScopes);
     }
 
-    /** 当前语言代码。 */
+    /**
+     * 当前语言代码。
+     */
     public static String languageCode() {
         return lang;
     }
 
-    /** 列出磁盘语言目录中可用的语言代码（*.yml 去扩展名，按名称排序）；目录未就绪时仅含内置中文。 */
+    /**
+     * 列出磁盘语言目录中可用的语言代码（*.yml 去扩展名，按名称排序）；目录未就绪时仅含内置中文。
+     */
     public static List<String> availableLanguages() {
         if (languageDir == null || !languageDir.isDirectory()) {
             return Collections.singletonList("zh_cn");
@@ -626,7 +692,9 @@ public final class I18n {
         return t(key, fallback, args);
     }
 
-    /** 纯占位符 {@code {0} {1}...} 替换（不查表）；{@code null} 模板返回 {@code null}。 */
+    /**
+     * 纯占位符 {@code {0} {1}...} 替换（不查表）；{@code null} 模板返回 {@code null}。
+     */
     public static String replace(String template, Object... args) {
         if (template == null) {
             return null;
@@ -653,7 +721,9 @@ public final class I18n {
         return resolve(key, defaultText);
     }
 
-    /** 取翻译文本并替换占位符（默认作用域，或显式前缀键）。 */
+    /**
+     * 取翻译文本并替换占位符（默认作用域，或显式前缀键）。
+     */
     public static String t(String key, String defaultText, Object... args) {
         I18nScope scoped = resolveScope(key);
         if (scoped != null) {
@@ -662,7 +732,9 @@ public final class I18n {
         return current.format(key, defaultText, args);
     }
 
-    /** 从显式前缀键中解析目标是哪个作用域；非前缀键返回 null（走默认）。 */
+    /**
+     * 从显式前缀键中解析目标是哪个作用域；非前缀键返回 null（走默认）。
+     */
     private static I18nScope resolveScope(String key) {
         if (key == null) return null;
         if (key.startsWith("plugins.")) {
@@ -681,7 +753,9 @@ public final class I18n {
         return null;
     }
 
-    /** 单参数版 resolve：仅默认作用域查无前缀键（不处理占用占位符）。 */
+    /**
+     * 单参数版 resolve：仅默认作用域查无前缀键（不处理占用占位符）。
+     */
     private static String resolve(String key, String def) {
         if (key == null) return def;
         I18nScope scoped = resolveScope(key);
@@ -715,7 +789,9 @@ public final class I18n {
 
     // ==================== 语言源信息 ====================
 
-    /** 已注册语言源的快照信息（供 {@code /soyshttp lang sources} 展示）。 */
+    /**
+     * 已注册语言源的快照信息（供 {@code /soyshttp lang sources} 展示）。
+     */
     public static final class LanguageSourceInfo {
         private final int index;
         private final String name;
@@ -735,37 +811,51 @@ public final class I18n {
             this.count = count;
         }
 
-        /** 注册顺序索引（供 on/off 指定目标）。 */
+        /**
+         * 注册顺序索引（供 on/off 指定目标）。
+         */
         public int index() {
             return index;
         }
 
-        /** 来源名称。 */
+        /**
+         * 来源名称。
+         */
         public String name() {
             return name;
         }
 
-        /** 来源描述。 */
+        /**
+         * 来源描述。
+         */
         public String description() {
             return description;
         }
 
-        /** 绑定的语言代码；空串 = 模板源（任意语言）。 */
+        /**
+         * 绑定的语言代码；空串 = 模板源（任意语言）。
+         */
         public String language() {
             return language;
         }
 
-        /** 原始路径/URL 描述。 */
+        /**
+         * 原始路径/URL 描述。
+         */
         public String raw() {
             return raw;
         }
 
-        /** 是否启用。 */
+        /**
+         * 是否启用。
+         */
         public boolean enabled() {
             return enabled;
         }
 
-        /** 当前语言下该来源提供的翻译条数。 */
+        /**
+         * 当前语言下该来源提供的翻译条数。
+         */
         public int count() {
             return count;
         }

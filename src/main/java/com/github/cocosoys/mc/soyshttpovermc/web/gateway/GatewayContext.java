@@ -46,12 +46,16 @@ public class GatewayContext {
         return method;
     }
 
-    /** 策略匹配用路径（群组服下已剥掉 /server/&lt;name&gt;/ 前缀）。 */
+    /**
+     * 策略匹配用路径（群组服下已剥掉 /server/&lt;name&gt;/ 前缀）。
+     */
     public String getPath() {
         return path;
     }
 
-    /** 客户端原始请求路径（含跨服前缀），用于重定向 Location 等需原样回显的场景。 */
+    /**
+     * 客户端原始请求路径（含跨服前缀），用于重定向 Location 等需原样回显的场景。
+     */
     public String getRawPath() {
         return rawPath;
     }
@@ -60,32 +64,44 @@ public class GatewayContext {
         return headers;
     }
 
-    /** TCP socket 上的源 IP（代理未配置时即客户端真实 IP） */
+    /**
+     * TCP socket 上的源 IP（代理未配置时即客户端真实 IP）
+     */
     public String getSocketIp() {
         return socketIp;
     }
 
-    /** 连接是否已通过 TLS 解密（在 MC 端口就地升级后为 true） */
+    /**
+     * 连接是否已通过 TLS 解密（在 MC 端口就地升级后为 true）
+     */
     public boolean isTls() {
         return tls;
     }
 
-    /** 请求是否携带有效凭证（已通过鉴权）：TLS 策略据此决定是否旁路 HTTPS 强制升级。 */
+    /**
+     * 请求是否携带有效凭证（已通过鉴权）：TLS 策略据此决定是否旁路 HTTPS 强制升级。
+     */
     public boolean isAuthenticated() {
         return credential != null;
     }
 
-    /** 已认证主体（null = 未携带有效凭证）。 */
+    /**
+     * 已认证主体（null = 未携带有效凭证）。
+     */
     public Credential getCredential() {
         return credential;
     }
 
-    /** 当前主体是否拥有某权限（预留权限控制抽象；当前有效凭证恒为 true）。 */
+    /**
+     * 当前主体是否拥有某权限（预留权限控制抽象；当前有效凭证恒为 true）。
+     */
     public boolean hasPermission(String permission) {
         return credential != null && credential.hasPermission(permission);
     }
 
-    /** 大小写不敏感读取请求头 */
+    /**
+     * 大小写不敏感读取请求头
+     */
     public String getHeader(String name) {
         if (name == null || headers.isEmpty()) return null;
         for (Map.Entry<String, String> e : headers.entrySet()) {

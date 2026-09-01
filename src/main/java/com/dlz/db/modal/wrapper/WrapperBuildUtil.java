@@ -8,7 +8,6 @@ import com.dlz.db.modal.para.AParaTable;
 import com.dlz.db.modal.para.AQuery;
 import com.dlz.db.support.DBHolder;
 import com.dlz.db.support.PojoCache;
-import com.dlz.db.support.SqlRunThreadHolder;
 import com.dlz.db.support.bean.IdInfo;
 import com.dlz.db.util.DbConvertUtil;
 import com.dlz.kit.exception.SystemException;
@@ -22,7 +21,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CopyOnWriteArrayList;
 
 
 /**
@@ -80,7 +78,7 @@ public class WrapperBuildUtil {
      */
     public static void buildWhere(AQuery maker) {
         // 调用插件链：逻辑删除/租户/权限 等自动注入 WHERE 条件
-        DbPlugin.onBuildWhere( maker.getTableName(), maker.where());
+        DbPlugin.onBuildWhere(maker.getTableName(), maker.where());
         String where = maker.where().getRunsql(maker);
         if (!maker.isAllowFullQuery() && StringUtils.isEmpty(where)) {
             where = "where false";
@@ -173,6 +171,7 @@ public class WrapperBuildUtil {
         }
         return "INSERT INTO " + dbName + " (" + StringUtils.join(",", fieldsPart) + ") VALUES (" + StringUtils.join(",", placeHolder) + ")";
     }
+
     public static String buildInsertSql(String dbName, HashMap<String, Integer> fields) {
         List<String> fieldsPart = new ArrayList<>();
         List<String> placeHolder = new ArrayList<>();
@@ -199,7 +198,7 @@ public class WrapperBuildUtil {
     public static Object[] buildInsertParams(JSONMap object, HashMap<String, Integer> fields) {
         List<Object> params = new ArrayList<>();
         for (Map.Entry<String, Integer> field : fields.entrySet()) {
-             params.add(TableColumnMapper.cover(field.getValue(),object.get(field.getKey())));
+            params.add(TableColumnMapper.cover(field.getValue(), object.get(field.getKey())));
         }
         return params.toArray();
     }
@@ -217,8 +216,8 @@ public class WrapperBuildUtil {
 
     public static Object[] buildUpdateParams(Object object, List<Field> fields, Field idField) {
         final Object value = FieldReflections.getValue(object, idField);
-        if(value == null){
-            throw new SystemException("更新操作"+idField.getName()+"不能为空");
+        if (value == null) {
+            throw new SystemException("更新操作" + idField.getName() + "不能为空");
         }
         List<Object> params = new ArrayList<>(fields.size());
         for (Field field : fields) {
@@ -243,13 +242,13 @@ public class WrapperBuildUtil {
 
     public static Object[] buildUpdateParams(JSONMap object, HashMap<String, Integer> fields, String idName) {
         final Object value = object.get(idName);
-        if(value == null){
-            throw new SystemException("更新操作"+idName+"不能为空");
+        if (value == null) {
+            throw new SystemException("更新操作" + idName + "不能为空");
         }
         List<Object> params = new ArrayList<>(fields.size());
         for (Map.Entry<String, Integer> field : fields.entrySet()) {
             if (!idName.equals(field.getKey())) {
-                params.add(TableColumnMapper.cover(field.getValue(),object.get(field.getKey())));
+                params.add(TableColumnMapper.cover(field.getValue(), object.get(field.getKey())));
             }
         }
         params.add(value);
@@ -258,11 +257,11 @@ public class WrapperBuildUtil {
 
     public static void fillAutoId(String dbName, IdInfo idInfo, Object obj) {
         final IdType idType = idInfo.getType();
-        if (idType == null){
+        if (idType == null) {
             return;
         }
         Object idValue = idInfo.getValue(obj);
-        if(idValue != null){
+        if (idValue != null) {
             return;
         }
         if (idType == IdType.INPUT) {
@@ -273,16 +272,17 @@ public class WrapperBuildUtil {
         }
         if (idType == IdType.SEQ) {
             idInfo.setId(obj, DBHolder.sequence(dbName, 1l));
-        }else{
+        } else {
             idInfo.setId(obj, idType.mkId());
         }
     }
+
     public static void fillAutoIds(String dbName, IdInfo idInfo, List<?> obj) {
         final IdType idType = idInfo.getType();
         if (idType == null || idType == IdType.AUTO) {
             return;
         }
-        
+
         // 单次遍历：收集需要生成ID的对象
         List<Object> needIdList = new ArrayList<>();
         for (Object o : obj) {
@@ -290,17 +290,17 @@ public class WrapperBuildUtil {
                 needIdList.add(o);
             }
         }
-        
+
         if (needIdList.isEmpty()) {
             return;
         }
-        
+
         int count = needIdList.size();
-        
+
         if (idType == IdType.INPUT) {
             throw new SystemException(obj.getClass().getSimpleName() + "." + idInfo.getName() + "为手动输入,不能为空");
         }
-        
+
         if (idType == IdType.SEQ) {
             // 批量预取：只调用1次 Redis INCRBY，然后在内存中分配
             long startSeq = DBHolder.sequence(dbName, count);

@@ -1,8 +1,4 @@
 package com.github.cocosoys.mc.soyshttpovermc.orm.executor;
-import lombok.CustomLog;
-
-import org.bukkit.configuration.ConfigurationSection;
-import org.bukkit.configuration.file.YamlConfiguration;
 
 import com.github.cocosoys.mc.soyshttpovermc.enums.StorageType;
 import com.github.cocosoys.mc.soyshttpovermc.i18n.I18n;
@@ -11,6 +7,9 @@ import com.github.cocosoys.mc.soyshttpovermc.orm.meta.FieldMeta;
 import com.github.cocosoys.mc.soyshttpovermc.orm.meta.PojoMeta;
 import com.github.cocosoys.mc.soyshttpovermc.orm.query.ConditionTree;
 import com.github.cocosoys.mc.soyshttpovermc.orm.query.Page;
+import lombok.CustomLog;
+import org.bukkit.configuration.ConfigurationSection;
+import org.bukkit.configuration.file.YamlConfiguration;
 
 import java.io.File;
 import java.io.IOException;
@@ -21,7 +20,6 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 /**
  * YAML 后端执行器（零依赖先行）：实体 ↔ {@code data/&lt;表名&gt;.yml} 文件。
@@ -45,14 +43,18 @@ public class YamlBackendExecutor implements IBackendExecutor {
 
     private final File dataDir;
     private final Object lock = new Object();
-    /** 表名 → 文件视图（惰性加载，写时更新）。 */
+    /**
+     * 表名 → 文件视图（惰性加载，写时更新）。
+     */
     private final Map<String, YamlConfiguration> cache = new ConcurrentHashMap<>();
 
     public YamlBackendExecutor(File dataDir) {
         this.dataDir = dataDir == null ? new File("data") : dataDir;
     }
 
-    /** 获取共享实例（按 dataDir 缓存，插件装配时 init 一次）。 */
+    /**
+     * 获取共享实例（按 dataDir 缓存，插件装配时 init 一次）。
+     */
     public static YamlBackendExecutor get(File dataDir) {
         return INSTANCES.computeIfAbsent(dataDir == null ? new File("data") : dataDir,
                 YamlBackendExecutor::new);
@@ -65,12 +67,16 @@ public class YamlBackendExecutor implements IBackendExecutor {
 
     // ===== 文件视图 =====
 
-    /** 数据目录。 */
+    /**
+     * 数据目录。
+     */
     public File getDataDir() {
         return dataDir;
     }
 
-    /** 实体对应的数据文件（data/&lt;表名&gt;.yml）。 */
+    /**
+     * 实体对应的数据文件（data/&lt;表名&gt;.yml）。
+     */
     public File fileOf(Class<?> beanClass) {
         return new File(dataDir, PojoMeta.of(beanClass).getTableName() + ".yml");
     }
@@ -103,7 +109,9 @@ public class YamlBackendExecutor implements IBackendExecutor {
         }
     }
 
-    /** 显式落盘（getConfig 视图被外部修改后调用）。 */
+    /**
+     * 显式落盘（getConfig 视图被外部修改后调用）。
+     */
     public void save(Class<?> beanClass) {
         synchronized (lock) {
             String table = PojoMeta.of(beanClass).getTableName();
@@ -113,7 +121,9 @@ public class YamlBackendExecutor implements IBackendExecutor {
         }
     }
 
-    /** 原子写：写临时文件后 rename 替换。 */
+    /**
+     * 原子写：写临时文件后 rename 替换。
+     */
     private void flush(YamlConfiguration config, File target) {
         try {
             if (!target.getParentFile().exists() && !target.getParentFile().mkdirs()) {

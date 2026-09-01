@@ -1,10 +1,9 @@
 package com.github.cocosoys.mc.soyshttpovermc.command;
 
-import com.github.cocosoys.mc.soyshttpovermc.storage.DataStorage;
 import com.github.cocosoys.mc.soyshttpovermc.HttpOverMcPlugin;
 import com.github.cocosoys.mc.soyshttpovermc.i18n.I18n;
+import com.github.cocosoys.mc.soyshttpovermc.storage.DataStorage;
 import com.github.cocosoys.mc.soyshttpovermc.storage.StorageManager;
-
 import org.bukkit.command.CommandSender;
 
 import java.util.List;
@@ -38,7 +37,7 @@ public class SyncSub extends SubCommand {
     public String detail() {
         return usage() + "\n"
                 + I18n.t("command.sync.detail",
-                        "  多实例共享同一 MySQL 主库时请勿执行（会以本服主库覆盖其它实例的辅助副本）");
+                "  多实例共享同一 MySQL 主库时请勿执行（会以本服主库覆盖其它实例的辅助副本）");
     }
 
     @Override

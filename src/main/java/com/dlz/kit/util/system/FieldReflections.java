@@ -22,7 +22,9 @@ public final class FieldReflections {
     private FieldReflections() {
     }
 
-    /** getFn 返回值：v1 保留（原版携带源对象引用），v2=字段名。 */
+    /**
+     * getFn 返回值：v1 保留（原版携带源对象引用），v2=字段名。
+     */
     public static final class Fn {
         public final Object v1;
         public final String v2;
@@ -33,7 +35,9 @@ public final class FieldReflections {
         }
     }
 
-    /** 递归收集字段（含父类；去 static/transient，去 Object 基类）。 */
+    /**
+     * 递归收集字段（含父类；去 static/transient，去 Object 基类）。
+     */
     public static List<Field> getFields(Class<?> clazz) {
         List<Field> fields = new ArrayList<>();
         Class<?> cur = clazz;
@@ -50,7 +54,9 @@ public final class FieldReflections {
         return fields;
     }
 
-    /** Lambda 反序列化提取字段名。 */
+    /**
+     * Lambda 反序列化提取字段名。
+     */
     public static Fn getFn(DlzFn<?, ?> fn) {
         if (fn == null) return new Fn(null, null);
         try {

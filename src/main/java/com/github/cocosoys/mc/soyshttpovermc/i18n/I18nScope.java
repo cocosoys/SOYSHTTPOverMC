@@ -1,11 +1,11 @@
 package com.github.cocosoys.mc.soyshttpovermc.i18n;
 
+import org.bukkit.configuration.file.YamlConfiguration;
+
 import java.io.File;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-
-import org.bukkit.configuration.file.YamlConfiguration;
 
 /**
  * 命名空间语言作用域：一个独立的翻译键空间，含一个逻辑前缀。
@@ -24,7 +24,9 @@ public class I18nScope {
         this.prefix = prefix == null ? "" : prefix;
     }
 
-    /** 从语言文件读取内容（键保持去前缀）。 */
+    /**
+     * 从语言文件读取内容（键保持去前缀）。
+     */
     void load(File file) {
         if (file == null || !file.isFile()) {
             this.messages = Collections.emptyMap();
@@ -45,23 +47,31 @@ public class I18nScope {
         }
     }
 
-    /** 直接注入键值对（无头登记用）。 */
+    /**
+     * 直接注入键值对（无头登记用）。
+     */
     void putAll(Map<String, String> entries) {
         Map<String, String> map = new HashMap<>(entries);
         this.messages = map;
     }
 
-    /** 作用域标识（插件名 / 无头标识）。 */
+    /**
+     * 作用域标识（插件名 / 无头标识）。
+     */
     public String name() {
         return name;
     }
 
-    /** 逻辑前缀（如 plugins.myplugin.language.zh_cn）。 */
+    /**
+     * 逻辑前缀（如 plugins.myplugin.language.zh_cn）。
+     */
     public String prefix() {
         return prefix;
     }
 
-    /** 是否已存在该去前缀键。 */
+    /**
+     * 是否已存在该去前缀键。
+     */
     public boolean has(String key) {
         return messages.containsKey(key);
     }
@@ -84,7 +94,9 @@ public class I18nScope {
         return format(template, args);
     }
 
-    /** 文本占位符 {@code {0} {1}...} 替换。 */
+    /**
+     * 文本占位符 {@code {0} {1}...} 替换。
+     */
     private static String format(String template, Object[] args) {
         if (template == null) {
             return null;

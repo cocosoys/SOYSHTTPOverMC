@@ -16,7 +16,9 @@ import com.github.cocosoys.mc.soyshttpovermc.i18n.I18n;
  */
 public abstract class SoysHttpException extends RuntimeException {
 
-    /** 异常所属模块（与门面能力组一一对应，便于分类维护） */
+    /**
+     * 异常所属模块（与门面能力组一一对应，便于分类维护）
+     */
     public enum Module {
         CORE, API, WEB, AUTH, HTTP, CONFIG, TOOLKIT, UNKNOWN
     }
@@ -45,28 +47,42 @@ public abstract class SoysHttpException extends RuntimeException {
         this(module, code, i18nKey, i18nKey, args);
     }
 
-    /** i18n 无 fallback + 根因版：{@code new ApiException("异常.key", e, v)}。 */
+    /**
+     * i18n 无 fallback + 根因版：{@code new ApiException("异常.key", e, v)}。
+     */
     protected SoysHttpException(Module module, String code, String i18nKey, Throwable cause, Object... args) {
         this(module, code, i18nKey, i18nKey, cause, args);
     }
 
-    /** i18n 显式兜底版：{@code new ApiException("异常.key", "兜底模板 {0}", v)}。 */
+    /**
+     * i18n 显式兜底版：{@code new ApiException("异常.key", "兜底模板 {0}", v)}。
+     */
     protected SoysHttpException(Module module, String code, String i18nKey, String fallback, Object... args) {
         this(module, code, I18n.resolve(i18nKey, fallback, args));
     }
 
-    /** i18n 显式兜底 + 根因版：{@code new ApiException("异常.key", "兜底 {0}", e, v)}。 */
+    /**
+     * i18n 显式兜底 + 根因版：{@code new ApiException("异常.key", "兜底 {0}", e, v)}。
+     */
     protected SoysHttpException(Module module, String code, String i18nKey, String fallback, Throwable cause, Object... args) {
         this(module, code, I18n.resolve(i18nKey, fallback, args), cause);
     }
 
-    public Module getModule() { return module; }
+    public Module getModule() {
+        return module;
+    }
 
-    public String getCode() { return code; }
+    public String getCode() {
+        return code;
+    }
 
-    public String getPlugin() { return plugin; }
+    public String getPlugin() {
+        return plugin;
+    }
 
-    /** 回填触发异常插件名（可选，便于维护时定位来源）；返回 this 支持链式。 */
+    /**
+     * 回填触发异常插件名（可选，便于维护时定位来源）；返回 this 支持链式。
+     */
     public SoysHttpException withPlugin(String plugin) {
         this.plugin = plugin;
         return this;

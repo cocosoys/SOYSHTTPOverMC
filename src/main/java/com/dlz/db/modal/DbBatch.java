@@ -21,13 +21,14 @@ public class DbBatch {
         }
         return false;
     }
+
     public <T> boolean pojoUpdate(List<T> bean) {
         return pojoUpdate(bean, 1000);
     }
 
     public <T> boolean pojoUpdate(List<T> bean, int batchSize) {
         if (!bean.isEmpty()) {
-            final Class<T> aClass = (Class<T>)bean.get(0).getClass();
+            final Class<T> aClass = (Class<T>) bean.get(0).getClass();
             return new PojoUpdate(aClass).batch(bean, batchSize);
         }
         return false;
@@ -45,8 +46,9 @@ public class DbBatch {
         }
         return false;
     }
+
     public boolean tableUpdate(String tableName, List<JSONMap> bean) {
-        return tableUpdate(tableName,bean, 1000);
+        return tableUpdate(tableName, bean, 1000);
     }
 
     public boolean tableUpdate(String tableName, List<JSONMap> bean, int batchSize) {

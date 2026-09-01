@@ -1,10 +1,9 @@
 package com.github.cocosoys.mc.soyshttpovermc.command;
-import com.github.cocosoys.mc.soyshttpovermc.enums.StorageType;
 
 import com.github.cocosoys.mc.soyshttpovermc.HttpOverMcPlugin;
+import com.github.cocosoys.mc.soyshttpovermc.enums.StorageType;
 import com.github.cocosoys.mc.soyshttpovermc.i18n.I18n;
 import com.github.cocosoys.mc.soyshttpovermc.storage.StorageManager;
-
 import org.bukkit.command.CommandSender;
 
 import java.util.List;
@@ -39,10 +38,10 @@ public class MigrateSub extends SubCommand {
     public String detail() {
         return usage() + "\n"
                 + I18n.t("command.migrate.detail",
-                        "  来源/目标: " + backendNames() + "（须已启用）\n"
+                "  来源/目标: " + backendNames() + "（须已启用）\n"
                         + "  追加 overwrite 先清空目标后端再写入（默认不清空，按 key 覆盖）\n"
                         + "  示例: /soyshttp migrate yaml mysql —— 把 yaml 数据迁入 mysql",
-                        backendNames());
+                backendNames());
     }
 
     @Override
@@ -93,7 +92,9 @@ public class MigrateSub extends SubCommand {
         return java.util.Collections.emptyList();
     }
 
-    /** 全部后端 ID 的斜杠拼接（如 "yaml/sqlite/mysql"），供提示文本复用，避免散落硬编码。 */
+    /**
+     * 全部后端 ID 的斜杠拼接（如 "yaml/sqlite/mysql"），供提示文本复用，避免散落硬编码。
+     */
     private static String backendNames() {
         StringBuilder sb = new StringBuilder();
         for (StorageType t : StorageType.values()) {

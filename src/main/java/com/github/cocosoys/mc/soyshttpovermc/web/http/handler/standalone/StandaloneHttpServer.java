@@ -10,25 +10,11 @@ import com.github.cocosoys.mc.soyshttpovermc.web.proto.FrameProto;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
-import io.netty.channel.Channel;
-import io.netty.channel.ChannelFuture;
-import io.netty.channel.ChannelHandlerContext;
-import io.netty.channel.ChannelInboundHandlerAdapter;
-import io.netty.channel.ChannelInitializer;
-import io.netty.channel.ChannelOption;
-import io.netty.channel.EventLoopGroup;
+import io.netty.channel.*;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
-import io.netty.handler.codec.http.DefaultFullHttpResponse;
-import io.netty.handler.codec.http.FullHttpRequest;
-import io.netty.handler.codec.http.FullHttpResponse;
-import io.netty.handler.codec.http.HttpHeaderNames;
-import io.netty.handler.codec.http.HttpHeaders;
-import io.netty.handler.codec.http.HttpObjectAggregator;
-import io.netty.handler.codec.http.HttpResponseStatus;
-import io.netty.handler.codec.http.HttpServerCodec;
-import io.netty.handler.codec.http.HttpVersion;
+import io.netty.handler.codec.http.*;
 import io.netty.handler.ssl.SslHandler;
 import io.netty.util.CharsetUtil;
 import io.netty.util.ReferenceCountUtil;
@@ -84,7 +70,9 @@ public class StandaloneHttpServer {
         this.maxBodyBytes = Math.max(1024, maxBodyBytes);
     }
 
-    /** 启动独立 HTTP 服务器。 */
+    /**
+     * 启动独立 HTTP 服务器。
+     */
     public void start() {
         if (running) return;
         bossGroup = new NioEventLoopGroup(1);
@@ -124,7 +112,9 @@ public class StandaloneHttpServer {
         }
     }
 
-    /** 关闭独立 HTTP 服务器。 */
+    /**
+     * 关闭独立 HTTP 服务器。
+     */
     public void shutdown() {
         running = false;
         if (serverChannel != null) {
@@ -154,7 +144,9 @@ public class StandaloneHttpServer {
         return port;
     }
 
-    /** 独立服务器的请求处理器。 */
+    /**
+     * 独立服务器的请求处理器。
+     */
     private class StandaloneHandler extends ChannelInboundHandlerAdapter {
 
         @Override

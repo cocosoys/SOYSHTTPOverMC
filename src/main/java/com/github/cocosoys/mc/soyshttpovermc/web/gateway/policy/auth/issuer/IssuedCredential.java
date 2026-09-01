@@ -23,7 +23,9 @@ public class IssuedCredential implements Serializable {
         this.cookieValue = cookieValue;
     }
 
-    /** 便捷工厂：同一个 token 同时作为 X-API-Key / Bearer / Cookie 值下发。 */
+    /**
+     * 便捷工厂：同一个 token 同时作为 X-API-Key / Bearer / Cookie 值下发。
+     */
     public static IssuedCredential ofToken(String token, String cookieName) {
         return new IssuedCredential(token, token, cookieName, token);
     }
