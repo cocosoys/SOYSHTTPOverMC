@@ -1,0 +1,20 @@
+name: SOYSHTTPOverMC
+version: '${project.version}'
+main: com.github.cocosoys.mc.soyshttpovermc.HttpOverMcPlugin
+api-version: ''
+author: SOYS
+description: Mount HTTP over the MC join channel (HTTP-Over-MC tunnel)
+softdepend: [AuthMe]
+commands:
+  soyshttp:
+    description: SOYSHTTPOverMC 管理：reload 热重载 / key 下发凭证 / reconnect 重连 / send 发链接 / pages 查页面 / tokens 查令牌
+    usage: /soyshttp <reload|key|reconnect|send|pages|tokens>
+    permission: soyshttp.admin
+  shttp:
+    description: soyshttp 简写
+    usage: /shttp <reload|key|reconnect|send|pages|tokens>
+    permission: soyshttp.admin
+permissions:
+  soyshttp.admin:
+    description: 允许执行 /soyshttp 管理命令
+    default: op

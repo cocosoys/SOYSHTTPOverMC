@@ -5,3 +5,8 @@ server*/
 docs/*.md
 ihomepages/
 SOYSHTTPOverMC-Proxy/
+
+# 本地 Maven toolchains（JDK 路径为环境专属，不进仓库；CI 动态生成）
+toolchains.xml
+.mvn/maven.config
+pom.xml.bak-toolchains
