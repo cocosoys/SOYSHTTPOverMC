@@ -3,6 +3,7 @@ package com.github.cocosoys.mc.soyshttpovermc.config;
 import com.github.cocosoys.mc.soyshttpovermc.HttpOverMcPlugin;
 import com.github.cocosoys.mc.soyshttpovermc.web.MimeTypes;
 import com.github.cocosoys.mc.soyshttpovermc.web.WebRegistry;
+import com.github.cocosoys.mc.soyshttpovermc.platform.PlatformYaml;
 import lombok.CustomLog;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
@@ -72,7 +73,7 @@ public final class PagesConfig {
         }
         cfg.set("web.home", value == null ? "" : value);
         try {
-            cfg.save(new File(plugin.getDataFolder(), "pages.yml"));
+            PlatformYaml.save(cfg, new File(plugin.getDataFolder(), "pages.yml"));
         } catch (IOException e) {
             log.warnT("log.pages.save-home-fail", "保存 pages.yml web.home 失败: {0}", e.getMessage());
         }
@@ -166,7 +167,7 @@ public final class PagesConfig {
                 }
                 if (!file.isFile()) return null;
             }
-            return YamlConfiguration.loadConfiguration(file);
+            return PlatformYaml.load(file);
         }
 
         /**

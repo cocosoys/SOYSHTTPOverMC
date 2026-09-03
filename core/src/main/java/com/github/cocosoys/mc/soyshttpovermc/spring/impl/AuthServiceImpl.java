@@ -42,9 +42,9 @@ public class AuthServiceImpl implements IAuthService {
     }
 
     @Override
-    public AjaxResult login(String body, ApiRequestContext ctx) {
+    public ApiResponse login(String body, ApiRequestContext ctx) {
         if (bridge == null) {
-            return AjaxResult.errorT(503, "ajax.auth.issuer-not-enabled", "会话令牌颁发器未启用（请在 gateway/issuers/session-token.yml 设 enabled: true）");
+            return ApiResponse.jsonErrorT(503, "ajax.auth.issuer-not-enabled", "会话令牌颁发器未启用（请在 gateway/issuers/session-token.yml 设 enabled: true）");
         }
         Map<String, String> form = parseBody(body);
         String username = form.get("username");
@@ -53,37 +53,53 @@ public class AuthServiceImpl implements IAuthService {
         String token;
         if (!bridge.loginRequiresPassword()) {
             if (username == null || username.isEmpty()) {
-                return AjaxResult.errorT(400, "ajax.auth.missing-username", "缺少必填参数: username");
+                return ApiResponse.jsonErrorT(400, "ajax.auth.missing-username", "缺少必填参数: username");
             }
             token = bridge.loginByUsername(username.trim());
             if (token == null) {
-                return AjaxResult.errorT(400, "ajax.auth.username-invalid", "用户名不合法（仅字母/数字/下划线，≤16 字符）或离线登录被策略禁止");
+                return ApiResponse.jsonErrorT(400, "ajax.auth.username-invalid", "用户名不合法（仅字母/数字/下划线，≤16 字符）或离线登录被策略禁止");
             }
         } else {
             if (username == null || username.isEmpty() || password == null || password.isEmpty()) {
-                return AjaxResult.errorT(400, "ajax.auth.missing-username-password", "缺少必填参数: username / password");
+                return ApiResponse.jsonErrorT(400, "ajax.auth.missing-username-password", "缺少必填参数: username / password");
             }
             token = bridge.login(username.trim(), password);
             if (token == null) {
-                return AjaxResult.unauthorizedT("ajax.auth.bad-credentials", "账号或密码错误（AuthMe 校验失败，或服务器未安装 AuthMe，或禁止离线登录）");
+                return ApiResponse.jsonErrorT(401, "ajax.auth.bad-credentials", "账号或密码错误（AuthMe 校验失败，或服务器未安装 AuthMe，或禁止离线登录）");
             }
         }
-        // 记录网页端登录 IP（用于后续游戏端 IP 匹配免登录）
+        String player = username.trim();
+        boolean remember = isTruthy(form.get("remember"));
+        // 记录网页端登录 IP（用于后续游戏端 IP 匹配免登录，开关见 config.yml auto.login.ip.enabled）
         String clientIp = ctx == null ? null : ctx.getIp();
         if (clientIp != null && !clientIp.equals("0.0.0.0")) {
-            bridge.recordWebLogin(username.trim(), clientIp);
+            bridge.recordWebLogin(player, clientIp);
         }
         // 登录模式（与 bridge.login 内部同一策略）：玩家在线→online；不在线→offline（离线专属 cookie）
-        LoginMode mode =
-                bridge.getLoginModePolicy().decideLogin(username.trim());
+        LoginMode mode = bridge.getLoginModePolicy().decideLogin(player);
         Map<String, Object> data = new HashMap<>();
-        data.put("player", username.trim());
+        data.put("player", player);
         data.put("token", token);
         data.put("cookieName", bridge.getCookieName());
         data.put("ttlSeconds", bridge.getTtlSeconds());
         data.put("mode", mode.name().toLowerCase()); // online / offline（离线模式登录标签）
         data.put("authenticated", true);
-        return AjaxResult.successDataT(data, "ajax.auth.login-success", "登录成功");
+
+        // 记住我（设备免登录）：勾选且启用 → 签发长期设备凭证并下发 HttpOnly Cookie（soys_remember）
+        Map<String, String> extra = null;
+        if (remember && bridge.isRememberEnabled()) {
+            String rememberToken = bridge.issueRemember(player);
+            if (rememberToken != null) {
+                extra = new HashMap<>();
+                extra.put("Set-Cookie", bridge.getRememberCookieName() + "=" + rememberToken
+                        + "; Path=/; Max-Age=" + bridge.getRememberTtlSeconds()
+                        + "; HttpOnly; SameSite=Lax");
+                data.put("remember", true);
+                data.put("rememberCookieName", bridge.getRememberCookieName());
+                data.put("rememberTtlSeconds", bridge.getRememberTtlSeconds());
+            }
+        }
+        return ApiResponse.status(200, AjaxResult.successDataT(data, "ajax.auth.login-success", "登录成功"), extra);
     }
 
     @Override
@@ -91,10 +107,11 @@ public class AuthServiceImpl implements IAuthService {
         if (bridge == null) {
             return AjaxResult.errorT(503, "ajax.auth.issuer-not-enabled-short", "会话令牌颁发器未启用");
         }
-        // 退出登录时清除网页端登录 IP 记录
+        // 退出登录时清除网页端登录 IP 记录 + 撤销该玩家全部“记住我”设备凭证
         String player = bridge.subjectOf(credential);
         if (player != null) {
             bridge.clearWebLogin(player);
+            bridge.revokeRemember(player);
         }
         if (!bridge.logout(credential)) {
             return AjaxResult.unauthorizedT("ajax.auth.not-logged-in", "未登录或凭证无效");
@@ -151,6 +168,8 @@ public class AuthServiceImpl implements IAuthService {
         data.put("requiresPassword", bridge.loginRequiresPassword());
         data.put("cookieName", bridge.getCookieName());
         data.put("ttlSeconds", bridge.getTtlSeconds());
+        data.put("rememberEnabled", bridge.isRememberEnabled());
+        data.put("rememberTtlSeconds", bridge.getRememberTtlSeconds());
         return AjaxResult.success(data);
     }
 
@@ -177,11 +196,52 @@ public class AuthServiceImpl implements IAuthService {
             }
         }
 
+        // 1.5) 未登录：尝试“记住我”设备凭证自动登录（soys_remember cookie，精准到个人设备）
+        if (bridge.isRememberEnabled() && credential != null) {
+            String rememberToken = credential.getCookie(bridge.getRememberCookieName());
+            if (rememberToken != null && !rememberToken.isEmpty()) {
+                String rememberedPlayer = bridge.resolveRemember(rememberToken);
+                if (rememberedPlayer != null) {
+                    String token = bridge.issueForRemember(rememberedPlayer);
+                    if (token != null) {
+                        String cookie = bridge.getCookieName() + "=" + token
+                                + "; Path=/; Max-Age=" + bridge.getTtlSeconds()
+                                + "; HttpOnly; SameSite=Lax";
+                        Map<String, String> extra = new HashMap<>();
+                        extra.put("Set-Cookie", cookie);
+                        LoginMode mode = bridge.getLoginModePolicy().decideLogin(rememberedPlayer);
+                        Map<String, Object> data = new HashMap<>();
+                        data.put("player", rememberedPlayer);
+                        data.put("authenticated", true);
+                        data.put("online", Bukkit.getPlayerExact(rememberedPlayer) != null);
+                        data.put("mode", mode == null ? null : mode.name().toLowerCase());
+                        data.put("rememberAutoLogin", true);
+                        data.put("token", token);
+                        data.put("cookieName", bridge.getCookieName());
+                        data.put("ttlSeconds", bridge.getTtlSeconds());
+                        data.put("ip", clientIp);
+                        return ApiResponse.status(200,
+                                AjaxResult.successDataT(data, "ajax.auth.remember-login-success", "设备凭证，已自动登录"),
+                                extra);
+                    }
+                }
+            }
+        }
+
         // 2) 未登录：使用传入的 player 参数，检查游戏端登录状态 + IP 匹配
         if (player == null || player.isEmpty()) {
             // 无 player 参数 → 返回未登录状态（供前端判断是否需要显示登录表单）
             Map<String, Object> data = new HashMap<>();
             data.put("authenticated", false);
+            data.put("ip", clientIp);
+            return ApiResponse.status(200, AjaxResult.success(data), null);
+        }
+
+        // 旧 IP 匹配免登录开关（config.yml auto.login.ip.enabled，默认 false）：关闭时不做 IP 自动登录
+        if (!bridge.isIpEnabled()) {
+            Map<String, Object> data = new HashMap<>();
+            data.put("authenticated", false);
+            data.put("player", player);
             data.put("ip", clientIp);
             return ApiResponse.status(200, AjaxResult.success(data), null);
         }
@@ -223,6 +283,15 @@ public class AuthServiceImpl implements IAuthService {
         data.put("ttlSeconds", bridge.getTtlSeconds());
         data.put("ip", clientIp);
         return ApiResponse.status(200, AjaxResult.successDataT(data, "ajax.auth.auto-login-success", "IP 匹配，已自动登录"), extra);
+    }
+
+    /**
+     * 解析“记住我”勾选：true/1/on/yes 视为勾选。
+     */
+    private static boolean isTruthy(String v) {
+        if (v == null) return false;
+        String s = v.trim().toLowerCase();
+        return s.equals("true") || s.equals("1") || s.equals("on") || s.equals("yes");
     }
 
     /**

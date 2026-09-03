@@ -2,6 +2,7 @@ package com.github.cocosoys.mc.soyshttpovermc.web.gateway;
 
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
+import com.github.cocosoys.mc.soyshttpovermc.platform.PlatformYaml;
 
 import java.io.File;
 
@@ -21,7 +22,7 @@ public final class GatewayConfig {
     public static ConfigurationSection loadYml(File file) {
         if (file == null || !file.isFile()) return null;
         try {
-            YamlConfiguration cfg = YamlConfiguration.loadConfiguration(file);
+            YamlConfiguration cfg = PlatformYaml.load(file);
             return cfg.getKeys(false).isEmpty() ? null : cfg;
         } catch (Exception e) {
             return null;

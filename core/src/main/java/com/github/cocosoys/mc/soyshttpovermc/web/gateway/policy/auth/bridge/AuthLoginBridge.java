@@ -1,10 +1,13 @@
 package com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.bridge;
 
 import com.github.cocosoys.mc.soyshttpovermc.enums.LoginMode;
+import com.github.cocosoys.mc.soyshttpovermc.orm.SQL;
+import com.github.cocosoys.mc.soyshttpovermc.orm.YAML;
 import com.github.cocosoys.mc.soyshttpovermc.util.AjaxResult;
 import com.github.cocosoys.mc.soyshttpovermc.util.ApiResponse;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.bridge.spi.LoginProvider;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.issuer.CredentialPresentation;
+import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.issuer.JwtCodec;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.issuer.SessionTokenIssuer;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.login.DefaultLoginModePolicy;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.login.LoginModePolicy;
@@ -13,7 +16,9 @@ import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 
 import java.net.URLEncoder;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -64,6 +69,26 @@ public class AuthLoginBridge {
      * 玩家名 → 游戏端登录 IP（AuthMe LoginEvent 时登记，用于 IP 匹配免登录）。
      */
     private final Map<String, String> gameLoginIps = new ConcurrentHashMap<>();
+
+    // ===== 自动登录（记住我 / IP 匹配）配置 =====
+
+    /**
+     * 记住我（设备免登录）总开关（config.yml auto.login.ttl.enable，默认 true）。
+     */
+    private volatile boolean rememberEnabled = true;
+    /**
+     * 记住我凭证有效期（毫秒，config.yml auto.login.ttl.activetime 天，默认 7 天）。
+     */
+    private volatile long rememberTtlMillis = 7L * 24 * 3600 * 1000;
+    /**
+     * 旧“IP 匹配免登录”开关（config.yml auto.login.ip.enabled，默认 false）。
+     * true=保留：游戏在线且网页 IP == 游戏 IP 时自动登录（共享出口 IP 下不精准，默认关闭）。
+     */
+    private volatile boolean ipEnabled = false;
+    /**
+     * 记住我 Cookie 名称（HttpOnly；与 session Cookie 独立）。
+     */
+    private static final String REMEMBER_COOKIE = "soys_remember";
 
     public AuthLoginBridge(SessionTokenIssuer issuer) {
         this.issuer = issuer;
@@ -168,6 +193,207 @@ public class AuthLoginBridge {
         String token = issuer.issueToken(player, mode);
         playerTokens.put(player, token);
         return token;
+    }
+
+    // ===== 记住我（设备免登录）：签发 / 验证 / 撤销 =====
+
+    /**
+     * 注入自动登录配置（记住我 / IP 匹配开关）。
+     *
+     * @param rememberEnabled   记住我总开关
+     * @param rememberTtlMillis 记住我凭证有效期（毫秒）
+     * @param ipEnabled         旧 IP 匹配免登录开关
+     */
+    public void setAutoLoginConfig(boolean rememberEnabled, long rememberTtlMillis, boolean ipEnabled) {
+        this.rememberEnabled = rememberEnabled;
+        this.rememberTtlMillis = Math.max(1000L, rememberTtlMillis);
+        this.ipEnabled = ipEnabled;
+    }
+
+    /**
+     * 记住我功能是否启用。
+     */
+    public boolean isRememberEnabled() {
+        return rememberEnabled;
+    }
+
+    /**
+     * 记住我凭证有效期（毫秒）。
+     */
+    public long getRememberTtlMillis() {
+        return rememberTtlMillis;
+    }
+
+    /**
+     * 记住我凭证有效期（秒，供 Set-Cookie Max-Age 使用）。
+     */
+    public long getRememberTtlSeconds() {
+        return rememberTtlMillis / 1000L;
+    }
+
+    /**
+     * 旧 IP 匹配免登录开关是否启用。
+     */
+    public boolean isIpEnabled() {
+        return ipEnabled;
+    }
+
+    /**
+     * 记住我 Cookie 名称。
+     */
+    public String getRememberCookieName() {
+        return REMEMBER_COOKIE;
+    }
+
+    /**
+     * 签发“记住我”设备凭证（登录成功后调用）：生成 remember JWT（TTL=配置天数）
+     * 并持久化 ORM 实体（jti→player），返回 JWT 令牌；未启用/签发失败返回 null。
+     */
+    public String issueRemember(String player) {
+        if (!rememberEnabled || player == null) return null;
+        try {
+            String token = issuer.issueRememberToken(player, rememberTtlMillis);
+            if (token == null) return null;
+            JwtCodec.Payload p = issuer.parseRememberToken(token);
+            if (p == null || p.jti == null) return null;
+            long now = System.currentTimeMillis();
+            persistRemember(new RememberCredential(p.jti, player,
+                    Long.toString(now), Long.toString(now + rememberTtlMillis)));
+            return token;
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    /**
+     * 校验“记住我”凭证：JWT 验签/过期/黑名单 + ORM 实体存在且未过期 → 返回绑定玩家；无效返回 null。
+     */
+    public String resolveRemember(String rememberToken) {
+        if (!rememberEnabled || rememberToken == null) return null;
+        try {
+            JwtCodec.Payload p = issuer.parseRememberToken(rememberToken);
+            if (p == null) return null;
+            RememberCredential rec = loadRemember(p.jti);
+            if (rec == null) return null;
+            long exp;
+            try {
+                exp = Long.parseLong(rec.getExpiresAt());
+            } catch (Exception e) {
+                exp = 0;
+            }
+            if (exp < System.currentTimeMillis()) return null;
+            return rec.getPlayer();
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    /**
+     * “记住我”设备免登录：按登录模式策略为玩家签发会话令牌（玩家在线→ONLINE，否则→OFFLINE）。
+     * 策略禁止离线登录且玩家不在线 → 返回 null（不自动登录，保持与正常登录一致）。
+     */
+    public String issueForRemember(String player) {
+        if (player == null) return null;
+        LoginModePolicy policy = loginModePolicy;
+        LoginMode mode = policy.decideLogin(player);
+        if (mode == LoginMode.OFFLINE && !policy.allowOfflineLogin(player)) {
+            return null;
+        }
+        return issueToken(player, mode);
+    }
+
+    /**
+     * 撤销某玩家全部“记住我”凭证（退出登录时调用）：jti 进黑名单 + 删除实体。
+     */
+    public void revokeRemember(String player) {
+        if (player == null) return;
+        try {
+            for (RememberCredential rec : listRemember(player)) {
+                if (rec.getJti() != null && !rec.getJti().isEmpty()) {
+                    try {
+                        issuer.revokeJti(rec.getJti());
+                    } catch (Throwable ignored) {
+                    }
+                    deleteRemember(rec.getJti());
+                }
+            }
+        } catch (Throwable ignored) {
+        }
+    }
+
+    // ===== 记住我凭证持久化（ORM：优先 SQL 后端，否则 YAML 后端） =====
+
+    private void persistRemember(RememberCredential rec) {
+        if (rec == null) return;
+        try {
+            if (SQL.Pojo.isAvailable()) {
+                SQL.Pojo.insert(rec);
+                return;
+            }
+        } catch (Throwable ignored) {
+        }
+        try {
+            if (YAML.Pojo.isAvailable()) {
+                YAML.Pojo.insert(rec);
+            }
+        } catch (Throwable ignored) {
+        }
+    }
+
+    private RememberCredential loadRemember(String jti) {
+        if (jti == null) return null;
+        try {
+            if (SQL.Pojo.isAvailable()) {
+                RememberCredential r = SQL.Pojo.get(RememberCredential.class, jti);
+                if (r != null) return r;
+            }
+        } catch (Throwable ignored) {
+        }
+        try {
+            if (YAML.Pojo.isAvailable()) {
+                return YAML.Pojo.get(RememberCredential.class, jti);
+            }
+        } catch (Throwable ignored) {
+        }
+        return null;
+    }
+
+    private List<RememberCredential> listRemember(String player) {
+        List<RememberCredential> out = new ArrayList<>();
+        try {
+            if (SQL.Pojo.isAvailable()) {
+                List<RememberCredential> r = SQL.Pojo.select(RememberCredential.class,
+                        q -> q.eq(RememberCredential::getPlayer, player));
+                if (r != null && !r.isEmpty()) return r;
+            }
+        } catch (Throwable ignored) {
+        }
+        try {
+            if (YAML.Pojo.isAvailable()) {
+                List<RememberCredential> r = YAML.Pojo.select(RememberCredential.class,
+                        q -> q.eq(RememberCredential::getPlayer, player));
+                if (r != null) out.addAll(r);
+            }
+        } catch (Throwable ignored) {
+        }
+        return out;
+    }
+
+    private void deleteRemember(String jti) {
+        if (jti == null) return;
+        try {
+            if (SQL.Pojo.isAvailable()) {
+                SQL.Pojo.deleteById(RememberCredential.class, jti);
+                return;
+            }
+        } catch (Throwable ignored) {
+        }
+        try {
+            if (YAML.Pojo.isAvailable()) {
+                YAML.Pojo.deleteById(RememberCredential.class, jti);
+            }
+        } catch (Throwable ignored) {
+        }
     }
 
     // ===== 登录 IP 记录与双向免登录 =====

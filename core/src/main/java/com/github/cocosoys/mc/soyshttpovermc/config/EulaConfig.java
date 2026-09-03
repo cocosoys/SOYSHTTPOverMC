@@ -1,9 +1,9 @@
 package com.github.cocosoys.mc.soyshttpovermc.config;
 
 import com.github.cocosoys.mc.soyshttpovermc.HttpOverMcPlugin;
+import com.github.cocosoys.mc.soyshttpovermc.platform.PlatformYaml;
 import lombok.CustomLog;
 
-import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.io.File;
@@ -36,7 +36,7 @@ public final class EulaConfig {
             if (!eulaFile.isFile() && plugin.getResource("EULA.yml") != null) {
                 plugin.saveResource("EULA.yml", false);
             }
-            return new EulaConfig(YamlConfiguration.loadConfiguration(eulaFile).getBoolean("eula", false));
+            return new EulaConfig(PlatformYaml.load(eulaFile).getBoolean("eula", false));
         } catch (Throwable t) {
             log.warnT("log.plugin.eula-read-fail", "读取 EULA.yml 失败，按未同意处理: {0}", t.getMessage());
             return new EulaConfig(false);

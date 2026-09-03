@@ -16,3 +16,19 @@ accept:
   bearer: true           # 接受 Authorization: Bearer
   basic: true            # 接受 Authorization: Basic（用户名=key）
   cookie: true           # 接受 Cookie（值由启用的颁发器校验）
+
+# 自动登录（记住我 / IP 匹配）：
+#   auto.login.ttl.enable      — 记住我（设备免登录）总开关：true=启用（默认），登录时按前端“记住我”
+#                                 勾选签发长期设备凭证 Cookie（soys_remember，HttpOnly），后续访问
+#                                 /api/auth/status 自动登录，无需重新输密码；false=关闭（不签发、不验证）。
+#   auto.login.ttl.activetime  — 记住我凭证有效期（天，默认 7），由服务器管理员设置。
+#   auto.login.ip.enabled      — 旧“IP 匹配免登录”开关：false=关闭（默认，不再按“游戏在线+网页IP==游戏IP”
+#                                 自动登录，IP 无法精准到个人设备，同 NAT 下会误伤他人）；true=保留旧行为
+#                                 （仅建议局域网/单机环境开启）。
+auto:
+  login:
+    ttl:
+      enable: true
+      activetime: 7
+    ip:
+      enabled: false

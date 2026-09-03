@@ -35,6 +35,7 @@ import com.github.cocosoys.mc.soyshttpovermc.storage.impl.YamlStorage;
 import com.github.cocosoys.mc.soyshttpovermc.web.*;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.GatewayConfig;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.GatewayFilter;
+import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.AuthPolicy;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.bridge.AuthLoginBridge;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.bridge.provider.AuthMeLoginProvider;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.bridge.spi.LoginProviderContext;
@@ -552,6 +553,12 @@ public class HttpOverMcPluginProxy {
         issuer.setSyncStorage(plugin.getSyncStorage());
         issuer.setServerId(storageServerId());
         plugin.setAuthLoginBridge(new AuthLoginBridge(issuer));
+        // 注入自动登录配置（记住我 / IP 匹配开关，gateway/policies/auth.yml auto.login.*）
+        AuthPolicy authPolicy = plugin.getGateway() == null ? null : plugin.getGateway().getAuthPolicy();
+        boolean ttlEnable = authPolicy == null ? true : authPolicy.isRememberEnabled();
+        long ttlDays = Math.max(1, authPolicy == null ? 7 : authPolicy.getRememberTtlDays());
+        boolean ipEnabled = authPolicy != null && authPolicy.isIpEnabled();
+        plugin.getAuthLoginBridge().setAutoLoginConfig(ttlEnable, ttlDays * 86400_000L, ipEnabled);
         if (plugin.getApiRegistry() != null) {
             plugin.getApiRegistry().setTokenUpgrader(plugin.getAuthLoginBridge()::upgradeHeadersIfOnline);
         }

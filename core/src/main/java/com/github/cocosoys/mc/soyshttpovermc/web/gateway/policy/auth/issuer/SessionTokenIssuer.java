@@ -149,6 +149,54 @@ public class SessionTokenIssuer extends CredentialIssuer {
      * 其它入口（登录签发 / 门面 issueCredential）一律签发普通 st_ 令牌（玩家权限镜像），
      * 无法获得最高权限——最高权限 key 只能由服主经命令手动颁发。
      */
+    /**
+     * 签发“记住我”（设备免登录）凭证（JWT，prefix=rm_，mode=REMEMBER）。
+     * 绑定主体玩家，TTL 为设备免登录有效期（如 7 天，由 config.yml auto.login.ttl.activetime 决定）。
+     * jti 进入签发登记；可通过 {@link #revoke} / {@link #revokeJti} 撤销（黑名单）使凭证即刻失效。
+     * 对应持久化登记由登录桥（AuthLoginBridge.issueRemember）写入 ORM 实体。
+     */
+    public String issueRememberToken(String player, long ttlMillis) {
+        if (player == null) return null;
+        long ttl = Math.max(1000L, ttlMillis);
+        String jti = AuthUtils.generateToken("", 10);
+        record(player, "REMEMBER", false, jti);
+        return JwtCodec.create(secret, player, "REMEMBER", ttl, jti, "rm_", false);
+    }
+
+    /**
+     * 解析“记住我”凭证（验签 + 过期 + 黑名单）；无效返回 null。
+     */
+    public JwtCodec.Payload parseRememberToken(String token) {
+        if (token == null || !token.startsWith("rm_")) return null;
+        return parseToken(token);
+    }
+
+    /**
+     * “记住我”凭证 Cookie 名称（登录桥与前端共用）。
+     */
+    public String getRememberCookieName() {
+        return "soys_remember";
+    }
+
+    /**
+     * 按 jti 直接撤销（“记住我”等仅登记 jti 的凭证）：加入黑名单（本地 + 跨服存储）。
+     * 供 AuthLoginBridge.revokeRemember 批量吊销使用。
+     */
+    public boolean revokeJti(String jti) {
+        if (jti == null || jti.isEmpty()) return false;
+        revoked.put(jti, System.currentTimeMillis());
+        markRevoked(jti);
+        SyncStorage s = syncStorage;
+        if (s != null && s.isAvailable()) {
+            try {
+                s.revokeToken(jti, serverId);
+            } catch (Throwable ignored) {
+                // 存储失败降级：本地黑名单仍生效（本服拒绝），跨服同步延迟
+            }
+        }
+        return true;
+    }
+
     public IssuedCredential issueAdminKey(String subject) {
         String jti = AuthUtils.generateToken("", 10);
         record(subject, LoginMode.ONLINE.name(), true, jti);
@@ -175,9 +223,14 @@ public class SessionTokenIssuer extends CredentialIssuer {
      */
     private JwtCodec.Payload parseToken(String token) {
         if (token == null) return null;
-        JwtCodec.Payload payload = token.startsWith("ak_")
-                ? JwtCodec.parse(secret, token, "ak_", clockSkewMillis)
-                : JwtCodec.parse(secret, token, "st_", clockSkewMillis);
+        JwtCodec.Payload payload;
+        if (token.startsWith("ak_")) {
+            payload = JwtCodec.parse(secret, token, "ak_", clockSkewMillis);
+        } else if (token.startsWith("rm_")) {
+            payload = JwtCodec.parse(secret, token, "rm_", clockSkewMillis);
+        } else {
+            payload = JwtCodec.parse(secret, token, "st_", clockSkewMillis);
+        }
         if (payload == null) return null;
         if (payload.jti != null && isRevoked(payload.jti)) return null;
         return payload;

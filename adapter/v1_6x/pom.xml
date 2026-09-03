@@ -1,0 +1,121 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <!--
+      =====================================================================
+      SOYSHTTPOverMC · 版本兼容模块 · 1.6.x（adapter/v1_6x，最低 1.6.4）
+      =====================================================================
+      职责：为 1.6.4 服务器提供版本特化适配：
+        1. Platform 覆盖（继承 core PlatformBukkitImpl；YAML UTF-8 由本模块 V1_6YamlIo 自实现，
+           在 V1_6PlatformAdapter 覆写 loadYaml/saveYaml 接入——1.6.4 与 1.7.10 同样存在
+           loadConfiguration(File) 用平台默认编码、无 Reader/Writer 显式编码入口的问题）；
+        2. AdapterActivator 激活入口（ServiceLoader 注册，由 adapter/common 的 AdapterActivators 发现）；
+        3. SocketSnifferAdapter 版本桥（1.6.4 尚未引入 Netty → 不支持同端口嗅探，
+           supported()=false，插件强制 standalone-server 独立端口模式）。
+
+      编译基线：craftbukkit-1.6.4（vendored 于 adapter/v1_6x/lib/，system scope 仅编译期）。
+      依赖方向：adapter/v1_6x → adapter/common + soyshttpovermc-common + soyshttpovermc-core
+      （core 不反向依赖本模块；运行时经 ServiceLoader / 插件装配发现）。
+    -->
+    <parent>
+        <groupId>com.github.cocosoys.mc</groupId>
+        <artifactId>soyshttpovermc-parent</artifactId>
+        <version>${revision}</version>
+        <relativePath>../../pom.xml</relativePath>
+    </parent>
+
+    <artifactId>soyshttpovermc-adapter-v1_6x</artifactId>
+    <packaging>jar</packaging>
+    <name>SOYSHTTPOverMC Adapter v1.6.x</name>
+    <description>1.6.x 版本兼容模块（最低 1.6.4）：Platform 覆盖 + 激活器 + SocketSniffer 版本桥</description>
+
+    <properties>
+        <adapter.api.version>1.6.4-R0.1-SNAPSHOT</adapter.api.version>
+        <!-- 自包含 vendored API（本模块 lib/ 下），避免依赖外部共享目录 -->
+        <adapter.lib.dir>${project.basedir}/lib</adapter.lib.dir>
+    </properties>
+
+    <dependencies>
+        <!-- 公共底座（SPI 契约 + ServerVersion + compat 工具） -->
+        <dependency>
+            <groupId>com.github.cocosoys.mc</groupId>
+            <artifactId>soyshttpovermc-adapter-common</artifactId>
+            <version>${revision}</version>
+        </dependency>
+        <!-- 主工程 common（Platform SPI / ConfigSection / Platforms）；shade 打入最终 fat jar -->
+        <dependency>
+            <groupId>com.github.cocosoys.mc</groupId>
+            <artifactId>soyshttpovermc-common</artifactId>
+            <version>${revision}</version>
+        </dependency>
+        <!-- 主工程 core（继承 PlatformBukkitImpl 等默认实现；全部逻辑 + resources 经 shade 打入最终 fat jar） -->
+        <dependency>
+            <groupId>com.github.cocosoys.mc</groupId>
+            <artifactId>soyshttpovermc-core</artifactId>
+            <version>${revision}</version>
+        </dependency>
+        <!-- 目标版本 craftbukkit API（仅编译期；运行期由服务端提供） -->
+        <dependency>
+            <groupId>org.bukkit</groupId>
+            <artifactId>craftbukkit</artifactId>
+            <version>${adapter.api.version}</version>
+            <scope>system</scope>
+            <systemPath>${adapter.lib.dir}/craftbukkit-1.6.4.jar</systemPath>
+        </dependency>
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <finalName>SOYSHTTPOverMC-1_6-${project.version}</finalName>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <configuration>
+                    <source>${java.version}</source>
+                    <target>${java.version}</target>
+                </configuration>
+            </plugin>
+            <!--
+              版本完整 fat jar：把 adapter-common + soyshttpovermc-common + soyshttpovermc-core
+              （全部类 + resources + META-INF/services）打进本模块，产出可直接部署的完整插件 jar。
+              craftbukkit-1.6.4 为 system scope 不打入（运行期由 1.6.4 服务端提供）。
+            -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-shade-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>shade</goal>
+                        </goals>
+                        <configuration>
+                            <finalName>SOYSHTTPOverMC-1_6-${project.version}</finalName>
+                            <createDependencyReducedPom>false</createDependencyReducedPom>
+                            <transformers>
+                                <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
+                            </transformers>
+                            <filters>
+                                <filter>
+                                    <artifact>*:*</artifact>
+                                    <excludes>
+                                        <exclude>META-INF/*.SF</exclude>
+                                        <exclude>META-INF/*.DSA</exclude>
+                                        <exclude>META-INF/*.RSA</exclude>
+                                    </excludes>
+                                </filter>
+                            </filters>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+</project>

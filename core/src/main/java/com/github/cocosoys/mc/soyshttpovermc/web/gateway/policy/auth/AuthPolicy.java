@@ -39,6 +39,12 @@ public class AuthPolicy extends SecurityPolicy {
     private boolean acceptBearer = true;
     private boolean acceptBasic = true;
     private boolean acceptCookie = true;
+    /**
+     * 自动登录（记住我 / IP 匹配）配置（gateway/policies/auth.yml auto.login.*）。
+     */
+    private boolean rememberEnabled = true;   // auto.login.ttl.enable（默认 true）
+    private int rememberTtlDays = 7;          // auto.login.ttl.activetime（默认 7 天）
+    private boolean ipEnabled = false;        // auto.login.ip.enabled（默认 false）
     private volatile List<CredentialIssuer> issuers = new ArrayList<>();
     /**
      * 网关统一的 API 前缀（config.yml api-prefix，默认 /api）：匹配 exempt/paths 时自动兼容逻辑路径
@@ -77,6 +83,15 @@ public class AuthPolicy extends SecurityPolicy {
         acceptBearer = acc == null || acc.getBoolean("bearer", true);
         acceptBasic = acc == null || acc.getBoolean("basic", true);
         acceptCookie = acc == null || acc.getBoolean("cookie", true);
+        // 自动登录（记住我 / IP 匹配）：auto.login.*（缺省保持默认）
+        ConfigurationSection autoLogin = cfg.getConfigurationSection("auto.login");
+        if (autoLogin != null) {
+            ConfigurationSection ttl = autoLogin.getConfigurationSection("ttl");
+            rememberEnabled = ttl == null || ttl.getBoolean("enable", true);
+            rememberTtlDays = ttl == null ? 7 : Math.max(1, ttl.getInt("activetime", 7));
+            ConfigurationSection ip = autoLogin.getConfigurationSection("ip");
+            ipEnabled = ip != null && ip.getBoolean("enabled", false);
+        }
     }
 
     /**
@@ -84,6 +99,27 @@ public class AuthPolicy extends SecurityPolicy {
      */
     public String getLoginProviderName() {
         return loginProviderName == null ? "" : loginProviderName;
+    }
+
+    /**
+     * 自动登录配置：记住我（设备免登录）总开关（auto.login.ttl.enable，默认 true）。
+     */
+    public boolean isRememberEnabled() {
+        return rememberEnabled;
+    }
+
+    /**
+     * 自动登录配置：记住我凭证有效期（天，auto.login.ttl.activetime，默认 7）。
+     */
+    public int getRememberTtlDays() {
+        return rememberTtlDays;
+    }
+
+    /**
+     * 自动登录配置：旧“IP 匹配免登录”开关（auto.login.ip.enabled，默认 false）。
+     */
+    public boolean isIpEnabled() {
+        return ipEnabled;
     }
 
     /**

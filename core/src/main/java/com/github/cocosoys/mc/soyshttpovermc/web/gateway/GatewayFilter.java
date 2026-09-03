@@ -323,4 +323,17 @@ public class GatewayFilter {
         }
         return "";
     }
+
+    /**
+     * 当前 auth 鉴权策略实例（gateway/policies/auth.yml；未启用/未注册返回 null）。
+     * 供插件装配读取 auth 策略内扩展配置（如 auto.login.* 自动登录配置）。
+     */
+    public AuthPolicy getAuthPolicy() {
+        for (SecurityPolicy p : policies) {
+            if (p instanceof AuthPolicy) {
+                return (AuthPolicy) p;
+            }
+        }
+        return null;
+    }
 }

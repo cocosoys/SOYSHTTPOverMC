@@ -2,6 +2,7 @@ package com.github.cocosoys.mc.soyshttpovermc.command;
 
 import com.github.cocosoys.mc.soyshttpovermc.HttpOverMcPlugin;
 import com.github.cocosoys.mc.soyshttpovermc.i18n.I18n;
+import com.github.cocosoys.mc.soyshttpovermc.platform.PlatformYaml;
 import lombok.CustomLog;
 import org.bukkit.command.CommandSender;
 
@@ -61,7 +62,7 @@ public class EulaSubCommand extends SubCommand {
             return;
         }
         try {
-            accepted = org.bukkit.configuration.file.YamlConfiguration.loadConfiguration(eulaFile)
+            accepted = PlatformYaml.load(eulaFile)
                     .getBoolean("eula", false);
         } catch (Throwable ignored) {
         }

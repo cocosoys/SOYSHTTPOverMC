@@ -19,7 +19,7 @@ public interface IAuthService {
      *
      * @param ctx 请求上下文（用于记录网页端登录 IP，实现 IP 匹配免登录）
      */
-    AjaxResult login(String body, ApiRequestContext ctx);
+    ApiResponse login(String body, ApiRequestContext ctx);
 
     /**
      * 退出登录：撤销当前请求凭证对应的会话令牌。

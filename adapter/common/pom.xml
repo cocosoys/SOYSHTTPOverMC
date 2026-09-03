@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <!--
+      =====================================================================
+      SOYSHTTPOverMC · 版本兼容模块 · 公共底座（adapter/common）
+      =====================================================================
+      定位：所有版本适配模块（adapter/v1_6x、adapter/v1_7x…）共享的「统一规范 + 公共代码」。
+      职责：
+        1. 定义统一包结构 / 命名 / 构建基线（见 README.md 统一规范）；
+        2. 提供版本中立兼容工具（ServerVersion / BukkitCompat / ChatCompat / PlayerIdentity）；
+        3. 定义版本模块必须实现的 SPI 契约（AdapterActivator / SocketSnifferAdapter）。
+
+      编译基线（重要）：
+        以【最低版本 craftbukkit API】编译（此处 = 1.6.4），保证所有低版本模块
+        （v1_6x / v1_7x…）都可直接复用本模块产物，且不引用任何高版本独有 API。
+        所有跨版本差异一律通过反射处理，禁止直接 import 高版本 API / NMS 类。
+
+      依赖说明：
+        - craftbukkit-1.6.4.jar：vendored 于 adapter/common/lib/（system scope，仅供编译期；
+          运行期由服务端自身提供，不打入产物）。
+        - 刻意不依赖主工程 common/core：保持公共底座自包含、轻量、可独立构建；
+          版本模块需用 LogKit / Platform SPI 时自行引入主 common。
+    -->
+    <parent>
+        <groupId>com.github.cocosoys.mc</groupId>
+        <artifactId>soyshttpovermc-parent</artifactId>
+        <version>${revision}</version>
+        <relativePath>../../pom.xml</relativePath>
+    </parent>
+
+    <artifactId>soyshttpovermc-adapter-common</artifactId>
+    <packaging>jar</packaging>
+    <name>SOYSHTTPOverMC Adapter Common</name>
+    <description>版本兼容模块公共底座：统一规范 + 版本中立兼容工具 + 版本模块 SPI 契约（编译基线 1.6.4）</description>
+
+    <properties>
+        <!-- 编译基线：最低支持版本（1.6.4）。具体版本模块可依赖本模块 + 各自版本的 craftbukkit -->
+        <adapter.api.version>1.6.4-R0.1-SNAPSHOT</adapter.api.version>
+        <!-- vendored 低版本 API 路径（system scope 编译依赖，运行期由服务端提供）；自包含于本模块 lib/ -->
+        <adapter.lib.dir>${project.basedir}/lib</adapter.lib.dir>
+    </properties>
+
+    <dependencies>
+        <!-- 最低版本 craftbukkit API（含 org.bukkit.* 全部 API），仅编译期 -->
+        <dependency>
+            <groupId>org.bukkit</groupId>
+            <artifactId>craftbukkit</artifactId>
+            <version>${adapter.api.version}</version>
+            <scope>system</scope>
+            <systemPath>${adapter.lib.dir}/craftbukkit-1.6.4.jar</systemPath>
+        </dependency>
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <configuration>
+                    <source>${java.version}</source>
+                    <target>${java.version}</target>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+</project>

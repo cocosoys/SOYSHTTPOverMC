@@ -36,7 +36,7 @@ public class AuthController {
     @ApiName("弹窗登录")
     @ApiPublic
     @PostMapping("/login")
-    public AjaxResult login(@RequestBody String body, ApiRequestContext ctx) {
+    public ApiResponse login(@RequestBody String body, ApiRequestContext ctx) {
         return authService.login(body, ctx);
     }
 

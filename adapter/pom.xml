@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <!--
+      =====================================================================
+      SOYSHTTPOverMC · 版本兼容模块 · 聚合工程（adapter）
+      =====================================================================
+      作用：把 adapter 下的版本兼容子模块聚合为可一键构建的完整多模块工程。
+      在 adapter 目录执行：
+          mvn -f adapter\pom.xml clean package        # 一次性构建全部版本模块
+          mvn -f adapter\v1_6x\pom.xml clean package  # 单独构建某一版本模块
+
+      子模块清单：
+        - common : 公共底座（统一规范 + 版本中立工具 + SPI 契约），编译基线 1.6.4
+        - v1_6x  : 1.6.x 版本兼容模块（最低 1.6.4），自包含 lib
+        - v1_7x  : 1.7.x 版本兼容模块（目标 1.7.10），自包含 lib
+
+      说明：
+        - 本模块是纯聚合器（packaging=pom），不产出 jar；子模块各自 parent 到根工程
+          soyshttpovermc-parent（继承 flatten / dependencyManagement）。
+        - 构建顺序由 reactor 按依赖自动编排（v1_6x / v1_7x 依赖 common）。
+        - 依赖的 soyshttpovermc-common / soyshttpovermc-core / soyshttpovermc-adapter-common
+          需已 install 到本地仓库（构建前先对根工程执行 mvn install）。
+    -->
+    <parent>
+        <groupId>com.github.cocosoys.mc</groupId>
+        <artifactId>soyshttpovermc-parent</artifactId>
+        <version>${revision}</version>
+        <relativePath>../pom.xml</relativePath>
+    </parent>
+
+    <artifactId>soyshttpovermc-adapter</artifactId>
+    <packaging>pom</packaging>
+    <name>SOYSHTTPOverMC Adapter</name>
+    <description>低版本兼容模块聚合工程（adapter/common + adapter/v1_6x + adapter/v1_7x）</description>
+
+    <modules>
+        <module>common</module>
+        <module>v1_6x</module>
+        <module>v1_7x</module>
+    </modules>
+</project>

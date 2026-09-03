@@ -38,6 +38,14 @@ public class YamlPojo {
     }
 
     /**
+     * 当前 YAML 后端是否已装配（{@link #init(File)} 已调用）。
+     * 与 {@link SqlPojo#isAvailable()} 对称，供上层在 SQL / YAML 后端间选择。
+     */
+    public boolean isAvailable() {
+        return executor != null;
+    }
+
+    /**
      * 当前后端（未 init 时按默认 data/ 懒初始化）。
      */
     public IBackendExecutor executor() {

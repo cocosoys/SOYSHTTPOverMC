@@ -2,6 +2,7 @@ package com.github.cocosoys.mc.soyshttpovermc.config;
 
 import com.github.cocosoys.mc.soyshttpovermc.HttpOverMcPlugin;
 import com.github.cocosoys.mc.soyshttpovermc.i18n.I18n;
+import com.github.cocosoys.mc.soyshttpovermc.platform.PlatformYaml;
 import lombok.CustomLog;
 
 import org.bukkit.configuration.file.YamlConfiguration;
@@ -34,7 +35,7 @@ public final class LanguageConfig {
         if (!f.isFile() && plugin.getResource("language.yml") != null) {
             plugin.saveResource("language.yml", false);
         }
-        return new LanguageConfig(YamlConfiguration.loadConfiguration(f));
+        return new LanguageConfig(PlatformYaml.load(f));
     }
 
     /**
@@ -70,7 +71,7 @@ public final class LanguageConfig {
      */
     public void save(JavaPlugin plugin) {
         try {
-            cfg.save(new File(plugin.getDataFolder(), "language.yml"));
+            PlatformYaml.save(cfg, new File(plugin.getDataFolder(), "language.yml"));
         } catch (IOException e) {
             log.warnT("log.i18n.save-config-fail", "保存 language.yml 失败: {0}", e.getMessage());
         }

@@ -10,3 +10,4 @@ SOYSHTTPOverMC-Proxy/
 toolchains.xml
 .mvn/maven.config
 pom.xml.bak-toolchains
+*.ps1

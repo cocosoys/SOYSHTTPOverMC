@@ -15,6 +15,8 @@
         <module>common</module>
         <module>core</module>
         <module>SOYSHTTPOverMC-Proxy</module>
+        <!-- 低版本兼容模块聚合工程（common / v1_6x / v1_7x），依赖 common+core，置于最后 -->
+        <module>adapter</module>
     </modules>
 
     <properties>
@@ -186,5 +188,38 @@
                 </plugin>
             </plugins>
         </pluginManagement>
+        <plugins>
+            <!--
+              CI-friendly ${revision} 展开（仅构建基建，不改任何代码）：
+              安装到本地/远端仓库的 pom 中把 ${revision} 解析为字面版本，
+              否则 adapter 各版本模块独立构建引用 parent 时因 version=${revision} 未展开导致 400。
+              resolveCiFriendliesOnly：只展开 CI 占位符，其余 property 保持原样。
+            -->
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>flatten-maven-plugin</artifactId>
+                <version>1.6.0</version>
+                <configuration>
+                    <flattenMode>resolveCiFriendliesOnly</flattenMode>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>flatten</id>
+                        <phase>process-resources</phase>
+                        <goals>
+                            <goal>flatten</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>flatten.clean</id>
+                        <phase>clean</phase>
+                        <goals>
+                            <goal>clean</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+
     </build>
 </project>

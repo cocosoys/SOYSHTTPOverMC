@@ -71,6 +71,8 @@
       '<input id="soysInUser" autocomplete="username" placeholder="游戏内玩家名">' +
       '<label for="soysInPass">登录密码</label>' +
       '<input id="soysInPass" type="password" autocomplete="current-password" placeholder="••••••••">' +
+      '<label class="soys-remember" style="display:flex;align-items:center;gap:6px;margin-top:10px;font-size:12px;color:#9ab;cursor:pointer;">' +
+      '<input type="checkbox" id="soysRemember" style="width:auto;flex:none;"> 记住我（本机免登录）</label>' +
       '<div class="soys-err" id="soysLoginErr"></div>' +
       '<div class="soys-actions">' +
       '<button class="soys-cancel" id="soysBtnCancel">取消</button>' +
@@ -157,8 +159,10 @@
     var pass = document.getElementById('soysInPass').value;
     var errEl = document.getElementById('soysLoginErr');
     if (!user || !pass) { errEl.textContent = '请输入玩家名和密码'; return; }
+    var rememberEl = document.getElementById('soysRemember');
+    var remember = !!(rememberEl && rememberEl.checked);
     request('/api/auth/login', { method: 'POST', json: true,
-      body: JSON.stringify({ username: user, password: pass }) }).then(function (r) {
+      body: JSON.stringify({ username: user, password: pass, remember: remember }) }).then(function (r) {
       if (r.code === 200 && r.data && r.data.token) {
         setToken(r.data.token);
         document.getElementById('soysInPass').value = '';
