@@ -40,7 +40,8 @@ public class SoysPermPermission {
     private String ownerType;
 
     /**
-     * 主体标识：组名（GROUP）或玩家名（USER，小写）。
+     * 主体标识：组名（GROUP）或玩家 UUID（USER，标准小写带横线；离线服为离线 UUID，见
+     * {@link com.github.cocosoys.mc.soyshttpovermc.util.UuidUtil}）。
      */
     private String ownerId;
 

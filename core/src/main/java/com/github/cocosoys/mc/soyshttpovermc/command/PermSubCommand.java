@@ -162,7 +162,10 @@ public class PermSubCommand extends SubCommand {
                         StringBuilder sb = new StringBuilder("  §7成员: §f");
                         for (int i = 0; i < members.size(); i++) {
                             if (i > 0) sb.append(", ");
-                            sb.append(members.get(i).getPlayer());
+                            String mId = members.get(i).getUuid();
+                            SoysPermUser mu = store.getUser(mId);
+                            sb.append(mu != null && mu.getPlayer() != null && !mu.getPlayer().isEmpty()
+                                    ? mu.getPlayer() : mId);
                         }
                         sender.sendMessage(sb.toString());
                     }

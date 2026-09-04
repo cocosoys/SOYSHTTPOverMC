@@ -3,6 +3,7 @@ package com.github.cocosoys.mc.soyshttpovermc.permission.local;
 import com.github.cocosoys.mc.soyshttpovermc.orm.SQL;
 import com.github.cocosoys.mc.soyshttpovermc.orm.YAML;
 import com.github.cocosoys.mc.soyshttpovermc.orm.query.Query;
+import com.github.cocosoys.mc.soyshttpovermc.util.UuidUtil;
 import lombok.CustomLog;
 
 import java.util.ArrayList;
@@ -16,6 +17,10 @@ import java.util.function.Consumer;
  * <p>承载 4 张全关联 ORM 实体（{@link SoysPermGroup} / {@link SoysPermUser} /
  * {@link SoysPermUserGroup} / {@link SoysPermPermission}）的全部 CRUD 与本地判定。
  * 读写复用现有 ORM 门面（SQL.Pojo 优先、YAML.Pojo 兜底，双后端写镜像，见 {@code storage.backends.*}）。</p>
+ *
+ * <p>用户侧身份键一律为 UUID 主键（离线服为确定性离线 UUID，见
+ * {@link com.github.cocosoys.mc.soyshttpovermc.util.UuidUtil}）：玩家名仅是属性。
+ * 所有用户操作方法入参「玩家名或 UUID」均可，统一经 {@link #userKey(String)} 归一到 uuid 键。</p>
  *
  * <p>节点规范化：</p>
  * <ul>
@@ -40,10 +45,12 @@ public class LocalPermissionStore {
     }
 
     /**
-     * 玩家名归一（统一小写，去空白）。
+     * 用户身份主键：统一归一到 UUID（标准小写带横线）。
+     * 已识别为 UUID（带/不带横线）→ 原样归一；否则视为玩家名 → 推导离线 UUID。
+     * 离线服下离线 UUID 由玩家名确定性推导（见 {@link com.github.cocosoys.mc.soyshttpovermc.util.UuidUtil}）。
      */
-    public static String playerKey(String player) {
-        return player == null ? "" : player.trim().toLowerCase();
+    public static String userKey(String identity) {
+        return UuidUtil.keyOf(identity);
     }
 
     /**
@@ -225,7 +232,7 @@ public class LocalPermissionStore {
      * 取用户记录（不存在返回 null）。
      */
     public SoysPermUser getUser(String player) {
-        String pk = playerKey(player);
+        String pk = userKey(player);
         return pk.isEmpty() ? null : getOrNull(SoysPermUser.class, pk);
     }
 
@@ -237,16 +244,21 @@ public class LocalPermissionStore {
     }
 
     /**
-     * 创建/更新用户（upsert）。
+     * 创建/更新用户（upsert；uuid 主键，名字仅作属性同步）。
+     * 传入玩家名时自动补录离线 UUID 与玩家名属性；传入 UUID 时按原样归一主键。
      */
     public boolean createUser(String player) {
-        String pk = playerKey(player);
+        String pk = userKey(player);
         if (pk.isEmpty()) return false;
+        String name = UuidUtil.isUuid(player) ? null : player.trim(); // 名字输入才记录玩家名属性
         long now = System.currentTimeMillis();
         SoysPermUser u = getUser(pk);
         if (u == null) {
             u = new SoysPermUser(pk);
             u.setCreatedAt(String.valueOf(now));
+        }
+        if (name != null && !name.equals(u.getPlayer())) {
+            u.setPlayer(name); // 同步最新玩家名属性
         }
         u.setUpdatedAt(String.valueOf(now));
         return save(u);
@@ -256,12 +268,12 @@ public class LocalPermissionStore {
      * 删除用户（连带删除用户直接权限与用户-组引用）。
      */
     public boolean deleteUser(String player) {
-        String pk = playerKey(player);
+        String pk = userKey(player);
         if (pk.isEmpty()) return false;
         for (SoysPermPermission p : listPermissions(SoysPermPermission.TYPE_USER, pk)) {
             delete(SoysPermPermission.class, p.getId());
         }
-        for (SoysPermUserGroup ug : list(SoysPermUserGroup.class, c -> c.eq(SoysPermUserGroup::getPlayer, pk))) {
+        for (SoysPermUserGroup ug : list(SoysPermUserGroup.class, c -> c.eq(SoysPermUserGroup::getUuid, pk))) {
             delete(SoysPermUserGroup.class, ug.getId());
         }
         return delete(SoysPermUser.class, pk);
@@ -273,7 +285,7 @@ public class LocalPermissionStore {
      * @param expiryEpoch epoch 毫秒字符串；空串或 "0" = 清除（永久）。
      */
     public boolean setUserExpiry(String player, String expiryEpoch) {
-        String pk = playerKey(player);
+        String pk = userKey(player);
         if (pk.isEmpty()) return false;
         SoysPermUser u = getUser(pk);
         if (u == null) u = new SoysPermUser(pk);
@@ -313,7 +325,7 @@ public class LocalPermissionStore {
      * 用户加组（幂等：已存在则 no-op 返回 true）。
      */
     public boolean addUserGroup(String player, String group) {
-        String pk = playerKey(player);
+        String pk = userKey(player);
         String gid = normalize(group).toLowerCase();
         if (pk.isEmpty() || gid.isEmpty()) return false;
         if (getUser(pk) == null) createUser(pk);
@@ -324,7 +336,7 @@ public class LocalPermissionStore {
     }
 
     public boolean removeUserGroup(String player, String group) {
-        String pk = playerKey(player);
+        String pk = userKey(player);
         String gid = normalize(group).toLowerCase();
         if (pk.isEmpty() || gid.isEmpty()) return false;
         return delete(SoysPermUserGroup.class, pk + "|" + gid);
@@ -334,10 +346,10 @@ public class LocalPermissionStore {
      * 用户所属组名列表。
      */
     public List<String> listUserGroups(String player) {
-        String pk = playerKey(player);
+        String pk = userKey(player);
         if (pk.isEmpty()) return Collections.emptyList();
         List<String> out = new ArrayList<>();
-        for (SoysPermUserGroup ug : list(SoysPermUserGroup.class, c -> c.eq(SoysPermUserGroup::getPlayer, pk))) {
+        for (SoysPermUserGroup ug : list(SoysPermUserGroup.class, c -> c.eq(SoysPermUserGroup::getUuid, pk))) {
             out.add(ug.getGroup());
         }
         return out;
@@ -364,7 +376,7 @@ public class LocalPermissionStore {
      * 用户直接权限（不含组继承）。
      */
     public List<SoysPermPermission> listUserPermissions(String player) {
-        String pk = playerKey(player);
+        String pk = userKey(player);
         return pk.isEmpty() ? Collections.emptyList()
                 : listPermissions(SoysPermPermission.TYPE_USER, pk);
     }
@@ -373,7 +385,7 @@ public class LocalPermissionStore {
      * 用户加直接权限（{@code -} 前缀=否定；{@code :≡.} 归一）。
      */
     public boolean addUserPermission(String player, String nodeInput) {
-        String pk = playerKey(player);
+        String pk = userKey(player);
         if (pk.isEmpty()) return false;
         if (getUser(pk) == null) createUser(pk);
         ParsedNode p = parseNode(nodeInput);
@@ -382,7 +394,7 @@ public class LocalPermissionStore {
     }
 
     public boolean removeUserPermission(String player, String nodeInput) {
-        String pk = playerKey(player);
+        String pk = userKey(player);
         if (pk.isEmpty()) return false;
         ParsedNode p = parseNode(nodeInput);
         if (p.node.isEmpty()) return false;
@@ -393,7 +405,7 @@ public class LocalPermissionStore {
      * 用户生效权限（用户直接权限 ∪ 所属组权限；组内权限并集，不含优先级折叠，供管理展示与判定）。
      */
     public List<SoysPermPermission> listEffectivePermissions(String player) {
-        String pk = playerKey(player);
+        String pk = userKey(player);
         if (pk.isEmpty()) return Collections.emptyList();
         List<SoysPermPermission> out = new ArrayList<>();
         out.addAll(listPermissions(SoysPermPermission.TYPE_USER, pk));
@@ -412,7 +424,7 @@ public class LocalPermissionStore {
      * 肯定（精确/通配）命中 → true；否则 false。</p>
      */
     public boolean check(String player, String permission) {
-        String pk = playerKey(player);
+        String pk = userKey(player);
         if (pk.isEmpty() || permission == null || permission.trim().isEmpty()) return false;
         SoysPermUser user = getOrNull(SoysPermUser.class, pk);
         if (user == null) return false;

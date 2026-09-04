@@ -9,24 +9,26 @@ import lombok.Data;
  * 本地内置权限表 · 用户实体（ORM，落 {@code data/soys_perm_user.yml} 或 SQL 表 {@code soys_perm_user}）。
  *
  * <p>用户整体过期字段 {@link #expiry}（epoch 毫秒字符串；空=永久）。用户直接权限存于
- * {@link SoysPermPermission}（ownerType=USER），用户归属组存于 {@link SoysPermUserGroup}。</p>
+ * {@link SoysPermPermission}（ownerType=USER、ownerId=uuid），用户归属组存于 {@link SoysPermUserGroup}。</p>
  *
- * <p>主键为玩家名（统一小写归一）。</p>
+ * <p>主键为玩家 UUID（离线服为确定性离线 UUID，见 {@link com.github.cocosoys.mc.soyshttpovermc.util.UuidUtil}）；
+ * {@link #player} 仅作展示/反查属性，可随改名更新。所有用户操作经
+ * {@link LocalPermissionStore#userKey(String)} 归一为 uuid 键。</p>
  */
 @TableName("soys_perm_user")
 @Data
 public class SoysPermUser {
 
     /**
-     * 玩家名（主键，统一小写）。
+     * 玩家 UUID（主键，标准小写带横线；离线服为离线 UUID）。
      */
     @TableId(type = IdType.INPUT)
-    private String player;
+    private String uuid;
 
     /**
-     * 玩家 UUID（可选，便于跨服/换名）。
+     * 玩家名（属性，仅展示/反查；可随改名更新）。
      */
-    private String uuid;
+    private String player;
 
     /**
      * 用户整体过期时刻（epoch 毫秒字符串；空=永久）。
@@ -46,7 +48,7 @@ public class SoysPermUser {
     public SoysPermUser() {
     }
 
-    public SoysPermUser(String player) {
-        this.player = player;
+    public SoysPermUser(String uuid) {
+        this.uuid = uuid;
     }
 }
