@@ -2,6 +2,7 @@ package com.github.cocosoys.mc.soyshttpovermc.config;
 
 import com.github.cocosoys.mc.soyshttpovermc.HttpOverMcPlugin;
 import com.github.cocosoys.mc.soyshttpovermc.web.MimeTypes;
+import com.github.cocosoys.mc.soyshttpovermc.web.PagePermissionChecker;
 import com.github.cocosoys.mc.soyshttpovermc.web.WebRegistry;
 import com.github.cocosoys.mc.soyshttpovermc.platform.PlatformYaml;
 import lombok.CustomLog;
@@ -11,7 +12,9 @@ import org.bukkit.plugin.java.JavaPlugin;
 
 import java.io.*;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * pages.yml 配置文件（web.* 前端资源段 + pages.page/auto 手动登记）操作封装。
@@ -154,6 +157,61 @@ public final class PagesConfig {
         }
 
         /**
+         * 解析 pages.yml 的网页访问权限（pages.page.<路径>.permissions 单页内联 + pages.permissions
+         * 全局路径规则）为 {@link PagePermissionChecker}。无配置/文件缺失返回空检查器（全部放行）。
+         */
+        public static PagePermissionChecker buildPermissionChecker(JavaPlugin plugin) {
+            YamlConfiguration cfg = loadConfig(plugin);
+            if (cfg == null) return new PagePermissionChecker(null, null);
+            ConfigurationSection pages = cfg.getConfigurationSection("pages");
+            if (pages == null) return new PagePermissionChecker(null, null);
+
+            Map<String, List<String>> inline = new LinkedHashMap<>();
+            ConfigurationSection pageSec = pages.getConfigurationSection("page");
+            if (pageSec != null) {
+                for (String key : pageSec.getKeys(false)) {
+                    PageItem it = readPageObj(pageSec, key);
+                    if (it.permissions != null && !it.permissions.isEmpty()) {
+                        inline.put(normalizeUrl(key), it.permissions);
+                    }
+                }
+            }
+
+            Map<String, List<String>> global = new LinkedHashMap<>();
+            ConfigurationSection permSec = pages.getConfigurationSection("permissions");
+            if (permSec != null) {
+                for (String key : permSec.getKeys(false)) {
+                    List<String> perms = asStringList(permSec.get(key));
+                    if (!perms.isEmpty()) {
+                        global.put(normalizeUrl(key), perms);
+                    }
+                }
+            }
+            return new PagePermissionChecker(inline, global);
+        }
+
+        /**
+         * 把 YAML 值（单字符串 / List / ConfigurationSection 键值）规整为字符串列表。
+         */
+        private static List<String> asStringList(Object raw) {
+            List<String> out = new ArrayList<>();
+            if (raw == null) return out;
+            if (raw instanceof List) {
+                for (Object o : (List<?>) raw) {
+                    if (o != null) out.add(String.valueOf(o));
+                }
+            } else if (raw instanceof ConfigurationSection) {
+                for (String k : ((ConfigurationSection) raw).getKeys(false)) {
+                    Object v = ((ConfigurationSection) raw).get(k);
+                    if (v != null) out.add(String.valueOf(v));
+                }
+            } else {
+                out.add(String.valueOf(raw));
+            }
+            return out;
+        }
+
+        /**
          * 确保 pages.yml 存在（缺失时落内置默认）并读取。
          * 统一入口：外部模块（web.* 配置、ihomepage 写 web.home）与 {@link #register} 共用同一配置源。
          *
@@ -181,6 +239,7 @@ public final class PagesConfig {
                 it.resource = obj.getString("resource");
                 it.description = obj.getString("description");
                 it.nicknames = obj.getStringList("nicknames");
+                it.permissions = obj.getStringList("permissions");
             } else if (raw != null) {
                 it.resource = String.valueOf(raw);
             }
@@ -355,6 +414,7 @@ public final class PagesConfig {
             String resource;
             String description;
             List<String> nicknames;
+            List<String> permissions;
         }
     }
 }

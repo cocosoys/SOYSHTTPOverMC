@@ -3,14 +3,20 @@ package com.github.cocosoys.mc.soyshttpovermc.web;
 import com.github.cocosoys.mc.soyshttpovermc.i18n.I18n;
 import com.github.cocosoys.mc.soyshttpovermc.util.AjaxResult;
 import com.github.cocosoys.mc.soyshttpovermc.util.ApiResponse;
+import com.github.cocosoys.mc.soyshttpovermc.permission.CombinedPermissionService;
 import com.github.cocosoys.mc.soyshttpovermc.util.HttpFrames;
+import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.issuer.CredentialPresentation;
+import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.util.AuthUtils;
 import com.github.cocosoys.mc.soyshttpovermc.web.proto.FrameProto;
 import com.google.protobuf.ByteString;
 import lombok.CustomLog;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 /**
  * 服务端 HTTP 处理器：把一次经 HTTP 后端送达的 HTTP 请求，路由为注解式 API 或静态资源。
@@ -56,6 +62,14 @@ public class WebFrontendHandler {
      */
     private final WebInterceptorRegistry interceptorRegistry;
     /**
+     * 网页访问权限检查器提供者（pages.yml 的 pages.permissions / page 内联；reload 时重建，故用 Supplier 取最新）。
+     */
+    private final Supplier<PagePermissionChecker> pagePermissionChecker;
+    /**
+     * 组合权限服务提供者（与 API 权限判定同一实例；reload 重建，故用 Supplier 取最新）。
+     */
+    private final Supplier<CombinedPermissionService> permissionService;
+    /**
      * 网络页内容缓存：path -> (bytes, contentType, cachedAt)（按 NetworkPage.cacheTtlSeconds 失效）
      */
     private final java.util.concurrent.ConcurrentHashMap<String, NetworkCacheEntry> networkCache =
@@ -63,13 +77,17 @@ public class WebFrontendHandler {
 
     public WebFrontendHandler(String webRootPath, String homeSpec, ApiRegistry apiRegistry, WebRegistry webRegistry,
                               WebContentCache webContent, long largeFileMaxBytes,
-                              CorsRegistry corsRegistry, WebInterceptorRegistry interceptorRegistry) {
+                              CorsRegistry corsRegistry, WebInterceptorRegistry interceptorRegistry,
+                              Supplier<PagePermissionChecker> pagePermissionChecker,
+                              Supplier<CombinedPermissionService> permissionService) {
         this.apiRegistry = apiRegistry;
         this.webRegistry = webRegistry;
         this.webContent = webContent;
         this.largeFileMaxBytes = Math.max(0, largeFileMaxBytes);
         this.corsRegistry = corsRegistry;
         this.interceptorRegistry = interceptorRegistry;
+        this.pagePermissionChecker = pagePermissionChecker;
+        this.permissionService = permissionService;
         File root = null;
         String canonical = null;
         if (webRootPath != null && !webRootPath.trim().isEmpty()) {
@@ -199,6 +217,11 @@ public class WebFrontendHandler {
         if (webRegistry != null) {
             WebRegistry.Entry page = webRegistry.resolve(m, cleanPath);
             if (page != null) {
+                // 网页访问权限守卫：仅对可导航（HTML 页 / 跳转）生效，资源不拦
+                if (page.isNavigable()) {
+                    FrameProto.HttpResponseFrame guard = checkPageGuard(headers, cleanPath);
+                    if (guard != null) return guard;
+                }
                 if (page.redirectTo != null) {
                     return HttpFrames.redirect(page.redirectCode > 0 ? page.redirectCode : 302, page.redirectTo);
                 }
@@ -214,6 +237,11 @@ public class WebFrontendHandler {
             // 网络文件/网络网页页面（NetworkPage 抽象：开发者自定义传输，如加密；按需 load + 可选缓存）
             NetworkPage np = webRegistry.resolveNetworkPage(m, cleanPath);
             if (np != null) {
+                // 网页访问权限守卫：网络页按 HTML 路径判定
+                if (MimeTypes.isHtmlPath(cleanPath)) {
+                    FrameProto.HttpResponseFrame guard = checkPageGuard(headers, cleanPath);
+                    if (guard != null) return guard;
+                }
                 return serveNetworkPage(np);
             }
         }
@@ -226,6 +254,11 @@ public class WebFrontendHandler {
         if (hit == null) {
             return notFound(cleanPath);
         }
+        // 网页访问权限守卫：静态资源仅拦截 HTML 页（css/js/图片等资源不拦，避免破坏页面渲染）
+        if (MimeTypes.isHtmlPath(hit.name)) {
+            FrameProto.HttpResponseFrame guard = checkPageGuard(headers, cleanPath);
+            if (guard != null) return guard;
+        }
         return FrameProto.HttpResponseFrame.newBuilder()
                 .setStatusCode(200)
                 .putHeaders("Content-Type", hit.contentType != null
@@ -234,6 +267,59 @@ public class WebFrontendHandler {
                 .setFragmentIndex(0)
                 .setTotalFragments(1)
                 .build();
+    }
+
+    /**
+     * 网页访问权限守卫：请求路径命中 pages.yml 权限配置时校验访问者。
+     * 仅对 HTML 页/跳转调用（调用方已按 isNavigable / isHtmlPath 过滤）。
+     *
+     * @return null=放行；否则返回 302 响应（未登录 → 登录页；已登录缺权限 → 权限不足提示页）
+     */
+    private FrameProto.HttpResponseFrame checkPageGuard(Map<String, String> headers, String cleanPath) {
+        // 登录页 / 权限提示页自身永不拦截（避免 302 死循环，如全局规则 * 命中自身）
+        if (cleanPath == null || cleanPath.equals("/perm-denied.html")
+                || cleanPath.startsWith("/login") || cleanPath.equals("/login.html")) {
+            return null;
+        }
+        PagePermissionChecker checker = pagePermissionChecker == null ? null : pagePermissionChecker.get();
+        if (checker == null || checker.isEmpty()) return null;
+        List<String> perms = checker.permissionsFor(cleanPath);
+        if (perms == null || perms.isEmpty()) return null;
+        CombinedPermissionService cps = permissionService == null ? null : permissionService.get();
+        if (cps == null) return null;
+        try {
+            // 未启用会话登录体系（无 SessionTokenIssuer）→ 跟随既有开放语义放行（与 API 权限行为一致）
+            if (!cps.isSessionAuthEnabled()) return null;
+            CredentialPresentation credential = AuthUtils.extractPresentation(headers, "X-API-Key",
+                    true, true, true, true);
+            // 未登录（无法解析玩家）→ 302 登录页，登录后跳回原页面
+            String player = cps.subjectOf(credential);
+            if (player == null) {
+                return HttpFrames.redirect(302, "/login.html?redirect=" + urlEncode(cleanPath));
+            }
+            // 已登录：AND 语义逐节点判定，收集缺失权限
+            List<String> denied = new ArrayList<>();
+            for (String p : perms) {
+                if (!cps.hasPermission(credential, p)) denied.add(p);
+            }
+            if (denied.isEmpty()) return null;
+            return HttpFrames.redirect(302, "/perm-denied.html?from=" + urlEncode(cleanPath)
+                    + "&missing=" + urlEncode(String.join(",", denied)));
+        } catch (Throwable t) {
+            log.warnT("log.web.page-guard-error", "网页权限判定异常，按放行处理: {0}", t.toString());
+            return null;
+        }
+    }
+
+    /**
+     * URL 编码（302 Location 参数安全）。
+     */
+    private static String urlEncode(String s) {
+        try {
+            return java.net.URLEncoder.encode(s == null ? "" : s, StandardCharsets.UTF_8.name());
+        } catch (java.io.UnsupportedEncodingException e) {
+            return s == null ? "" : s;
+        }
     }
 
     /**

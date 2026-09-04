@@ -193,8 +193,9 @@ public class HttpOverMcPluginProxy {
         // 6.5) 对外集成门面
         initApiImpl();
 
-        // 6.75) 静态可打开界面纳入【统一注册通道】
+        // 6.75) 静态可打开界面纳入【统一注册通道】+ 网页访问权限检查器
         PagesConfig.Manual.register(plugin, plugin.getWebRegistry());
+        plugin.setPagePermissionChecker(PagesConfig.Manual.buildPermissionChecker(plugin));
 
         // 7) 统计 / 状态 API / 前端处理器 / 通道消息处理
         RequestStats stats = initFrontend(webRoot);
@@ -338,6 +339,8 @@ public class HttpOverMcPluginProxy {
         reloadCoreConfig();
         initLanguageConfig();
         loadPagesConfig();
+        // 重建网页访问权限检查器（pages.yml 权限配置可能已修改）
+        plugin.setPagePermissionChecker(PagesConfig.Manual.buildPermissionChecker(plugin));
         String levelRaw = coreConfig().getString("log.level", "INFO");
         LogKit.setLevel(levelRaw);
         initStorage();
@@ -652,7 +655,9 @@ public class HttpOverMcPluginProxy {
                 webConfig("web.home", ""),
                 plugin.getApiRegistry(), plugin.getWebRegistry(),
                 plugin.getWebContentCache(), plugin.getLargeFileMaxBytes(),
-                plugin.getCorsRegistry(), plugin.getWebInterceptorRegistry());
+                plugin.getCorsRegistry(), plugin.getWebInterceptorRegistry(),
+                () -> plugin.getPagePermissionChecker(),
+                () -> plugin.getCombinedPermissionService());
         plugin.setWebFrontend(web);
 
         return stats;

@@ -66,4 +66,12 @@ public class PlayerPermissionService implements PermissionService {
         }
         return null;
     }
+
+    /**
+     * 是否存在可用的会话令牌颁发器（登录体系是否启用）。
+     * 网页权限守卫据此决定跟随「开放」语义（无登录体系）还是进行登录判定。
+     */
+    public boolean isSessionAuthEnabled() {
+        return findSessionIssuer() != null;
+    }
 }

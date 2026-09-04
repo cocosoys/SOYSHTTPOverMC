@@ -184,6 +184,10 @@ public class HttpOverMcPlugin extends JavaPlugin {
      */
     private volatile CombinedPermissionService combinedPermissionService;
     /**
+     * 网页访问权限检查器（pages.yml 的 pages.permissions / page 内联；reload 时重建）。
+     */
+    private volatile PagePermissionChecker pagePermissionChecker;
+    /**
      * 版本兼容嗅探器安装句柄（由 adapter HttpSnifferInstaller 返回，仅供卸载凭据）。
      */
     private volatile Object snifferHandle;

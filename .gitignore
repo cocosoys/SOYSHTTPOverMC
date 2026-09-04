@@ -1,5 +1,6 @@
 .i*/
 .w*/
+.t*/
 target/
 server*/
 docs/*.md

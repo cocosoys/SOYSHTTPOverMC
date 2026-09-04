@@ -53,6 +53,7 @@ web:
 #                             · 相对插件数据目录：  "web/notice.html"
 #                             · 绝对磁盘路径：     "D:/sites/my-html/notice.html"
 #                             · jar 内置资源：     "/dist/xxx.html"
+#       permissions: [...]  # 网页访问权限（字符串数组，AND 语义，最高优先）；详情见文件尾部「网页访问权限」段
 #
 # ◆ pages.auto —— 平价注册：键 = URL 路径，值 = 来源
 #     "/路径": <来源>
@@ -72,3 +73,23 @@ pages:
     # "/notice": "web/notice.html"
     "/": "dist/"
     "/link/mcmod": "`https://www.mcmod.cn/`"
+
+  # ===== 网页访问权限（可选）=====
+  # 两级配置，权限节点为【字符串数组】，判定为 AND 语义（数组内全部通过才放行，任一缺失 → 302）：
+  #   1) pages.page.<路径>.permissions —— 单页内联（最高优先；与 pages.permissions 同路径时完全替换、不合并）
+  #   2) pages.permissions            —— 全局路径规则（精确 /admin、目录通配 /console/*、全量 *）
+  # 路径匹配复用 API 网关同款语义：/admin 精确（含 /admin/... 子路径）；/console/* 目录通配；* 全量。
+  # 权限节点复用组合权限服务（含本地权限表 local）：可用 /soyshttp perm 为用户/组授予 soyshttp.page.xxx。
+  # 未登录 → 302 登录页 login.html；已登录缺权限 → 302 权限不足提示页 /perm-denied.html（右上角 i 查看缺少的权限）。
+  # 仅对 HTML 页/跳转生效（css/js/图片等资源不拦）。登录页与提示页自身永不拦截。
+  # 示例：
+  #   page:
+  #     "/admin":
+  #       resource: "dist/admin.html"
+  #       permissions:
+  #         - "soyshttp.page.admin"
+  #         - "soyshttp.page.admin.manage"
+  #   permissions:
+  #     "/admin":     ["soyshttp.page.admin"]
+  #     "/console/*": ["soyshttp.page.console"]
+  permissions: {}
