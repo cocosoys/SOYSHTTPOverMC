@@ -17,9 +17,9 @@ import com.github.cocosoys.mc.soyshttpovermc.log.LogKit;
 import com.github.cocosoys.mc.soyshttpovermc.orm.YAML;
 import com.github.cocosoys.mc.soyshttpovermc.orm.executor.SqlBackendExecutor;
 import com.github.cocosoys.mc.soyshttpovermc.platform.PlatformBukkitImpl;
-import com.github.cocosoys.mc.soyshttpovermc.spi.Platform;
 import com.github.cocosoys.mc.soyshttpovermc.permission.CombinedPermissionService;
 import com.github.cocosoys.mc.soyshttpovermc.proxy.ProxyDetector;
+import com.github.cocosoys.mc.soyshttpovermc.spi.Platforms;
 import com.github.cocosoys.mc.soyshttpovermc.spring.controller.AuthController;
 import com.github.cocosoys.mc.soyshttpovermc.spring.controller.StatusController;
 import com.github.cocosoys.mc.soyshttpovermc.spring.controller.SystemController;
@@ -49,11 +49,15 @@ import com.github.cocosoys.mc.soyshttpovermc.web.http.handler.direct.DirectReque
 import com.github.cocosoys.mc.soyshttpovermc.web.http.handler.memory.MemoryQueueRequestHandler;
 import com.github.cocosoys.mc.soyshttpovermc.web.http.handler.netty.NettyEventLoopRequestHandler;
 import com.github.cocosoys.mc.soyshttpovermc.web.http.handler.standalone.StandaloneHttpServer;
+import com.github.cocosoys.mc.soyshttpovermc.web.http.sniffer.HttpSnifferDeps;
+import com.github.cocosoys.mc.soyshttpovermc.web.http.sniffer.HttpSnifferInstaller;
+import com.github.cocosoys.mc.soyshttpovermc.web.http.sniffer.HttpSnifferInstallers;
 import com.github.cocosoys.mc.soyshttpovermc.web.http.sniffer.SocketSniffer;
 import lombok.CustomLog;
 import org.bukkit.configuration.ConfigurationSection;
 
 import javax.net.ssl.SSLEngine;
+import javax.net.ssl.SSLContext;
 import java.io.File;
 import java.util.function.Supplier;
 
@@ -69,18 +73,57 @@ import java.util.function.Supplier;
 public class HttpOverMcPluginProxy {
 
     private final HttpOverMcPlugin plugin;
-    /**
-     * 平台抽象（common 各包通过它访问宿主能力；Bukkit 默认实现，版本模块可覆写）。
-     */
-    private final Platform platform;
-    /**
-     * 组合权限服务（多权限插件组合判断，含离线权限查询能力）。
-     */
-    private volatile CombinedPermissionService combinedPermissionService;
 
     public HttpOverMcPluginProxy(HttpOverMcPlugin plugin) {
         this.plugin = plugin;
-        this.platform = new PlatformBukkitImpl(plugin);
+        plugin.setPlatform(new PlatformBukkitImpl(plugin));
+    }
+
+    // ===== 主配置 config.yml（UTF-8 兼容读取缓存；经 PlatformYaml → adapter 版本实现） =====
+
+    /**
+     * config.yml 的 UTF-8 兼容读取缓存（经 PlatformYaml → 版本模块 Platform.loadYaml）。
+     * 避免 Bukkit 1.7.x YamlConfiguration 读 UTF-8 中文报 "special characters are not allowed"。
+     */
+    private volatile org.bukkit.configuration.file.YamlConfiguration coreConfig;
+
+    /**
+     * 读取主配置 config.yml（UTF-8 兼容，经 PlatformYaml → adapter 版本实现）。
+     */
+    public org.bukkit.configuration.file.YamlConfiguration coreConfig() {
+        org.bukkit.configuration.file.YamlConfiguration c = coreConfig;
+        if (c == null) {
+            synchronized (this) {
+                c = coreConfig;
+                if (c == null) {
+                    c = com.github.cocosoys.mc.soyshttpovermc.platform.PlatformYaml.load(
+                            new File(plugin.getDataFolder(), "config.yml"));
+                    coreConfig = c;
+                }
+            }
+        }
+        return c;
+    }
+
+    /**
+     * 清空 config.yml 读取缓存（/soyshttp reload 时调用）。
+     */
+    public void reloadCoreConfig() {
+        synchronized (this) {
+            coreConfig = null;
+        }
+    }
+
+    /**
+     * 将主配置保存回 config.yml（UTF-8 兼容，经 PlatformYaml → adapter 版本实现）。
+     */
+    public void saveCoreConfig() {
+        try {
+            com.github.cocosoys.mc.soyshttpovermc.platform.PlatformYaml.save(coreConfig(),
+                    new File(plugin.getDataFolder(), "config.yml"));
+        } catch (java.io.IOException e) {
+            plugin.getLogger().warning("保存 config.yml 失败: " + e);
+        }
     }
 
     // ===== 生命周期入口（由上帝类 onEnable/onDisable 委托调用） =====
@@ -98,6 +141,11 @@ public class HttpOverMcPluginProxy {
         }
 
         plugin.saveDefaultConfig();
+
+        // 0.1) 加载版本适配器
+        // 注册 Platform 默认实现（common 各包经 Platforms.get() 访问宿主能力；版本模块可经 ServiceLoader 覆盖）
+        PlatformBukkitImpl.setCurrentPlugin(plugin);
+        Platforms.bind(new PlatformBukkitImpl(plugin));
 
         // 0.5) 国际化：尽早加载语言包
         initLanguageConfig();
@@ -118,7 +166,7 @@ public class HttpOverMcPluginProxy {
             LoginProviderFactory.register(new AuthMeLoginProvider());
         }
         // 3) 日志门面 + 级别过滤
-        LogKit.init(plugin.getLogger(), plugin.getConfig().getString("log.level", "INFO"));
+        LogKit.init(plugin.getLogger(), coreConfig().getString("log.level", "INFO"));
         // 3.25) 国际化（日志就绪后再次装配）
         initLanguageConfig();
         // 3.5) Web 内容缓存
@@ -133,7 +181,7 @@ public class HttpOverMcPluginProxy {
         YAML.Pojo.init(yamlOrmDir);
         log.infoT("log.plugin.orm-yaml-ready", "ORM(YAML) 已装配: dataDir={0}", yamlOrmDir);
         // 3.9) ORM（SQL 后端，二期）装配
-        SqlBackendExecutor.init(platform);
+        SqlBackendExecutor.init(plugin.getPlatform());
         // 4) 安全网关 + TLS 上下文
         rebuildGateway(gatewayDir);
         // 4.5) AuthMe 网页登录接入
@@ -141,7 +189,7 @@ public class HttpOverMcPluginProxy {
         // 5) 注解式 API 框架 + 网页登记 + 事件监听 + 系统级 API
         initApiFramework(gatewayDir);
         // 5.5) 读取 HTTP 后端模式
-        HttpBackendMode backendMode = HttpBackendMode.from(plugin.getConfig().getString("http-backend.mode", "netty-eventloop"));
+        HttpBackendMode backendMode = HttpBackendMode.from(coreConfig().getString("http-backend.mode", "netty-eventloop"));
         // 6.5) 对外集成门面
         initApiImpl();
 
@@ -287,17 +335,17 @@ public class HttpOverMcPluginProxy {
      * /soyshttp reload：热重载日志级别 + 网关策略与 TLS 配置 + 存储后端。
      */
     public void reloadHttpConfig() {
-        plugin.reloadConfig();
+        reloadCoreConfig();
         initLanguageConfig();
         loadPagesConfig();
-        String levelRaw = plugin.getConfig().getString("log.level", "INFO");
+        String levelRaw = coreConfig().getString("log.level", "INFO");
         LogKit.setLevel(levelRaw);
         initStorage();
         File gatewayDir = ConfigManager.ensureGatewayFiles(plugin);
         rebuildGateway(gatewayDir);
         if (plugin.getApiRegistry() != null) {
             CombinedPermissionService cps = new CombinedPermissionService(plugin, plugin.getGateway());
-            this.combinedPermissionService = cps;
+            plugin.setCombinedPermissionService(cps);
             plugin.getApiRegistry().setPermissionService(cps);
             plugin.getApiRegistry().setPlayerResolver(cps::subjectOf);
         }
@@ -333,7 +381,7 @@ public class HttpOverMcPluginProxy {
      */
     public String getMcHost() {
         return ConfigManager.resolveMcPublicHost(plugin,
-                plugin.getConfig().getString("mc.host", ""), plugin.getConfig().getString("mc.public-host", ""));
+                coreConfig().getString("mc.host", ""), coreConfig().getString("mc.public-host", ""));
     }
 
     /**
@@ -342,7 +390,7 @@ public class HttpOverMcPluginProxy {
      */
     public int getMcPort() {
         return ConfigManager.resolveMcPublicPort(plugin,
-                plugin.getConfig().getInt("mc.port", 0), plugin.getConfig().getInt("mc.public-port", 0));
+                coreConfig().getInt("mc.port", 0), coreConfig().getInt("mc.public-port", 0));
     }
 
     // ===== private 初始化方法 =====
@@ -351,8 +399,8 @@ public class HttpOverMcPluginProxy {
      * 解析 ORM（YAML 后端）实体数据存放目录。
      */
     private File resolveYamlOrmDir() {
-        String fileCfg = plugin.getConfig().getString("storage.backends.yaml.file", "data");
-        File dir = YamlStorage.resolveDir(platform, fileCfg);
+        String fileCfg = coreConfig().getString("storage.backends.yaml.file", "data");
+        File dir = YamlStorage.resolveDir(plugin.getPlatform(), fileCfg);
         if (!dir.exists()) {
             dir.mkdirs();
         }
@@ -394,7 +442,7 @@ public class HttpOverMcPluginProxy {
     private void initStorage() {
         StorageManager manager = null;
         try {
-            manager = new StorageManager(platform);
+            manager = new StorageManager(plugin.getPlatform());
             manager.initialize();
         } catch (Throwable t) {
             log.warnT("log.plugin.storage-init-fail", "存储后端初始化失败，降级为内存模式: {0}", t.getMessage());
@@ -440,14 +488,14 @@ public class HttpOverMcPluginProxy {
      * 数据贡献自动上报（受 upload.enabled 开关控制）。
      */
     private void handleUploadContribution() {
-        if (!plugin.getConfig().getBoolean("upload.enabled", false)) {
+        if (!coreConfig().getBoolean("upload.enabled", false)) {
             return;
         }
         uploadContribution();
     }
 
     private void uploadContribution() {
-        final String serverUrl = plugin.getConfig().getString("upload.server", "https://api.cocosoys.com/report");
+        final String serverUrl = coreConfig().getString("upload.server", "https://api.cocosoys.com/report");
         final String address = getMcHost() + ":" + getMcPort();
         plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () -> {
             java.net.HttpURLConnection conn = null;
@@ -483,17 +531,17 @@ public class HttpOverMcPluginProxy {
      */
     private void loadCoreConfig() {
         // 读取 HTTP 后端模式
-        HttpBackendMode backendMode = HttpBackendMode.from(plugin.getConfig().getString("http-backend.mode", "netty-eventloop"));
+        HttpBackendMode backendMode = HttpBackendMode.from(coreConfig().getString("http-backend.mode", "netty-eventloop"));
         plugin.setHttpBackendMode(backendMode);
 
-        plugin.setProxyPlatform(ProxyDetector.detect(platform));
+        plugin.setProxyPlatform(ProxyDetector.detect(plugin.getPlatform()));
         log.infoT("log.plugin.proxy-topology", "运行拓扑探测: {0}", plugin.getProxyPlatform());
-        plugin.setServerName(plugin.getConfig().getString("proxy.server-name", ""));
-        plugin.setProxyAddress(plugin.getConfig().getString("proxy.proxy-address", ""));
+        plugin.setServerName(coreConfig().getString("proxy.server-name", ""));
+        plugin.setProxyAddress(coreConfig().getString("proxy.proxy-address", ""));
         plugin.setMcHost(getMcHost());
         plugin.setMcPort(getMcPort());
-        plugin.setSnifferEnabled(plugin.getConfig().getBoolean("sniffer.enabled", true));
-        plugin.setMaxBody(plugin.getConfig().getInt("sniffer.max-body-bytes", 8 * 1024 * 1024));
+        plugin.setSnifferEnabled(coreConfig().getBoolean("sniffer.enabled", true));
+        plugin.setMaxBody(coreConfig().getInt("sniffer.max-body-bytes", 8 * 1024 * 1024));
     }
 
     /**
@@ -506,7 +554,7 @@ public class HttpOverMcPluginProxy {
         plugin.setApiRegistry(new ApiRegistry(plugin));
         plugin.getApiRegistry().setPathPrefix(apiPrefix);
         CombinedPermissionService cps = new CombinedPermissionService(plugin, plugin.getGateway());
-        this.combinedPermissionService = cps;
+        plugin.setCombinedPermissionService(cps);
         plugin.getApiRegistry().setPermissionService(cps);
         plugin.getApiRegistry().setPlayerResolver(cps::subjectOf);
         if (plugin.getAuthLoginBridge() != null) {
@@ -615,7 +663,7 @@ public class HttpOverMcPluginProxy {
      */
     private void initSniffer(RequestStats stats) {
         // 读取 HTTP 后端模式
-        String modeStr = plugin.getConfig().getString("http-backend.mode", "netty-eventloop");
+        String modeStr = coreConfig().getString("http-backend.mode", "netty-eventloop");
         HttpBackendMode mode = HttpBackendMode.from(modeStr);
         plugin.setHttpBackendMode(mode);
         log.infoT("log.sniffer.backend-mode", "HTTP 后端模式: {0}", mode.configName());
@@ -634,11 +682,33 @@ public class HttpOverMcPluginProxy {
             return;
         }
 
-        boolean trustProxy = plugin.getConfig().getBoolean("mc.trust-proxy", true);
-        int httpConcurrency = Math.max(1, plugin.getConfig().getInt("sniffer.http-concurrency", 4));
-        int httpQueue = Math.max(1, plugin.getConfig().getInt("sniffer.http-queue-size", 8));
-        int keepAliveIdleSeconds = Math.max(1, plugin.getConfig().getInt("sniffer.keep-alive-idle-seconds", 30));
+        boolean trustProxy = coreConfig().getBoolean("mc.trust-proxy", true);
+        int httpConcurrency = Math.max(1, coreConfig().getInt("sniffer.http-concurrency", 4));
+        int httpQueue = Math.max(1, coreConfig().getInt("sniffer.http-queue-size", 8));
+        int keepAliveIdleSeconds = Math.max(1, coreConfig().getInt("sniffer.keep-alive-idle-seconds", 30));
 
+        // 1) 优先尝试版本兼容嗅探器（adapter v1_7x / v1_6x 经 SPI 注册；版本判断在 adapter 侧）
+        HttpSnifferInstaller installer = HttpSnifferInstallers.find();
+        if (installer.supported()) {
+            HttpSnifferDeps deps = new HttpSnifferDeps(plugin, handler, () -> true,
+                    plugin.getMaxBody(), stats, plugin.getGateway(),
+                    getTlsEngineSupplier(), getTlsSslContextSupplier(), trustProxy, httpConcurrency, httpQueue, keepAliveIdleSeconds);
+            try {
+                Object handle = installer.install(deps);
+                if (handle != null) {
+                    plugin.setSnifferHandle(handle);
+                    log.infoT("log.sniffer.adapter-installed", "已安装版本兼容嗅探器: {0}", installer.id());
+                    return;
+                }
+                log.warnT("log.sniffer.adapter-install-empty",
+                        "版本兼容嗅探器({0})安装返回空句柄，回退内置嗅探器", installer.id());
+            } catch (Exception e) {
+                log.warnT("log.sniffer.adapter-install-fail",
+                        "版本兼容嗅探器({0})安装失败，回退内置嗅探器: {1}", installer.id(), String.valueOf(e));
+            }
+        }
+
+        // 2) 回退 core 内置 SocketSniffer
         plugin.setSniffer(new SocketSniffer(plugin, handler,
                 () -> true, plugin.getMaxBody(), stats, plugin.getGateway(),
                 getTlsEngineSupplier(), trustProxy, httpConcurrency, httpQueue, keepAliveIdleSeconds));
@@ -691,11 +761,11 @@ public class HttpOverMcPluginProxy {
      */
     private int getBackendInt(String mode, String key, String legacyKey, int def) {
         String layered = "http-backend." + mode + "." + key;
-        if (plugin.getConfig().contains(layered)) {
-            return plugin.getConfig().getInt(layered, def);
+        if (coreConfig().contains(layered)) {
+            return coreConfig().getInt(layered, def);
         }
         String legacy = "http-backend." + legacyKey;
-        return plugin.getConfig().getInt(legacy, def);
+        return coreConfig().getInt(legacy, def);
     }
 
     /**
@@ -703,11 +773,11 @@ public class HttpOverMcPluginProxy {
      */
     private String getBackendString(String mode, String key, String legacyKey, String def) {
         String layered = "http-backend." + mode + "." + key;
-        if (plugin.getConfig().contains(layered)) {
-            return plugin.getConfig().getString(layered, def);
+        if (coreConfig().contains(layered)) {
+            return coreConfig().getString(layered, def);
         }
         String legacy = "http-backend." + legacyKey;
-        return plugin.getConfig().getString(legacy, def);
+        return coreConfig().getString(legacy, def);
     }
 
     /**
@@ -715,6 +785,13 @@ public class HttpOverMcPluginProxy {
      */
     private Supplier<SSLEngine> getTlsEngineSupplier() {
         return plugin.getTlsFactory() == null ? null : plugin.getTlsFactory()::newServerEngine;
+    }
+
+    /**
+     * TLS 上下文供应器（无 TLS 工厂时返回 null）：供 1.6.x 嗅探器在原生 Socket 上就地终止 TLS。
+     */
+    private Supplier<SSLContext> getTlsSslContextSupplier() {
+        return plugin.getTlsFactory() == null ? null : plugin.getTlsFactory()::getSSLContext;
     }
 
     /**

@@ -2,6 +2,7 @@ package com.github.cocosoys.mc.soyshttpovermc.adapter.v1_7;
 
 import com.github.cocosoys.mc.soyshttpovermc.adapter.ServerVersion;
 import com.github.cocosoys.mc.soyshttpovermc.adapter.spi.SocketSnifferAdapter;
+import lombok.CustomLog;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.lang.reflect.Field;
@@ -37,10 +38,8 @@ import java.util.logging.Logger;
  * <p><b>核验状态</b>：上述字段/方法名已按 craftbukkit-1.7.10.jar javap 实证；
  * 运行期行为待 {@code servers/server-1.7.10} 起服冒烟核验（P2）。</p>
  */
+@CustomLog
 public class V1_7SocketSnifferAdapter implements SocketSnifferAdapter {
-
-    private static final Logger LOG = Logger.getLogger(V1_7SocketSnifferAdapter.class.getName());
-
     /** 1.7 各补丁的 NMS 包后缀（1.7.2=R1 … 1.7.10=R4）。 */
     private static final String[] NMS_SUFFIXES = {"v1_7_R1", "v1_7_R2", "v1_7_R3", "v1_7_R4"};
 
@@ -94,14 +93,14 @@ public class V1_7SocketSnifferAdapter implements SocketSnifferAdapter {
                     conn = resolveViaFields(serverClass, instance);
                 }
                 if (conn != null) {
-                    LOG.info("[adapter/v1_7] 定位 ServerConnection 成功: " + suffix
+                    log.info("[adapter/v1_7] 定位 ServerConnection 成功: " + suffix
                             + " (方法/字段双通道)");
                     return conn;
                 }
             } catch (ClassNotFoundException e) {
                 // 该补丁包不存在，尝试下一个
             } catch (Throwable t) {
-                LOG.log(Level.FINE, "[adapter/v1_7] 定位 ServerConnection 失败(" + suffix + ")", t);
+                log.warn("[adapter/v1_7] 定位 ServerConnection 失败(" + suffix + ")", t);
             }
         }
         return null;
@@ -161,7 +160,7 @@ public class V1_7SocketSnifferAdapter implements SocketSnifferAdapter {
                 }
             }
         } catch (Throwable t) {
-            LOG.log(Level.WARNING, "[adapter/v1_7] 提取监听 ChannelFuture 列表失败", t);
+            log.warn("[adapter/v1_7] 提取监听 ChannelFuture 列表失败", t);
             return Collections.emptyList();
         }
         return fallback == null ? Collections.emptyList() : fallback;

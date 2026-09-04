@@ -1,5 +1,6 @@
 package com.github.cocosoys.mc.soyshttpovermc.permission;
 
+import com.github.cocosoys.mc.soyshttpovermc.permission.local.LocalPermissionStore;
 import com.github.cocosoys.mc.soyshttpovermc.permission.provider.PermissionProvider;
 import com.github.cocosoys.mc.soyshttpovermc.permission.provider.ProviderRegistry;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.GatewayFilter;
@@ -30,6 +31,7 @@ import java.util.List;
  * <p>离线玩家降级策略（config.yml 的 permission.offline-fallback）：
  * <ul>
  *   <li>op-only（默认）：仅 OP 玩家返回 true（从 ops.json 读取）；</li>
+ *   <li>local：查插件内置本地权限表（{@link LocalPermissionStore}，配套 /soyshttp perm 管理）；</li>
  *   <li>false：所有离线玩家返回 false（最严格）。</li>
  * </ul>
  *
@@ -39,7 +41,7 @@ import java.util.List;
  *   # 权限判断组合：留空=所有已安装的权限插件自动加入
  *   # 支持：luckperms, essentials, essentialx, permsex
  *   providers: []
- *   # 离线玩家降级策略：op-only / false
+ *   # 离线玩家降级策略：op-only / local / false
  *   offline-fallback: op-only
  * </pre>
  */
@@ -47,11 +49,13 @@ public class CombinedPermissionService extends PlayerPermissionService {
 
     private final JavaPlugin plugin;
     private final ProviderRegistry providerRegistry;
+    private final LocalPermissionStore localStore;
 
     public CombinedPermissionService(JavaPlugin plugin, GatewayFilter gateway) {
         super(gateway);
         this.plugin = plugin;
-        this.providerRegistry = new ProviderRegistry(plugin);
+        this.localStore = new LocalPermissionStore();
+        this.providerRegistry = new ProviderRegistry(plugin, localStore);
         this.providerRegistry.reload();
     }
 
@@ -118,10 +122,18 @@ public class CombinedPermissionService extends PlayerPermissionService {
         if (playerName == null || playerName.isEmpty()) return false;
 
         // 1. 离线 OP 降级检查
-        String fallback = plugin.getConfig().getString("permission.offline-fallback", "op-only");
+        String fallback = ((com.github.cocosoys.mc.soyshttpovermc.HttpOverMcPlugin) plugin).getDelegate().coreConfig().getString("permission.offline-fallback", "op-only");
         if ("op-only".equalsIgnoreCase(fallback)) {
             try {
                 if (Bukkit.getOfflinePlayer(playerName).isOp()) {
+                    return true;
+                }
+            } catch (Throwable ignored) {
+            }
+        } else if ("local".equalsIgnoreCase(fallback)) {
+            // 内置本地权限表兜底：查 data/soys_perm_*.yml（或 SQL 表），配套 /soyshttp perm 管理
+            try {
+                if (localStore.check(playerName, permission)) {
                     return true;
                 }
             } catch (Throwable ignored) {
@@ -154,5 +166,12 @@ public class CombinedPermissionService extends PlayerPermissionService {
      */
     public ProviderRegistry getProviderRegistry() {
         return providerRegistry;
+    }
+
+    /**
+     * 获取本地内置权限表门面（供 /soyshttp perm 子指令管理本地权限；服务内唯一实例）。
+     */
+    public LocalPermissionStore getLocalStore() {
+        return localStore;
     }
 }

@@ -22,8 +22,8 @@
       依赖说明：
         - craftbukkit-1.6.4.jar：vendored 于 adapter/common/lib/（system scope，仅供编译期；
           运行期由服务端自身提供，不打入产物）。
-        - 刻意不依赖主工程 common/core：保持公共底座自包含、轻量、可独立构建；
-          版本模块需用 LogKit / Platform SPI 时自行引入主 common。
+        - 主工程 common（仅编译期）：用于统一日志门面（@CustomLog → LogKit）与 Platform SPI 等
+          基础能力。仅编译依赖，不打入本模块产物（产物仍保持轻量）。
     -->
     <parent>
         <groupId>com.github.cocosoys.mc</groupId>
@@ -52,6 +52,12 @@
             <version>${adapter.api.version}</version>
             <scope>system</scope>
             <systemPath>${adapter.lib.dir}/craftbukkit-1.6.4.jar</systemPath>
+        </dependency>
+        <!-- 主工程 common（统一日志门面 LogKit / Platform SPI 等；仅编译期，不打入本模块产物） -->
+        <dependency>
+            <groupId>com.github.cocosoys.mc</groupId>
+            <artifactId>soyshttpovermc-common</artifactId>
+            <version>${revision}</version>
         </dependency>
         <dependency>
             <groupId>org.projectlombok</groupId>

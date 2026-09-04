@@ -8,9 +8,9 @@ import com.github.cocosoys.mc.soyshttpovermc.config.LanguageConfig;
 import com.github.cocosoys.mc.soyshttpovermc.config.PagesConfig;
 import com.github.cocosoys.mc.soyshttpovermc.enums.ProxyPlatform;
 import com.github.cocosoys.mc.soyshttpovermc.event.GatewayEventListener;
-import com.github.cocosoys.mc.soyshttpovermc.platform.PlatformBukkitImpl;
+import com.github.cocosoys.mc.soyshttpovermc.permission.CombinedPermissionService;
+import com.github.cocosoys.mc.soyshttpovermc.spi.Platform;
 import com.github.cocosoys.mc.soyshttpovermc.proxy.ServerRegistry;
-import com.github.cocosoys.mc.soyshttpovermc.spi.Platforms;
 import com.github.cocosoys.mc.soyshttpovermc.spring.impl.AuthServiceImpl;
 import com.github.cocosoys.mc.soyshttpovermc.storage.StorageManager;
 import com.github.cocosoys.mc.soyshttpovermc.storage.SyncStorage;
@@ -175,13 +175,22 @@ public class HttpOverMcPlugin extends JavaPlugin {
      * EULA 协议配置封装（是否已同意；onEnable 最早阶段由 ConfigManager.initEulaConfig 装配）。
      */
     private EulaConfig eulaConfig;
+    /**
+     * 平台抽象（common 各包通过它访问宿主能力；Bukkit 默认实现，版本模块可覆写）。
+     */
+    private Platform platform;
+    /**
+     * 组合权限服务（多权限插件组合判断，含离线权限查询能力）。
+     */
+    private volatile CombinedPermissionService combinedPermissionService;
+    /**
+     * 版本兼容嗅探器安装句柄（由 adapter HttpSnifferInstaller 返回，仅供卸载凭据）。
+     */
+    private volatile Object snifferHandle;
 
     @Override
     public void onEnable() {
         instance = this;
-        // 注册 Platform 默认实现（common 各包经 Platforms.get() 访问宿主能力；版本模块可经 ServiceLoader 覆盖）
-        PlatformBukkitImpl.setCurrentPlugin(this);
-        Platforms.bind(new PlatformBukkitImpl(this));
         delegate.onEnable();
     }
 

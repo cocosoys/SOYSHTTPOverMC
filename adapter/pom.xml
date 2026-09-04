@@ -14,9 +14,14 @@
           mvn -f adapter\v1_6x\pom.xml clean package  # 单独构建某一版本模块
 
       子模块清单：
-        - common : 公共底座（统一规范 + 版本中立工具 + SPI 契约），编译基线 1.6.4
-        - v1_6x  : 1.6.x 版本兼容模块（最低 1.6.4），自包含 lib
-        - v1_7x  : 1.7.x 版本兼容模块（目标 1.7.10），自包含 lib
+        - common    : 公共底座（统一规范 + 版本中立工具 + SPI 契约），编译基线 1.6.4
+        - v1_6x     : 1.6.x 版本兼容模块（最低 1.6.4），自包含 lib
+        - v1_7x     : 1.7.x 版本兼容模块（目标 1.7.10），自包含 lib
+        - v1_6xJava7: 1.6.4 + JDK7 专用交付模块（编译用 craftbukkit-1.6.4 lib，
+                      产物需经 adapter/v1_6xJava7/build_java7.py 后处理：
+                      Retrolambda + ASM desugar + backport 内嵌 → 纯 JDK7 字节码）
+                      与 v1_6x 并行保留：v1_6x 面向 JDK8 及以上运行，v1_6xJava7 面向
+                      JDK7 运行（1.6.4 老服务端）。
 
       说明：
         - 本模块是纯聚合器（packaging=pom），不产出 jar；子模块各自 parent 到根工程
@@ -35,11 +40,13 @@
     <artifactId>soyshttpovermc-adapter</artifactId>
     <packaging>pom</packaging>
     <name>SOYSHTTPOverMC Adapter</name>
-    <description>低版本兼容模块聚合工程（adapter/common + adapter/v1_6x + adapter/v1_7x）</description>
+    <description>低版本兼容模块聚合工程（adapter/common + adapter/v1_6x + adapter/v1_7x + adapter/v1_6xJava7）</description>
 
     <modules>
         <module>common</module>
         <module>v1_6x</module>
         <module>v1_7x</module>
+        <!-- 已搁置 2026-09-04：v1_6xJava7（Java7 兼容实验模块）暂停构建；需要时取消注释恢复 -->
+        <!-- <module>v1_6xJava7</module> -->
     </modules>
 </project>

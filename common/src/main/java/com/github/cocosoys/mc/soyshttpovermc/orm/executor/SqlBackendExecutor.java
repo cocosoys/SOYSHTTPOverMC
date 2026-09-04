@@ -88,7 +88,7 @@ public class SqlBackendExecutor implements IBackendExecutor {
         ConfigSection mysql = platform.getConfig().getSection("storage.backends.mysql");
         if (mysql != null && mysql.getBoolean("enabled", false)) {
             return buildHikari(mysql.getString("url", ""), mysql.getString("username", "root"),
-                    mysql.getString("password", ""), "com.mysql.cj.jdbc.Driver");
+                    mysql.getString("password", ""), detectMysqlDriver());
         }
         ConfigSection sqlite = platform.getConfig().getSection("storage.backends.sqlite");
         if (sqlite != null && sqlite.getBoolean("enabled", false)) {
@@ -97,6 +97,20 @@ public class SqlBackendExecutor implements IBackendExecutor {
             return buildHikari("jdbc:sqlite:" + file, null, null, "org.sqlite.JDBC");
         }
         return null;
+    }
+
+    /**
+     * MySQL 驱动探测：8.x（com.mysql.cj.jdbc.Driver）优先，回退服务端自带 5.x
+     * （com.mysql.jdbc.Driver）。与 {@link MysqlStorage#getDriverClass()} 口径一致；
+     * 1.6.4/1.7.10 服务端仅带 5.x，1.12.2 若有 cj 则用 cj。
+     */
+    private static String detectMysqlDriver() {
+        try {
+            Class.forName("com.mysql.cj.jdbc.Driver");
+            return "com.mysql.cj.jdbc.Driver";
+        } catch (ClassNotFoundException e) {
+            return "com.mysql.jdbc.Driver";
+        }
     }
 
     private static HikariDataSource buildHikari(String url, String user, String pass, String driver) {
@@ -108,6 +122,10 @@ public class SqlBackendExecutor implements IBackendExecutor {
         cfg.setMaximumPoolSize(4);
         cfg.setMinimumIdle(1);
         cfg.setConnectionTimeout(5000);
+        // 兼容 JDBC3 旧驱动（1.6.4/1.7.10 服务端自带 sqlite/mysql 无 Connection.isValid）：
+        // Hikari 官方对 legacy 驱动的兼容方式是 connectionTestQuery——设置后连接校验改走
+        // 测试查询、跳过 isValid 探测（对支持 isValid 的驱动无影响，1.12.2 依旧用 isValid）。
+        cfg.setConnectionTestQuery("SELECT 1");
         return new HikariDataSource(cfg);
     }
 

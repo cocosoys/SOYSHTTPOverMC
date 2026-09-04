@@ -68,7 +68,7 @@ public class PlatformBukkitImpl implements Platform {
 
     @Override
     public ConfigSection getConfig() {
-        return new BukkitConfigSection(plugin.getConfig());
+        return new BukkitConfigSection(PlatformYaml.load(new File(plugin.getDataFolder(), "config.yml")));
     }
 
     @Override

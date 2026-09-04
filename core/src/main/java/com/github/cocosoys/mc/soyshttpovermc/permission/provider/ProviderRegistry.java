@@ -1,5 +1,6 @@
 package com.github.cocosoys.mc.soyshttpovermc.permission.provider;
 
+import com.github.cocosoys.mc.soyshttpovermc.permission.local.LocalPermissionStore;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.util.*;
@@ -26,6 +27,7 @@ import java.util.*;
  *   <li>essentials — Essentials（在线 Bukkit 原生，离线不支持）</li>
  *   <li>essentialx — EssentialsX（Essentials 活跃分支，同上）</li>
  *   <li>permsex    — PermissionsEx（老牌权限插件，支持离线查询）</li>
+ *   <li>local      — 插件内置本地权限表（offline-fallback=local 配套，在线/离线均可查）</li>
  * </ul>
  */
 public class ProviderRegistry {
@@ -34,14 +36,15 @@ public class ProviderRegistry {
     private final List<PermissionProvider> allProviders = new ArrayList<>();
     private volatile List<PermissionProvider> activeProviders = Collections.emptyList();
 
-    public ProviderRegistry(JavaPlugin plugin) {
+    public ProviderRegistry(JavaPlugin plugin, LocalPermissionStore localStore) {
         this.plugin = plugin;
-        // 注册所有支持的提供者（顺序即默认优先级，可通过配置调整）
+        // 注册所有支持的提供者（顺序即默认优先级，可通过配置调整；local 为内置提供者放最后）
         allProviders.addAll(Arrays.asList(
                 new LuckPermsProvider(),
                 new PermsExProvider(),
                 new EssentialsProvider(),
-                new EssentialsXProvider()
+                new EssentialsXProvider(),
+                new LocalPermissionProvider(localStore)
         ));
     }
 
@@ -50,7 +53,7 @@ public class ProviderRegistry {
      * 调用时机：插件启用时 + /soyshttp reload 时。
      */
     public void reload() {
-        List<String> configured = plugin.getConfig().getStringList("permission.providers");
+        List<String> configured = ((com.github.cocosoys.mc.soyshttpovermc.HttpOverMcPlugin) plugin).getDelegate().coreConfig().getStringList("permission.providers");
         List<PermissionProvider> result = new ArrayList<>();
         Set<String> addedNames = new LinkedHashSet<>();
 
@@ -76,7 +79,7 @@ public class ProviderRegistry {
                 }
                 if (found == null) {
                     plugin.getLogger().warning("[Permission] 未知的权限提供者: " + name
-                            + "（支持: luckperms/essentials/essentialx/permsex），已跳过");
+                            + "（支持: luckperms/essentials/essentialx/permsex/local），已跳过");
                     continue;
                 }
                 if (!found.isAvailable()) {

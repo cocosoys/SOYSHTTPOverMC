@@ -1,4 +1,55 @@
 # ============================================================================
+#  ⚠ 版本兼容性速查（SOYSHTTPOverMC 支持 1.12.2 / 1.7.10 / 1.6.4）
+# ----------------------------------------------------------------------------
+#  本插件同一份 config.yml 用于三个服务端版本，但不同版本对部分配置项的支持
+#  不同，填写前请先对照下表（"✗"= 该版本不支持此配置，配置会导致异常）：
+#
+#  配置项 / 能力           1.12.2              1.7.10                 1.6.4
+#  ────────────────────────────────────────────────────────────────────────────
+#  http-backend.mode       direct / memory-    direct / memory-queue   direct / memory-queue
+#  （HTTP 后端传输方式）    queue / netty-      / netty-eventloop      / netty-eventloop
+#                          eventloop /         （✓ netty-eventloop：   （✓ netty-eventloop：
+#                          standalone-server   fat jar 已内嵌 netty-   fat jar 已内嵌 netty-
+#                          （全功能，四种      all 4.1.24（io.netty）； all 4.1.24（io.netty）；
+#                          模式均可用）        standalone-server 具备  standalone-server 具备
+#                                              io.netty 运行条件，低    io.netty 运行条件，低
+#                                              1.6.4/1.7.10 已实测可用）         1.6.4/1.7.10 已实测可用）
+#  storage.backends.yaml  ✓ UTF-8             ✓（需 UTF-8 保存）      ✓（需 UTF-8 保存）
+#  storage.backends.sqlite ✓（服务端自带驱动） ✓（adapter JdbcCompat    ✓（adapter JdbcCompat
+#                                              自动兼容旧驱动无       自动兼容旧驱动无
+#                                              isValid，免补丁）        isValid，免补丁）
+#  storage.backends.mysql ✓（服务端自带驱动） ✓（adapter JdbcCompat    ✓（adapter JdbcCompat
+#                                              + detectMysqlDriver     + detectMysqlDriver
+#                                              自动兼容，免补丁）       自动兼容，免补丁）
+#  同端口嗅探 sniffer      Netty pipeline      relocate netty 反射桥  连接级接入
+#                          （标准 netty）       （服务端内嵌 netty）    （ServerSocket 首包分流）
+#  TLS / HTTPS             视运行 JDK          视运行 JDK             视运行 JDK（若 JDK7 则
+#                                                                    TLS 上限 TLSv1.1 / 1.2）
+#
+#  【硬性注意事项】
+#  ① 本配置文件必须保存为 UTF-8 编码。
+#     1.6.4 / 1.7.10 的 Bukkit YamlConfiguration 默认按平台编码（Windows=GBK）
+#     读取 UTF-8 文件会乱码；adapter 已覆盖为显式 UTF-8 读取，但文件本身请
+#     务必用 UTF-8 保存（勿用记事本默认 ANSI/GBK）。
+#  ② 1.6.4 / 1.7.10 的 http-backend.mode：direct / memory-queue / netty-eventloop
+#     均可（netty-eventloop 依赖 fat jar 内嵌的 netty-all 4.1.24，已随 v1_6x /
+#     v1_7x 模块打入，字节码 Java6，JDK7/8 均可加载）。standalone-server 已具备
+#     io.netty 运行条件，1.6.4/1.7.10 已实测可用（netty-eventloop / standalone-server
+#     均通过）。1.12.2 四种模式全功能。
+#  ③ SQLite / MySQL 后端（1.6.4 / 1.7.10）：服务端自带旧版 JDBC3 驱动
+#     （org.sqlite.Conn / com.mysql.jdbc.ConnectionImpl 无 isValid(int)）。
+#     adapter 各版本模块的 JdbcCompat 已自动兼容（isValid→isClosed 包装 +
+#     connectionTestQuery + detectMysqlDriver），无需任何补丁脚本；sqlite 主存储
+#     + ORM 已在 1.6.4 / 1.7.10 实测通过。
+#  ④ TLS 视运行 JDK：1.6.4 若运行于 JDK7，TLS 上限为 TLSv1.1 / 1.2；
+#     只支持 TLSv1.0 的老客户端可能握手失败。1.7.10 / 1.12.2 视服务端运行 JDK。
+#  ⑤ 1.6.4 的同端口嗅探为「连接级接入」（反射替换监听 ServerSocket、accept 后
+#     首包分流 明文 HTTP / TLS / MC），与 1.7.10 / 1.12.2 的 netty pipeline 注入
+#     在实现与极端并发能力上不同，但同一 MC 端口同时服务 HTTP / HTTPS / MC 的效果一致。
+# ============================================================================
+
+
+# ============================================================================
 #  数据贡献 (upload)
 # ----------------------------------------------------------------------------
 # 是否同意将当前服务器的公网地址（IP:端口，如 127.0.0.1:25564）匿名贡献给
@@ -62,6 +113,14 @@ proxy:
 # 核心：访问端口 == 服务器端口（Spigot 的 server-port）。
 # 插件在 Spigot 自己的监听 socket 上嗅探 HTTP 流量并就地转换，
 # MC 流量原样放行，玩家与 curl 共用同一个端口。
+#
+#  ⚠ 版本实现差异（三版本均支持同端口嗅探，效果一致）：
+#    - 1.12.2        ：Netty pipeline 注入（标准 netty，全功能）。
+#    - 1.7.10        ：relocate netty 反射桥（挂接服务端内嵌
+#                      net.minecraft.util.io.netty 的 pipeline）。
+#    - 1.6.4         ：连接级接入（反射替换监听 ServerSocket，accept 后首包分流
+#                      明文 HTTP / TLS / MC）。无 netty，但同一端口同时服务
+#                      HTTP / HTTPS / MC 的效果与高版本一致。
 sniffer:
   # 是否在 Spigot 自身监听端口上嗅探 HTTP（true=访问端口==服务器端口）
   enabled: true
@@ -99,8 +158,18 @@ sniffer:
 #
 # 配置结构：每种模式的参数放在 http-backend.<mode> 下（如 http-backend.netty-eventloop.threads）。
 # 旧的扁平配置（如 http-backend.netty-threads）仍向后兼容，但推荐使用新的分层结构。
+#
+#  ⚠ 版本限制：
+#    - 1.12.2        ：四种模式均可用（netty-eventloop / standalone-server 依赖
+#                       spigot 自带的标准 Netty io.netty）。
+#    - 1.7.10 / 1.6.4：direct / memory-queue / netty-eventloop 可用。netty-eventloop
+#                       依赖 fat jar 内嵌的 netty-all 4.1.24（io.netty，随 v1_6x /
+#                       v1_7x 模块打入）；standalone-server 已具备 io.netty 运行条件，
+#                       1.6.4/1.7.10 已实测可用。
+#    - 1.6.4 建议 direct（连接级接入最直接）；高并发可用 memory-queue（有背压）或 netty-eventloop。
 http-backend:
   # 传输模式：direct / netty-eventloop / memory-queue / standalone-server
+  # ⚠ 1.6.4 / 1.7.10：direct / memory-queue / netty-eventloop 均可用（见上方版本限制）
   mode: "netty-eventloop"
 
   # direct 模式：无额外参数
@@ -152,8 +221,10 @@ log:
 #    permsex    — PermissionsEx（老牌权限插件，支持离线查询）
 #    essentials — Essentials（在线走 Bukkit 原生，离线不支持）
 #    essentialx — EssentialsX（Essentials 活跃分支，同上）
+#    local      — 插件内置本地权限表（offline-fallback=local 配套，在线/离线均可查；
+#                 经 /soyshttp perm 子指令管理用户/组/权限）
 #
-#  离线玩家权限判断：仅 LuckPerms / PermissionsEx 支持离线数据查询；
+#  离线玩家权限判断：仅 LuckPerms / PermissionsEx / local 支持离线数据查询；
 #  不支持的插件返回 false，由 offline-fallback 策略兜底（默认仅 OP 放行）。
 # ============================================================================
 permission:
@@ -161,11 +232,14 @@ permission:
   # 留空（默认 []）：所有已安装且支持的权限插件自动加入
   # 指定列表：只使用列表中的插件（需插件已安装，未安装的自动跳过并打印警告）
   # 示例：只使用 LuckPerms → providers: ["luckperms"]
-  # 示例：使用 LuckPerms + Essentials → providers: ["luckperms", "essentials"]
+  # 示例：使用 LuckPerms + 本地表 → providers: ["luckperms", "local"]
+  # 提示：local 为内置提供者，加入后在线/离线权限判断都会查询本地权限表
   providers: []
 
   # 离线玩家权限判断降级策略（当没有权限插件支持离线查询时使用）
   #   op-only（默认）— 仅 OP 玩家返回 true（从 ops.json 读取）
+  #   local           — 查插件内置本地权限表（data/soys_perm_*.yml 或 SQL 表），
+  #                     经 /soyshttp perm 管理用户/组/权限（支持 : 与 . 等价）
   #   false           — 所有离线玩家返回 false（最严格）
   offline-fallback: op-only
 
@@ -197,6 +271,11 @@ storage:
       backup-on-save: false
 
     # ---------- SQLite（默认禁用） ----------
+    #  ⚠ 版本限制：
+    #    - 1.12.2：服务端自带较新 sqlite 驱动，直接可用。
+    #    - 1.6.4 / 1.7.10：服务端自带旧版 sqlite（JDBC3，org.sqlite.Conn 无 isValid）。
+    #      adapter 各版本模块的 JdbcCompat 已自动兼容（isValid→isClosed 包装 +
+    #      connectionTestQuery），无需任何补丁脚本。
     sqlite:
       enabled: false
       file: data/records.db
@@ -204,6 +283,11 @@ storage:
       table-prefix: ''
 
     # ---------- MySQL（默认禁用，启用后自动成为主存储） ----------
+    #  ⚠ 版本限制：
+    #    - 1.12.2：服务端自带驱动，直接可用。
+    #    - 1.6.4 / 1.7.10：服务端自带旧版 mysql 驱动（JDBC3，ConnectionImpl 无 isValid）。
+    #      adapter 各版本模块的 JdbcCompat + common 的 detectMysqlDriver 已自动兼容，
+    #      无需补丁；URL 参数兼容性以服务端自带 5.x 驱动为准。
     mysql:
       enabled: false
       url: 'jdbc:mysql://localhost:3306/minecraft?useUnicode=true&characterEncoding=utf8&autoReconnect=true&useSSL=false&serverTimezone=Asia/Shanghai'

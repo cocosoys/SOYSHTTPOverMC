@@ -35,10 +35,12 @@ public class V1_6PlatformAdapter extends PlatformBukkitImpl {
      */
     public V1_6PlatformAdapter() {
         super();
+        V1_6JdbcCompat.install();
     }
 
     public V1_6PlatformAdapter(JavaPlugin plugin) {
         super(plugin);
+        V1_6JdbcCompat.install();
     }
 
     @Override

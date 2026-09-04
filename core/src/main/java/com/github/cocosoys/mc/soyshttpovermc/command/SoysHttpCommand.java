@@ -26,6 +26,7 @@ import static com.github.cocosoys.mc.soyshttpovermc.util.StringListUtil.matchByP
  *   <li>{@code api} —— 查看已注册的注解式 API 端点（方法/路径/owner/权限）；</li>
  *   <li>{@code tokens} —— 查询所有已颁发的会话令牌；</li>
  *   <li>{@code lang [语言代码]} —— 查看/切换当前语言（language/ 目录语言包）；</li>
+ *   <li>{@code perm} —— 本地内置权限表管理（组/用户 CRUD + 查询，配套 offline-fallback=local）；</li>
  *   <li>{@code help [子指令|页码]} —— 查看全部子指令总览（分页），或某子指令的详细用法。</li>
  * </ul>
  * 另支持简写 {@code /shttp}（plugin.yml 注册别名命令，共用本执行器）。
@@ -56,6 +57,7 @@ public class SoysHttpCommand implements CommandExecutor, TabCompleter {
         registerSubCommand(new LogLevelSubCommand(plugin));
         registerSubCommand(new MigrateSub(plugin));
         registerSubCommand(new SyncSub(plugin));
+        registerSubCommand(new PermSubCommand(plugin));
         // help 作为独立子指令（最后注册，使其在总览中排在末尾；其内部复用本类的 sendUsage）
         registerSubCommand(new HelpSubCommand(plugin, this));
     }

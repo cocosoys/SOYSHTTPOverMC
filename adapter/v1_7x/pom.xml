@@ -69,6 +69,33 @@
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
         </dependency>
+        <!--
+          ORM SQL 后端依赖：HikariCP / slf4j-api 服务端（craftbukkit）无，需随 fat jar
+          内嵌。本模块为 JDK8 环境（目标服务端 1.7.10/1.6.4 JDK8），直接以 JDK8 字节码
+          打包，无需 build_java7.py 转译（与 v1_6xJava7 不同）。
+        -->
+        <dependency>
+            <groupId>com.zaxxer</groupId>
+            <artifactId>HikariCP</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+        <!--
+          netty-all 4.1.24（版本由根 pom dependencyManagement 管理）：1.7.10 服务端的 netty
+          为 relocate 版（net.minecraft.util.io.netty.*），无 io.netty.* 可用。core 的
+          NettyEventLoopRequestHandler 在 http-backend.mode=netty-eventloop（默认）时 new
+          NioEventLoopGroup 需要 io.netty，故以 runtime scope 随 fat jar 内嵌，解锁低版本
+          netty-eventloop 后端模式。同端口探测仍走本模块反射桥（relocate netty），不受影响。
+        -->
+        <dependency>
+            <groupId>io.netty</groupId>
+            <artifactId>netty-all</artifactId>
+            <scope>runtime</scope>
+        </dependency>
     </dependencies>
 
     <build>

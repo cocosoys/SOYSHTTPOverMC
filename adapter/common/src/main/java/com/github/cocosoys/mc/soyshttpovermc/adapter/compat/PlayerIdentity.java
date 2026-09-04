@@ -1,11 +1,11 @@
 package com.github.cocosoys.mc.soyshttpovermc.adapter.compat;
 
+import lombok.CustomLog;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.entity.Player;
 
 import java.lang.reflect.Method;
 import java.util.UUID;
-import java.util.logging.Logger;
 
 /**
  * 玩家身份键兼容工具。
@@ -19,9 +19,8 @@ import java.util.logging.Logger;
  *
  * <p>编译基线为 1.6.4，UUID 一律反射获取，禁止编译期直接调用。</p>
  */
+@CustomLog
 public final class PlayerIdentity {
-
-    private static final Logger LOG = Logger.getLogger(PlayerIdentity.class.getName());
 
     /** 缓存的 getUniqueId 反射句柄（取 OfflinePlayer 声明处，Player 为子接口）。 */
     private static volatile Method uniqueIdMethod;
@@ -110,7 +109,7 @@ public final class PlayerIdentity {
             found = OfflinePlayer.class.getMethod("getUniqueId");
             found.setAccessible(true);
         } catch (NoSuchMethodException e) {
-            LOG.fine("[adapter] 当前版本无 OfflinePlayer#getUniqueId（1.6.4），身份键降级为玩家名");
+            log.debug("[adapter] 当前版本无 OfflinePlayer#getUniqueId（1.6.4），身份键降级为玩家名");
         }
         uniqueIdMethod = found;
         return found;

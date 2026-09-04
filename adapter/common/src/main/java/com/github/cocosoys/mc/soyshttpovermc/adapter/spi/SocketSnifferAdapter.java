@@ -9,16 +9,20 @@ import java.util.List;
 /**
  * 同端口 HTTP 嗅探器（SocketSniffer）的版本桥契约。
  *
- * <p>主工程 {@code web/http/sniffer/SocketSniffer} 通过反射挂接服务端 Netty pipeline
- * （{@code MinecraftServer#getServerConnection()} + ServerConnection 混淆字段），
- * 该内部结构随版本变化且 1.6.4 服务器根本没有 Netty。为此把「定位监听 Channel」的
- * 版本差异收敛到各版本模块实现本接口：</p>
+ * <p>「同端口嗅探」= 在 MC 监听端口上同时识别并分流 HTTP / HTTPS / MC 流量，
+ * 服务端网络内部结构随版本差异很大，各版本模块据此实现本接口：</p>
  *
  * <ul>
- *   <li><b>1.7.10</b>：Netty 已引入（1.7.2+），可反射定位监听 Channel —— 用
- *       「方法名 + 字段类型」双通道回退解析，而非硬编码 1.12.2 混淆名 {@code g}。</li>
- *   <li><b>1.6.4</b>：服务器为旧阻塞 IO，无 Netty —— {@link #supported()} 返回
- *       {@code false}，插件必须禁用同端口嗅探，强制独立端口 standalone-server。</li>
+ *   <li><b>1.7.10 / 1.12.2</b>：Netty pipeline 注入。主工程
+ *       {@code web/http/sniffer/SocketSniffer} 经反射挂接
+ *       （{@code MinecraftServer#getServerConnection()} + ServerConnection 混淆字段），
+ *       由 {@link #locateListenerChannels()} 定位监听 Channel 后向 pipeline 插桩。</li>
+ *   <li><b>1.6.4</b>：无 Netty（1.7.2 起才引入，重新打包为 {@code net.minecraft.util.io.netty.*}），
+ *       网络层为自研阻塞 NIO / 阻塞 Socket。改用「连接级接入」实现同端口嗅探——
+ *       反射替换 {@code DedicatedServerConnectionThread} 的监听 ServerSocket，在 accept 侧
+ *       首包分流（明文 HTTP / TLS / MC），经 {@code HttpSnifferInstaller} 装配；
+ *       因此 {@link #supported()} 同样返回 {@code true}，但 {@link #locateListenerChannels()}
+ *       恒返回空（不依赖 netty pipeline，无需定位监听 Channel）。</li>
  * </ul>
  *
  * <p>返回值刻意使用 {@code Object} / {@code List<?>}，避免本模块对 Netty 的编译期依赖；
@@ -32,19 +36,21 @@ public interface SocketSnifferAdapter {
     String id();
 
     /**
-     * 当前服务器是否支持同端口嗅探。
+     * 当前服务器是否支持同端口嗅探（无论实现方式：netty pipeline 桥或连接级接入）。
      *
-     * @return {@code true}=可挂接服务端 Netty；{@code false}=必须走独立端口（如 1.6.4）
+     * @return {@code true}=支持同端口嗅探（1.7+/1.12 走 netty 桥，1.6.4 走连接级接入）；
+     *         {@code false}=只能独立端口 standalone-server
      */
     boolean supported();
 
     /**
      * 定位服务端正在监听 TCP 的 Channel 集合（{@code ChannelFuture} / {@code Channel} 的 Object 视图）。
      *
-     * <p>仅当 {@link #supported()} 为 {@code true} 时被调用；返回空集合表示未找到。
-     * 由各版本模块按「方法名 + 字段类型」双通道反射解析实现。</p>
+     * <p>仅对 netty pipeline 实现（1.7+/1.12）有意义：当 {@link #supported()} 为
+     * {@code true} 时由主工程 netty 嗅探器调用；返回空集合表示未找到。
+     * 连接级接入实现（1.6.4）不依赖 netty，恒返回空且不会被调用。</p>
      *
-     * @return 监听 Channel 列表；未知/不可用时为空列表
+     * @return 监听 Channel 列表；未知/不可用/非 netty 实现时为空列表
      */
     List<?> locateListenerChannels();
 

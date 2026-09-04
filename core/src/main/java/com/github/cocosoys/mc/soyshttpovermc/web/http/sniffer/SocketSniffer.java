@@ -3,7 +3,6 @@ package com.github.cocosoys.mc.soyshttpovermc.web.http.sniffer;
 import com.github.cocosoys.mc.soyshttpovermc.api.event.GatewayAccessDeniedEvent;
 import com.github.cocosoys.mc.soyshttpovermc.api.event.GatewayRequestEvent;
 import com.github.cocosoys.mc.soyshttpovermc.api.event.GatewayRequestServedEvent;
-import com.github.cocosoys.mc.soyshttpovermc.enums.RequestMethod;
 import com.github.cocosoys.mc.soyshttpovermc.enums.SnifferChannelState;
 import com.github.cocosoys.mc.soyshttpovermc.util.HttpFrames;
 import com.github.cocosoys.mc.soyshttpovermc.web.ApiRequestContext;
@@ -25,20 +24,16 @@ import org.bukkit.Bukkit;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import javax.net.ssl.SSLEngine;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.*;
 import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
-import java.util.zip.GZIPOutputStream;
 
 /**
  * 同端口嗅探器：在 Spigot 自身监听的 socket 上做 Geyser 式流量分流。
@@ -72,8 +67,6 @@ public class SocketSniffer {
     public interface ReadyChecker {
         boolean isReady();
     }
-
-    private static final String[] METHODS = RequestMethod.toList();
 
     /**
      * 静态预加载内部类：避免在 Netty EventLoop 线程中延迟加载时，
@@ -437,61 +430,23 @@ public class SocketSniffer {
     }
 
     /**
-     * 嗅探分类：依据首包前几个字节判断为明文 HTTP / TLS / MC
+     * 嗅探分类：依据首包前几个字节判断为明文 HTTP / TLS / MC（协议判定委托 {@link HttpByteProtocol}）。
      */
     private SnifferChannelState classify(ByteBuf buf) {
         int len = buf.readableBytes();
         if (len == 0) return SnifferChannelState.UNKNOWN;
-        int idx = buf.readerIndex();
-        byte b0 = buf.getByte(idx);
-
-        if (tlsEngineSupplier != null && b0 == 0x16) {
-            if (len < 3) return SnifferChannelState.UNKNOWN;
-            byte b1 = buf.getByte(idx + 1);
-            byte b2 = buf.getByte(idx + 2);
-            if (b1 == 0x03 && (b2 == 0x01 || b2 == 0x02 || b2 == 0x03)) return SnifferChannelState.HTTP_TLS;
+        byte[] raw = new byte[len];
+        buf.getBytes(buf.readerIndex(), raw);
+        switch (HttpByteProtocol.classify(raw, len, tlsEngineSupplier != null)) {
+            case HTTP_PLAIN:
+                return SnifferChannelState.HTTP_PLAIN;
+            case HTTP_TLS:
+                return SnifferChannelState.HTTP_TLS;
+            case MC:
+                return SnifferChannelState.MC;
+            default:
+                return SnifferChannelState.UNKNOWN;
         }
-
-        if (b0 < 'A' || b0 > 'Z') return SnifferChannelState.MC;
-
-        int i = 0;
-        StringBuilder tok = new StringBuilder();
-        boolean tokenComplete = false;
-        for (; i < len && i < 16; i++) {
-            byte b = buf.getByte(idx + i);
-            if (b == ' ') {
-                tokenComplete = true;
-                break;
-            }
-            if (b < 'A' || b > 'Z') return SnifferChannelState.MC;
-            tok.append((char) b);
-        }
-        if (!tokenComplete) {
-            return SnifferChannelState.UNKNOWN;
-        }
-        boolean known = false;
-        for (String m : METHODS) {
-            if (m.equals(tok.toString())) {
-                known = true;
-                break;
-            }
-        }
-        if (!known) return SnifferChannelState.MC;
-
-        int j = i + 1;
-        int k = j;
-        int limit = Math.min(len, j + 200);
-        boolean foundNewline = false;
-        for (; k < limit; k++) {
-            if (buf.getByte(idx + k) == '\n') {
-                foundNewline = true;
-                break;
-            }
-        }
-        String line = buf.toString(idx + j, Math.max(0, k - j), StandardCharsets.US_ASCII);
-        if (line.contains(" HTTP/")) return SnifferChannelState.HTTP_PLAIN;
-        if (foundNewline) return SnifferChannelState.MC;
-        return SnifferChannelState.UNKNOWN;
     }
 
     /**
@@ -500,74 +455,19 @@ public class SocketSniffer {
     private RequestParsed tryParseHttp(ByteBuf buf) {
         int len = buf.readableBytes();
         int idx = buf.readerIndex();
-        int headerEnd = indexOf(buf, idx, len, new byte[]{'\r', '\n', '\r', '\n'});
-        int sepLen;
-        if (headerEnd >= 0) {
-            sepLen = 4;
-        } else {
-            headerEnd = indexOf(buf, idx, len, new byte[]{'\n', '\n'});
-            if (headerEnd < 0) return null;
-            sepLen = 2;
+        byte[] raw = new byte[len];
+        buf.getBytes(idx, raw);
+        HttpByteProtocol.ParsedRequest r = HttpByteProtocol.tryParseHttp(raw, 0, len);
+        if (r == null) {
+            return null;
         }
-        int headerLen = headerEnd - idx;
-        if (headerLen < 0) return null;
-        byte[] headerBytes = new byte[headerLen];
-        buf.getBytes(idx, headerBytes);
-        String headerText = new String(headerBytes, StandardCharsets.US_ASCII);
-        String[] lines = headerText.split("\r\n");
-        if (lines.length == 0) return null;
-        String[] reqLine = lines[0].split(" ");
-        if (reqLine.length < 3) return null;
-        String method = reqLine[0];
-        String path = reqLine[1];
-        String version = reqLine[2];
-
-        Map<String, String> headers = new HashMap<>();
-        int contentLength = 0;
-        for (int l = 1; l < lines.length; l++) {
-            int colon = lines[l].indexOf(':');
-            if (colon > 0) {
-                String k = lines[l].substring(0, colon).trim();
-                String v = lines[l].substring(colon + 1).trim();
-                headers.put(k, v);
-                if (k.equalsIgnoreCase("Content-Length")) {
-                    try {
-                        contentLength = Integer.parseInt(v);
-                    } catch (NumberFormatException ignored) {
-                    }
-                }
-            }
-        }
-        int bodyStart = headerEnd + sepLen;
-        int available = len - bodyStart;
-        if (available < contentLength) return null;
-        if (contentLength < 0) contentLength = 0;
-        byte[] body = new byte[contentLength];
-        if (contentLength > 0) buf.getBytes(bodyStart, body);
-
-        RequestParsed r = new RequestParsed();
-        r.method = method;
-        r.path = path;
-        r.version = version;
-        r.headers = headers;
-        r.body = body;
-        return r;
-    }
-
-    private static int indexOf(ByteBuf buf, int from, int to, byte[] seq) {
-        int sl = seq.length;
-        if (sl == 0) return from;
-        for (int i = from; i + sl <= to; i++) {
-            boolean ok = true;
-            for (int j = 0; j < sl; j++) {
-                if (buf.getByte(i + j) != seq[j]) {
-                    ok = false;
-                    break;
-                }
-            }
-            if (ok) return i;
-        }
-        return -1;
+        RequestParsed p = new RequestParsed();
+        p.method = r.method;
+        p.path = r.path;
+        p.version = r.version;
+        p.headers = r.headers;
+        p.body = r.body;
+        return p;
     }
 
     // ===== HTTP 处理（在线程池中执行，不阻塞 Netty IO 线程）=====
@@ -612,10 +512,10 @@ public class SocketSniffer {
             // ETag + 304（仅 GET 200 且有响应体）
             String etag = null;
             if ("GET".equals(p.method) && code == 200 && body.length > 0) {
-                etag = '"' + sha256hex(body) + '"';
+                etag = '"' + HttpByteProtocol.sha256hex(body) + '"';
                 String inm = p.headers.get("If-None-Match");
                 if (inm != null && inm.trim().equals(etag)) {
-                    writeNotModified(ctx, tls, etag, cacheControlFor(p, contentType));
+                    writeNotModified(ctx, tls, etag, HttpByteProtocol.cacheControlFor(p.path, contentType));
                     return;
                 }
             }
@@ -623,17 +523,17 @@ public class SocketSniffer {
             // gzip 压缩（按 Accept-Encoding + 可压缩类型 + 阈值）
             boolean compressed = false;
             String ae = p.headers.get("Accept-Encoding");
-            if (isCompressible(contentType) && body.length >= COMPRESS_THRESHOLD && ae != null && ae.contains("gzip")) {
-                byte[] gz = gzip(body);
+            if (HttpByteProtocol.isCompressible(contentType) && body.length >= COMPRESS_THRESHOLD && ae != null && ae.contains("gzip")) {
+                byte[] gz = HttpByteProtocol.gzip(body);
                 if (gz.length < body.length) {
                     body = gz;
                     compressed = true;
                 }
             }
 
-            boolean keepAlive = isKeepAlive(p);
+            boolean keepAlive = HttpByteProtocol.isKeepAlive(p.version, p.headers);
             StringBuilder sb = new StringBuilder();
-            sb.append("HTTP/1.1 ").append(code).append(' ').append(statusText(code)).append("\r\n");
+            sb.append("HTTP/1.1 ").append(code).append(' ').append(HttpByteProtocol.statusText(code)).append("\r\n");
             for (Map.Entry<String, String> h : resp.getHeadersMap().entrySet()) {
                 String k = h.getKey();
                 if ("Content-Length".equalsIgnoreCase(k) || "Connection".equalsIgnoreCase(k)
@@ -643,7 +543,7 @@ public class SocketSniffer {
             }
             if (compressed) sb.append("Content-Encoding: gzip\r\n");
             if (etag != null) sb.append("ETag: ").append(etag).append("\r\n");
-            String cc = cacheControlFor(p, contentType);
+            String cc = HttpByteProtocol.cacheControlFor(p.path, contentType);
             if (cc != null) sb.append("Cache-Control: ").append(cc).append("\r\n");
             sb.append("Content-Length: ").append(body.length).append("\r\n");
             sb.append(keepAlive ? "Connection: keep-alive\r\n" : "Connection: close\r\n");
@@ -802,107 +702,10 @@ public class SocketSniffer {
     }
 
     private static String statusLine(int code) {
-        return "HTTP/1.1 " + code + " " + statusText(code) + "\r\n";
+        return "HTTP/1.1 " + code + " " + HttpByteProtocol.statusText(code) + "\r\n";
     }
 
-    private static String statusText(int code) {
-        switch (code) {
-            case 200:
-                return "OK";
-            case 304:
-                return "Not Modified";
-            case 400:
-                return "Bad Request";
-            case 401:
-                return "Unauthorized";
-            case 403:
-                return "Forbidden";
-            case 413:
-                return "Payload Too Large";
-            case 426:
-                return "Upgrade Required";
-            case 429:
-                return "Too Many Requests";
-            case 500:
-                return "Internal Server Error";
-            case 502:
-                return "Bad Gateway";
-            case 503:
-                return "Service Unavailable";
-            default:
-                return "Status";
-        }
-    }
-
-    // ===== 压缩 / 缓存辅助 =====
-
-    /**
-     * 是否为可压缩的响应内容类型（二进制媒体如 png/jpg/woff 已自带压缩，不重复压缩）。
-     */
-    private static boolean isCompressible(String contentType) {
-        if (contentType == null) return false;
-        String c = contentType.toLowerCase();
-        if (c.startsWith("text/")) return true;
-        if (c.startsWith("application/javascript") || c.startsWith("application/json")
-                || c.startsWith("application/xml") || c.startsWith("application/atom+xml")
-                || c.startsWith("application/ld+json") || c.startsWith("application/x-javascript")
-                || c.startsWith("image/svg+xml")) return true;
-        return false;
-    }
-
-    /**
-     * gzip 压缩（失败时返回原字节）。
-     */
-    private static byte[] gzip(byte[] data) {
-        try {
-            ByteArrayOutputStream bos = new ByteArrayOutputStream(data.length);
-            try (GZIPOutputStream gz = new GZIPOutputStream(bos)) {
-                gz.write(data);
-            }
-            return bos.toByteArray();
-        } catch (IOException e) {
-            return data;
-        }
-    }
-
-    /**
-     * 实体摘要（SHA-256 十六进制），用作 ETag 基准（基于压缩前原文，避免编码不一致）。
-     */
-    private static String sha256hex(byte[] data) {
-        try {
-            MessageDigest md = MessageDigest.getInstance("SHA-256");
-            byte[] d = md.digest(data);
-            StringBuilder sb = new StringBuilder(d.length * 2);
-            for (byte x : d) sb.append(String.format("%02x", x & 0xFF));
-            return sb.toString();
-        } catch (Exception e) {
-            // 兜底：简单长度+hash，保证 304 仍可工作
-            int h = java.util.Arrays.hashCode(data);
-            return String.format("%08x", h);
-        }
-    }
-
-    /**
-     * 是否 keep-alive：HTTP/1.1 默认复用，除非客户端显式 Connection: close；HTTP/1.0 需显式 keep-alive。
-     */
-    private static boolean isKeepAlive(RequestParsed p) {
-        String conn = p.headers.get("Connection");
-        boolean connClose = conn != null && conn.toLowerCase().contains("close");
-        if (connClose) return false;
-        boolean connKeep = conn != null && conn.toLowerCase().contains("keep-alive");
-        boolean http11 = p.version != null && p.version.contains("HTTP/1.1");
-        return http11 || connKeep;
-    }
-
-    /**
-     * 缓存策略：静态资源可公开缓存；API / 鉴权端点禁止缓存。
-     */
-    private static String cacheControlFor(RequestParsed p, String contentType) {
-        String path = p.path == null ? "" : p.path;
-        if (path.startsWith("/api/") || path.startsWith("/auth/")) return "no-store";
-        if (contentType.startsWith("application/json")) return "no-store";
-        return "public, max-age=300";
-    }
+    // 协议辅助方法（classify / tryParseHttp / statusText / 压缩 / 缓存）已统一迁移至 HttpByteProtocol
 
     // ===== 反射辅助 =====
     private Object getServerConnection() {

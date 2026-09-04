@@ -1,11 +1,10 @@
 package com.github.cocosoys.mc.soyshttpovermc.adapter.compat;
 
+import lombok.CustomLog;
 import org.bukkit.entity.Player;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 /**
  * 可点击链接消息兼容工具。
@@ -16,9 +15,8 @@ import java.util.logging.Logger;
  *
  * <p>编译基线为 1.6.4，仅依赖 {@link Player#sendMessage(String)} 等全版本存在的方法。</p>
  */
+@CustomLog
 public final class ChatCompat {
-
-    private static final Logger LOG = Logger.getLogger(ChatCompat.class.getName());
 
     /** Spigot API 可用性缓存（探测一次）。 */
     private static volatile Boolean spigotAvailable;
@@ -49,7 +47,7 @@ public final class ChatCompat {
                     return true;
                 }
             } catch (Throwable t) {
-                LOG.log(Level.FINE, "[adapter] Spigot 可点击组件发送失败，降级纯文本", t);
+                log.debug("[adapter] Spigot 可点击组件发送失败，降级纯文本", t);
             }
         }
         // 降级：纯文本消息（显示文字 + 链接）
@@ -104,7 +102,7 @@ public final class ChatCompat {
             setClick.invoke(component, event);
             return component;
         } catch (Throwable t) {
-            LOG.log(Level.FINE, "[adapter] 构造可点击组件失败", t);
+            log.debug("[adapter] 构造可点击组件失败", t);
             return null;
         }
     }

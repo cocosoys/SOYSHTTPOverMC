@@ -60,8 +60,8 @@ public class LogLevelSubCommand extends SubCommand {
         }
         LogKit.setLevel(want);
         // 持久化：使 /soyshttp reload 与重启后用同一级别
-        plugin.getConfig().set("log.level", want);
-        plugin.saveConfig();
+        plugin.getDelegate().coreConfig().set("log.level", want);
+        plugin.getDelegate().saveCoreConfig();
         msgT(sender, "command.log.changed", "日志等级已切换为: §e{0}", want);
     }
 

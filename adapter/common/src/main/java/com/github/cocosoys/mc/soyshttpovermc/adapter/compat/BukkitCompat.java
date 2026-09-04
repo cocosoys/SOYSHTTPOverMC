@@ -1,5 +1,6 @@
 package com.github.cocosoys.mc.soyshttpovermc.adapter.compat;
 
+import lombok.CustomLog;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 
@@ -10,8 +11,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 /**
  * 版本中立 Bukkit 兼容工具：抹平跨版本 API 差异。
@@ -24,9 +23,8 @@ import java.util.logging.Logger;
  *   <li>{@link #onlinePlayers()}：1.8+ 返回 {@code Collection}，1.6/1.7 返回 {@code Player[]}；反射优先取 Collection 重载。</li>
  * </ul>
  */
+@CustomLog
 public final class BukkitCompat {
-
-    private static final Logger LOG = Logger.getLogger(BukkitCompat.class.getName());
 
     /** 缓存的 getOnlinePlayers 反射句柄（选择返回 Collection 的重载；1.6/1.7 仅 Player[] 时取其唯一重载）。 */
     private static volatile Method onlinePlayersMethod;
@@ -60,7 +58,7 @@ public final class BukkitCompat {
             }
             return fallback();
         } catch (IllegalAccessException | InvocationTargetException | RuntimeException e) {
-            LOG.log(Level.WARNING, "[adapter] getOnlinePlayers 反射调用失败，回退空列表", e);
+            log.warn("[adapter] getOnlinePlayers 反射调用失败，回退空列表", e);
             return Collections.emptyList();
         }
     }

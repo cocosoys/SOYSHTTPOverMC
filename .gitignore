@@ -11,3 +11,8 @@ toolchains.xml
 .mvn/maven.config
 pom.xml.bak-toolchains
 *.ps1
+*.py
+# 构建/调试临时产物（flatten 每次构建生成 / 本地验证脚本与备份）
+.flattened-pom.xml
+.tmp_replace/
+/adapter/v1_6xJava7/

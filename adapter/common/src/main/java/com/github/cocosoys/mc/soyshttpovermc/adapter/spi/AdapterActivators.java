@@ -1,13 +1,12 @@
 package com.github.cocosoys.mc.soyshttpovermc.adapter.spi;
 
+import lombok.CustomLog;
 import com.github.cocosoys.mc.soyshttpovermc.adapter.ServerVersion;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.ServiceLoader;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 /**
  * 版本适配模块发现 / 匹配助手。
@@ -16,9 +15,8 @@ import java.util.logging.Logger;
  * 实现（各版本模块 jar 注册在各自的 {@code META-INF/services} 中），按当前服务器版本
  * 匹配唯一激活者。未匹配时返回 {@code null}（主插件继续走默认 1.12.2 行为，无需适配）。</p>
  */
+@CustomLog
 public final class AdapterActivators {
-
-    private static final Logger LOG = Logger.getLogger(AdapterActivators.class.getName());
 
     private AdapterActivators() {
     }
@@ -37,7 +35,7 @@ public final class AdapterActivators {
             }
             return list;
         } catch (Throwable t) {
-            LOG.log(Level.WARNING, "[adapter] 发现 AdapterActivator 失败", t);
+            log.warn("[adapter] 发现 AdapterActivator 失败", t);
             return Collections.emptyList();
         }
     }
@@ -64,7 +62,7 @@ public final class AdapterActivators {
                     }
                 }
             } catch (Throwable t) {
-                LOG.log(Level.WARNING, "[adapter] 激活器 " + a + " 的 supports() 抛异常，跳过", t);
+                log.warn("[adapter] 激活器 " + a + " 的 supports() 抛异常，跳过", t);
             }
         }
         return best;

@@ -92,6 +92,13 @@ public class TlsContextFactory {
     }
 
     /**
+     * 返回已初始化的 TLS 上下文（供 1.6.x 连接级嗅探器在原生 Socket 上就地终止 TLS 使用）。
+     */
+    public SSLContext getSSLContext() {
+        return sslContext;
+    }
+
+    /**
      * 默认协议范围：自 minTls 起开放全部更高版本的 TLS；minTls 为空/未知则全开 TLS1.0~1.3。
      */
     private static List<String> defaultProtocols(String minTls) {

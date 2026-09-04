@@ -223,6 +223,14 @@ public class LogKit {
         error(throwable, msg);
     }
 
+    public void warn(String msg, Throwable throwable) {
+        if (enabled(2)) print(2, null, msg, throwable);
+    }
+
+    public void debug(String msg, Throwable throwable) {
+        if (enabled(4)) print(4, null, msg, throwable);
+    }
+
     // ========= Lombok 两个重载工厂 =========
     public static LogKit getLogger(Class<?> clazz) {
         return new LogKit("[HTTP-Over-MC]", clazz);

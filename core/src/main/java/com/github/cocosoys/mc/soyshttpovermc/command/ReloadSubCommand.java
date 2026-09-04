@@ -48,6 +48,6 @@ public class ReloadSubCommand extends SubCommand {
                 plugin.getDelegate().isTlsEnabled() ? on : off,
                 plugin.isDebugEventsEnabled() ? on : off,
                 LogKit.levelName(),
-                plugin.getConfig().getString("log.level", "INFO"));
+                plugin.getDelegate().coreConfig().getString("log.level", "INFO"));
     }
 }
