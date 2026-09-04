@@ -219,7 +219,7 @@ public class WebFrontendHandler {
             if (page != null) {
                 // 网页访问权限守卫：仅对可导航（HTML 页 / 跳转）生效，资源不拦
                 if (page.isNavigable()) {
-                    FrameProto.HttpResponseFrame guard = checkPageGuard(headers, cleanPath);
+                    FrameProto.HttpResponseFrame guard = checkPageGuard(headers, cleanPath, page.permissions);
                     if (guard != null) return guard;
                 }
                 if (page.redirectTo != null) {
@@ -239,7 +239,8 @@ public class WebFrontendHandler {
             if (np != null) {
                 // 网页访问权限守卫：网络页按 HTML 路径判定
                 if (MimeTypes.isHtmlPath(cleanPath)) {
-                    FrameProto.HttpResponseFrame guard = checkPageGuard(headers, cleanPath);
+                    FrameProto.HttpResponseFrame guard = checkPageGuard(headers, cleanPath,
+                            webRegistry.networkPagePermissions(m, cleanPath));
                     if (guard != null) return guard;
                 }
                 return serveNetworkPage(np);
@@ -256,7 +257,7 @@ public class WebFrontendHandler {
         }
         // 网页访问权限守卫：静态资源仅拦截 HTML 页（css/js/图片等资源不拦，避免破坏页面渲染）
         if (MimeTypes.isHtmlPath(hit.name)) {
-            FrameProto.HttpResponseFrame guard = checkPageGuard(headers, cleanPath);
+            FrameProto.HttpResponseFrame guard = checkPageGuard(headers, cleanPath, null);
             if (guard != null) return guard;
         }
         return FrameProto.HttpResponseFrame.newBuilder()
@@ -275,15 +276,27 @@ public class WebFrontendHandler {
      *
      * @return null=放行；否则返回 302 响应（未登录 → 登录页；已登录缺权限 → 权限不足提示页）
      */
-    private FrameProto.HttpResponseFrame checkPageGuard(Map<String, String> headers, String cleanPath) {
+    private FrameProto.HttpResponseFrame checkPageGuard(Map<String, String> headers, String cleanPath,
+                                                        List<String> registeredPerms) {
         // 登录页 / 权限提示页自身永不拦截（避免 302 死循环，如全局规则 * 命中自身）
         if (cleanPath == null || cleanPath.equals("/perm-denied.html")
                 || cleanPath.startsWith("/login") || cleanPath.equals("/login.html")) {
             return null;
         }
         PagePermissionChecker checker = pagePermissionChecker == null ? null : pagePermissionChecker.get();
-        if (checker == null || checker.isEmpty()) return null;
-        List<String> perms = checker.permissionsFor(cleanPath);
+        // 三层权限来源，优先级：pages.yml 单页内联 > 注册时声明权限 > pages.yml 全局
+        List<String> perms = null;
+        if (checker != null) {
+            perms = checker.inlinePermissionsFor(cleanPath);
+            if (perms == null && registeredPerms != null && !registeredPerms.isEmpty()) {
+                perms = registeredPerms;
+            }
+            if (perms == null) {
+                perms = checker.globalPermissionsFor(cleanPath);
+            }
+        } else if (registeredPerms != null && !registeredPerms.isEmpty()) {
+            perms = registeredPerms;
+        }
         if (perms == null || perms.isEmpty()) return null;
         CombinedPermissionService cps = permissionService == null ? null : permissionService.get();
         if (cps == null) return null;

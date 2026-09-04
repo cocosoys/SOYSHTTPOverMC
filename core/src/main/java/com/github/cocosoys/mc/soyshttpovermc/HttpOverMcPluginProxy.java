@@ -357,6 +357,8 @@ public class HttpOverMcPluginProxy {
             plugin.getAuthService().setBridge(plugin.getAuthLoginBridge());
         }
         if (plugin.getWebRegistry() != null) {
+            // 先卸载上次 pages.yml 注册的页面（tag 标记），再重新注册，避免已删除路径/昵称残留内存
+            plugin.getWebRegistry().unregisterByTag(PagesConfig.NAME);
             PagesConfig.Manual.register(plugin, plugin.getWebRegistry());
         }
         if (plugin.getWebFrontend() != null) {
@@ -373,7 +375,6 @@ public class HttpOverMcPluginProxy {
             plugin.getServer().getPluginManager().callEvent(new HttpConfigReloadEvent());
         } catch (Throwable ignored) {
         }
-        PagesConfig.Manual.register(plugin, plugin.getWebRegistry());
     }
 
     // ===== 本服地址 / 拓扑查询（原 public，有逻辑，移至代理类） =====

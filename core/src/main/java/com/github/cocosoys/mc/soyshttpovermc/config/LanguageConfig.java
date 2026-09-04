@@ -21,6 +21,8 @@ import java.io.IOException;
 @CustomLog
 public final class LanguageConfig {
 
+    public final static String NAME = "language.yml";
+
     private final YamlConfiguration cfg;
 
     private LanguageConfig(YamlConfiguration cfg) {
@@ -31,9 +33,9 @@ public final class LanguageConfig {
      * 装载 language.yml（文件缺失时落内置默认），由 ConfigManager 初始化时调用。
      */
     public static LanguageConfig load(JavaPlugin plugin) {
-        File f = new File(plugin.getDataFolder(), "language.yml");
-        if (!f.isFile() && plugin.getResource("language.yml") != null) {
-            plugin.saveResource("language.yml", false);
+        File f = new File(plugin.getDataFolder(), NAME);
+        if (!f.isFile() && plugin.getResource(NAME) != null) {
+            plugin.saveResource(NAME, false);
         }
         return new LanguageConfig(PlatformYaml.load(f));
     }
@@ -71,7 +73,7 @@ public final class LanguageConfig {
      */
     public void save(JavaPlugin plugin) {
         try {
-            PlatformYaml.save(cfg, new File(plugin.getDataFolder(), "language.yml"));
+            PlatformYaml.save(cfg, new File(plugin.getDataFolder(), NAME));
         } catch (IOException e) {
             log.warnT("log.i18n.save-config-fail", "保存 language.yml 失败: {0}", e.getMessage());
         }

@@ -45,10 +45,9 @@ public class PagePermissionChecker {
     }
 
     /**
-     * 返回指定路径的权限列表；返回 {@code null} 表示未配置权限（放行）。
-     * 顺序：内联精确匹配（含 .html 后缀等价）→ 全局规则首个命中。
+     * 仅查单页内联权限（pages.page.&lt;路径&gt;.permissions，含 .html 后缀等价）；未配置返回 null。
      */
-    public List<String> permissionsFor(String cleanPath) {
+    public List<String> inlinePermissionsFor(String cleanPath) {
         if (cleanPath == null) return null;
         List<String> p = inline.get(cleanPath);
         if (p != null) return p.isEmpty() ? null : p;
@@ -59,12 +58,30 @@ public class PagePermissionChecker {
             List<String> p2 = inline.get(alt);
             if (p2 != null) return p2.isEmpty() ? null : p2;
         }
+        return null;
+    }
+
+    /**
+     * 仅查全局规则（pages.permissions 按声明顺序首个命中）；未命中返回 null。
+     */
+    public List<String> globalPermissionsFor(String cleanPath) {
+        if (cleanPath == null) return null;
         for (Rule r : global) {
             if (AuthUtils.matchesPath(cleanPath, r.pattern)) {
                 return r.permissions;
             }
         }
         return null;
+    }
+
+    /**
+     * 返回指定路径的权限列表；返回 {@code null} 表示未配置权限（放行）。
+     * 顺序：内联精确匹配（含 .html 后缀等价）→ 全局规则首个命中。
+     * （注册时声明的权限不在本类判定，由 {@link WebFrontendHandler} 在 pages.yml 内联与全局之间插入。）
+     */
+    public List<String> permissionsFor(String cleanPath) {
+        List<String> p = inlinePermissionsFor(cleanPath);
+        return p != null ? p : globalPermissionsFor(cleanPath);
     }
 
     /**

@@ -110,7 +110,7 @@ public class HttpOverMcPlugin extends JavaPlugin {
     /**
      * 热重载钩子（其它插件经门面注册，/soyshttp reload 时随本插件一起刷新自身配置）
      */
-    private final List<ReloadHttpConfigHandler> reloadHooks = new ArrayList<>();
+    private List<ReloadHttpConfigHandler> reloadHooks = new ArrayList<>();
     /**
      * 前端磁盘根（web.root 解析结果；核心网页登记、reload 复用）
      */
@@ -134,7 +134,7 @@ public class HttpOverMcPlugin extends JavaPlugin {
     /**
      * 群组服服务器标签注册表（本服自注册 + 经 discovery 收集其他子服）
      */
-    private final ServerRegistry serverRegistry = new ServerRegistry();
+    private ServerRegistry serverRegistry = new ServerRegistry();
     /**
      * Web 内容存活缓存（pinned 常驻 + LRU + TTL + 大文件加载器）；onEnable 装配，reload 不重建（配置改动重启生效）
      */

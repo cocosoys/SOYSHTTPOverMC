@@ -26,6 +26,8 @@ import java.util.Map;
 @CustomLog
 public final class PagesConfig {
 
+    public final static String NAME = "pages.yml";
+
     private YamlConfiguration cfg;
 
     private PagesConfig(YamlConfiguration cfg) {
@@ -76,7 +78,7 @@ public final class PagesConfig {
         }
         cfg.set("web.home", value == null ? "" : value);
         try {
-            PlatformYaml.save(cfg, new File(plugin.getDataFolder(), "pages.yml"));
+            PlatformYaml.save(cfg, new File(plugin.getDataFolder(), NAME));
         } catch (IOException e) {
             log.warnT("log.pages.save-home-fail", "保存 pages.yml web.home 失败: {0}", e.getMessage());
         }
@@ -113,6 +115,11 @@ public final class PagesConfig {
      */
     @CustomLog
     public static final class Manual {
+
+        /**
+         * pages.yml 注册来源标记：reload 时 WebRegistry.unregisterByTag("pages.yml") 定向卸载。
+         */
+        private static final List<String> TAG_LIST = java.util.Collections.singletonList(NAME);
 
         private Manual() {
         }
@@ -218,10 +225,10 @@ public final class PagesConfig {
          * @return pages.yml 的配置对象；文件落盘失败返回 null
          */
         public static YamlConfiguration loadConfig(JavaPlugin plugin) {
-            File file = new File(plugin.getDataFolder(), "pages.yml");
+            File file = new File(plugin.getDataFolder(), NAME);
             if (!file.isFile()) {
-                if (plugin.getResource("pages.yml") != null) {
-                    plugin.saveResource("pages.yml", false);
+                if (plugin.getResource(NAME) != null) {
+                    plugin.saveResource(NAME, false);
                 }
                 if (!file.isFile()) return null;
             }
@@ -267,7 +274,7 @@ public final class PagesConfig {
                 return 0;
             }
             String ct = MimeTypes.isHtmlPath(source) ? MimeTypes.forExt("html") : null;
-            reg.registerProxyPage(plugin, url, bytes, ct, true, it.description, it.nicknames);
+            reg.registerProxyPage(plugin, url, bytes, ct, true, it.description, it.nicknames, null, TAG_LIST);
             return 1;
         }
 
@@ -297,7 +304,7 @@ public final class PagesConfig {
          */
         private static int applyAuto(JavaPlugin plugin, WebRegistry reg, String url, String source) {
             if (isBacktickUrl(source)) {
-                reg.registerProxyRedirect(plugin, url, source.substring(1, source.length() - 1).trim(), 302);
+                reg.registerProxyRedirect(plugin, url, source.substring(1, source.length() - 1).trim(), 302, TAG_LIST);
                 log.infoT("log.pages.register-redirect", "pages.yml 登记跳转: GET {0} → {1}", url, source.substring(1, source.length() - 1).trim());
                 return 1;
             }
@@ -311,7 +318,7 @@ public final class PagesConfig {
                 return 0;
             }
             String ct = MimeTypes.isHtmlPath(source) ? MimeTypes.forExt("html") : null;
-            reg.registerProxyPage(plugin, url, bytes, ct, true);
+            reg.registerProxyPage(plugin, url, bytes, ct, true, TAG_LIST);
             return 1;
         }
 
@@ -333,7 +340,7 @@ public final class PagesConfig {
                 String pageUrl = joinUrl(url, rel);
                 byte[] bytes = readFile(f);
                 if (bytes == null || bytes.length == 0) continue;
-                reg.registerProxyPage(plugin, pageUrl, bytes, MimeTypes.forExt("html"), true);
+                reg.registerProxyPage(plugin, pageUrl, bytes, MimeTypes.forExt("html"), true, TAG_LIST);
             }
             return htmls.size();
         }
