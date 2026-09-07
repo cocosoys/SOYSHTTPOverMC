@@ -15,13 +15,12 @@
         3. 定义版本模块必须实现的 SPI 契约（AdapterActivator / SocketSnifferAdapter）。
 
       编译基线（重要）：
-        以【最低版本 craftbukkit API】编译（此处 = 1.6.4），保证所有低版本模块
-        （v1_6x / v1_7x…）都可直接复用本模块产物，且不引用任何高版本独有 API。
-        所有跨版本差异一律通过反射处理，禁止直接 import 高版本 API / NMS 类。
+        本模块【零 Bukkit 编译期依赖】——不 import 任何 org.bukkit.*，不 vendored 任何
+        craftbukkit jar；所有对 Bukkit 的调用一律通过反射（Class.forName + Method.invoke）
+        完成，保证所有低版本模块（v1_6x / v1_7x…）复用本模块产物时不受任何版本 API 约束。
+        具体版本差异仍由各版本模块在自身（保留 craftbukkit 编译期依赖）内处理。
 
       依赖说明：
-        - craftbukkit-1.6.4.jar：vendored 于 adapter/common/lib/（system scope，仅供编译期；
-          运行期由服务端自身提供，不打入产物）。
         - 主工程 common（仅编译期）：用于统一日志门面（@CustomLog → LogKit）与 Platform SPI 等
           基础能力。仅编译依赖，不打入本模块产物（产物仍保持轻量）。
     -->
@@ -35,24 +34,10 @@
     <artifactId>soyshttpovermc-adapter-common</artifactId>
     <packaging>jar</packaging>
     <name>SOYSHTTPOverMC Adapter Common</name>
-    <description>版本兼容模块公共底座：统一规范 + 版本中立兼容工具 + 版本模块 SPI 契约（编译基线 1.6.4）</description>
-
-    <properties>
-        <!-- 编译基线：最低支持版本（1.6.4）。具体版本模块可依赖本模块 + 各自版本的 craftbukkit -->
-        <adapter.api.version>1.6.4-R0.1-SNAPSHOT</adapter.api.version>
-        <!-- vendored 低版本 API 路径（system scope 编译依赖，运行期由服务端提供）；自包含于本模块 lib/ -->
-        <adapter.lib.dir>${project.basedir}/lib</adapter.lib.dir>
-    </properties>
+    <description>版本兼容模块公共底座：统一规范 + 版本中立兼容工具（零 Bukkit 编译期依赖，全部反射）+ 版本模块 SPI 契约</description>
 
     <dependencies>
-        <!-- 最低版本 craftbukkit API（含 org.bukkit.* 全部 API），仅编译期 -->
-        <dependency>
-            <groupId>org.bukkit</groupId>
-            <artifactId>craftbukkit</artifactId>
-            <version>${adapter.api.version}</version>
-            <scope>system</scope>
-            <systemPath>${adapter.lib.dir}/craftbukkit-1.6.4.jar</systemPath>
-        </dependency>
+
         <!-- 主工程 common（统一日志门面 LogKit / Platform SPI 等；仅编译期，不打入本模块产物） -->
         <dependency>
             <groupId>com.github.cocosoys.mc</groupId>

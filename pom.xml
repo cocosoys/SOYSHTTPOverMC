@@ -14,7 +14,6 @@
     <modules>
         <module>common</module>
         <module>core</module>
-        <module>SOYSHTTPOverMC-Proxy</module>
         <!-- 低版本兼容模块聚合工程（common / v1_6x / v1_7x），依赖 common+core，置于最后 -->
         <module>adapter</module>
     </modules>

@@ -3,8 +3,6 @@ package com.github.cocosoys.mc.soyshttpovermc.adapter.v1_7;
 import com.github.cocosoys.mc.soyshttpovermc.adapter.ServerVersion;
 import com.github.cocosoys.mc.soyshttpovermc.adapter.spi.SocketSnifferAdapter;
 import lombok.CustomLog;
-import org.bukkit.plugin.java.JavaPlugin;
-
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
@@ -69,7 +67,7 @@ public class V1_7SocketSnifferAdapter implements SocketSnifferAdapter {
     }
 
     @Override
-    public void onInstall(JavaPlugin plugin, ServerVersion version) {
+    public void onInstall(Object plugin, ServerVersion version) {
         // 预留：可在此探测并缓存反射句柄
     }
 

@@ -1,7 +1,6 @@
 package com.github.cocosoys.mc.soyshttpovermc.adapter.spi;
 
 import com.github.cocosoys.mc.soyshttpovermc.adapter.ServerVersion;
-import org.bukkit.plugin.java.JavaPlugin;
 
 import java.util.Collections;
 import java.util.List;
@@ -56,8 +55,12 @@ public interface SocketSnifferAdapter {
 
     /**
      * 安装钩子：在嗅探器装配前调用（可预置反射句柄、探测结构并缓存）。
+     *
+     * @param plugin  宿主插件（{@code org.bukkit.plugin.java.JavaPlugin} 实例的 Object 视图；
+     *                本模块零 Bukkit 编译期依赖，实现方按需强转）
+     * @param version 当前服务器版本
      */
-    default void onInstall(JavaPlugin plugin, ServerVersion version) {
+    default void onInstall(Object plugin, ServerVersion version) {
         // 默认无操作
     }
 

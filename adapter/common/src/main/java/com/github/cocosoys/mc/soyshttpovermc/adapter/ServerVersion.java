@@ -1,13 +1,13 @@
 package com.github.cocosoys.mc.soyshttpovermc.adapter;
 
-import org.bukkit.Bukkit;
-
+import java.lang.reflect.Method;
 import java.util.Objects;
 
 /**
- * MC 服务端版本探测 / 解析 / 区间判定（跨版本通用，编译到最低版本 API）。
+ * MC 服务端版本探测 / 解析 / 区间判定（跨版本通用，零 Bukkit 编译期依赖）。
  *
- * <p>版本串来自 {@link Bukkit#getBukkitVersion()}（形如 {@code 1.6.4-R0.1} / {@code 1.12.2-R0.1-SNAPSHOT}），
+ * <p>版本串来自 {@code org.bukkit.Bukkit#getBukkitVersion()}（形如 {@code 1.6.4-R0.1} /
+ * {@code 1.12.2-R0.1-SNAPSHOT}），经反射获取（本模块不 import 任何 org.bukkit 类），
  * 仅取首个 {@code -} 前的版本号解析为 {@code major.minor.patch}。</p>
  *
  * <p>典型用法：</p>
@@ -32,11 +32,26 @@ public final class ServerVersion implements Comparable<ServerVersion> {
     }
 
     /**
-     * 解析当前运行服务端的版本。
+     * 解析当前运行服务端的版本（反射调用 {@code Bukkit.getBukkitVersion()}；不可用时退化为 0.0.0）。
      */
     public static ServerVersion current() {
-        String bukkitVersion = Bukkit.getBukkitVersion();
-        return parse(bukkitVersion);
+        return parse(getBukkitVersionReflectively());
+    }
+
+    /**
+     * 反射获取 {@code org.bukkit.Bukkit#getBukkitVersion()}。
+     *
+     * @return 版本串；反射失败返回空串（解析退化为 0.0.0）
+     */
+    private static String getBukkitVersionReflectively() {
+        try {
+            Class<?> bukkitClass = Class.forName("org.bukkit.Bukkit");
+            Method m = bukkitClass.getMethod("getBukkitVersion");
+            Object v = m.invoke(null);
+            return v == null ? "" : v.toString();
+        } catch (Throwable t) {
+            return "";
+        }
     }
 
     /**

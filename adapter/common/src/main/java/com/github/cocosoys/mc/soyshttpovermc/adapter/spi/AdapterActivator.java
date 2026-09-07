@@ -1,7 +1,6 @@
 package com.github.cocosoys.mc.soyshttpovermc.adapter.spi;
 
 import com.github.cocosoys.mc.soyshttpovermc.adapter.ServerVersion;
-import org.bukkit.plugin.java.JavaPlugin;
 
 /**
  * 版本适配模块统一激活契约。
@@ -32,13 +31,16 @@ public interface AdapterActivator {
     /**
      * 激活装配。
      *
-     * @param plugin  宿主插件（版本模块通常拿到它注册 Platform 覆盖 / 读取 dataFolder）
+     * @param plugin  宿主插件（{@code org.bukkit.plugin.java.JavaPlugin} 实例的 Object 视图；
+     *                本模块零 Bukkit 编译期依赖，实现方按需强转）
      * @param version 当前服务器版本
      */
-    void activate(JavaPlugin plugin, ServerVersion version);
+    void activate(Object plugin, ServerVersion version);
 
     /**
      * 反激活 / 还原（插件禁用或重载时）。
+     *
+     * @param plugin 宿主插件（{@code JavaPlugin} 实例的 Object 视图）
      */
-    void deactivate(JavaPlugin plugin);
+    void deactivate(Object plugin);
 }

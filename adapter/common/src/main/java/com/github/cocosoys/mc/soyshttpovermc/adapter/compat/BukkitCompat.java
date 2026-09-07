@@ -1,8 +1,6 @@
 package com.github.cocosoys.mc.soyshttpovermc.adapter.compat;
 
 import lombok.CustomLog;
-import org.bukkit.Bukkit;
-import org.bukkit.entity.Player;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -13,14 +11,17 @@ import java.util.Collections;
 import java.util.List;
 
 /**
- * 版本中立 Bukkit 兼容工具：抹平跨版本 API 差异。
+ * 版本中立 Bukkit 兼容工具：抹平跨版本 API 差异（零 Bukkit 编译期依赖，全部反射）。
  *
- * <p><b>核心原则</b>：凡在目标版本段（1.6.4 ~ 1.12.2）签名不一致的方法，一律反射调用，
- * 禁止编译期直接绑定，避免低版本服务器运行时 {@code NoSuchMethodError} / {@code NoClassDefFoundError}。</p>
+ * <p><b>核心原则</b>：本模块不 import 任何 org.bukkit 类，对 Bukkit 的访问一律经
+ * {@code Class.forName} + {@code Method.invoke} 反射完成；凡在目标版本段
+ * （1.6.4 ~ 1.12.2）签名不一致的方法，反射调用，禁止编译期直接绑定，
+ * 避免低版本服务器运行时 {@code NoSuchMethodError} / {@code NoClassDefFoundError}。</p>
  *
  * <p>已覆盖差异：</p>
  * <ul>
- *   <li>{@link #onlinePlayers()}：1.8+ 返回 {@code Collection}，1.6/1.7 返回 {@code Player[]}；反射优先取 Collection 重载。</li>
+ *   <li>{@link #onlinePlayers()}：1.8+ 返回 {@code Collection}，1.6/1.7 返回 {@code Player[]}；
+ *       反射优先取 Collection 重载；返回值统一为 {@code List<?>}（元素为 Player 的 Object 视图）。</li>
  * </ul>
  */
 @CustomLog
@@ -35,9 +36,10 @@ public final class BukkitCompat {
     /**
      * 获取全部在线玩家（跨 1.6/1.7/1.12 均可用）。
      *
-     * @return 在线玩家列表；反射失败时回退 {@link Collections#emptyList()} 并告警
+     * @return 在线玩家 Object 视图列表（元素即服务端 {@code Player} 实例）；
+     *         反射失败时回退 {@link Collections#emptyList()} 并告警
      */
-    public static List<Player> onlinePlayers() {
+    public static List<?> onlinePlayers() {
         try {
             Method m = resolveOnlinePlayersMethod();
             if (m == null) {
@@ -45,16 +47,11 @@ public final class BukkitCompat {
             }
             Object result = m.invoke(null);
             if (result instanceof Collection) {
-                List<Player> list = new ArrayList<>();
-                for (Object o : (Collection<?>) result) {
-                    if (o instanceof Player) {
-                        list.add((Player) o);
-                    }
-                }
-                return list;
+                return new ArrayList<>((Collection<?>) result);
             }
-            if (result instanceof Player[]) {
-                return new ArrayList<>(Arrays.asList((Player[]) result));
+            if (result != null && result.getClass().isArray()) {
+                // 1.6/1.7：Player[]（对象数组），统一转 List<Object> 视图
+                return new ArrayList<>(Arrays.asList((Object[]) result));
             }
             return fallback();
         } catch (IllegalAccessException | InvocationTargetException | RuntimeException e) {
@@ -70,7 +67,14 @@ public final class BukkitCompat {
         }
         Method selected = null;
         Method any = null;
-        for (Method m : Bukkit.class.getDeclaredMethods()) {
+        Class<?> bukkitClass;
+        try {
+            bukkitClass = Class.forName("org.bukkit.Bukkit");
+        } catch (ClassNotFoundException e) {
+            log.warn("[adapter] 无法加载 org.bukkit.Bukkit（非 Bukkit 服务端？）");
+            return null;
+        }
+        for (Method m : bukkitClass.getDeclaredMethods()) {
             if (!"getOnlinePlayers".equals(m.getName()) || m.getParameterCount() != 0) {
                 continue;
             }
@@ -92,8 +96,8 @@ public final class BukkitCompat {
         return selected;
     }
 
-    private static List<Player> fallback() {
-        // 极端回退：反射不可用时返回空列表（编译基线为 1.6.4，不可直接调用会随版本变化的 Bukkit API）
+    private static List<?> fallback() {
+        // 极端回退：反射不可用时返回空列表（本模块零 Bukkit 编译期依赖，不可直接调用随版本变化的 API）
         return Collections.emptyList();
     }
 }

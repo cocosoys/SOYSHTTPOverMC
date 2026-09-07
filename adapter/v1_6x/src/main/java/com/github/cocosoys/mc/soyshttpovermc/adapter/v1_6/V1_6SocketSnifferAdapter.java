@@ -3,8 +3,6 @@ package com.github.cocosoys.mc.soyshttpovermc.adapter.v1_6;
 import lombok.CustomLog;
 import com.github.cocosoys.mc.soyshttpovermc.adapter.ServerVersion;
 import com.github.cocosoys.mc.soyshttpovermc.adapter.spi.SocketSnifferAdapter;
-import org.bukkit.plugin.java.JavaPlugin;
-
 import java.util.Collections;
 import java.util.List;
 
@@ -44,7 +42,7 @@ public class V1_6SocketSnifferAdapter implements SocketSnifferAdapter {
     }
 
     @Override
-    public void onInstall(JavaPlugin plugin, ServerVersion version) {
+    public void onInstall(Object plugin, ServerVersion version) {
         log.info("[adapter/v1_6] 同端口嗅探由连接级接入实现（ServerSocket 首包分流），supported=true");
     }
 }

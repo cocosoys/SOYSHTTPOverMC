@@ -2,7 +2,6 @@ package com.github.cocosoys.mc.soyshttpovermc.adapter.v1_7;
 
 import com.github.cocosoys.mc.soyshttpovermc.adapter.ServerVersion;
 import com.github.cocosoys.mc.soyshttpovermc.adapter.spi.AdapterActivator;
-import org.bukkit.plugin.java.JavaPlugin;
 
 /**
  * 1.7.x 版本适配激活入口（v1_7x 模块）。
@@ -34,13 +33,13 @@ public class V1_7AdapterActivator implements AdapterActivator {
     }
 
     @Override
-    public void activate(JavaPlugin plugin, ServerVersion version) {
+    public void activate(Object plugin, ServerVersion version) {
         // Platform 覆盖（含 YAML UTF-8）经 ServiceLoader 已由 Platforms 优先生效；
         // 嗅探桥经 V1_7SocketSnifferAdapter 提供；这里仅留装配钩子（后续 core 集成点）。
     }
 
     @Override
-    public void deactivate(JavaPlugin plugin) {
+    public void deactivate(Object plugin) {
         // 插件禁用 / 热重载时还原（预留）
     }
 }

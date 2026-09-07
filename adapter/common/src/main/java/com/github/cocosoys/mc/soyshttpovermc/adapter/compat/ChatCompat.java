@@ -1,19 +1,20 @@
 package com.github.cocosoys.mc.soyshttpovermc.adapter.compat;
 
 import lombok.CustomLog;
-import org.bukkit.entity.Player;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
 
 /**
- * 可点击链接消息兼容工具。
+ * 可点击链接消息兼容工具（零 Bukkit 编译期依赖，全部反射）。
  *
  * <p>发送带「点击打开 URL」的聊天链接需要 Spigot API（{@code Player#spigot()} + bungee chat），
  * 而 <b>CraftBukkit 低版本（含 1.6.4 / 1.7.10）没有这些类</b>。本工具用反射探测运行时是否存在
  * Spigot API：存在则发送可点击组件，否则降级为普通文本消息（链接明文附在显示文字后）。</p>
  *
- * <p>编译基线为 1.6.4，仅依赖 {@link Player#sendMessage(String)} 等全版本存在的方法。</p>
+ * <p>本模块不 import 任何 org.bukkit 类：{@code Player} 一律以 {@code Object} 视图传入，
+ * 其上的 {@code spigot()} / {@code sendMessage(String)} 均经反射调用；运行期由服务端
+ * classpath 提供对应实现类。</p>
  */
 @CustomLog
 public final class ChatCompat {
@@ -29,12 +30,12 @@ public final class ChatCompat {
     /**
      * 向玩家发送可点击链接。
      *
-     * @param player  目标玩家
+     * @param player  目标玩家（服务端 {@code Player} 实例的 Object 视图）
      * @param url     点击后打开的 URL
      * @param display 显示文字（可用 {@code §} 颜色码）
      * @return 是否以「可点击组件」方式发出；{@code false} 表示已降级为纯文本消息
      */
-    public static boolean sendClickable(Player player, String url, String display) {
+    public static boolean sendClickable(Object player, String url, String display) {
         if (player == null) {
             return false;
         }
@@ -50,8 +51,8 @@ public final class ChatCompat {
                 log.debug("[adapter] Spigot 可点击组件发送失败，降级纯文本", t);
             }
         }
-        // 降级：纯文本消息（显示文字 + 链接）
-        player.sendMessage(display + " §7" + url);
+        // 降级：纯文本消息（显示文字 + 链接），反射调用 Player#sendMessage(String)
+        sendPlainMessage(player, display + " §7" + url);
         return false;
     }
 
@@ -65,7 +66,8 @@ public final class ChatCompat {
         }
         boolean ok = false;
         try {
-            Method m = Player.class.getMethod("spigot");
+            Class<?> playerClass = Class.forName("org.bukkit.entity.Player");
+            Method m = playerClass.getMethod("spigot");
             m.setAccessible(true);
             // 确认 bungee chat 组件类在 classpath 上（CraftBukkit 无）
             Class.forName("net.md_5.bungee.api.chat.TextComponent");
@@ -137,5 +139,17 @@ public final class ChatCompat {
         }
         Object[] args = {component};
         send.invoke(spigot, args);
+    }
+
+    /**
+     * 反射调用 {@code Player#sendMessage(String)}（低版本降级路径）。
+     */
+    private static void sendPlainMessage(Object player, String message) {
+        try {
+            Method m = player.getClass().getMethod("sendMessage", String.class);
+            m.invoke(player, message);
+        } catch (Throwable t) {
+            log.debug("[adapter] 降级纯文本消息发送失败", t);
+        }
     }
 }
