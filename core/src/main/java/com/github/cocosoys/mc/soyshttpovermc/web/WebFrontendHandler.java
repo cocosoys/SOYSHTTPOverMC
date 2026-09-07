@@ -288,13 +288,13 @@ public class WebFrontendHandler {
         List<String> perms = null;
         if (checker != null) {
             perms = checker.inlinePermissionsFor(cleanPath);
-            if (perms == null && registeredPerms != null && !registeredPerms.isEmpty()) {
+            if (perms == null && registeredPerms != null) { // 空 List = 显式放行（对齐单页内联语义）
                 perms = registeredPerms;
             }
             if (perms == null) {
                 perms = checker.globalPermissionsFor(cleanPath);
             }
-        } else if (registeredPerms != null && !registeredPerms.isEmpty()) {
+        } else if (registeredPerms != null) {
             perms = registeredPerms;
         }
         if (perms == null || perms.isEmpty()) return null;

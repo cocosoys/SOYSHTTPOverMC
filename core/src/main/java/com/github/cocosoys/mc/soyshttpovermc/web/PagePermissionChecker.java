@@ -16,6 +16,8 @@ import java.util.Map;
  * <p>路径匹配复用 {@link AuthUtils#matchesPath} 语义：
  * {@code /admin} 精确（含 /admin/... 子路径）、{@code /console/*} 目录通配、{@code *} 全量。
  * 单页内联权限（page 段）完全替换全局（pages.permissions）同路径配置，不合并。
+ * 单页配置空数组（permissions: []）表示"已配置但无权限要求"= 显式放行，豁免全局规则；
+ * 未配置 permissions 键 = 跟随全局规则（返回 null）。
  * 权限数组为 AND 语义：全部节点通过才放行（判定逻辑在 {@link WebFrontendHandler}）。</p>
  */
 public class PagePermissionChecker {
@@ -29,7 +31,8 @@ public class PagePermissionChecker {
         Map<String, List<String>> in = new LinkedHashMap<>();
         if (inline != null) {
             for (Map.Entry<String, List<String>> e : inline.entrySet()) {
-                if (e.getValue() == null || e.getValue().isEmpty()) continue;
+                // 仅跳过 null；空 List 保留（pages.yml 单页 permissions: [] = 显式放行，豁免全局规则）
+                if (e.getValue() == null) continue;
                 in.put(e.getKey(), Collections.unmodifiableList(new ArrayList<>(e.getValue())));
             }
         }
@@ -45,18 +48,19 @@ public class PagePermissionChecker {
     }
 
     /**
-     * 仅查单页内联权限（pages.page.&lt;路径&gt;.permissions，含 .html 后缀等价）；未配置返回 null。
+     * 仅查单页内联权限（pages.page.&lt;路径&gt;.permissions，含 .html 后缀等价）。
+     * 返回 {@code null}=未配置（跟随全局）；返回空 List=已配置显式放行（豁免全局）。
      */
     public List<String> inlinePermissionsFor(String cleanPath) {
         if (cleanPath == null) return null;
         List<String> p = inline.get(cleanPath);
-        if (p != null) return p.isEmpty() ? null : p;
+        if (p != null) return p; // 空 List = 已配置显式放行（非 null，跳过全局）；null = 未配置
         String alt = cleanPath.endsWith(".html")
                 ? cleanPath.substring(0, cleanPath.length() - ".html".length())
                 : cleanPath + ".html";
         if (!alt.equals(cleanPath)) {
             List<String> p2 = inline.get(alt);
-            if (p2 != null) return p2.isEmpty() ? null : p2;
+            if (p2 != null) return p2;
         }
         return null;
     }

@@ -178,8 +178,10 @@ public final class PagesConfig {
             if (pageSec != null) {
                 for (String key : pageSec.getKeys(false)) {
                     PageItem it = readPageObj(pageSec, key);
-                    if (it.permissions != null && !it.permissions.isEmpty()) {
-                        inline.put(normalizeUrl(key), it.permissions);
+                    if (it.permissionsSet) {
+                        // 已配置即放入：permissions: [] → 空 List = 显式放行（豁免全局）；非空 → 需校验
+                        inline.put(normalizeUrl(key), it.permissions == null
+                                ? java.util.Collections.<String>emptyList() : it.permissions);
                     }
                 }
             }
@@ -246,7 +248,11 @@ public final class PagesConfig {
                 it.resource = obj.getString("resource");
                 it.description = obj.getString("description");
                 it.nicknames = obj.getStringList("nicknames");
-                it.permissions = obj.getStringList("permissions");
+                // permissions：仅当 YAML 值为列表（含空列表 []）才视为"已配置"（显式放行）；
+                // 键缺失 / 显式 null / 误写为字符串 一律视为"未配置"（跟随全局规则）
+                Object permRaw = obj.get("permissions");
+                it.permissionsSet = permRaw instanceof List;
+                it.permissions = permRaw instanceof List ? obj.getStringList("permissions") : null;
             } else if (raw != null) {
                 it.resource = String.valueOf(raw);
             }
@@ -422,6 +428,8 @@ public final class PagesConfig {
             String description;
             List<String> nicknames;
             List<String> permissions;
+            /** permissions 键是否显式配置（permissions: [] = 已配置显式放行；未配置 = 跟随全局）。 */
+            boolean permissionsSet;
         }
     }
 }
