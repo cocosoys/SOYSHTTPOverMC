@@ -143,6 +143,35 @@
                     </execution>
                 </executions>
             </plugin>
+            <!-- 打包后将 shaded 产物复制到项目根 output/（便于直接取用） -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-antrun-plugin</artifactId>
+                <version>3.1.0</version>
+                <executions>
+                    <execution>
+                        <id>copy-to-output</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>run</goal>
+                        </goals>
+                        <configuration>
+                            <target>
+                                <delete failonerror="false">
+                                    <fileset dir="${project.basedir}/../../output">
+                                        <include name="SOYSHTTPOverMC-1_7-${project.version}.jar"/>
+                                    </fileset>
+                                </delete>
+                                <copy todir="${project.basedir}/../../output" failonerror="false">
+                                    <fileset dir="${project.build.directory}">
+                                        <include name="SOYSHTTPOverMC-1_7-${project.version}.jar"/>
+                                    </fileset>
+                                </copy>
+                            </target>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
         </plugins>
     </build>
 </project>

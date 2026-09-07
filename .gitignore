@@ -4,16 +4,13 @@
 target/
 server*/
 docs/*.md
-ihomepages/
-SOYSHTTPOverMC-Proxy/
 
 # 本地 Maven toolchains（JDK 路径为环境专属，不进仓库；CI 动态生成）
 toolchains.xml
 .mvn/maven.config
-pom.xml.bak-toolchains
-*.ps1
-*.py
 # 构建/调试临时产物（flatten 每次构建生成 / 本地验证脚本与备份）
 .flattened-pom.xml
-.tmp_replace/
 /adapter/v1_6xJava7/
+
+# 打包产物集中输出目录（antrun 复制，不入库）
+output/
