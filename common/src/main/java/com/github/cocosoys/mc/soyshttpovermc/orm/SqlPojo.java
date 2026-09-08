@@ -94,6 +94,14 @@ public class SqlPojo {
         return e == null ? java.util.Collections.emptyList() : e.search(beanClass, keyword, fields);
     }
 
+    /**
+     * 跨端搜索分页（LIKE 查询 + LIMIT/OFFSET）。
+     */
+    public <T> Page<T> searchPage(Class<T> beanClass, long current, long size, String keyword, String... fields) {
+        IBackendExecutor e = executor();
+        return e == null ? new Page<>(current, size) : e.searchPage(beanClass, current, size, keyword, fields);
+    }
+
     // ===== 内部（Query 委托） =====
 
     public <T> List<T> selectByTree(Class<T> beanClass, ConditionTree tree) {

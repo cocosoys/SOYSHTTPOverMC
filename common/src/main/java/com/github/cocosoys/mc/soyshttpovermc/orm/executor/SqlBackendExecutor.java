@@ -514,13 +514,56 @@ public class SqlBackendExecutor implements IBackendExecutor {
         }
     }
 
-    // ===== 跨端搜索通道（实现） =====
+    // ===== 跨端搜索（实现：LIKE 查询，通配符转义统一字面语义） =====
 
     @Override
     public <T> List<T> search(Class<T> beanClass, String keyword, String... fields) {
         if (!available || keyword == null || keyword.isEmpty()) return java.util.Collections.emptyList();
         ensureTable(beanClass);
         PojoMeta meta = PojoMeta.of(beanClass);
+        List<String> cols = searchColumns(meta, fields);
+        if (cols.isEmpty()) return java.util.Collections.emptyList();
+        String sql = "SELECT * FROM `" + table(beanClass) + "` WHERE " + buildLikeWhere(cols);
+        try {
+            List<ResultMap> rows = ex().getList(sql, buildLikeArgs(cols, keyword));
+            List<T> out = new ArrayList<>();
+            for (ResultMap row : rows) out.add(rowToBean(beanClass, row));
+            return out;
+        } catch (Throwable t) {
+            log.warnT("log.orm.search-failed", "[ORM] search 失败: {0}", t.getMessage());
+            return java.util.Collections.emptyList();
+        }
+    }
+
+    @Override
+    public <T> Page<T> searchPage(Class<T> beanClass, long current, long size, String keyword, String... fields) {
+        Page<T> page = new Page<>(current, size);
+        if (!available || keyword == null || keyword.isEmpty()) return page;
+        ensureTable(beanClass);
+        PojoMeta meta = PojoMeta.of(beanClass);
+        List<String> cols = searchColumns(meta, fields);
+        if (cols.isEmpty()) return page;
+        String where = buildLikeWhere(cols);
+        Object[] likeArgs = buildLikeArgs(cols, keyword);
+        try {
+            long total = countLike(beanClass, where, likeArgs);
+            page.setTotal(total);
+            String sql = "SELECT * FROM `" + table(beanClass) + "` WHERE " + where + " LIMIT ? OFFSET ?";
+            List<ResultMap> rows = ex().getList(sql, concat(likeArgs, page.getSize(), page.offset()));
+            List<T> out = new ArrayList<>();
+            for (ResultMap row : rows) out.add(rowToBean(beanClass, row));
+            page.setRecords((List) out);
+            return page;
+        } catch (Throwable t) {
+            log.warnT("log.orm.search-page-failed", "[ORM] searchPage 失败: {0}", t.getMessage());
+            return page;
+        }
+    }
+
+    /**
+     * 解析搜索目标列：未指定 fields 时默认 String/Enum 列；指定时按字段名解析（忽略不存在的字段）。
+     */
+    private static List<String> searchColumns(PojoMeta meta, String... fields) {
         List<String> cols = new ArrayList<>();
         if (fields == null || fields.length == 0) {
             for (FieldMeta fm : meta.getFields()) {
@@ -532,22 +575,42 @@ public class SqlBackendExecutor implements IBackendExecutor {
                 if (fm != null) cols.add(fm.columnName);
             }
         }
-        if (cols.isEmpty()) return java.util.Collections.emptyList();
-        StringBuilder sql = new StringBuilder("SELECT * FROM `" + table(beanClass) + "` WHERE ");
-        List<Object> args = new ArrayList<>();
+        return cols;
+    }
+
+    /**
+     * LIKE WHERE 段：`col` LIKE ? ESCAPE '\' OR ...——通配符转义统一为字面包含（与 YAML contains 一致）。
+     */
+    private static String buildLikeWhere(List<String> cols) {
+        StringBuilder sb = new StringBuilder();
         for (int i = 0; i < cols.size(); i++) {
-            if (i > 0) sql.append(" OR ");
-            sql.append('`').append(cols.get(i)).append("` LIKE ?");
-            args.add("%" + keyword + "%");
+            if (i > 0) sb.append(" OR ");
+            sb.append('`').append(cols.get(i)).append("` LIKE ? ESCAPE '\\'");
         }
+        return sb.toString();
+    }
+
+    /**
+     * LIKE 参数值：keyword 转义通配符（\ % _）后包裹 %。
+     */
+    private static Object[] buildLikeArgs(List<String> cols, String keyword) {
+        String escaped = keyword.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
+        Object[] args = new Object[cols.size()];
+        for (int i = 0; i < cols.size(); i++) {
+            args[i] = "%" + escaped + "%";
+        }
+        return args;
+    }
+
+    private long countLike(Class<?> beanClass, String where, Object[] args) {
+        String sql = "SELECT COUNT(*) AS c FROM `" + table(beanClass) + "` WHERE " + where;
         try {
-            List<ResultMap> rows = ex().getList(sql.toString(), args.toArray());
-            List<T> out = new ArrayList<>();
-            for (ResultMap row : rows) out.add(rowToBean(beanClass, row));
-            return out;
+            List<ResultMap> rows = ex().getList(sql, args);
+            if (rows.isEmpty()) return 0L;
+            Object cnt = rows.get(0).get("c");
+            return cnt instanceof Number ? ((Number) cnt).longValue() : 0L;
         } catch (Throwable t) {
-            log.warnT("log.orm.search-failed", "[ORM] search 失败: {0}", t.getMessage());
-            return java.util.Collections.emptyList();
+            return 0L;
         }
     }
 }

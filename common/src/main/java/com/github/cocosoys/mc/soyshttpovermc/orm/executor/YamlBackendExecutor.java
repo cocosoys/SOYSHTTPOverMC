@@ -291,26 +291,14 @@ public class YamlBackendExecutor implements IBackendExecutor {
         }
     }
 
-    // ===== 跨端搜索通道（实现：全量扫描 LIKE） =====
+    // ===== 跨端搜索（实现：全量扫描 contains） =====
 
     @Override
     public <T> List<T> search(Class<T> beanClass, String keyword, String... fields) {
         if (keyword == null || keyword.isEmpty()) return new ArrayList<>();
         PojoMeta meta = PojoMeta.of(beanClass);
-        List<String> targets = new ArrayList<>();
-        if (fields == null || fields.length == 0) {
-            for (FieldMeta fm : meta.getFields()) {
-                if (!fm.isIgnored() && (fm.type == String.class || fm.type.isEnum())) {
-                    targets.add(fm.columnName);
-                }
-            }
-        } else {
-            for (String f : fields) {
-                FieldMeta fm = meta.byField(f);
-                if (fm != null) targets.add(fm.columnName);
-            }
-        }
-        if (targets.isEmpty()) return new ArrayList<>();
+        List<String> cols = searchColumns(meta, fields);
+        if (cols.isEmpty()) return new ArrayList<>();
         String kw = keyword.toLowerCase();
         ConfigSection root = getConfig(beanClass).getSection(meta.getTableName());
         List<T> out = new ArrayList<>();
@@ -320,7 +308,7 @@ public class YamlBackendExecutor implements IBackendExecutor {
             if (section == null) continue;
             T bean = BeanCodec.deserialize(beanClass, section);
             if (bean == null) continue;
-            for (String col : targets) {
+            for (String col : cols) {
                 Object v = QueryValueAccessor(bean, meta).apply(col);
                 if (v != null && String.valueOf(v).toLowerCase().contains(kw)) {
                     out.add(bean);
@@ -329,5 +317,38 @@ public class YamlBackendExecutor implements IBackendExecutor {
             }
         }
         return out;
+    }
+
+    @Override
+    public <T> Page<T> searchPage(Class<T> beanClass, long current, long size, String keyword, String... fields) {
+        Page<T> page = new Page<>(current, size);
+        if (keyword == null || keyword.isEmpty()) return page;
+        List<T> all = search(beanClass, keyword, fields);
+        page.setTotal(all.size());
+        long offset = page.offset();
+        int from = (int) Math.min(offset, all.size());
+        int to = (int) Math.min(offset + page.getSize(), all.size());
+        page.setRecords((List) new ArrayList<>(all.subList(from, to)));
+        return page;
+    }
+
+    /**
+     * 解析搜索目标列：未指定 fields 时默认 String/Enum 列；指定时按字段名解析（忽略不存在的字段）。
+     */
+    private static List<String> searchColumns(PojoMeta meta, String... fields) {
+        List<String> cols = new ArrayList<>();
+        if (fields == null || fields.length == 0) {
+            for (FieldMeta fm : meta.getFields()) {
+                if (!fm.isIgnored() && (fm.type == String.class || fm.type.isEnum())) {
+                    cols.add(fm.columnName);
+                }
+            }
+        } else {
+            for (String f : fields) {
+                FieldMeta fm = meta.byField(f);
+                if (fm != null) cols.add(fm.columnName);
+            }
+        }
+        return cols;
     }
 }

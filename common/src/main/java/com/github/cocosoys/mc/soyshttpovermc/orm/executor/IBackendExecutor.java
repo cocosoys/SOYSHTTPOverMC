@@ -8,7 +8,7 @@ import java.util.List;
 
 /**
  * 后端执行器接口（双后端通解：YAML 内存过滤 / SQL 参数化翻译）。
- * 门面 {@code YAML.Pojo / SQL.Pojo（二期）} 通过本接口委托执行。
+ * 门面 {@code YAML.Pojo / SQL.Pojo} 通过本接口委托执行。
  */
 public interface IBackendExecutor {
 
@@ -51,13 +51,22 @@ public interface IBackendExecutor {
      */
     <T> boolean deleteById(Class<T> beanClass, Object id);
 
-    // ===== 预留：跨端搜索配置文件通道（二期实现） =====
+    // ===== 跨端搜索（YAML=全量扫描 contains；SQL=LIKE 查询） =====
 
     /**
-     * 【预留】跨端搜索配置文件通道：跨 YAML/SQL 后端按关键字模糊搜索指定字段。
-     * 二期实现（YAML=全量扫描 LIKE；SQL=LIKE 查询）。当前未实现，调用抛 UnsupportedOperationException。
+     * 跨端搜索：跨 YAML/SQL 后端按关键字模糊搜索指定字段（默认 String/Enum 字段）。
+     * 默认实现抛 UnsupportedOperationException——各后端必须 override；
+     * YAML=全量扫描 contains；SQL=参数化 LIKE 查询。
      */
     default <T> List<T> search(Class<T> beanClass, String keyword, String... fields) {
-        throw new UnsupportedOperationException(I18n.t("exception.orm.search-reserved", "跨端搜索配置文件通道预留中（二期实现），请稍候"));
+        throw new UnsupportedOperationException(I18n.t("exception.orm.search-unsupported", "当前后端不支持跨端搜索"));
+    }
+
+    /**
+     * 跨端搜索分页：按关键字模糊搜索指定字段并分页（YAML=全量扫描后切片；SQL=LIKE + LIMIT）。
+     * 默认实现抛 UnsupportedOperationException——各后端必须 override。
+     */
+    default <T> Page<T> searchPage(Class<T> beanClass, long current, long size, String keyword, String... fields) {
+        throw new UnsupportedOperationException(I18n.t("exception.orm.search-unsupported", "当前后端不支持跨端搜索"));
     }
 }

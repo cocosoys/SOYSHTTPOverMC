@@ -172,13 +172,20 @@ public class YamlPojo {
         return executor().selectPageByTree(beanClass, tree);
     }
 
-    // ===== 预留：跨端搜索配置文件通道（二期实现） =====
+    // ===== 跨端搜索 =====
 
     /**
-     * 【预留】跨端搜索：按关键字在指定字段上模糊搜索（跨 YAML/SQL 后端统一入口）。
-     * 二期实现；当前调用抛 UnsupportedOperationException。
+     * 跨端搜索：按关键字在指定字段上模糊搜索（跨 YAML/SQL 后端统一入口）。
+     * YAML=全量扫描 contains；SQL=LIKE 查询；不指定 fields 时默认搜 String/Enum 字段。
      */
     public <T> List<T> search(Class<T> beanClass, String keyword, String... fields) {
         return executor().search(beanClass, keyword, fields);
+    }
+
+    /**
+     * 跨端搜索分页：按关键字模糊搜索指定字段并分页（YAML=全量扫描后切片）。
+     */
+    public <T> Page<T> searchPage(Class<T> beanClass, long current, long size, String keyword, String... fields) {
+        return executor().searchPage(beanClass, current, size, keyword, fields);
     }
 }
