@@ -57,7 +57,7 @@ jobs:
         with:
           name: soyshttpovermc-jars
           path: |
-            core/target/SOYSHTTPOverMC-*-1_12.jar
+            core/target/SOYSHTTPOverMC-1_12-*.jar
             adapter/v1_6x/target/SOYSHTTPOverMC-1_6-*.jar
             adapter/v1_7x/target/SOYSHTTPOverMC-1_7-*.jar
           if-no-files-found: error
@@ -83,12 +83,12 @@ jobs:
             ${{ steps.get_commit.outputs.COMMIT_MSG }}
 
             ### 📦 下载
-            - `SOYSHTTPOverMC-${{ steps.get_version.outputs.VERSION }}-1_12.jar` —— Spigot 1.12.2 后端插件（当前服务器，单服或群组服子服，放各子服 plugins/）
+            - `SOYSHTTPOverMC-1_12-${{ steps.get_version.outputs.VERSION }}.jar` —— Spigot 1.12.2 后端插件（当前服务器，单服或群组服子服，放各子服 plugins/）
             - `SOYSHTTPOverMC-1_6-${{ steps.get_version.outputs.VERSION }}.jar` —— 1.6.x 低版本适配（JDK8 运行）
             - `SOYSHTTPOverMC-1_7-${{ steps.get_version.outputs.VERSION }}.jar` —— 1.7.x 适配（JDK8 运行）
             - `SOYSHTTPOverMC-Proxy-${{ steps.get_version.outputs.VERSION }}.jar` —— BungeeCord/Velocity 代理端插件（本地构建，创建 Release 后手动附加）
           files: |
-            core/target/SOYSHTTPOverMC-*-1_12.jar
+            core/target/SOYSHTTPOverMC-1_12-*.jar
             adapter/v1_6x/target/SOYSHTTPOverMC-1_6-*.jar
             adapter/v1_7x/target/SOYSHTTPOverMC-1_7-*.jar
         env:
