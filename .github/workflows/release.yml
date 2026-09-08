@@ -22,6 +22,9 @@ jobs:
         with:
           java-version: '8'
           distribution: 'temurin'
+          # 固定 Maven 版本：runner 预装 Maven（3.9.13+）环境存在“生命周期重复执行”问题，
+          # setup-java 安装官方发行版 3.9.12（本地已验证单次执行 + BUILD SUCCESS）以消除环境差异。
+          maven-version: '3.9.12'
           cache: maven
 
       # 获取tag版本，去除前缀v；非tag触发VERSION为空字符串
@@ -36,9 +39,13 @@ jobs:
           fi
 
       # 组装Maven参数：只有tag触发时追加 -Drevision=xxx
+      # 注意：不用 clean —— CI 每次是全新 runner + 干净 checkout，无 target 残留；
+      # 且去掉 clean 可免疫 CI 环境的“生命周期重复执行”：第 2 次执行时 .flattened-pom.xml
+      # 不会被 clean 删除，flatten 读到已存在文件不崩溃（此前两次 CI 失败均因此机制）。
       - name: Build modules (Spigot core + low-version adapters)
         run: |
-          MAVEN_ARGS="-B clean package -DskipTests"
+          mvn -version
+          MAVEN_ARGS="-B package -DskipTests"
           if [[ -n "${{ steps.get_version.outputs.VERSION }}" ]]; then
             MAVEN_ARGS+=" -Drevision=${{ steps.get_version.outputs.VERSION }}"
           fi
