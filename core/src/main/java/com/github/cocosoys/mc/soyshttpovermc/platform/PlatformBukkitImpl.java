@@ -1,5 +1,6 @@
 package com.github.cocosoys.mc.soyshttpovermc.platform;
 
+import com.github.cocosoys.mc.soyshttpovermc.i18n.I18n;
 import com.github.cocosoys.mc.soyshttpovermc.spi.ConfigSection;
 import com.github.cocosoys.mc.soyshttpovermc.spi.Platform;
 import org.bukkit.configuration.file.YamlConfiguration;
@@ -82,7 +83,7 @@ public class PlatformBukkitImpl implements Platform {
         try {
             c.loadFromString(content == null ? "" : content);
         } catch (Exception e) {
-            throw new IllegalArgumentException("YAML 解析失败", e);
+            throw new IllegalArgumentException(I18n.t("exception.platform.yaml-parse-failed", "YAML 解析失败"), e);
         }
         return new BukkitConfigSection(c);
     }
@@ -95,13 +96,15 @@ public class PlatformBukkitImpl implements Platform {
     @Override
     public void saveYaml(ConfigSection cfg, File file) throws IOException {
         if (!(cfg instanceof BukkitConfigSection)) {
-            throw new IOException("非 Bukkit 配置实现，无法保存: " + (cfg == null ? "null" : cfg.getClass().getName()));
+            throw new IOException(I18n.t("exception.platform.save-unsupported",
+                    "非 Bukkit 配置实现，无法保存: {0}", cfg == null ? "null" : cfg.getClass().getName()));
         }
         org.bukkit.configuration.ConfigurationSection d = ((BukkitConfigSection) cfg).delegate();
         if (d instanceof org.bukkit.configuration.file.FileConfiguration) {
             ((org.bukkit.configuration.file.FileConfiguration) d).save(file);
         } else {
-            throw new IOException("底层配置非 FileConfiguration，无法保存: " + d.getClass().getName());
+            throw new IOException(I18n.t("exception.platform.not-file-config",
+                    "底层配置非 FileConfiguration，无法保存: {0}", d.getClass().getName()));
         }
     }
 

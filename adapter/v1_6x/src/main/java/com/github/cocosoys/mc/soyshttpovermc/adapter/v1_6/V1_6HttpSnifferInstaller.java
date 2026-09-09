@@ -29,7 +29,7 @@ public class V1_6HttpSnifferInstaller implements HttpSnifferInstaller {
     public Object install(HttpSnifferDeps deps) throws Exception {
         V1_6HttpSniffer sniffer = new V1_6HttpSniffer(deps);
         Object handle = sniffer.install();
-        log.info("[adapter/v1_6] 版本兼容嗅探器已安装（连接级接入）");
+        log.infoT("log.adapter.v16.installer-installed", "[adapter/v1_6] 版本兼容嗅探器已安装（连接级接入）");
         return handle;
     }
 

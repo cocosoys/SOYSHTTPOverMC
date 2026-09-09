@@ -86,7 +86,7 @@ public final class PlayerIdentity {
             found = offlinePlayerClass.getMethod("getUniqueId");
             found.setAccessible(true);
         } catch (ClassNotFoundException | NoSuchMethodException e) {
-            log.debug("[adapter] 当前版本无 OfflinePlayer#getUniqueId（1.6.4），身份键降级为玩家名");
+            log.debugT("log.adapter.no-uniqueid", "[adapter] 当前版本无 OfflinePlayer#getUniqueId（1.6.4），身份键降级为玩家名");
         }
         uniqueIdMethod = found;
         return found;

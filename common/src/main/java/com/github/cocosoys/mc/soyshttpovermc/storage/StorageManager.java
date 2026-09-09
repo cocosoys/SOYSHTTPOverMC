@@ -516,7 +516,7 @@ public class StorageManager {
 
     private void debug(String message) {
         if (LogKit.isDebugEnabled()) {
-            log.debug("[存储] " + message);
+            log.debugT("log.storage.debug", "[存储] {0}", message);
         }
     }
 

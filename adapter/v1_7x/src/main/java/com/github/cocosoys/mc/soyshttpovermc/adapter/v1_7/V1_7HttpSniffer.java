@@ -1,6 +1,7 @@
 package com.github.cocosoys.mc.soyshttpovermc.adapter.v1_7;
 
 import lombok.CustomLog;
+import com.github.cocosoys.mc.soyshttpovermc.i18n.I18n;
 import com.github.cocosoys.mc.soyshttpovermc.web.ApiRequestContext;
 import com.github.cocosoys.mc.soyshttpovermc.web.MimeTypes;
 import com.github.cocosoys.mc.soyshttpovermc.web.RequestStats;
@@ -155,14 +156,15 @@ public class V1_7HttpSniffer {
         loadNettyClasses();
         Object serverChannel = findServerChannel();
         if (serverChannel == null) {
-            throw new IllegalStateException("无法定位 1.7 服务端 ServerChannel（relocate netty 反射桥安装失败）");
+            throw new IllegalStateException(I18n.t("exception.adapter.v17.no-server-channel",
+                    "无法定位 1.7 服务端 ServerChannel（relocate netty 反射桥安装失败）"));
         }
         Object pipeline = pipeline(serverChannel);
         Object injector = createParentInjectorProxy();
         findMethod(pipeline.getClass(), "addFirst", String.class, C_HANDLER)
                 .invoke(pipeline, NAME_INJECTOR, injector);
         installedParents.add(serverChannel);
-        log.info("[adapter/v1_7] 已在父 ServerChannel 上安装同端口嗅探器（relocate netty 反射桥）");
+        log.infoT("log.adapter.v17.installed", "[adapter/v1_7] 已在父 ServerChannel 上安装同端口嗅探器（relocate netty 反射桥）");
         return this;
     }
 
@@ -191,7 +193,7 @@ public class V1_7HttpSniffer {
                 Object ch = findMethod(f.getClass(), "channel").invoke(f);
                 if (ch != null && C_CHANNEL.isInstance(ch)
                         && Boolean.TRUE.equals(findMethod(ch.getClass(), "isActive").invoke(ch))) {
-                    log.info("[adapter/v1_7] 定位父 ServerChannel 成功: " + ch.getClass().getName());
+                    log.infoT("log.adapter.v17.parent-channel-found", "[adapter/v1_7] 定位父 ServerChannel 成功: {0}", ch.getClass().getName());
                     return ch;
                 }
             } catch (Throwable ignored) {
@@ -236,7 +238,7 @@ public class V1_7HttpSniffer {
             C_CFLISTENER = Class.forName(CLS_CFLISTENER);
             C_GFLISTENER = Class.forName(CLS_GFLISTENER);
             nettyLoader = C_INBOUND.getClassLoader();
-            log.debug("[adapter/v1_7] relocate netty 类加载完成（" + C_INBOUND.getName() + "）");
+            log.debugT("log.adapter.v17.netty-loaded", "[adapter/v1_7] relocate netty 类加载完成（{0}）", C_INBOUND.getName());
         }
     }
 
@@ -259,7 +261,7 @@ public class V1_7HttpSniffer {
                         }
                         fireChannelRead(ctx, msg);
                     } catch (Throwable t) {
-                        log.warn("[adapter/v1_7] ParentInjector.channelRead 异常", t);
+                        log.warnT("log.adapter.v17.parent-inject-failed", "[adapter/v1_7] ParentInjector.channelRead 异常", t);
                     }
                 }
                 return null;
@@ -300,7 +302,7 @@ public class V1_7HttpSniffer {
                     }
                 }
             } catch (Throwable t) {
-                log.warn("[adapter/v1_7] HttpSniffer 回调异常(" + name + ")", t);
+                log.warnT("log.adapter.v17.callback-failed", "[adapter/v1_7] HttpSniffer 回调异常({0})", name, t);
                 try {
                     closeChannel((Object) args[0]);
                 } catch (Throwable ignored) {
@@ -369,7 +371,7 @@ public class V1_7HttpSniffer {
                 try {
                     executor.submit(() -> handleHttp(ctx, st, parsed, tls));
                 } catch (RejectedExecutionException e) {
-                    log.warn("[adapter/v1_7] HTTP 并发已达上限，拒绝新请求: " + parsed.method + " " + parsed.path);
+                    log.warnT("log.adapter.v17.concurrent-limit", "[adapter/v1_7] HTTP 并发已达上限，拒绝新请求: {0} {1}", parsed.method, parsed.path);
                     writeRaw(ctx, st, "Service Unavailable (HTTP concurrency limit)", 503, tls);
                     st.httpHandled = false;
                     setAutoRead(ctx, true);
@@ -432,7 +434,7 @@ public class V1_7HttpSniffer {
             if (gw != null) {
                 Credential cred = gw.resolveCredential(p.headers);
                 if (cred != null && !tls && tlsEngineSupplier != null) {
-                    log.warn("[adapter/v1_7] 凭证经明文 HTTP 传输（建议启用 TLS）: " + ip);
+                    log.warnT("log.adapter.v17.plaintext-cred", "[adapter/v1_7] 凭证经明文 HTTP 传输（建议启用 TLS）: {0}", ip);
                 }
                 GatewayContext gctx = new GatewayContext(p.method, handler.policyPath(p.path),
                         p.headers, ip, tls, cred, p.path);
@@ -513,7 +515,7 @@ public class V1_7HttpSniffer {
             writeResponse(ctx, st, out, tls, keepAlive);
         } catch (Exception e) {
             code = 502;
-            log.warn("[adapter/v1_7] 隧道转换失败", e);
+            log.warnT("log.adapter.v17.tunnel-failed", "[adapter/v1_7] 隧道转换失败", e);
             writeRaw(ctx, st, "HTTP-Over-MC tunnel error: "
                     + (e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage()), 502, tls);
         } finally {
@@ -544,7 +546,7 @@ public class V1_7HttpSniffer {
                 findMethod(future.getClass(), "addListener", C_GFLISTENER).invoke(future, closeL);
             }
         } catch (Throwable t) {
-            log.warn("[adapter/v1_7] 写出 HTTP 响应失败", t);
+            log.warnT("log.adapter.v17.write-failed", "[adapter/v1_7] 写出 HTTP 响应失败", t);
             closeChannel(ctx);
         }
     }

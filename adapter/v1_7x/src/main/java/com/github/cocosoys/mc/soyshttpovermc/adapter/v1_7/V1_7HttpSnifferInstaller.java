@@ -27,7 +27,7 @@ public class V1_7HttpSnifferInstaller implements HttpSnifferInstaller {
     public Object install(HttpSnifferDeps deps) throws Exception {
         V1_7HttpSniffer sniffer = new V1_7HttpSniffer(deps);
         Object handle = sniffer.install();
-        log.info("[adapter/v1_7] 版本兼容嗅探器已安装（relocate netty 反射桥）");
+        log.infoT("log.adapter.v17.installer-installed", "[adapter/v1_7] 版本兼容嗅探器已安装（relocate netty 反射桥）");
         return handle;
     }
 

@@ -130,7 +130,7 @@ public class PagesSubCommand extends SubCommand {
         String home = plugin.getDelegate().webConfig("web.home", "");
         String src = (home == null || home.trim().isEmpty()) ? "默认 index.html" : home.trim();
         sender.sendMessage(I18n.t("command.pages.home-hint",
-                "  §e/ §7—— 首页（静态解析源:" + src + "）"));
+                "  §e/ §7—— 首页（静态解析源:{0}）", src));
     }
 
     private static boolean isNumeric(String s) {

@@ -38,18 +38,18 @@ public final class HttpSnifferInstallers {
                 }
                 if (inst.supported()) {
                     cached = inst;
-                    log.info("HttpSnifferInstaller 命中: " + inst.id());
+                    log.infoT("log.sniffer.hit", "HttpSnifferInstaller 命中: {0}", inst.id());
                     return inst;
                 }
-                log.info("HttpSnifferInstaller 不支持: " + inst.id());
+                log.infoT("log.sniffer.unsupported", "HttpSnifferInstaller 不支持: {0}", inst.id());
             }
             if (first != null) {
-                log.info("HttpSnifferInstaller 已扫描但均不支持: " + first.getClass().getName());
+                log.infoT("log.sniffer.scanned-none", "HttpSnifferInstaller 已扫描但均不支持: {0}", first.getClass().getName());
             } else {
-                log.info("HttpSnifferInstaller 无可用实现（未注册 services）");
+                log.infoT("log.sniffer.no-services", "HttpSnifferInstaller 无可用实现（未注册 services）");
             }
         } catch (Throwable t) {
-            log.warn("HttpSnifferInstaller 加载失败", t);
+            log.warnT("log.sniffer.load-failed", "HttpSnifferInstaller 加载失败", t);
         }
         return new HttpSnifferInstaller.Unsupported("no supported installer");
     }

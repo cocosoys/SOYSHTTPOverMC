@@ -1,0 +1,186 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <!--
+      =====================================================================
+      SOYSHTTPOverMC · 高版本兼容模块 · 26.x（adapter/v1_26x，目标 26.2）
+      =====================================================================
+      注意：从 2026 年起 Mojang 改用年度版本号（26.1 / 26.2 等），
+      不再是传统的 1.x 格式。本模块适配 Minecraft 26.x 系列。
+
+      职责：为 26.x 服务器提供版本特化适配：
+        1. Platform 覆盖（继承 core PlatformBukkitImpl）；
+        2. AdapterActivator 激活入口（ServiceLoader 注册）；
+        3. SocketSnifferAdapter 版本桥（26.x NMS 无版本包前缀，
+           ServerConnectionListener 位于 net.minecraft.server.network）。
+
+      编译基线：Java 25（26.x 服务端要求 Java 25+）。
+
+      打包产物：完整 fat jar。
+
+      plugin.yml api-version：标注为 26.2。
+    -->
+    <parent>
+        <groupId>com.github.cocosoys.mc</groupId>
+        <artifactId>soyshttpovermc-parent</artifactId>
+        <version>${revision}</version>
+        <relativePath>../../pom.xml</relativePath>
+    </parent>
+
+    <artifactId>soyshttpovermc-adapter-v1_26x</artifactId>
+    <packaging>jar</packaging>
+    <name>SOYSHTTPOverMC Adapter v1.26.x</name>
+    <description>1.26.x 版本兼容模块（未来版本预留）：Platform 覆盖 + 激活器 + SocketSniffer 版本桥；Java 21 编译；api-version 1.26</description>
+
+    <properties>
+        <!-- 强制 Java 25（26.x 服务端要求） -->
+        <java.version>25</java.version>
+        <!-- Minecraft 26.2（年度版本号，2026年6月发布 "Chaos Cubed"） -->
+        <adapter.api.version>26.2-R0.1-SNAPSHOT</adapter.api.version>
+        <plugin.api.version>26.2</plugin.api.version>
+    </properties>
+
+    <dependencies>
+        <dependency>
+            <groupId>com.github.cocosoys.mc</groupId>
+            <artifactId>soyshttpovermc-adapter-common</artifactId>
+            <version>${revision}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.github.cocosoys.mc</groupId>
+            <artifactId>soyshttpovermc-common</artifactId>
+            <version>${revision}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.github.cocosoys.mc</groupId>
+            <artifactId>soyshttpovermc-core</artifactId>
+            <version>${revision}</version>
+        </dependency>
+        <!--
+          目标版本 spigot-api（仅编译期；运行期由服务端提供）。
+          Minecraft 26.2（年度版本号），从 spigot-repo 公共仓库解析。
+        -->
+        <dependency>
+            <groupId>org.spigotmc</groupId>
+            <artifactId>spigot-api</artifactId>
+            <version>${adapter.api.version}</version>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.netty</groupId>
+            <artifactId>netty-all</artifactId>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.zaxxer</groupId>
+            <artifactId>HikariCP</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <finalName>SOYSHTTPOverMC-1_26-${project.version}</finalName>
+        <resources>
+            <resource>
+                <directory>src/main/resources</directory>
+                <filtering>true</filtering>
+                <includes>
+                    <include>plugin.yml</include>
+                </includes>
+            </resource>
+            <resource>
+                <directory>src/main/resources</directory>
+                <filtering>false</filtering>
+                <excludes>
+                    <exclude>plugin.yml</exclude>
+                </excludes>
+            </resource>
+        </resources>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <configuration>
+                    <source>${java.version}</source>
+                    <target>${java.version}</target>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-toolchains-plugin</artifactId>
+                <configuration>
+                    <skip>true</skip>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-shade-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>shade</goal>
+                        </goals>
+                        <configuration>
+                            <finalName>SOYSHTTPOverMC-1_26-${project.version}</finalName>
+                            <createDependencyReducedPom>false</createDependencyReducedPom>
+                            <transformers>
+                                <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
+                            </transformers>
+                            <filters>
+                                <filter>
+                                    <artifact>*:*</artifact>
+                                    <excludes>
+                                        <exclude>META-INF/*.SF</exclude>
+                                        <exclude>META-INF/*.DSA</exclude>
+                                        <exclude>META-INF/*.RSA</exclude>
+                                    </excludes>
+                                </filter>
+                            </filters>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-antrun-plugin</artifactId>
+                <version>3.1.0</version>
+                <executions>
+                    <execution>
+                        <id>copy-to-output</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>run</goal>
+                        </goals>
+                        <configuration>
+                            <target>
+                                <delete failonerror="false">
+                                    <fileset dir="${project.basedir}/../../output">
+                                        <include name="SOYSHTTPOverMC-1_26-${project.version}.jar"/>
+                                    </fileset>
+                                </delete>
+                                <copy todir="${project.basedir}/../../output" failonerror="false">
+                                    <fileset dir="${project.build.directory}">
+                                        <include name="SOYSHTTPOverMC-1_26-${project.version}.jar"/>
+                                    </fileset>
+                                </copy>
+                            </target>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+</project>

@@ -40,12 +40,18 @@
     <artifactId>soyshttpovermc-adapter</artifactId>
     <packaging>pom</packaging>
     <name>SOYSHTTPOverMC Adapter</name>
-    <description>低版本兼容模块聚合工程（adapter/common + adapter/v1_6x + adapter/v1_7x + adapter/v1_6xJava7）</description>
+    <description>版本兼容模块聚合工程（adapter/common + adapter/v1_6x + adapter/v1_7x + adapter/v1_16x + adapter/v1_20x + adapter/v1_6xJava7）</description>
 
     <modules>
         <module>common</module>
         <module>v1_6x</module>
         <module>v1_7x</module>
+        <!-- 高版本兼容模块（1.16+） -->
+        <module>v1_16x</module>
+        <module>v1_20x</module>
+        <module>v1_21x</module>
+        <!-- 26.x（Mojang 年度版本号，2026+），Java 21 编译 -->
+        <module>v1_26x</module>
         <!-- 已搁置 2026-09-04：v1_6xJava7（Java7 兼容实验模块）暂停构建；需要时取消注释恢复 -->
         <!-- <module>v1_6xJava7</module> -->
     </modules>

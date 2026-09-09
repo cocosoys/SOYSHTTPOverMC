@@ -180,7 +180,7 @@ public class HttpOverMcPluginProxy {
         File yamlOrmDir = resolveYamlOrmDir();
         YAML.Pojo.init(yamlOrmDir);
         log.infoT("log.plugin.orm-yaml-ready", "ORM(YAML) 已装配: dataDir={0}", yamlOrmDir);
-        // 3.9) ORM（SQL 后端，二期）装配
+        // 3.9) ORM（SQL 后端）装配
         SqlBackendExecutor.init(plugin.getPlatform());
         // 4) 安全网关 + TLS 上下文
         rebuildGateway(gatewayDir);

@@ -119,7 +119,7 @@ public class LocalPermissionStore {
                 if (YAML.Pojo.insert(bean)) ok = true;
             }
         } catch (Throwable t) {
-            log.warn("[permission/local] 写入本地权限表失败: " + t, t);
+            log.warnT("log.permission.local-write-failed", "[permission/local] 写入本地权限表失败: {0}", t);
         }
         return ok;
     }
@@ -134,7 +134,7 @@ public class LocalPermissionStore {
                 if (YAML.Pojo.deleteById(c, id)) ok = true;
             }
         } catch (Throwable t) {
-            log.warn("[permission/local] 删除本地权限表记录失败: " + t, t);
+            log.warnT("log.permission.local-delete-failed", "[permission/local] 删除本地权限表记录失败: {0}", t);
         }
         return ok;
     }

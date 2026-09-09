@@ -55,7 +55,7 @@ public final class BukkitCompat {
             }
             return fallback();
         } catch (IllegalAccessException | InvocationTargetException | RuntimeException e) {
-            log.warn("[adapter] getOnlinePlayers 反射调用失败，回退空列表", e);
+            log.warnT("log.adapter.get-online-players-failed", "[adapter] getOnlinePlayers 反射调用失败，回退空列表", e);
             return Collections.emptyList();
         }
     }
@@ -71,7 +71,7 @@ public final class BukkitCompat {
         try {
             bukkitClass = Class.forName("org.bukkit.Bukkit");
         } catch (ClassNotFoundException e) {
-            log.warn("[adapter] 无法加载 org.bukkit.Bukkit（非 Bukkit 服务端？）");
+            log.warnT("log.adapter.no-bukkit", "[adapter] 无法加载 org.bukkit.Bukkit（非 Bukkit 服务端？）");
             return null;
         }
         for (Method m : bukkitClass.getDeclaredMethods()) {

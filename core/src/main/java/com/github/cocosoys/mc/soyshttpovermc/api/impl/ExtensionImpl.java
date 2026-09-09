@@ -15,7 +15,7 @@ import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.bridge.spi.
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.bridge.spi.LoginProviderFactory;
 
 /**
- * 能力组 8：扩展接入实现（委托 {@link LoginProviderFactory} / {@link SoysHttpCommand}）。
+ * 能力组 6：扩展接入实现（委托 {@link LoginProviderFactory} / {@link SoysHttpCommand}）。
  * 由 {@link SoysHttpOverMcApiImpl} 组合并对外暴露。
  */
 public class ExtensionImpl implements ExtensionApi {

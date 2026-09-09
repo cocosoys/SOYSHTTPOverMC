@@ -90,7 +90,8 @@ public class LangSubCommand extends SubCommand {
                 msgT(sender, "command.lang.sources-empty", "当前没有已注册的额外语言源");
                 return;
             }
-            msg(sender, "== " + I18n.t("command.lang.sources-header", "语言源（索引/名称/状态/语言/条数）") + " ==");
+            msgT(sender, "command.lang.sources-header-line",
+                    "== {0} ==", I18n.t("command.lang.sources-header", "语言源（索引/名称/状态/语言/条数）"));
             for (LanguageSourceInfo i : infos) {
                 String status = i.enabled()
                         ? I18n.t("command.lang.sources-enable-label", "启用")

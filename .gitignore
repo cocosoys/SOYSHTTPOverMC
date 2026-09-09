@@ -14,3 +14,4 @@ toolchains.xml
 
 # 打包产物集中输出目录（antrun 复制，不入库）
 output/
+*.py

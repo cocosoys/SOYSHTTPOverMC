@@ -25,7 +25,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * SQL 后端执行器（二期实现）：基于 dlz-db-core 链路（HikariCP 数据源 + ISqlExecutor），
+ * SQL 后端执行器：基于 dlz-db-core 链路（HikariCP 数据源 + ISqlExecutor），
  * 由本类自拼参数化 SQL（条件树 → WHERE/ORDER BY/LIMIT），DDL 按 PojoMeta 自动生成。
  *
  * <p>数据源：config.yml {@code storage.backends.{mysql,sqlite}}（优先级 mysql &gt; sqlite，

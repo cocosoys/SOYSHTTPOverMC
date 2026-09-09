@@ -91,14 +91,13 @@ public class V1_7SocketSnifferAdapter implements SocketSnifferAdapter {
                     conn = resolveViaFields(serverClass, instance);
                 }
                 if (conn != null) {
-                    log.info("[adapter/v1_7] 定位 ServerConnection 成功: " + suffix
-                            + " (方法/字段双通道)");
+                    log.infoT("log.adapter.v17.conn-found", "[adapter/v1_7] 定位 ServerConnection 成功: {0} (方法/字段双通道)", suffix);
                     return conn;
                 }
             } catch (ClassNotFoundException e) {
                 // 该补丁包不存在，尝试下一个
             } catch (Throwable t) {
-                log.warn("[adapter/v1_7] 定位 ServerConnection 失败(" + suffix + ")", t);
+                log.warnT("log.adapter.v17.conn-failed", "[adapter/v1_7] 定位 ServerConnection 失败({0})", suffix, t);
             }
         }
         return null;
@@ -158,7 +157,7 @@ public class V1_7SocketSnifferAdapter implements SocketSnifferAdapter {
                 }
             }
         } catch (Throwable t) {
-            log.warn("[adapter/v1_7] 提取监听 ChannelFuture 列表失败", t);
+            log.warnT("log.adapter.v17.channelfuture-failed", "[adapter/v1_7] 提取监听 ChannelFuture 列表失败", t);
             return Collections.emptyList();
         }
         return fallback == null ? Collections.emptyList() : fallback;

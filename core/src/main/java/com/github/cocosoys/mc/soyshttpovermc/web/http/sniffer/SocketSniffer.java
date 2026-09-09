@@ -188,9 +188,19 @@ public class SocketSniffer {
                 log.errorT("log.sniffer.no-server-connection", "无法获取 ServerConnection，HTTP 同端口嗅探器安装失败");
                 return;
             }
-            @SuppressWarnings("unchecked")
-            List<io.netty.channel.ChannelFuture> futures =
-                    (List<io.netty.channel.ChannelFuture>) getField(serverConnection, "g");
+            Object rawG = getField(serverConnection, "g");
+            List<io.netty.channel.ChannelFuture> futures = null;
+            if (rawG instanceof List) {
+                List<?> gList = (List<?>) rawG;
+                if (!gList.isEmpty() && gList.get(0) instanceof io.netty.channel.ChannelFuture) {
+                    @SuppressWarnings("unchecked")
+                    List<io.netty.channel.ChannelFuture> typed = (List<io.netty.channel.ChannelFuture>) gList;
+                    futures = typed;
+                }
+            }
+            if (futures == null) {
+                futures = findChannelFutureList(serverConnection);
+            }
             if (futures == null) {
                 log.errorT("log.sniffer.no-channel-list", "无法获取监听 channel 列表（字段 g），安装失败");
                 return;
@@ -554,7 +564,7 @@ public class SocketSniffer {
             out.writeBytes(head);
             out.writeBytes(body);
             writeResponse(ctx, out, tls, keepAlive);
-        } catch (Exception e) {
+        } catch (Throwable e) {
             code = 502;
             log.warnT("log.sniffer.tunnel-fail", "隧道转换失败: {0}", e);
             writeRaw(ctx, "HTTP-Over-MC tunnel error: "
@@ -713,12 +723,49 @@ public class SocketSniffer {
             Object craftServer = Bukkit.getServer();
             Method getServer = craftServer.getClass().getMethod("getServer");
             Object mcServer = getServer.invoke(craftServer);
-            Method getServerConnection = mcServer.getClass().getMethod("getServerConnection");
-            return getServerConnection.invoke(mcServer);
+            // 1.12.2: getServerConnection() 方法；1.20+ 方法被移除，改用字段遍历
+            try {
+                Method getServerConnection = mcServer.getClass().getMethod("getServerConnection");
+                return getServerConnection.invoke(mcServer);
+            } catch (NoSuchMethodException ignored) {
+                // 1.20+ fallback：遍历 MinecraftServer 所有字段，找到 ServerConnection 类型实例
+                Object sc = findServerConnectionField(mcServer);
+                if (sc != null) return sc;
+                // 再尝试 getConnection / connection 等常见方法名
+                for (String name : new String[]{"getConnection", "getServerConnection", "connection"}) {
+                    try {
+                        Method m = mcServer.getClass().getMethod(name);
+                        Object v = m.invoke(mcServer);
+                        if (v != null && v.getClass().getSimpleName().contains("ServerConnection")) return v;
+                    } catch (Throwable ignored2) {}
+                }
+                throw new IllegalStateException("No getServerConnection method or ServerConnection field found in " + mcServer.getClass());
+            }
         } catch (Throwable t) {
             log.errorT("log.sniffer.reflect-server-connection-fail", "反射获取 ServerConnection 失败", t);
             return null;
         }
+    }
+
+    /**
+     * 1.20+ fallback：遍历 MinecraftServer（含父类）所有字段，返回第一个类型名含 "ServerConnection" 的字段值。
+     */
+    private static Object findServerConnectionField(Object mcServer) {
+        if (mcServer == null) return null;
+        Class<?> clazz = mcServer.getClass();
+        while (clazz != null && clazz != Object.class) {
+            for (Field f : clazz.getDeclaredFields()) {
+                try {
+                    f.setAccessible(true);
+                    Object val = f.get(mcServer);
+                    if (val != null && val.getClass().getSimpleName().contains("ServerConnection")) {
+                        return val;
+                    }
+                } catch (Throwable ignored) {}
+            }
+            clazz = clazz.getSuperclass();
+        }
+        return null;
     }
 
     private static Object getField(Object obj, String name) {
@@ -729,5 +776,96 @@ public class SocketSniffer {
         } catch (Throwable ignored) {
             return null;
         }
+    }
+
+    /**
+     * 1.16+ 兼容：ServerConnection 中存储监听 ChannelFuture 列表的字段名不再是固定的 "g"，
+     * 自动遍历所有字段，找到第一个元素类型为 ChannelFuture 的 List 并返回。
+     */
+    @SuppressWarnings("unchecked")
+    private static List<io.netty.channel.ChannelFuture> findChannelFutureList(Object serverConnection) {
+        if (serverConnection == null) return null;
+        Class<?> clazz = serverConnection.getClass();
+        while (clazz != null && clazz != Object.class) {
+            for (Field f : clazz.getDeclaredFields()) {
+                try {
+                    f.setAccessible(true);
+                    Object val = f.get(serverConnection);
+                    if (val == null) continue;
+                    // 1.12-1.16: List<ChannelFuture>; 1.20+: List<PendingRegistrationPromise>
+                    // 注意：不能用 instanceof ChannelFuture 判断，类加载器不同会导致 false
+                    if (val instanceof List) {
+                        List<?> list = (List<?>) val;
+                        if (!list.isEmpty()) {
+                            Object first = list.get(0);
+                            if (first != null) {
+                                String cn = first.getClass().getName();
+                                // ChannelFuture / ChannelPromise / PendingRegistrationPromise 都含 channel() 方法
+                                if (cn.contains("ChannelFuture") || cn.contains("ChannelPromise") || cn.contains("Promise") || cn.contains("Future") || first instanceof io.netty.channel.ChannelFuture) {
+                                    try {
+                                        first.getClass().getMethod("channel");
+                                        // 检查是否有活跃 channel
+                                        boolean hasActive = false;
+                                        for (Object item : list) {
+                                            try {
+                                                Object ch = item.getClass().getMethod("channel").invoke(item);
+                                                if (ch instanceof io.netty.channel.Channel && ((io.netty.channel.Channel) ch).isActive()) {
+                                                    hasActive = true;
+                                                    break;
+                                                }
+                                            } catch (Throwable ignored) {}
+                                        }
+                                        if (hasActive) {
+                                            @SuppressWarnings("unchecked")
+                                            List<io.netty.channel.ChannelFuture> result = (List<io.netty.channel.ChannelFuture>) list;
+                                            return result;
+                                        }
+                                    } catch (NoSuchMethodException ignored) {}
+                                }
+                                // 1.20+: 可能直接存 List<Channel>（父 Channel），包装成 ChannelFuture
+                                if (cn.contains("Channel") || first instanceof io.netty.channel.Channel) {
+                                    List<io.netty.channel.ChannelFuture> result = new java.util.ArrayList<>();
+                                    for (Object ch : list) {
+                                        if (ch instanceof io.netty.channel.Channel) {
+                                            result.add(((io.netty.channel.Channel) ch).newSucceededFuture());
+                                        } else {
+                                            // 通过反射调用 channel()
+                                            try {
+                                                Object ch2 = ch.getClass().getMethod("channel").invoke(ch);
+                                                if (ch2 instanceof io.netty.channel.Channel) {
+                                                    result.add(((io.netty.channel.Channel) ch2).newSucceededFuture());
+                                                }
+                                            } catch (Throwable ignored) {}
+                                        }
+                                    }
+                                    if (!result.isEmpty()) return result;
+                                }
+                            }
+                        }
+                    }
+                    // 1.20+: 可能是 Channel[] 数组
+                    if (val.getClass().isArray() && io.netty.channel.Channel.class.isAssignableFrom(val.getClass().getComponentType())) {
+                        List<io.netty.channel.ChannelFuture> result = new java.util.ArrayList<>();
+                        for (Object ch : (Object[]) val) {
+                            if (ch instanceof io.netty.channel.Channel) {
+                                result.add(((io.netty.channel.Channel) ch).newSucceededFuture());
+                            }
+                        }
+                        if (!result.isEmpty()) return result;
+                    }
+                    // 1.20+: 可能是 Map<InetSocketAddress, ChannelFuture> 或类似
+                    if (val instanceof java.util.Map) {
+                        List<io.netty.channel.ChannelFuture> result = new java.util.ArrayList<>();
+                        for (Object v : ((java.util.Map<?, ?>) val).values()) {
+                            if (v instanceof io.netty.channel.ChannelFuture) result.add((io.netty.channel.ChannelFuture) v);
+                            else if (v instanceof io.netty.channel.Channel) result.add(((io.netty.channel.Channel) v).newSucceededFuture());
+                        }
+                        if (!result.isEmpty()) return result;
+                    }
+                } catch (Throwable ignored) {}
+            }
+            clazz = clazz.getSuperclass();
+        }
+        return null;
     }
 }

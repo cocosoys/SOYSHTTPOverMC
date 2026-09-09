@@ -5,7 +5,7 @@ import com.github.cocosoys.mc.soyshttpovermc.web.HttpResponse;
 import java.util.Map;
 
 /**
- * 能力组 7：HTTP 请求（对外真实请求 + 对内回环调本插件 API + 环境自适配通用发送）。
+ * 能力组 5：HTTP 请求（对外真实请求 + 对内回环调本插件 API + 环境自适配通用发送）。
  * 由 {@link SoysHttpOverMcApi#getHttpClient()} 跳转获取。
  */
 public interface HttpClientApi {

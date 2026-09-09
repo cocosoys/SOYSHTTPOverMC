@@ -21,7 +21,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 能力组 7：HTTP 请求（对外真实请求 + 对内回环调本插件 API + 环境自适配通用发送）。
+ * 能力组 5：HTTP 请求（对外真实请求 + 对内回环调本插件 API + 环境自适配通用发送）。
  * 由 {@link SoysHttpOverMcApiImpl} 组合并对外暴露；实现 {@link HttpClientApi}。
  *
  * <p>环境自适配（{@link #resolveUrl}）所需的拓扑信息在构造时从 {@link HttpOverMcPlugin}

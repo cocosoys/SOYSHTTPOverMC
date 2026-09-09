@@ -1,5 +1,6 @@
 package com.github.cocosoys.mc.soyshttpovermc.adapter.v1_6;
 
+import com.github.cocosoys.mc.soyshttpovermc.i18n.I18n;
 import org.bukkit.configuration.InvalidConfigurationException;
 import org.bukkit.configuration.file.YamlConfiguration;
 
@@ -58,13 +59,13 @@ final class V1_6YamlIo {
      */
     static void saveUtf8(YamlConfiguration cfg, File file) throws IOException {
         if (cfg == null) {
-            throw new IOException("配置为空，无法保存: " + file);
+            throw new IOException(I18n.t("exception.adapter.yaml-empty", "配置为空，无法保存: {0}", file));
         }
         String text = cfg.saveToString();
         byte[] bytes = (text == null ? "" : text).getBytes(StandardCharsets.UTF_8);
         File parent = file.getParentFile();
         if (parent != null && !parent.isDirectory() && !parent.mkdirs()) {
-            throw new IOException("无法创建目录: " + parent);
+            throw new IOException(I18n.t("exception.adapter.yaml-mkdir-failed", "无法创建目录: {0}", parent));
         }
         Files.write(file.toPath(), bytes);
     }

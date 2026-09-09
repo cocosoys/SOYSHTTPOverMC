@@ -1,5 +1,6 @@
 package com.github.cocosoys.mc.soyshttpovermc.adapter.v1_6;
 
+import com.github.cocosoys.mc.soyshttpovermc.i18n.I18n;
 import com.github.cocosoys.mc.soyshttpovermc.platform.BukkitConfigSection;
 import com.github.cocosoys.mc.soyshttpovermc.platform.PlatformBukkitImpl;
 import com.github.cocosoys.mc.soyshttpovermc.spi.ConfigSection;
@@ -51,14 +52,15 @@ public class V1_6PlatformAdapter extends PlatformBukkitImpl {
     @Override
     public void saveYaml(ConfigSection cfg, File file) throws IOException {
         if (!(cfg instanceof BukkitConfigSection)) {
-            throw new IOException("非 Bukkit 配置实现，无法保存: "
-                    + (cfg == null ? "null" : cfg.getClass().getName()));
+            throw new IOException(I18n.t("exception.platform.save-unsupported",
+                    "非 Bukkit 配置实现，无法保存: {0}", cfg == null ? "null" : cfg.getClass().getName()));
         }
         ConfigurationSection d = ((BukkitConfigSection) cfg).delegate();
         if (d instanceof FileConfiguration) {
             V1_6YamlIo.saveUtf8((YamlConfiguration) d, file);
         } else {
-            throw new IOException("底层配置非 FileConfiguration，无法保存: " + d.getClass().getName());
+            throw new IOException(I18n.t("exception.platform.not-file-config",
+                    "底层配置非 FileConfiguration，无法保存: {0}", d.getClass().getName()));
         }
     }
 }

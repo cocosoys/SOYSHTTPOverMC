@@ -1,6 +1,7 @@
 package com.github.cocosoys.mc.soyshttpovermc.command;
 
 import com.github.cocosoys.mc.soyshttpovermc.HttpOverMcPlugin;
+import com.github.cocosoys.mc.soyshttpovermc.i18n.I18n;
 import com.github.cocosoys.mc.soyshttpovermc.permission.CombinedPermissionService;
 import com.github.cocosoys.mc.soyshttpovermc.permission.local.LocalPermissionStore;
 import com.github.cocosoys.mc.soyshttpovermc.permission.local.SoysPermGroup;
@@ -48,29 +49,31 @@ public class PermSubCommand extends SubCommand {
 
     @Override
     public String usage() {
-        return "/soyshttp perm —— 本地内置权限表（组/用户 CRUD + 查询），配套 permission.offline-fallback: local";
+        return I18n.t("command.perm.usage-short",
+                "/soyshttp perm —— 本地内置权限表（组/用户 CRUD + 查询），配套 permission.offline-fallback: local");
     }
 
     @Override
     public String detail() {
-        return "本地内置权限表管理（offline-fallback=local 的配套表，同时服务 API 权限与网页权限）。\n"
-                + "组：perm group create|delete|weight|add|remove|list\n"
-                + "用户：perm user <玩家> group add|remove <组> / add|remove <权限> / list / expiry <epoch|clear>\n"
-                + "调试：perm check <玩家> <权限>\n"
-                + "节点规则：':' ≡ '.'（test:ping ≡ test.ping）；'-' 前缀=否定；'*' 全量通配；'a.*' 段级通配。\n"
-                + "仅 op 可执行。";
+        return I18n.t("command.perm.detail",
+                "本地内置权限表管理（offline-fallback=local 的配套表，同时服务 API 权限与网页权限）。\n"
+                        + "组：perm group create|delete|weight|add|remove|list\n"
+                        + "用户：perm user <玩家> group add|remove <组> / add|remove <权限> / list / expiry <epoch|clear>\n"
+                        + "调试：perm check <玩家> <权限>\n"
+                        + "节点规则：':' ≡ '.'（test:ping ≡ test.ping）；'-' 前缀=否定；'*' 全量通配；'a.*' 段级通配。\n"
+                        + "仅 op 可执行。");
     }
 
     @Override
     public void execute(CommandSender sender, String label, String[] args) {
         CombinedPermissionService cps = plugin.getCombinedPermissionService();
         if (cps == null) {
-            msg(sender, "§c权限服务尚未就绪，请稍后重试");
+            msgT(sender, "command.perm.service-not-ready", "§c权限服务尚未就绪，请稍后重试");
             return;
         }
         LocalPermissionStore store = cps.getLocalStore();
         if (args.length < 2) {
-            msg(sender, "§e用法：/soyshttp perm group|user|check|reload ...（详见 /soyshttp help perm）");
+            msgT(sender, "command.perm.usage", "§e用法：/soyshttp perm group|user|check|reload ...（详见 /soyshttp help perm）");
             return;
         }
         String action = args[1].toLowerCase();
@@ -86,10 +89,10 @@ public class PermSubCommand extends SubCommand {
                 break;
             case "reload":
                 cps.reloadProviders();
-                msg(sender, "§a已重新加载权限提供者组合（含本地表）");
+                msgT(sender, "command.perm.reloaded", "§a已重新加载权限提供者组合（含本地表）");
                 break;
             default:
-                msg(sender, "§c未知子动作：§f" + action + " §c（支持 group/user/check/reload）");
+                msgT(sender, "command.perm.unknown-action", "§c未知子动作：§f{0} §c（支持 group/user/check/reload）", action);
         }
     }
 
@@ -97,69 +100,116 @@ public class PermSubCommand extends SubCommand {
 
     private void groupCmd(CommandSender sender, LocalPermissionStore store, String[] args) {
         if (args.length < 3) {
-            msg(sender, "§e用法：/soyshttp perm group create|delete|weight|add|remove|list ...");
+            msgT(sender, "command.perm.group.usage", "§e用法：/soyshttp perm group create|delete|weight|add|remove|list ...");
             return;
         }
         String sub = args[2].toLowerCase();
         String id = args.length > 3 ? args[3] : "";
         switch (sub) {
             case "create": {
-                if (id.isEmpty()) { msg(sender, "§c用法：/soyshttp perm group create <id> [weight] [display]"); return; }
+                if (id.isEmpty()) {
+                    msgT(sender, "command.perm.group.create-usage", "§c用法：/soyshttp perm group create <id> [weight] [display]");
+                    return;
+                }
                 int weight = args.length > 4 ? parseInt(args[4], 0) : 0;
                 String display = args.length > 5 ? args[5] : id;
                 boolean ok = store.createGroup(id, weight, display, "");
-                msg(sender, ok ? "§a权限组 §f" + id + " §a已创建/更新（weight=" + weight + ", display=" + display + "）"
-                        : "§c创建权限组失败");
+                if (ok) {
+                    msgT(sender, "command.perm.group.created",
+                            "§a权限组 §f{0} §a已创建/更新（weight={1}, display={2}）", id, weight, display);
+                } else {
+                    msgT(sender, "command.perm.group.create-failed", "§c创建权限组失败");
+                }
                 break;
             }
             case "delete": {
-                if (id.isEmpty()) { msg(sender, "§c用法：/soyshttp perm group delete <id>"); return; }
-                if (store.getGroup(id) == null) { msg(sender, "§c权限组 §f" + id + " §c不存在"); return; }
+                if (id.isEmpty()) {
+                    msgT(sender, "command.perm.group.delete-usage", "§c用法：/soyshttp perm group delete <id>");
+                    return;
+                }
+                if (store.getGroup(id) == null) {
+                    msgT(sender, "command.perm.group.not-found", "§c权限组 §f{0} §c不存在", id);
+                    return;
+                }
                 boolean ok = store.deleteGroup(id);
-                msg(sender, ok ? "§a权限组 §f" + id + " §a已删除（含其权限与成员引用）" : "§c删除权限组失败");
+                if (ok) {
+                    msgT(sender, "command.perm.group.deleted", "§a权限组 §f{0} §a已删除（含其权限与成员引用）", id);
+                } else {
+                    msgT(sender, "command.perm.group.delete-failed", "§c删除权限组失败");
+                }
                 break;
             }
             case "weight": {
-                if (id.isEmpty() || args.length < 5) { msg(sender, "§c用法：/soyshttp perm group weight <id> <weight>"); return; }
+                if (id.isEmpty() || args.length < 5) {
+                    msgT(sender, "command.perm.group.weight-usage", "§c用法：/soyshttp perm group weight <id> <weight>");
+                    return;
+                }
                 int w = parseInt(args[4], -1);
-                if (w < 0) { msg(sender, "§c权重须为非负整数"); return; }
+                if (w < 0) {
+                    msgT(sender, "command.perm.group.weight-invalid", "§c权重须为非负整数");
+                    return;
+                }
                 SoysPermGroup g = store.getGroup(id);
-                if (g == null) { msg(sender, "§c权限组 §f" + id + " §c不存在"); return; }
+                if (g == null) {
+                    msgT(sender, "command.perm.group.not-found", "§c权限组 §f{0} §c不存在", id);
+                    return;
+                }
                 boolean ok = store.createGroup(id, w, g.getDisplay(), g.getDescription());
-                msg(sender, ok ? "§a权限组 §f" + id + " §a权重已设为 §f" + w : "§c设置权重失败");
+                if (ok) {
+                    msgT(sender, "command.perm.group.weight-set", "§a权限组 §f{0} §a权重已设为 §f{1}", id, w);
+                } else {
+                    msgT(sender, "command.perm.group.weight-failed", "§c设置权重失败");
+                }
                 break;
             }
             case "add":
             case "remove": {
                 if (id.isEmpty() || args.length < 5) {
-                    msg(sender, "§c用法：/soyshttp perm group " + sub + " <id> <权限>");
+                    msgT(sender, "command.perm.group.node-usage", "§c用法：/soyshttp perm group {0} <id> <权限>", sub);
                     return;
                 }
-                if (store.getGroup(id) == null) { msg(sender, "§c权限组 §f" + id + " §c不存在"); return; }
+                if (store.getGroup(id) == null) {
+                    msgT(sender, "command.perm.group.not-found", "§c权限组 §f{0} §c不存在", id);
+                    return;
+                }
                 String node = args[4];
                 boolean ok = "add".equals(sub)
                         ? store.addGroupPermission(id, node)
                         : store.removeGroupPermission(id, node);
                 LocalPermissionStore.ParsedNode pn = LocalPermissionStore.parseNode(node);
-                msg(sender, ok ? "§a权限组 §f" + id + " §a已" + ("add".equals(sub) ? "添加" : "移除")
-                                + " §f" + (pn.negative ? "-" : "") + pn.node
-                        : "§c操作失败（目标节点可能不存在）");
+                String shown = (pn.negative ? "-" : "") + pn.node;
+                if (ok) {
+                    if ("add".equals(sub)) {
+                        msgT(sender, "command.perm.group.node-added", "§a权限组 §f{0} §a已添加 §f{1}", id, shown);
+                    } else {
+                        msgT(sender, "command.perm.group.node-removed", "§a权限组 §f{0} §a已移除 §f{1}", id, shown);
+                    }
+                } else {
+                    msgT(sender, "command.perm.group.node-failed", "§c操作失败（目标节点可能不存在）");
+                }
                 break;
             }
             case "list": {
                 if (!id.isEmpty()) {
                     SoysPermGroup g = store.getGroup(id);
-                    if (g == null) { msg(sender, "§c权限组 §f" + id + " §c不存在"); return; }
-                    msg(sender, "§a权限组 §f" + g.getId() + " §7(weight=" + g.getWeight()
-                            + ", display=" + g.getDisplay() + ", desc=" + g.getDescription() + ")");
+                    if (g == null) {
+                        msgT(sender, "command.perm.group.not-found", "§c权限组 §f{0} §c不存在", id);
+                        return;
+                    }
+                    msgT(sender, "command.perm.group.detail",
+                            "§a权限组 §f{0} §7(weight={1}, display={2}, desc={3})",
+                            g.getId(), g.getWeight(), g.getDisplay(), g.getDescription());
                     List<SoysPermPermission> perms = store.listGroupPermissions(id);
-                    if (perms.isEmpty()) { sender.sendMessage("  §7（无权限）"); }
+                    if (perms.isEmpty()) {
+                        sender.sendMessage(I18n.t("command.perm.group.no-perms", "  §7（无权限）"));
+                    }
                     for (SoysPermPermission p : perms) {
-                        sender.sendMessage("  §" + (p.isNegative() ? "c-" : "a") + p.getPermission());
+                        sender.sendMessage(I18n.t("command.perm.group.perm-line", "  §{0}{1}",
+                                p.isNegative() ? "c-" : "a", p.getPermission()));
                     }
                     List<SoysPermUserGroup> members = store.listGroupMembers(id);
                     if (!members.isEmpty()) {
-                        StringBuilder sb = new StringBuilder("  §7成员: §f");
+                        StringBuilder sb = new StringBuilder();
                         for (int i = 0; i < members.size(); i++) {
                             if (i > 0) sb.append(", ");
                             String mId = members.get(i).getUuid();
@@ -167,21 +217,25 @@ public class PermSubCommand extends SubCommand {
                             sb.append(mu != null && mu.getPlayer() != null && !mu.getPlayer().isEmpty()
                                     ? mu.getPlayer() : mId);
                         }
-                        sender.sendMessage(sb.toString());
+                        sender.sendMessage(I18n.t("command.perm.group.members", "  §7成员: §f{0}", sb.toString()));
                     }
                 } else {
                     List<SoysPermGroup> groups = store.listGroups();
-                    if (groups.isEmpty()) { msg(sender, "§7（暂无权限组）"); return; }
-                    msg(sender, "§a本地权限组（共 " + groups.size() + " 个）:");
+                    if (groups.isEmpty()) {
+                        msgT(sender, "command.perm.group.empty", "§7（暂无权限组）");
+                        return;
+                    }
+                    msgT(sender, "command.perm.group.list-header", "§a本地权限组（共 {0} 个）:", groups.size());
                     for (SoysPermGroup g : groups) {
-                        sender.sendMessage("  §f" + g.getId() + " §7weight=§f" + g.getWeight()
-                                + " §7display=§f" + g.getDisplay());
+                        sender.sendMessage(I18n.t("command.perm.group.list-line", "  §f{0} §7weight=§f{1} §7display=§f{2}",
+                                g.getId(), g.getWeight(), g.getDisplay()));
                     }
                 }
                 break;
             }
             default:
-                msg(sender, "§c未知组动作：§f" + sub + " §c（支持 create/delete/weight/add/remove/list）");
+                msgT(sender, "command.perm.group.unknown-sub",
+                        "§c未知组动作：§f{0} §c（支持 create/delete/weight/add/remove/list）", sub);
         }
     }
 
@@ -189,34 +243,44 @@ public class PermSubCommand extends SubCommand {
 
     private void userCmd(CommandSender sender, LocalPermissionStore store, String[] args) {
         if (args.length < 4) {
-            msg(sender, "§e用法：/soyshttp perm user <玩家> group add|remove <组> / add|remove <权限> / list / expiry <epoch|clear>");
+            msgT(sender, "command.perm.user.usage",
+                    "§e用法：/soyshttp perm user <玩家> group add|remove <组> / add|remove <权限> / list / expiry <epoch|clear>");
             return;
         }
         String player = args[2];
         String sub = args[3].toLowerCase();
         switch (sub) {
             case "group": {
-                if (args.length < 6) { msg(sender, "§c用法：/soyshttp perm user <玩家> group add|remove <组>"); return; }
+                if (args.length < 6) {
+                    msgT(sender, "command.perm.user.group-usage", "§c用法：/soyshttp perm user <玩家> group add|remove <组>");
+                    return;
+                }
                 String gsub = args[4].toLowerCase();
                 String group = args[5];
                 if (!"add".equals(gsub) && !"remove".equals(gsub)) {
-                    msg(sender, "§c未知组动作：§f" + gsub + " §c（支持 add/remove）");
+                    msgT(sender, "command.perm.user.group-unknown", "§c未知组动作：§f{0} §c（支持 add/remove）", gsub);
                     return;
                 }
                 if ("add".equals(gsub) && store.getGroup(group) == null) {
-                    msg(sender, "§c权限组 §f" + group + " §c不存在（请先 group create）");
+                    msgT(sender, "command.perm.user.group-not-exist", "§c权限组 §f{0} §c不存在（请先 group create）", group);
                     return;
                 }
                 boolean ok = "add".equals(gsub) ? store.addUserGroup(player, group) : store.removeUserGroup(player, group);
-                msg(sender, ok ? "§a玩家 §f" + player + " §a已" + ("add".equals(gsub) ? "加入" : "移出")
-                                + " 权限组 §f" + group
-                        : "§c操作失败（目标关联可能不存在）");
+                if (ok) {
+                    if ("add".equals(gsub)) {
+                        msgT(sender, "command.perm.user.group-added", "§a玩家 §f{0} §a已加入 权限组 §f{1}", player, group);
+                    } else {
+                        msgT(sender, "command.perm.user.group-removed", "§a玩家 §f{0} §a已移出 权限组 §f{1}", player, group);
+                    }
+                } else {
+                    msgT(sender, "command.perm.user.group-failed", "§c操作失败（目标关联可能不存在）");
+                }
                 break;
             }
             case "add":
             case "remove": {
                 if (args.length < 5) {
-                    msg(sender, "§c用法：/soyshttp perm user <玩家> " + sub + " <权限>");
+                    msgT(sender, "command.perm.user.node-usage", "§c用法：/soyshttp perm user <玩家> {0} <权限>", sub);
                     return;
                 }
                 String node = args[4];
@@ -224,57 +288,94 @@ public class PermSubCommand extends SubCommand {
                         ? store.addUserPermission(player, node)
                         : store.removeUserPermission(player, node);
                 LocalPermissionStore.ParsedNode pn = LocalPermissionStore.parseNode(node);
-                msg(sender, ok ? "§a玩家 §f" + player + " §a已" + ("add".equals(sub) ? "添加" : "移除")
-                                + " 直接权限 §f" + (pn.negative ? "-" : "") + pn.node
-                        : "§c操作失败（目标权限可能不存在）");
+                String shown = (pn.negative ? "-" : "") + pn.node;
+                if (ok) {
+                    if ("add".equals(sub)) {
+                        msgT(sender, "command.perm.user.node-added", "§a玩家 §f{0} §a已添加 直接权限 §f{1}", player, shown);
+                    } else {
+                        msgT(sender, "command.perm.user.node-removed", "§a玩家 §f{0} §a已移除 直接权限 §f{1}", player, shown);
+                    }
+                } else {
+                    msgT(sender, "command.perm.user.node-failed", "§c操作失败（目标权限可能不存在）");
+                }
                 break;
             }
             case "list": {
                 SoysPermUser u = store.getUser(player);
-                if (u == null) { msg(sender, "§c玩家 §f" + player + " §c未在本地权限表登记"); return; }
-                msg(sender, "§a玩家 §f" + player + " §7(过期=" + ("".equals(u.getExpiry()) ? "永久" : u.getExpiry()) + ")");
+                if (u == null) {
+                    msgT(sender, "command.perm.user.not-registered", "§c玩家 §f{0} §c未在本地权限表登记", player);
+                    return;
+                }
+                String expiry = "".equals(u.getExpiry())
+                        ? I18n.t("command.perm.user.expiry-forever", "永久")
+                        : u.getExpiry();
+                msgT(sender, "command.perm.user.detail", "§a玩家 §f{0} §7(过期={1})", player, expiry);
                 List<String> groups = store.listUserGroups(player);
-                sender.sendMessage("  所属组: " + (groups.isEmpty() ? "§7（无）" : "§f" + String.join("§7, §f", groups)));
+                String groupsLine = groups.isEmpty()
+                        ? I18n.t("command.perm.user.no-groups", "§7（无）")
+                        : "§f" + String.join("§7, §f", groups);
+                sender.sendMessage(I18n.t("command.perm.user.groups", "  所属组: {0}", groupsLine));
                 List<SoysPermPermission> eff = store.listEffectivePermissions(player);
-                if (eff.isEmpty()) { sender.sendMessage("  §7（无任何生效权限）"); }
+                if (eff.isEmpty()) {
+                    sender.sendMessage(I18n.t("command.perm.user.no-effective", "  §7（无任何生效权限）"));
+                }
                 for (SoysPermPermission p : eff) {
-                    String src = SoysPermPermission.TYPE_USER.equals(p.getOwnerType()) ? "直接" : "组[" + p.getOwnerId() + "]";
-                    sender.sendMessage("  §" + (p.isNegative() ? "c-" : "a") + p.getPermission() + " §7(" + src + ")");
+                    String src = SoysPermPermission.TYPE_USER.equals(p.getOwnerType())
+                            ? I18n.t("command.perm.user.src-direct", "直接")
+                            : I18n.t("command.perm.user.src-group", "组[{0}]", p.getOwnerId());
+                    sender.sendMessage(I18n.t("command.perm.user.effective-line", "  §{0}{1} §7({2})",
+                            p.isNegative() ? "c-" : "a", p.getPermission(), src));
                 }
                 break;
             }
             case "expiry": {
-                if (args.length < 5) { msg(sender, "§c用法：/soyshttp perm user <玩家> expiry <epoch|clear>"); return; }
+                if (args.length < 5) {
+                    msgT(sender, "command.perm.user.expiry-usage", "§c用法：/soyshttp perm user <玩家> expiry <epoch|clear>");
+                    return;
+                }
                 boolean ok = store.setUserExpiry(player, args[4]);
                 String exp = args[4];
-                msg(sender, ok ? ("§a玩家 §f" + player + " §a整体过期已设为 §f"
-                                + ("clear".equalsIgnoreCase(exp) || "0".equals(exp) ? "永久" : exp))
-                        : "§c设置过期失败（须为 epoch 毫秒或 clear）");
+                boolean forever = "clear".equalsIgnoreCase(exp) || "0".equals(exp);
+                if (ok) {
+                    if (forever) {
+                        msgT(sender, "command.perm.user.expiry-set-forever", "§a玩家 §f{0} §a整体过期已设为 §f永久", player);
+                    } else {
+                        msgT(sender, "command.perm.user.expiry-set", "§a玩家 §f{0} §a整体过期已设为 §f{1}", player, exp);
+                    }
+                } else {
+                    msgT(sender, "command.perm.user.expiry-failed", "§c设置过期失败（须为 epoch 毫秒或 clear）");
+                }
                 break;
             }
             default:
-                msg(sender, "§c未知用户动作：§f" + sub + " §c（支持 group/add/remove/list/expiry）");
+                msgT(sender, "command.perm.user.unknown-sub",
+                        "§c未知用户动作：§f{0} §c（支持 group/add/remove/list/expiry）", sub);
         }
     }
 
     // ==================== 调试 ====================
 
     private void checkCmd(CommandSender sender, LocalPermissionStore store, String[] args) {
-        if (args.length < 4) { msg(sender, "§c用法：/soyshttp perm check <玩家> <权限>"); return; }
+        if (args.length < 4) {
+            msgT(sender, "command.perm.check.usage", "§c用法：/soyshttp perm check <玩家> <权限>");
+            return;
+        }
         String player = args[2];
         String node = args[3];
         String norm = LocalPermissionStore.normalize(node);
         boolean has = store.check(player, node);
         SoysPermUser u = store.getUser(player);
         StringBuilder sb = new StringBuilder();
-        sb.append(has ? "§a通过" : "§c拒绝");
-        sb.append("  §7[玩家=§f").append(player).append("§7, 归一节点=§f").append(norm).append("§7]");
+        sb.append(has
+                ? I18n.t("command.perm.check.pass", "§a通过")
+                : I18n.t("command.perm.check.deny", "§c拒绝"));
+        sb.append(I18n.t("command.perm.check.ctx", "  §7[玩家=§f{0}§7, 归一节点=§f{1}§7]", player, norm));
         if (u == null) {
-            sb.append(" §7(未登记)");
+            sb.append(I18n.t("command.perm.check.unregistered", " §7(未登记)"));
         } else if (store.isExpired(player)) {
-            sb.append(" §7(已过期)");
+            sb.append(I18n.t("command.perm.check.expired", " §7(已过期)"));
         }
-        msg(sender, "§e权限判定: " + sb);
+        msgT(sender, "command.perm.check.result", "§e权限判定: {0}", sb.toString());
     }
 
     // ==================== tab 补全 ====================

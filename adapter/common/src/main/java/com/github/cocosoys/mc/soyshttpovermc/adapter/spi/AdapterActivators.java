@@ -35,7 +35,7 @@ public final class AdapterActivators {
             }
             return list;
         } catch (Throwable t) {
-            log.warn("[adapter] 发现 AdapterActivator 失败", t);
+            log.warnT("log.adapter.activator-load-failed", "[adapter] 发现 AdapterActivator 失败", t);
             return Collections.emptyList();
         }
     }
@@ -62,7 +62,7 @@ public final class AdapterActivators {
                     }
                 }
             } catch (Throwable t) {
-                log.warn("[adapter] 激活器 " + a + " 的 supports() 抛异常，跳过", t);
+                log.warnT("log.adapter.activator-supports-failed", "[adapter] 激活器 {0} 的 supports() 抛异常，跳过", a, t);
             }
         }
         return best;

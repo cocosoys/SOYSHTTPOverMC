@@ -1,7 +1,7 @@
 package com.github.cocosoys.mc.soyshttpovermc.exception;
 
 /**
- * 能力组 7（HTTP 请求 / 本地回环调用）专用异常。
+ * 能力组 5（HTTP 请求 / 本地回环调用）专用异常。
  */
 public class HttpClientException extends SoysHttpException {
 

@@ -6,7 +6,7 @@ import com.github.cocosoys.mc.soyshttpovermc.web.gateway.SecurityPolicy;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.bridge.spi.LoginProvider;
 
 /**
- * 能力组 8：扩展接入（登录插件提供者 / /soyshttp 子指令）。
+ * 能力组 6：扩展接入（登录插件提供者 / /soyshttp 子指令）。
  *
  * <p>由 {@link SoysHttpOverMcApi#getExtension()} 跳转获取。为第三方开发者提供：</p>
  * <ul>

@@ -1,5 +1,7 @@
 package com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.issuer;
 
+import com.github.cocosoys.mc.soyshttpovermc.i18n.I18n;
+
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
@@ -246,7 +248,7 @@ public final class JwtCodec {
             mac.init(new SecretKeySpec(secret, "HmacSHA256"));
             return mac.doFinal(data.getBytes(StandardCharsets.UTF_8));
         } catch (Exception e) {
-            throw new IllegalStateException("HmacSHA256 不可用", e);
+            throw new IllegalStateException(I18n.t("exception.jwt.hmac-unavailable", "HmacSHA256 不可用"), e);
         }
     }
 

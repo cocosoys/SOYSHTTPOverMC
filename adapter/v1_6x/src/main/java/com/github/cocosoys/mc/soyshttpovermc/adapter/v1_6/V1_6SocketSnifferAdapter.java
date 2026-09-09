@@ -43,6 +43,6 @@ public class V1_6SocketSnifferAdapter implements SocketSnifferAdapter {
 
     @Override
     public void onInstall(Object plugin, ServerVersion version) {
-        log.info("[adapter/v1_6] 同端口嗅探由连接级接入实现（ServerSocket 首包分流），supported=true");
+        log.infoT("log.adapter.v16.connection-level", "[adapter/v1_6] 同端口嗅探由连接级接入实现（ServerSocket 首包分流），supported=true");
     }
 }

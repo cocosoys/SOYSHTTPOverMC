@@ -9,7 +9,7 @@ import java.util.List;
  * 条件列表（AND/OR 平铺 + 逻辑分组简化为平铺 AND/OR 链）+ 排序 + 分页。
  * <ul>
  *   <li>YAML 端：对全量记录逐条内存求值（{@link #matches(java.util.function.Function)}）；</li>
- *   <li>SQL 端（二期）：翻译为参数化 WHERE / ORDER BY / LIMIT。</li>
+ *   <li>SQL 端：翻译为参数化 WHERE / ORDER BY / LIMIT。</li>
  * </ul>
  * 能力面取低端：正确性两端一致，性能不承诺对等（YAML 全量过滤适合小规模）。
  */

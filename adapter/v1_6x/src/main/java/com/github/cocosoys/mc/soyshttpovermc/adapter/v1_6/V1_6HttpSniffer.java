@@ -1,6 +1,7 @@
 package com.github.cocosoys.mc.soyshttpovermc.adapter.v1_6;
 
 import lombok.CustomLog;
+import com.github.cocosoys.mc.soyshttpovermc.i18n.I18n;
 import com.github.cocosoys.mc.soyshttpovermc.web.ApiRequestContext;
 import com.github.cocosoys.mc.soyshttpovermc.web.MimeTypes;
 import com.github.cocosoys.mc.soyshttpovermc.web.RequestStats;
@@ -120,7 +121,8 @@ public class V1_6HttpSniffer {
     public Object install() throws Exception {
         List<Thread> threads = findConnectionThreads();
         if (threads.isEmpty()) {
-            throw new IllegalStateException("未找到 DedicatedServerConnectionThread（1.6 连接级接入安装失败）");
+            throw new IllegalStateException(I18n.t("exception.adapter.v16.no-conn-thread",
+                    "未找到 DedicatedServerConnectionThread（1.6 连接级接入安装失败）"));
         }
         int n = 0;
         for (Thread t : threads) {
@@ -143,7 +145,7 @@ public class V1_6HttpSniffer {
                     wake.connect(new java.net.InetSocketAddress("127.0.0.1", orig.getLocalPort()), 1000);
                     Thread.sleep(100); // 等旧 accept 返回并 goto 0 完成切换
                 } catch (Throwable wakeEx) {
-                    log.warn("[adapter/v1_6] 占位连接唤醒旧 accept 失败", wakeEx);
+                    log.warnT("log.adapter.v16.wake-failed", "[adapter/v1_6] 占位连接唤醒旧 accept 失败", wakeEx);
                 } finally {
                     try {
                         if (wake != null) wake.close();
@@ -158,13 +160,14 @@ public class V1_6HttpSniffer {
                 r.sniffing = sniffing;
                 replaced.add(r);
                 n++;
-                log.info("[adapter/v1_6] 已替换监听 ServerSocket → 连接级接入嗅探器生效（" + t.getName() + "）");
+                log.infoT("log.adapter.v16.replaced",
+                        "[adapter/v1_6] 已替换监听 ServerSocket → 连接级接入嗅探器生效（{0}）", t.getName());
             } catch (Throwable ex) {
-                log.warn("[adapter/v1_6] 替换连接线程失败: " + t.getName(), ex);
+                log.warnT("log.adapter.v16.replace-failed", "[adapter/v1_6] 替换连接线程失败: {0}", t.getName(), ex);
             }
         }
         if (n == 0) {
-            throw new IllegalStateException("所有连接线程替换均失败");
+            throw new IllegalStateException(I18n.t("exception.adapter.v16.replace-all-failed", "所有连接线程替换均失败"));
         }
         return this;
     }
@@ -198,7 +201,7 @@ public class V1_6HttpSniffer {
         try {
             executor.submit(() -> serveHttp(in, out, socket, ip, tls));
         } catch (RejectedExecutionException e) {
-            log.warn("[adapter/v1_6] HTTP 并发已达上限，拒绝新连接: " + ip);
+            log.warnT("log.adapter.v16.concurrent-limit", "[adapter/v1_6] HTTP 并发已达上限，拒绝新连接: {0}", ip);
             try {
                 socket.close();
             } catch (Throwable ignored) {
@@ -236,7 +239,7 @@ public class V1_6HttpSniffer {
                 buf.reset();
             }
         } catch (Exception e) {
-            log.warn("[adapter/v1_6] HTTP 连接处理异常: " + ip + " - " + e, e);
+            log.warnT("log.adapter.v16.handle-failed", "[adapter/v1_6] HTTP 连接处理异常: {0} - {1}", ip, e, e);
         } finally {
             try {
                 socket.close();
@@ -256,7 +259,7 @@ public class V1_6HttpSniffer {
             if (gw != null) {
                 Credential cred = gw.resolveCredential(p.headers);
                 if (cred != null && !tls && tlsEngineSupplier != null) {
-                    log.warn("[adapter/v1_6] 凭证经明文 HTTP 传输（建议启用 TLS）: " + ip);
+                    log.warnT("log.adapter.v16.plaintext-cred", "[adapter/v1_6] 凭证经明文 HTTP 传输（建议启用 TLS）: {0}", ip);
                 }
                 GatewayContext gctx = new GatewayContext(p.method, handler.policyPath(p.path),
                         p.headers, ip, tls, cred, p.path);
@@ -334,7 +337,7 @@ public class V1_6HttpSniffer {
             return out;
         } catch (Exception e) {
             code = 502;
-            log.warn("[adapter/v1_6] 隧道转换失败", e);
+            log.warnT("log.adapter.v16.tunnel-failed", "[adapter/v1_6] 隧道转换失败", e);
             return buildRaw("HTTP-Over-MC tunnel error: "
                     + (e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage()), 502);
         } finally {
@@ -512,7 +515,7 @@ public class V1_6HttpSniffer {
                     if (stopped) {
                         break;
                     }
-                    log.debug("[adapter/v1_6] 转发 accept 异常", e);
+                    log.debugT("log.adapter.v16.accept-failed", "[adapter/v1_6] 转发 accept 异常", e);
                     try {
                         Thread.sleep(50);
                     } catch (InterruptedException ie) {
@@ -612,13 +615,13 @@ public class V1_6HttpSniffer {
             try {
                 return doSniffInner();
             } catch (Exception e) {
-                log.warn("[adapter/v1_6] doSniff 异常", e);
+                log.warnT("log.adapter.v16.dosniff-failed", "[adapter/v1_6] doSniff 异常", e);
                 throw e;
             }
         }
 
         private InputStream doSniffInner() throws IOException {
-            log.debug("[adapter/v1_6] doSniff 开始: " + real.getRemoteSocketAddress());
+            log.debugT("log.adapter.v16.dosniff-start", "[adapter/v1_6] doSniff 开始: {0}", real.getRemoteSocketAddress());
             InputStream raw = real.getInputStream();
             int oldTimeout;
             try {
@@ -641,7 +644,8 @@ public class V1_6HttpSniffer {
                     head.write(b);
                     byte[] h = head.toByteArray();
                     HttpByteProtocol.State st = HttpByteProtocol.classify(h, h.length, tlsEnabled);
-                    log.debug("[adapter/v1_6] doSniff classify: bytes=" + h.length + " state=" + st + " data=" + new String(h, java.nio.charset.StandardCharsets.ISO_8859_1));
+                    log.debugT("log.adapter.v16.dosniff-classify", "[adapter/v1_6] doSniff classify: bytes={0} state={1} data={2}",
+                            h.length, st, new String(h, java.nio.charset.StandardCharsets.ISO_8859_1));
                     if (st == HttpByteProtocol.State.HTTP_PLAIN) {
                         http = true;
                         break;
@@ -668,11 +672,11 @@ public class V1_6HttpSniffer {
                 return doTls(h);
             }
             if (!http) {
-                log.debug("[adapter/v1_6] doSniff 判定非HTTP放行MC: bytes=" + h.length);
+                log.debugT("log.adapter.v16.dosniff-mc", "[adapter/v1_6] doSniff 判定非HTTP放行MC: bytes={0}", h.length);
                 // MC / UNKNOWN（无 TLS 上下文时 TLS 也落此分支）→ 首包+原流拼接
                 return new SequenceInputStream(new ByteArrayInputStream(h), raw);
             }
-            log.debug("[adapter/v1_6] doSniff 判定明文HTTP，分流HTTP线程: bytes=" + h.length);
+            log.debugT("log.adapter.v16.dosniff-http", "[adapter/v1_6] doSniff 判定明文HTTP，分流HTTP线程: bytes={0}", h.length);
             // HTTP 分流：真实 Socket 交给插件线程池；向 MC 侧返回 EOF 流（PendingConnection 快速失败）
             httpTaken = true;
             InputStream httpIn = new SequenceInputStream(new ByteArrayInputStream(h), raw);
@@ -689,14 +693,14 @@ public class V1_6HttpSniffer {
             SSLContext ctx = sslContextSupplier == null ? null : sslContextSupplier.get();
             if (ctx == null) {
                 // 防御：上下文在并发下不可用，回退 MC 放行
-                log.warn("[adapter/v1_6] TLS 上下文不可用，按 MC 放行: bytes=" + peeked.length);
+                log.warnT("log.adapter.v16.tls-unavailable", "[adapter/v1_6] TLS 上下文不可用，按 MC 放行: bytes={0}", peeked.length);
                 return new SequenceInputStream(new ByteArrayInputStream(peeked), real.getInputStream());
             }
             Socket replay = new ReplaySocket(real, peeked);
             SSLSocket ssl = (SSLSocket) ctx.getSocketFactory()
                     .createSocket(replay, real.getInetAddress().getHostAddress(), real.getPort(), true);
             ssl.setUseClientMode(false);
-            log.debug("[adapter/v1_6] doSniff 判定TLS，就地升级 HTTPS: bytes=" + peeked.length);
+            log.debugT("log.adapter.v16.dosniff-tls", "[adapter/v1_6] doSniff 判定TLS，就地升级 HTTPS: bytes={0}", peeked.length);
             httpTaken = true;
             handleHttpConnection(ssl.getInputStream(), ssl.getOutputStream(), ssl, real.getInetAddress(), true);
             return new ByteArrayInputStream(new byte[0]);

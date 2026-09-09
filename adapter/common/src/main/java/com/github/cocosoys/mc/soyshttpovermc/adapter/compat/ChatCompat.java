@@ -48,7 +48,7 @@ public final class ChatCompat {
                     return true;
                 }
             } catch (Throwable t) {
-                log.debug("[adapter] Spigot 可点击组件发送失败，降级纯文本", t);
+                log.debugT("log.adapter.chat-click-send-failed", "[adapter] Spigot 可点击组件发送失败，降级纯文本", t);
             }
         }
         // 降级：纯文本消息（显示文字 + 链接），反射调用 Player#sendMessage(String)
@@ -104,7 +104,7 @@ public final class ChatCompat {
             setClick.invoke(component, event);
             return component;
         } catch (Throwable t) {
-            log.debug("[adapter] 构造可点击组件失败", t);
+            log.debugT("log.adapter.chat-build-failed", "[adapter] 构造可点击组件失败", t);
             return null;
         }
     }
@@ -149,7 +149,7 @@ public final class ChatCompat {
             Method m = player.getClass().getMethod("sendMessage", String.class);
             m.invoke(player, message);
         } catch (Throwable t) {
-            log.debug("[adapter] 降级纯文本消息发送失败", t);
+            log.debugT("log.adapter.chat-fallback-send-failed", "[adapter] 降级纯文本消息发送失败", t);
         }
     }
 }

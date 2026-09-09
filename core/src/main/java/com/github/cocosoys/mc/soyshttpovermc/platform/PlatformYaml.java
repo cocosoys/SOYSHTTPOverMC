@@ -1,5 +1,6 @@
 package com.github.cocosoys.mc.soyshttpovermc.platform;
 
+import com.github.cocosoys.mc.soyshttpovermc.i18n.I18n;
 import com.github.cocosoys.mc.soyshttpovermc.spi.ConfigSection;
 import com.github.cocosoys.mc.soyshttpovermc.spi.Platforms;
 import org.bukkit.configuration.ConfigurationSection;
@@ -39,8 +40,9 @@ public final class PlatformYaml {
                 return (YamlConfiguration) d;
             }
         }
-        throw new IllegalStateException("Platform.loadYaml 未返回可解包的 Bukkit 配置: "
-                + (sec == null ? "null" : sec.getClass().getName()));
+        throw new IllegalStateException(I18n.t("exception.platform.yaml-unwrap-failed",
+                "Platform.loadYaml 未返回可解包的 Bukkit 配置: {0}",
+                sec == null ? "null" : sec.getClass().getName()));
     }
 
     /**

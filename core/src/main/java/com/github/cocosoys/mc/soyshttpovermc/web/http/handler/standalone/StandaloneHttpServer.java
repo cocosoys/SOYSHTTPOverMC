@@ -1,5 +1,6 @@
 package com.github.cocosoys.mc.soyshttpovermc.web.http.handler.standalone;
 
+import com.github.cocosoys.mc.soyshttpovermc.i18n.I18n;
 import com.github.cocosoys.mc.soyshttpovermc.web.RequestStats;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.Credential;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.GatewayContext;
@@ -105,10 +106,10 @@ public class StandaloneHttpServer {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             shutdown();
-            throw new RuntimeException("启动独立 HTTP 服务器失败", e);
+            throw new RuntimeException(I18n.t("exception.http.server-start-failed", "启动独立 HTTP 服务器失败"), e);
         } catch (Exception e) {
             shutdown();
-            throw new RuntimeException("启动独立 HTTP 服务器失败", e);
+            throw new RuntimeException(I18n.t("exception.http.server-start-failed", "启动独立 HTTP 服务器失败"), e);
         }
     }
 

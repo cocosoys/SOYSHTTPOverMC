@@ -12,11 +12,11 @@ import com.github.cocosoys.mc.soyshttpovermc.exception.ExceptionBus;
  * <pre>
  *   SoysHttpOverMcApi api = HttpOverMcPlugin.getInstance().getApi();
  *   api.getApiRegistration().registerController(new MyApi());      // 能力组 1
- *   api.getWebPage().registerPage(owner, "/hello", bytes);        // 能力组 2
- *   api.getAuthCredential().issueCredential(subject);             // 能力组 3
- *   api.getToolkit().toJson(obj);                                 // 能力组 4
- *   api.getLogger().logInfo("...");                               // 能力组 5
- *   api.getHttpClient().sendGet("https://example.com");          // 能力组 6
+ *   api.getWebPage().registerPage(owner, "/hello", bytes);         // 能力组 2
+ *   api.getAuthCredential().issueCredential(subject);              // 能力组 3
+ *   api.getToolkit().toJson(obj);                                  // 能力组 4
+ *   api.getHttpClient().sendGet("https://example.com");            // 能力组 5
+ *   api.getExtension().registerLoginProvider(provider);            // 能力组 6
  * </pre>
  *
  * <p>各分组接口：</p>
@@ -26,6 +26,7 @@ import com.github.cocosoys.mc.soyshttpovermc.exception.ExceptionBus;
  *   <li>{@link AuthCredentialApi} —— 鉴权与凭证</li>
  *   <li>{@link ApiToolkitApi} —— 工具（JSON / Content-Type）</li>
  *   <li>{@link HttpClientApi} —— HTTP 请求 / 本地回环</li>
+ *   <li>{@link ExtensionApi} —— 扩展接入（登录插件提供者 / /soyshttp 子指令）</li>
  * </ul>
  *
  * <p>异常统一经 {@link ExceptionBus} 处理：操作失败时门面会构造对应模块的专用异常并
@@ -58,12 +59,12 @@ public interface SoysHttpOverMcApi {
     ApiToolkitApi getToolkit();
 
     /**
-     * 能力组 7：HTTP 请求 / 本地回环
+     * 能力组 5：HTTP 请求 / 本地回环
      */
     HttpClientApi getHttpClient();
 
     /**
-     * 能力组 8：扩展接入（登录插件提供者 / /soyshttp 子指令）
+     * 能力组 6：扩展接入（登录插件提供者 / /soyshttp 子指令）
      */
     ExtensionApi getExtension();
 

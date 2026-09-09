@@ -1,5 +1,6 @@
 package com.github.cocosoys.mc.soyshttpovermc.spi;
 
+import com.github.cocosoys.mc.soyshttpovermc.i18n.I18n;
 import lombok.CustomLog;
 
 import java.util.Iterator;
@@ -44,7 +45,8 @@ public final class Platforms {
     public static Platform get() {
         Platform p = find();
         if (p == null) {
-            throw new IllegalStateException("未找到 Platform 实现：请先调用 Platforms.bind(...) 或提供 ServiceLoader 注册");
+            throw new IllegalStateException(I18n.t("exception.platform.not-found",
+                    "未找到 Platform 实现：请先调用 Platforms.bind(...) 或提供 ServiceLoader 注册"));
         }
         return p;
     }
@@ -67,14 +69,17 @@ public final class Platforms {
                 Iterator<Platform> it = loader.iterator();
                 if (it.hasNext()) {
                     serviceResolved = it.next();
-                    log.info("ServiceLoader 解析 Platform 实现: " + serviceResolved.getClass().getName()
-                            + " (classloader=" + cl + ")");
+                    log.infoT("log.platform.service-resolved",
+                            "ServiceLoader 解析 Platform 实现: {0} (classloader={1})",
+                            serviceResolved.getClass().getName(), cl);
                 } else {
-                    log.info("ServiceLoader 未发现 Platform 实现 (classloader=" + cl + ")，将回退 core 默认绑定");
+                    log.infoT("log.platform.service-none",
+                            "ServiceLoader 未发现 Platform 实现 (classloader={0})，将回退 core 默认绑定", cl);
                 }
             } catch (Throwable t) {
                 // ServiceLoader 失败不阻断，回退到 bound；记录日志便于排障（原实现静默吞异常，失败零日志）
-                log.warn("ServiceLoader 加载 Platform 实现失败，将回退 core 默认绑定", t);
+                log.warnT("log.platform.service-failed",
+                        "ServiceLoader 加载 Platform 实现失败，将回退 core 默认绑定", t);
             }
         }
         if (serviceResolved != null) return serviceResolved;
