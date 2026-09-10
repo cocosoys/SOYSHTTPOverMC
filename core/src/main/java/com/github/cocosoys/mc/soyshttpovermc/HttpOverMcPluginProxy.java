@@ -132,7 +132,13 @@ public class HttpOverMcPluginProxy {
      * onEnable 业务流程（不含 instance 赋值，由上帝类处理）。
      */
     public void onEnable() {
-        // 0) EULA 使用/开发协议校验
+        // 0) 注册 Platform 默认实现（必须最先执行：EULA 读取经 PlatformYaml → Platforms.get()）
+        //    修复：1.3.0 曾把该绑定放在 EULA 校验之后，导致首次启动 EULA 读取抛
+        //    "未找到 Platform 实现" 而误判未同意协议、禁用插件。
+        PlatformBukkitImpl.setCurrentPlugin(plugin);
+        Platforms.bind(new PlatformBukkitImpl(plugin));
+
+        // 0.5) EULA 使用/开发协议校验
         plugin.setEulaConfig(ConfigManager.initEulaConfig(plugin));
         if (!plugin.getEulaConfig().isAccepted()) {
             EulaConfig.promptDisabled(plugin.getLogger());
@@ -143,7 +149,7 @@ public class HttpOverMcPluginProxy {
         plugin.saveDefaultConfig();
 
         // 0.1) 加载版本适配器
-        // 注册 Platform 默认实现（common 各包经 Platforms.get() 访问宿主能力；版本模块可经 ServiceLoader 覆盖）
+        // 幂等重复绑定（已在 0 步绑定；版本模块可经 ServiceLoader 覆盖）
         PlatformBukkitImpl.setCurrentPlugin(plugin);
         Platforms.bind(new PlatformBukkitImpl(plugin));
 
