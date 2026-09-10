@@ -1,235 +1,49 @@
-# 第二章 注解式 Web API 开发
+# 第2章 注解式WebAPI开发
 
-本章讲解如何用注解快速暴露 HTTP 接口。设计上完全借鉴 Spring MVC：你写一个普通类，用 `@GetMapping` 等标注方法，方法返回 `AjaxResult`，剩下的路由、参数解析、序列化、鉴权都由本插件完成。
+## 2.1 概念
 
-## 2.1 注册控制器
+SOYSHTTPOverMC 提供一套类似 Spring MVC 的**注解式 API 框架**：你在普通 POJO 类的方法上标注路由注解，调用 `ApiRegistry.register(实例)` 或门面 `api.getApiRegistration().registerController(实例)`，网关就会把匹配的 HTTP 请求分发到该方法。
 
-通过能力组 1（`ApiRegistrationApi`）注册你的控制器实例：
+关键事实（对照源码）：
 
-```java
-api.getApiRegistration().registerController(new HelloApi());          // 自动标记所属插件
-api.getApiRegistration().registerController(new HelloApi(), this);   // 显式指定 owner
-api.getApiRegistration().registerProxyController(new HelloApi());    // 强制主插件代理（无 /plugins/<名> 前缀）
-```
+- 全局 API 前缀恒为 `/api`（`gateway/config.yml` 的 `api-prefix`，默认 `/api`），`@GetMapping("/ping")` 一律映射为 `/api/ping`；**该前缀与 auth 是否启用无关**，保证 API 地址恒定；
+- 第三方插件注册的控制器**自动追加 `/plugins/<插件名>` 前缀**：插件 Foo 注册 `/ping` → 实际 `/api/plugins/Foo/ping`；`registerProxyController` 可去掉该前缀（以主插件名义代理，owner 仍记录为真实插件）；
+- 重复路由默认拒绝，`force=true` 可强制覆盖并打印原登记插件；
+- 插件禁用时其名下端点自动卸载。
 
-### 2.1.1 路由前缀规则
+## 2.2 注解清单
 
-- 默认情况下，非主插件的接口会**自动加上** `/plugins/<你的插件名>` 前缀。例如你的插件叫 `MyPlugin`，`@GetMapping("/hello")` 实际路由为 `/plugins/MyPlugin/hello`（开启鉴权后为 `/api/plugins/MyPlugin/hello`）。
-- 若你希望接口像主插件一样**不带前缀**，使用 `registerProxyController(...)`。注意：即便用代理注册，`ownerPlugin` 仍会标记真实插件，便于禁用时自动卸载。
-- 主插件（SOYSHTTPOverMC 自身）注册的接口天然无此前缀。
+| 注解 | 目标 | 说明 |
+| --- | --- | --- |
+| `@RequestMapping` | 类 / 方法 | 通用路由（`value` 或 `path` 指定路径） |
+| `@GetMapping` / `@PostMapping` / `@PutMapping` / `@DeleteMapping` / `@PatchMapping` | 方法 | HTTP 方法限定路由 |
+| `@ApiName("名称")` | 类 / 方法 | 端点显示名（事件 / /soyshttp api 展示） |
+| `@ApiPermission("权限")` | 类 / 方法 | 所需权限节点（方法级优先；判定走权限服务） |
+| `@ApiPublic` | 类 / 方法 | 公开端点：跳过权限判定（豁免鉴权） |
+| `@RequestParam(name, required, defaultValue)` | 参数 | 查询参数绑定 |
+| `@RequestBody` | 参数 | 请求体绑定（String / 对象 JSON） |
 
-### 2.1.2 卸载
+映射注解的 `value` 与 `path` 等价（如 `@GetMapping("/ping")` 或 `@GetMapping(path = "/ping")`）。
 
-```java
-api.getApiRegistration().unregisterController(instance);            // 卸载某控制器实例
-api.getApiRegistration().unregisterPluginControllers("MyPlugin");  // 按插件名卸载（一般无需手动）
-```
-
-## 2.2 路由注解
-
-### 2.2.1 通用映射 @RequestMapping
-
-可标注在**类**或**方法**上：
-
-- 标在类上：为该控制器下所有方法统一加路径前缀（位于全局 api-prefix 之后）；
-- 标在方法上：声明具体路由。
+## 2.3 最小示例
 
 ```java
-@RequestMapping("/admin")            // 类级前缀
-public class AdminApi {
-    @GetMapping("/users")            // → /api/admin/users（开启鉴权时）
-    public AjaxResult users() { ... }
-}
-```
+public class MyApi {
 
-常用属性：
-
-| 属性                     | 说明                                                                    |
-| ------------------------ | ----------------------------------------------------------------------- |
-| `value()` / `path()` | 路由路径（二选一；都为空则注册为`/`）                                 |
-| `method()`             | 允许的 HTTP 方法（`RequestMethod[]`）；为空表示不限定（匹配任意方法） |
-
-### 2.2.2 方法级组合注解
-
-为减少样板，提供了五个方法级注解，分别对应常见 HTTP 动词：
-
-| 注解                     | 等价                                 |
-| ------------------------ | ------------------------------------ |
-| `@GetMapping("/x")`    | `@RequestMapping(method = GET)`    |
-| `@PostMapping("/x")`   | `@RequestMapping(method = POST)`   |
-| `@PutMapping("/x")`    | `@RequestMapping(method = PUT)`    |
-| `@DeleteMapping("/x")` | `@RequestMapping(method = DELETE)` |
-| `@PatchMapping("/x")`  | `@RequestMapping(method = PATCH)`  |
-
-它们都有 `value()` 与 `path()` 两个别名属性。
-
-### 2.2.3 全局 API 前缀 /api
-
-当网关的 `auth` 策略启用时，所有注解式 API 会**自动加上 `/api` 前缀**（即 `auth.yml` 中的 `api-prefix`）。关闭鉴权时则不附加。你写注解时只用写业务路径（如 `/hello`），前缀由系统管理。
-
-```java
-api.getApiRegistration().getApiPrefix();   // 读取当前全局前缀（通常为 /api）
-```
-
-## 2.3 方法参数绑定
-
-### 2.3.1 查询参数 @RequestParam
-
-从 URL query string 取值并做类型转换：
-
-```java
-@GetMapping("/hello")
-public AjaxResult hello(
-    @RequestParam(name = "name", required = false, defaultValue = "world") String name,
-    @RequestParam(name = "age", required = false) Integer age) {
-    return AjaxResult.success("hello " + name + ", age=" + age);
-}
-```
-
-访问 `https://<地址>/hello?name=Steve&age=20` 即可拿到解析后的参数。属性：
-
-| 属性               | 说明                         |
-| ------------------ | ---------------------------- |
-| `name()`         | query key（必填）            |
-| `required()`     | 是否必填；缺失且必填返回 400 |
-| `defaultValue()` | 缺失且非必填时的默认值       |
-
-### 2.3.2 请求体 @RequestBody
-
-标注在 `String` 参数上，绑定原始请求体（常用于 JSON / 表单原文）：
-
-```java
-@PostMapping("/echo")
-public AjaxResult echo(@RequestBody String body) {
-    return AjaxResult.success(body);
-}
-```
-
-> 进阶：若需要把请求体直接反序列化为对象，可用 `api.getToolkit().toJson(...)` 的逆操作，或在处理器里用 JSON 库自行解析 `body`。
-
-### 2.3.3 请求上下文 ApiRequestContext
-
-当处理器有一个类型为 `ApiRequestContext` 的参数时，网关自动注入完整请求上下文，**开发者无需自行解析请求头 / 凭证 / 令牌**：
-
-```java
-@GetMapping("/whoami")
-public AjaxResult whoami(ApiRequestContext ctx) {
-    Map<String, Object> info = new java.util.LinkedHashMap<>();
-    info.put("ip", ctx.getIp());               // 客户端 IP
-    info.put("player", ctx.getPlayerName());   // 经 token/cookie 解析的玩家名（未登录=null）
-    info.put("online", ctx.getPlayer() != null); // 在线玩家实体（离线=null）
-    info.put("path", ctx.getPath());           // 完整路径（含 /api 前缀）
-    info.put("source", ctx.getSourceServer());// 跨服来源服名（独立服=null）
-    return AjaxResult.success(info);
-}
-```
-
-`ApiRequestContext` 提供的字段：
-
-| 方法                  | 说明                                         |
-| --------------------- | -------------------------------------------- |
-| `getHttpMethod()`   | 实际请求方法（GET/POST/...）                 |
-| `getPath()`         | 完整路径（含 api-prefix）                    |
-| `getIp()`           | 客户端 IP（0.0.0.0 表示未知）                |
-| `getHeaders()`      | 请求头（只读视图）                           |
-| `getCredential()`   | 请求解析出的凭证（可为 null）                |
-| `getPlayerName()`   | 经 token/cookie 解析的玩家名（未登录/null）  |
-| `getPlayer()`       | 在线玩家实体（离线=null）                    |
-| `isAuthenticated()` | 请求是否携带有效凭证                         |
-| `getSourceServer()` | 跨服请求来源服名（独立服 / 本服直连为 null） |
-| `getTraceId()`      | 跨服链路追踪 ID（无关联为 null）             |
-
-## 2.4 统一返回体 AjaxResult
-
-所有注解式 API 建议返回 `AjaxResult`（仿 RuoYi / Spring 的 `{code, msg, data}` 结构）。网关会将其序列化为 JSON 响应。
-
-```java
-return AjaxResult.success();                     // {"code":200,"msg":"操作成功"}
-return AjaxResult.success(data);                 // {"code":200,"msg":"操作成功","data":...}
-return AjaxResult.success("已更新", id);           // 自定义 msg
-return AjaxResult.error("服务器异常");             // {"code":500,"msg":"服务器异常"}
-return AjaxResult.unauthorized("未登录");          // {"code":401,...}
-return AjaxResult.forbidden("无权限");            // {"code":403,...}
-return AjaxResult.notFound("资源不存在");          // {"code":404,...}
-```
-
-常用静态工厂：
-
-| 方法                                                       | 含义                  |
-| ---------------------------------------------------------- | --------------------- |
-| `success()` / `success(data)` / `success(msg, data)` | 成功（code=200）      |
-| `error()` / `error(msg)` / `error(code, msg)`        | 失败（默认 code=500） |
-| `unauthorized(msg)`                                      | 401 认证失败          |
-| `forbidden(msg)`                                         | 403 无权限            |
-| `notFound(msg)`                                          | 404 资源不存在        |
-
-> 注意：网关对**注解式 API** 默认以 HTTP 200 返回，业务状态码放在 `body.code` 中（这是 RuoYi 风格）。只有被网关安全策略拒绝时，才会返回真实的 HTTP 状态码（如 401/403/429）。
-
-## 2.5 命名、权限与 PermissionService
-
-### 2.5.1 @ApiName
-
-给接口一个人类可读的名字，用于文档、日志与错误提示：
-
-```java
-@ApiName("隧道状态")
-@GetMapping("/status")
-public AjaxResult status() { ... }
-```
-
-### 2.5.2 @ApiPermission
-
-声明调用该接口所需的权限标识：
-
-```java
-@ApiPermission("system:user:list")
-@GetMapping("/users")
-public AjaxResult users() { ... }
-```
-
-权限判定由你注册的 `PermissionService` 完成。把凭证映射为主体再查权限：
-
-```java
-api.getApiRegistration().setPermissionService((playerName, permission) -> {
-    // 返回该玩家是否拥有 permission 标识
-    return /* 你的判定逻辑 */ false;
-});
-```
-
-未注册 `PermissionService` 时，`@ApiPermission` **不阻断**请求（仅记录），鉴权仍以网关 `auth` 策略的 401 为底线。`getPermissionService()` 可读取当前服务。
-
-## 2.6 完整示例
-
-下面给出一个完整的“用户管理”控制器，综合演示路由、参数、上下文、权限与返回体：
-
-```java
-@RequestMapping("/admin")
-@ApiName("用户管理")
-public class AdminApi {
-
-    private final UserService userService;   // 你的业务服务（普通 Java 对象即可）
-
-    public AdminApi(UserService userService) {
-        this.userService = userService;
+    @GetMapping("/ping")
+    public ApiResponse ping() {
+        return ApiResponse.success("pong");
     }
 
-    @ApiName("用户列表")
-    @ApiPermission("admin:user:list")
-    @GetMapping("/users")
-    public AjaxResult listUsers(
-            @RequestParam(name = "page", defaultValue = "1") int page,
-            ApiRequestContext ctx) {
-        // ctx.getPlayerName() 可拿到当前操作者
-        return AjaxResult.success(userService.page(page));
+    @ApiName("问候")
+    @GetMapping("/hello")
+    public ApiResponse hello(@RequestParam(name = "name", defaultValue = "player") String name) {
+        return ApiResponse.success("Hello, " + name);
     }
 
-    @ApiName("创建用户")
-    @ApiPermission("admin:user:create")
-    @PostMapping("/users")
-    public AjaxResult create(@RequestBody String body) {
-        User u = parseUser(body);            // 自行 JSON 解析
-        userService.save(u);
-        return AjaxResult.success("已创建", u);
+    @PostMapping("/echo")
+    public ApiResponse echo(@RequestBody String body) {
+        return ApiResponse.success(body);
     }
 }
 ```
@@ -237,13 +51,138 @@ public class AdminApi {
 注册：
 
 ```java
-api.getApiRegistration().registerController(new AdminApi(myUserService));
+api.getApiRegistration().registerController(new MyApi());
+// 访问：GET /api/plugins/你的插件名/ping → {"code":0,"msg":"ok","data":"pong"}
 ```
 
-## 2.7 调试与查看已注册端点
+## 2.4 统一返回体
 
-运行 `soyshttp api`（或简写 `shttp api`）可列出当前所有已注册的注解式端点（来自 `ApiRegistry.listEndpoints()`）。这对排查“我的接口为什么没出现”非常有用。
+`com.github.cocosoys.mc.soyshttpovermc.util.ApiResponse`：
 
-> 注意：查看命令用的是 `ApiRegistry.listEndpoints()`，而非 `ApiRegistrationApi.getRegisteredApis()`——后者是门面层快照，二者命名不同请勿混淆。
+| 字段 | 说明 |
+| --- | --- |
+| `code` | 业务码（0=成功） |
+| `msg` | 消息 |
+| `data` | 数据（任意对象，自动 JSON 序列化） |
 
-下一章讲解如何**托管网页与静态资源**。
+静态工厂：`ApiResponse.success(data)`、`ApiResponse.error(msg)`、`ApiResponse.error(code, msg)` 等。返回任意对象也会被自动序列化为 JSON；返回 `null` 时网关输出空 204/200 视实现而定（建议始终返回 `ApiResponse` 或 `AjaxResult` 保证结构一致）。
+
+`AjaxResult`（`util.AjaxResult`）提供另一套 `success(...)` / `error(...)` 便捷构造，二者均可直接作为返回类型。
+
+## 2.5 参数绑定
+
+### 2.5.1 查询参数：@RequestParam
+
+```java
+@GetMapping("/status")
+public ApiResponse status(@RequestParam(name = "player", required = false) String player) {
+    // GET /api/.../status?player=Steve
+}
+```
+
+`required=false` 缺省时传 `defaultValue`（或 null）；`required=true` 缺参返回 400。
+
+### 2.5.2 请求体：@RequestBody
+
+```java
+@PostMapping("/save")
+public ApiResponse save(@RequestBody String raw) { ... }   // 原始字符串
+
+@PostMapping("/save2")
+public ApiResponse save2(@RequestBody MyPojo pojo) { ... } // 自动 JSON → 对象
+```
+
+### 2.5.3 请求上下文：ApiRequestContext
+
+处理器参数类型为 `ApiRequestContext` 时，网关自动注入完整请求上下文，**无需自行解析请求头 / 凭证 / 令牌**：
+
+```java
+@GetMapping("/whoami")
+public ApiResponse whoami(ApiRequestContext ctx) {
+    return ApiResponse.success(Map.of(
+        "ip", ctx.getIp(),                 // 客户端 IP
+        "player", ctx.getPlayerName(),     // 经 token/cookie 解析的玩家名（未登录=null）
+        "online", ctx.getPlayer() != null, // 实时玩家实体（离线=null）
+        "path", ctx.getPath()));
+}
+```
+
+`ApiRequestContext` 主要方法：
+
+| 方法 | 说明 |
+| --- | --- |
+| `getHttpMethod()` / `getPath()` | 请求方法 / 完整路径（含 /api 前缀） |
+| `getIp()` | 客户端 IP（网关在嗅探端注入内部头 `X-Soys-Remote-Ip` 传递） |
+| `getHeaders()` | 只读请求头 Map |
+| `getCredential()` | 请求解析出的凭证（可为 null） |
+| `getPlayerName()` | 经凭证解析的玩家名（稳定字符串锚点，永不悬空、永不过期；未登录为 null） |
+| `getPlayer()` / `getSyncPlayer()` | **实时**玩家实体（每次调用切主线程重新解析，反映调用时刻真实状态；离线 null）。worker 线程调用会阻塞当前线程直至下一 tick，勿在循环内使用 |
+| `getAsyncPlayer()` | 派发时刻**快照**：请求进入 worker 时一次性解析的玩家实体（不切主线程，零阻塞） |
+| `isAuthenticated()` | 请求是否携带有效凭证 |
+| `getSourceServer()` / `getTraceId()` | 群组服跨服来源服名 / 链路追踪 ID（独立服 null） |
+
+> **线程注意**：处理器运行在 worker 线程（非主线程）。`getPlayer()` 每次调用会切回主线程取值，**会阻塞当前 worker 直至下一 tick**，请勿在循环内频繁调用；玩家在线状态用 `getPlayerName()` 做稳定锚点。
+
+## 2.6 权限控制
+
+### 2.6.1 注解
+
+```java
+@ApiPermission("myapi.admin")      // 需要权限节点
+@GetMapping("/admin")
+public ApiResponse admin() { ... }
+
+@ApiPublic                          // 公开：跳过权限判定
+@GetMapping("/public")
+public ApiResponse pub() { ... }
+```
+
+判定逻辑（`PlayerPermissionService` / `CombinedPermissionService`，详见第 4 章）：
+
+1. 静态最高权限 Key（`/soyshttp key` 下发，带 `adm` 标记）→ 直接放行；
+2. 会话令牌 → 解析出玩家 → 查 Bukkit 原生权限（在线）/ 权限插件组合 / 离线降级策略；
+3. 无会话颁发器时回退开放（兼容旧部署）。
+
+### 2.6.2 类级默认
+
+`@ApiPermission` / `@ApiPublic` 标注在类上作为该类所有端点的默认；方法级注解覆盖类级。
+
+## 2.7 注册 API（门面能力组 1）
+
+`api.getApiRegistration()` 提供：
+
+| 方法 | 说明 |
+| --- | --- |
+| `registerController(Object)` | 注册控制器（非主插件自动加 `/plugins/<插件名>` 前缀） |
+| `registerController(Object, Plugin owner)` | 显式指定所属插件 |
+| `registerController(Object, boolean force)` | force=true 强制覆盖重复路由 |
+| `registerProxyController(...)` | 以主插件名义代理注册（无前缀） |
+| `unregisterController(Object)` | 卸载某控制器实例的全部端点 |
+| `unregisterPluginControllers(String pluginName)` | 卸载指定插件名的全部端点 |
+| `setPermissionService(PermissionService)` | 接入自定义权限判定服务 |
+| `getRegisteredApis()` | 当前全部端点快照（`ApiInfo` 列表） |
+| `getApiPrefix()` | 全局前缀（/api） |
+
+## 2.8 系统级内置 API
+
+core 启动时自动注册以下控制器（`spring/controller`）：
+
+| 端点 | 说明 |
+| --- | --- |
+| `/api/status/...` | 状态查询（在线玩家、TPS、请求统计等，`StatusController`） |
+| `/api/system/...` | 系统信息（`SystemController`） |
+| `/api/auth/...` | 登录窗口（`AuthController`：login / issue / mode / status 等，见第 4 章） |
+| `/api/homepage/config`、`/api/homepage/live` | 门户首页公开配置 / 实时数据 |
+
+这些端点在 `gateway/policies/auth.yml` 的 `exempt` 中默认豁免鉴权（公开）。
+
+## 2.9 请求生命周期与调试
+
+- 网关 `gateway/config.yml` 的 `debug-events: true` 会在控制台打印网关事件（请求进入 / 拒绝 / 完成 / 凭证下发 / API 注册 / 卸载）；
+- 监听事件：`ApiAccessEvent`（请求通过权限判定后、处理器调用前）、`ApiAccessDeniedEvent`（权限不足 403）、`ApiRegisteredEvent` / `ApiUnregisteredEvent`（注册 / 卸载）——详见第 7 章；
+- 未命中路由返回 404 JSON；权限不足返回 403；网关拒绝返回对应状态码（401/426/429 等）。
+
+## 2.10 版本注意
+
+- 1.12.2 主线程触发异步事件会抛 `IllegalStateException`，因此**注册 / 卸载事件强制同步**（见 `GatewayEvent` 类注释）；
+- 注解、`ApiRequestContext`、`ApiResponse` 均位于 common / core，所有受支持版本行为一致。

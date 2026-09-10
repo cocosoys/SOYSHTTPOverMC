@@ -248,10 +248,19 @@ $env:JAVA_HOME = "D:\WorkTools\JDK\8"
 
 ## 开发文档
 
-面向二次开发者的详细规范（标准教程体例，含示例、参数说明与最佳实践）：
+面向二次开发者的详细规范（标准教程体例，含示例、参数说明与最佳实践），**中英文档同步维护**：
 
-- `docs/zh_CN/Web与API开发规范.md` —— 注解式 REST API、网页 / 目录 / 导航登记、鉴权凭证、事件监听、Bot 与跨服调用；
-- `docs/zh_CN/数据存储ORM开发规范.md` —— 双后端 ORM 实体定义、条件链、CRUD、多后端存储配置与跨服共享；
+| 章节 | 中文 | English |
+| --- | --- | --- |
+| 导言 / Introduction | [docs/zh_CN/导言.md](docs/zh_CN/导言.md) | [docs/en_US/Introduction.md](docs/en_US/Introduction.md) |
+| 第1章 概述与快速开始 | [docs/zh_CN/第1章-概述与快速开始.md](docs/zh_CN/第1章-概述与快速开始.md) | [docs/en_US/Chapter-1-Overview-and-Quick-Start.md](docs/en_US/Chapter-1-Overview-and-Quick-Start.md) |
+| 第2章 注解式WebAPI开发 | [docs/zh_CN/第2章-注解式WebAPI开发.md](docs/zh_CN/第2章-注解式WebAPI开发.md) | [docs/en_US/Chapter-2-Annotated-WebAPI-Development.md](docs/en_US/Chapter-2-Annotated-WebAPI-Development.md) |
+| 第3章 网页与静态资源托管 | [docs/zh_CN/第3章-网页与静态资源托管.md](docs/zh_CN/第3章-网页与静态资源托管.md) | [docs/en_US/Chapter-3-Web-Pages-and-Static-Resources.md](docs/en_US/Chapter-3-Web-Pages-and-Static-Resources.md) |
+| 第4章 鉴权与安全管理 | [docs/zh_CN/第4章-鉴权与安全管理.md](docs/zh_CN/第4章-鉴权与安全管理.md) | [docs/en_US/Chapter-4-Authentication-and-Security.md](docs/en_US/Chapter-4-Authentication-and-Security.md) |
+| 第5章 数据存储与ORM | [docs/zh_CN/第5章-数据存储与ORM.md](docs/zh_CN/第5章-数据存储与ORM.md) | [docs/en_US/Chapter-5-Data-Storage-and-ORM.md](docs/en_US/Chapter-5-Data-Storage-and-ORM.md) |
+| 第6章 进阶能力与最佳实践 | [docs/zh_CN/第6章-进阶能力与最佳实践.md](docs/zh_CN/第6章-进阶能力与最佳实践.md) | [docs/en_US/Chapter-6-Advanced-Capabilities-and-Best-Practices.md](docs/en_US/Chapter-6-Advanced-Capabilities-and-Best-Practices.md) |
+| 第7章 事件系统 | [docs/zh_CN/第7章-事件系统（使用与注册）.md](docs/zh_CN/第7章-事件系统（使用与注册）.md) | [docs/en_US/Chapter-7-Event-System.md](docs/en_US/Chapter-7-Event-System.md) |
+| 附录 API参考手册 | [docs/zh_CN/附录-API参考手册.md](docs/zh_CN/附录-API参考手册.md) | [docs/en_US/Appendix-API-Reference.md](docs/en_US/Appendix-API-Reference.md) |
 
 顶层设计 / 设计稿见 `docs/`（API 请求处理链路、实体存储统一抽象、ORM 双后端改造等）。
 
