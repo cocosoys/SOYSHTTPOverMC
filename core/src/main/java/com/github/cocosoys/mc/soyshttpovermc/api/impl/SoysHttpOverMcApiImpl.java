@@ -33,7 +33,7 @@ public class SoysHttpOverMcApiImpl implements SoysHttpOverMcApi {
         this.apiRegistration = new ApiRegistrationImpl(apiRegistry);
         this.webPage = new WebPageImpl(webRegistry, largeFileLoaderRegistry, corsRegistry);
         this.authCredential = new AuthCredentialImpl(gateway);
-        this.toolkit = new ApiToolkitImpl(hostPlugin);
+        this.toolkit = new ApiToolkitImpl(hostPlugin, apiRegistry);
         this.httpClient = new HttpClientImpl(this.hostPlugin, apiRegistry);
         this.extension = new ExtensionImpl(this.hostPlugin);
     }

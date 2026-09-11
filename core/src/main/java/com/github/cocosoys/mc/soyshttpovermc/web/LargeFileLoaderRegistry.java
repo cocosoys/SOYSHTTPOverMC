@@ -31,9 +31,10 @@ public class LargeFileLoaderRegistry {
     /**
      * 注册一个自定义加载器（同名覆盖）。
      */
-    public void register(LargeFileLoader loader) {
-        if (loader == null || loader.name() == null || loader.name().isEmpty()) return;
+    public LargeFileLoader register(LargeFileLoader loader) {
+        if (loader == null || loader.name() == null || loader.name().isEmpty()) return null;
         loaders.put(loader.name(), loader);
+        return loader;
     }
 
     /**
@@ -46,21 +47,24 @@ public class LargeFileLoaderRegistry {
     /**
      * 切换全局默认加载器（按名称；未知名称忽略并告警）。
      */
-    public boolean setDefault(String loaderName) {
+    public LargeFileLoader setDefault(String loaderName) {
         LargeFileLoader l = loaderName == null ? null : loaders.get(loaderName);
-        if (l == null) return false;
+        if (l == null) return null;
         defaultLoader = l;
-        return true;
+        return l;
     }
 
     /**
      * 为某路径前缀强制指定加载方式（开发者强行切换；最长前缀优先）。
+     *
+     * @return 指定成功返回 true；loader 名称不存在或参数非法返回 false
      */
-    public void setPathLoader(String pathPrefix, String loaderName) {
-        if (pathPrefix == null || pathPrefix.isEmpty() || loaderName == null) return;
-        if (loaders.containsKey(loaderName)) {
-            pathOverrides.put(pathPrefix, loaderName);
-        }
+    public LargeFileLoader setPathLoader(String pathPrefix, String loaderName) {
+        if (pathPrefix == null || pathPrefix.isEmpty() || loaderName == null) return null;
+        LargeFileLoader l = loaders.get(loaderName);
+        if (l == null) return null;
+        pathOverrides.put(pathPrefix, loaderName);
+        return l;
     }
 
     /**

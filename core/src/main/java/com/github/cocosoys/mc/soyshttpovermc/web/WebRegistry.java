@@ -397,23 +397,27 @@ public class WebRegistry {
      * <p>示例：{@code registerDirectory(owner, "/", distDir)} → 访问 /plugins/Foo/index.html 等；
      * 配合 {@code registerProxyDirectory(owner, "/app", distDir)} 可挂到无前缀的 /app。</p>
      */
-    public void registerDirectory(Plugin owner, String basePath, File dir) {
-        registerDirectory(owner, basePath, dir, false);
+    public Set<Entry> registerDirectory(Plugin owner, String basePath, File dir) {
+        return registerDirectory(owner, basePath, dir, false);
     }
 
     /**
      * 目录批量登记（显式是否强制代理无前缀）。
+     *
+     * @return 实际登记成功的 {@link Entry} 集合（去重后，LinkedHashSet 保持扫描顺序）；参数非法/目录无效返回 null，合法但空目录返回空集合
      */
-    public void registerDirectory(Plugin owner, String basePath, File dir, boolean proxy) {
-        if (owner == null || basePath == null || dir == null || !dir.isDirectory()) return;
-        walkDirectory(owner.getName(), basePath, dir, proxy);
+    public Set<Entry> registerDirectory(Plugin owner, String basePath, File dir, boolean proxy) {
+        if (owner == null || basePath == null || dir == null || !dir.isDirectory()) return null;
+        return walkDirectory(owner.getName(), basePath, dir, proxy);
     }
 
     /**
      * 强制代理目录批量登记（无 /plugins/&lt;插件名&gt; 前缀）。
+     *
+     * @return 实际登记成功的 {@link Entry} 集合；参数非法/目录无效返回 null
      */
-    public void registerProxyDirectory(Plugin owner, String basePath, File dir) {
-        registerDirectory(owner, basePath, dir, true);
+    public Set<Entry> registerProxyDirectory(Plugin owner, String basePath, File dir) {
+        return registerDirectory(owner, basePath, dir, true);
     }
 
     /**
@@ -474,19 +478,22 @@ public class WebRegistry {
      * 批量登记插件 jar 内资源目录（如 resources/dist/ 下的前端产物）：扫描插件 jar 中
      * {@code resourceRoot} 前缀下的全部条目，挂到 {@code basePath} 下。
      */
-    public void registerResourceDirectory(Plugin owner, String basePath, ClassLoader resourceClassLoader, String resourceRoot) {
-        registerResourceDirectory(owner, basePath, resourceClassLoader, resourceRoot, false);
+    public Set<Entry> registerResourceDirectory(Plugin owner, String basePath, ClassLoader resourceClassLoader, String resourceRoot) {
+        return registerResourceDirectory(owner, basePath, resourceClassLoader, resourceRoot, false);
     }
 
     /**
      * jar 资源目录批量登记（显式是否强制代理无前缀）。
+     *
+     * @return 实际登记成功的 {@link Entry} 集合（去重后，LinkedHashSet 保持扫描顺序）；参数非法/无插件 jar 返回 null，合法但无条目返回空集合
      */
-    public void registerResourceDirectory(Plugin owner, String basePath, ClassLoader resourceClassLoader, String resourceRoot, boolean proxy) {
-        if (owner == null || basePath == null || resourceClassLoader == null || resourceRoot == null) return;
+    public Set<Entry> registerResourceDirectory(Plugin owner, String basePath, ClassLoader resourceClassLoader, String resourceRoot, boolean proxy) {
+        if (owner == null || basePath == null || resourceClassLoader == null || resourceRoot == null) return null;
         File jar = pluginJar(owner);
-        if (jar == null) return;
+        if (jar == null) return null;
         String root = resourceRoot.startsWith("/") ? resourceRoot.substring(1) : resourceRoot;
         if (!root.isEmpty() && !root.endsWith("/")) root += "/";
+        Set<Entry> out = new LinkedHashSet<>();
         try (JarFile jf = new JarFile(jar)) {
             Enumeration<JarEntry> en = jf.entries();
             while (en.hasMoreElements()) {
@@ -498,20 +505,24 @@ public class WebRegistry {
                 String full = resolvePath(owner.getName(), joinWeb(basePath, rel), proxy);
                 // contentType 置 null → 服务端按扩展名实时推断（配合 registerMimeType）
                 // 重复路径默认阻止（批量覆盖同一路径时打印拒绝日志）
-                putEntry("GET " + full, new Entry(owner.getName(), full, null,
+                Entry e = putEntry("GET " + full, new Entry(owner.getName(), full, null,
                         null, resourceClassLoader, "/" + name, null, 0, null), false);
+                if (e != null) out.add(e);
             }
             log.infoT("log.web.register-jar-dir", "批量登记 jar 目录: {0} root={1} base={2}", owner.getName(), resourceRoot, basePath);
         } catch (Exception ex) {
             log.warnT("log.web.register-jar-dir-fail", "批量登记 jar 目录失败: {0} -> {1}", owner.getName(), ex.getMessage());
         }
+        return out;
     }
 
     /**
-     * 强制代理 jar 资源目录批量登记。
+     * 强制代理 jar 资源目录批量登记（无 /plugins/&lt;插件名&gt; 前缀）。
+     *
+     * @return 实际登记成功的 {@link Entry} 集合；参数非法/无插件 jar 返回 null
      */
-    public void registerProxyResourceDirectory(Plugin owner, String basePath, ClassLoader resourceClassLoader, String resourceRoot) {
-        registerResourceDirectory(owner, basePath, resourceClassLoader, resourceRoot, true);
+    public Set<Entry> registerProxyResourceDirectory(Plugin owner, String basePath, ClassLoader resourceClassLoader, String resourceRoot) {
+        return registerResourceDirectory(owner, basePath, resourceClassLoader, resourceRoot, true);
     }
 
     // ===== 网络文件/网络网页页面（NetworkPage 抽象：开发者自定义传输，如加密） =====
@@ -818,38 +829,29 @@ public class WebRegistry {
     // ===== 自定义错误页（registerErrorPage） =====
 
     /**
-     * 自定义错误页：status -> (owner, content)
+     * 自定义错误页：status -> Entry（path 为虚拟的 /error/<status>，仅作返回值标识，不参与 URL 路由）。
      */
-    private final Map<Integer, ErrorPage> errorPages = new ConcurrentHashMap<>();
+    private final Map<Integer, Entry> errorPages = new ConcurrentHashMap<>();
 
     /**
      * 注册自定义错误页（替换通用 404/500 等错误响应；content 为完整 HTML/文本字节）。
+     *
+     * @return 登记成功的错误页句柄 {@link Entry}（path = /error/&lt;status&gt;，仅作返回值标识）；content 为空或 status 非法时返回 null
      */
-    public void registerErrorPage(String ownerPlugin, int status, byte[] content) {
-        if (content == null || content.length == 0 || status <= 0) return;
-        errorPages.put(status, new ErrorPage(ownerPlugin, content));
+    public Entry registerErrorPage(String ownerPlugin, int status, byte[] content) {
+        if (content == null || content.length == 0 || status <= 0) return null;
+        Entry entry = new Entry(ownerPlugin, "/error/" + status, null, content, null, null, null, 0, null);
+        errorPages.put(status, entry);
         log.infoT("log.web.register-error-page", "已登记自定义错误页 status={0} owner={1}", status, ownerPlugin);
+        return entry;
     }
 
     /**
      * 查询自定义错误页（未注册返回 null）。
      */
     public byte[] errorPage(int status) {
-        ErrorPage e = errorPages.get(status);
+        Entry e = errorPages.get(status);
         return e == null ? null : e.content;
-    }
-
-    /**
-     * 错误页条目。
-     */
-    private static final class ErrorPage {
-        final String ownerPlugin;
-        final byte[] content;
-
-        ErrorPage(String ownerPlugin, byte[] content) {
-            this.ownerPlugin = ownerPlugin;
-            this.content = content;
-        }
     }
 
     /**
@@ -1042,20 +1044,23 @@ public class WebRegistry {
     /**
      * 递归扫描磁盘目录并逐项登记为磁盘惰性资源（请求时再读文件，支持热替换）。
      */
-    private void walkDirectory(String ownerName, String basePath, File dir, boolean proxy) {
+    private Set<Entry> walkDirectory(String ownerName, String basePath, File dir, boolean proxy) {
         File[] files = dir.listFiles();
-        if (files == null) return;
+        if (files == null) return new LinkedHashSet<>();
+        Set<Entry> out = new LinkedHashSet<>();
         for (File f : files) {
             if (f.isDirectory()) {
-                walkDirectory(ownerName, joinWeb(basePath, f.getName()), f, proxy);
+                out.addAll(walkDirectory(ownerName, joinWeb(basePath, f.getName()), f, proxy));
             } else if (f.isFile()) {
                 String full = resolvePath(ownerName, joinWeb(basePath, f.getName()), proxy);
                 // contentType 置 null → 服务端按扩展名实时推断（支持热替换 MimeTypes）
                 // 重复路径默认阻止
-                putEntry("GET " + full, new Entry(ownerName, full, null, null, null, null, null, 0, f), false);
+                Entry e = putEntry("GET " + full, new Entry(ownerName, full, null, null, null, null, null, 0, f), false);
+                if (e != null) out.add(e);
             }
         }
         log.infoT("log.web.register-disk-dir", "批量登记磁盘目录: {0} base={1} dir={2}", ownerName, basePath, dir.getAbsolutePath());
+        return out;
     }
 
     /**

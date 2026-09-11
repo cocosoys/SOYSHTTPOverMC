@@ -1,4 +1,4 @@
-﻿# ============ SOYSHTTPOverMC English language pack ============
+# ============ SOYSHTTPOverMC English language pack ============
 # Flat dotted-path keys (flattened into an in-memory Map by YamlConfiguration.getKeys(true) on load).
 # Business code reads via I18n.t("key", "fallback", args...); if a key is missing it falls back to the in-code fallback text.
 # Placeholders use {0} {1} ... (I18n.format replaces them via String.replace("{i}", arg)).
@@ -22,6 +22,7 @@ ajax.registry.default-denied: "Denied by default: endpoint does not declare publ
 ajax.registry.internal-error: "Internal server error (ref={0})"
 ajax.registry.invalid-param-type: "Invalid type for parameter {0}: {1}"
 ajax.registry.missing-required-param: "Missing required parameter: {0}"
+ajax.registry.missing-path-variable: "Missing path variable: {0}"
 ajax.registry.no-permission: "No permission to access: {0} (requires {1})"
 ajax.registry.permission-service-error: "Permission service error"
 command.api.detail: "/soyshttp api [plugin] —— list registered annotation-based API endpoints (for developers to self-check routes).\n  (no args)   list all endpoints (HTTP method + path + endpoint name + owner plugin + required permission).\n  <plugin>    list only endpoints registered by that plugin."
@@ -423,6 +424,16 @@ log.web.register-netpage: "Registered network page: {0} name={1} plugin={2} cach
 log.web.register-netpage-duplicate-denied: "Duplicate registration refused (network page): {0} (already registered by plugin {1}; use force registration force=true to override)"
 log.web.register-netpage-force-overwrite: "Plugin {0} force-registered override (network page): {1} (original registering plugin {2})"
 log.web.register-page: "Registered web page: {0} {1} plugin={2}{3}{4}"
+log.web.auto-register-page-failed: "Auto register page failed: {0}"
+log.web.auto-register-resource-page-failed: "Auto register resource page failed: {0}"
+log.web.auto-register-page-path-failed: "Auto register page failed (path={0}): {1}"
+log.web.auto-register-resource-failed: "Auto register resource failed: {0}"
+log.web.auto-register-resource-path-failed: "Auto register resource failed (path={0}): {1}"
+log.web.auto-register-proxy-page-failed: "Auto proxy register page failed (path={0}): {1}"
+log.web.auto-register-proxy-resource-failed: "Auto proxy register resource failed (path={0}): {1}"
+log.web.auto-register-error-page-failed: "Auto register error page failed: {0}"
+log.web.auto-register-dir-failed: "Auto batch register directory failed: {0}"
+log.web.auto-owner-fallback: "Auto register cannot identify the calling plugin, falling back to main plugin"
 log.web.register-proxy-file: "Registered web page (disk lazy): GET {0} plugin={1}"
 log.web.register-redirect: "Registered redirect: GET {0} → {1} ({2}) plugin={3}{4}"
 log.web.register-resource: "Registered web page (resource): {0} {1} plugin={2}{3}{4}"

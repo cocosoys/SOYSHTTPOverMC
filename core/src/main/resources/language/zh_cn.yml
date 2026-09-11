@@ -1,4 +1,4 @@
-﻿# ============ SOYSHTTPOverMC 中文语言包 ============
+# ============ SOYSHTTPOverMC 中文语言包 ============
 # 统一平铺点路径键（加载时经 YamlConfiguration.getKeys(true) 平铺进内存 Map）。
 # 业务代码通过 I18n.t("键", "兜底文本", 参数...) 读取，键缺失时回退到代码内兜底文本。
 # 占位符用 {0} {1} ...（I18n.format 用 String.replace("{i}", 实参) 替换）。
@@ -22,6 +22,7 @@ ajax.registry.default-denied: "默认拒绝：端点未声明公开(@ApiPublic)�
 ajax.registry.internal-error: "服务器内部错误 (ref={0})"
 ajax.registry.invalid-param-type: "参数 {0} 类型不合法: {1}"
 ajax.registry.missing-required-param: "缺少必填参数: {0}"
+ajax.registry.missing-path-variable: "缺少路径参数: {0}"
 ajax.registry.no-permission: "无权限访问: {0}（需要 {1}）"
 ajax.registry.permission-service-error: "权限服务异常"
 command.api.detail: "/soyshttp api [插件名] —— 查看已注册的注解式 API 端点（便于开发者自查路由）。\n  无参数      列出全部端点（HTTP 方法 + 路径 + 端点名 + 所属插件 + 所需权限）。\n  <插件名>    仅列出该插件注册的端点。"
@@ -424,6 +425,16 @@ log.web.register-netpage: "登记网络页: {0} name={1} 插件={2} cacheTtl={3}
 log.web.register-netpage-duplicate-denied: "拒绝重复登记(网络页): {0}（已由插件 {1} 登记；如需覆盖请用强制登记 force=true）"
 log.web.register-netpage-force-overwrite: "插件 {0} 强制登记覆盖(网络页): {1}（原登记插件 {2}）"
 log.web.register-page: "登记网页: {0} {1} 插件={2}{3}{4}"
+log.web.auto-register-page-failed: "极简登记网页失败: {0}"
+log.web.auto-register-resource-page-failed: "极简登记资源网页失败: {0}"
+log.web.auto-register-page-path-failed: "极简登记网页失败(path={0}): {1}"
+log.web.auto-register-resource-failed: "极简登记资源失败: {0}"
+log.web.auto-register-resource-path-failed: "极简登记资源失败(path={0}): {1}"
+log.web.auto-register-proxy-page-failed: "极简代理登记网页失败(path={0}): {1}"
+log.web.auto-register-proxy-resource-failed: "极简代理登记资源失败(path={0}): {1}"
+log.web.auto-register-error-page-failed: "极简登记错误页失败: {0}"
+log.web.auto-register-dir-failed: "极简批量登记目录失败: {0}"
+log.web.auto-owner-fallback: "极简登记无法识别调用插件，回退主插件"
 log.web.register-redirect: "登记跳转: GET {0} → {1} ({2}) 插件={3}{4}"
 log.web.register-resource: "登记网页(资源): {0} {1} 插件={2}{3}{4}"
 log.web.label.parameterized: " (参数化)"

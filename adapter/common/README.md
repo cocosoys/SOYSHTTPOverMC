@@ -51,7 +51,7 @@ com.github.cocosoys.mc.soyshttpovermc.adapter
 | 模块 artifactId | `soyshttpovermc-adapter-<module>` | `soyshttpovermc-adapter-v1_6x` |
 | 版本实现类前缀 | `V<major>_<minor>` | `V1_7SocketSnifferAdapter` |
 | SPI 实现命名 | `<前缀> + <契约名>` | `V1_7AdapterActivator` |
-| 产物 jar | `SOYSHTTPOverMC-<版本段>-<revision>.jar` | `SOYSHTTPOverMC-1_6-1.2.0.jar` |
+| 产物 jar | `SOYSHTTPOverMC-<版本段>-<revision>.jar` | `SOYSHTTPOverMC-1_6-1.4.0.jar` |
 | 版本探测 | 统一用 `ServerVersion` | `ServerVersion.current()` |
 
 ## 4. 编译基线（硬约束）

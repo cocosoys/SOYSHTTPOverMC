@@ -4,6 +4,7 @@ import com.github.cocosoys.mc.soyshttpovermc.api.ApiToolkitApi;
 import com.github.cocosoys.mc.soyshttpovermc.exception.ExceptionBus;
 import com.github.cocosoys.mc.soyshttpovermc.exception.ToolkitException;
 import com.github.cocosoys.mc.soyshttpovermc.util.JsonWriter;
+import com.github.cocosoys.mc.soyshttpovermc.web.ApiRegistry;
 import com.github.cocosoys.mc.soyshttpovermc.util.LinkMessageUtil;
 import com.github.cocosoys.mc.soyshttpovermc.web.MimeTypes;
 import org.bukkit.Bukkit;
@@ -21,9 +22,11 @@ import java.util.List;
 public class ApiToolkitImpl implements ApiToolkitApi {
 
     private final Plugin plugin;
+    private final ApiRegistry apiRegistry;
 
-    public ApiToolkitImpl(Plugin hostPlugin) {
+    public ApiToolkitImpl(Plugin hostPlugin, ApiRegistry apiRegistry) {
         this.plugin = hostPlugin;
+        this.apiRegistry = apiRegistry;
     }
 
     @Override
@@ -76,5 +79,51 @@ public class ApiToolkitImpl implements ApiToolkitApi {
         };
         if (Bukkit.isPrimaryThread()) r.run();
         else plugin.getServer().getScheduler().runTask(plugin, r);
+    }
+
+    @Override
+    public String apiPrefix() {
+        if (apiRegistry == null) return "/api";
+        String p = apiRegistry.getPathPrefix();
+        return (p == null || p.trim().isEmpty()) ? "/api" : p.trim();
+    }
+
+    @Override
+    public String pluginsPrefix(String pluginName) {
+        if (pluginName == null || pluginName.isEmpty()) return "";
+        if (pluginName.equals(plugin.getName())) return "";
+        return "/plugins/" + pluginName;
+    }
+
+    @Override
+    public String fullPrefix(String pluginName) {
+        String base = apiPrefix();
+        String pp = pluginsPrefix(pluginName);
+        if (pp.isEmpty()) return base;
+        if (base.isEmpty() || base.equals("/")) return pp;
+        String b = base.endsWith("/") ? base.substring(0, base.length() - 1) : base;
+        String p = pp.startsWith("/") ? pp : "/" + pp;
+        return b + p;
+    }
+
+    @Override
+    public String pluginsPrefix(Plugin plugin) {
+        return pluginsPrefix(plugin == null ? null : plugin.getName());
+    }
+
+    @Override
+    public String fullPrefix(Plugin plugin) {
+        return fullPrefix(plugin == null ? null : plugin.getName());
+    }
+
+    @Override
+    public String webResourcePrefix(String pluginName) {
+        if (pluginName == null || pluginName.isEmpty()) return "";
+        return "web/plugins/" + pluginName + "/page/";
+    }
+
+    @Override
+    public String webResourcePrefix(Plugin plugin) {
+        return webResourcePrefix(plugin == null ? null : plugin.getName());
     }
 }

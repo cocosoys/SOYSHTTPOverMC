@@ -57,8 +57,8 @@ public class CorsRegistry {
      * 防护形同虚设同时正常登录用户也无法访问。本方法检测该组合后<b>不登记</b>并打印告警。
      * 如确需凭据，请指定具体 origin（如 {@code https://example.com}）。</p>
      */
-    public void register(String ownerPlugin, String pathPrefix, String origin, String methods,
-                         String headers, boolean credentials) {
+    public CorsEntry register(String ownerPlugin, String pathPrefix, String origin, String methods,
+                              String headers, boolean credentials) {
         String resolvedOrigin = (origin == null || origin.trim().isEmpty()) ? "*" : origin.trim();
         if (credentials && "*".equals(resolvedOrigin)) {
             log.warnT("log.cors.dangerous-combo-rejected",
@@ -67,10 +67,12 @@ public class CorsRegistry {
                             + " 本次登记已忽略。",
                     ownerPlugin == null ? "?" : ownerPlugin,
                     pathPrefix == null ? "/" : pathPrefix);
-            return;
+            return null;
         }
         String p = (pathPrefix == null || pathPrefix.isEmpty()) ? "/" : pathPrefix;
-        entries.add(new CorsEntry(ownerPlugin, p, resolvedOrigin, methods, headers, credentials));
+        CorsEntry e = new CorsEntry(ownerPlugin, p, resolvedOrigin, methods, headers, credentials);
+        entries.add(e);
+        return e;
     }
 
     /**

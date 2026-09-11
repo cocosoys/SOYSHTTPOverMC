@@ -1,6 +1,7 @@
 package com.github.cocosoys.mc.soyshttpovermc.web;
 
 import com.github.cocosoys.mc.soyshttpovermc.annotations.GetMapping;
+import com.github.cocosoys.mc.soyshttpovermc.annotations.PathVariable;
 import com.github.cocosoys.mc.soyshttpovermc.annotations.PermissionService;
 import com.github.cocosoys.mc.soyshttpovermc.api.event.ApiAccessEvent;
 import com.github.cocosoys.mc.soyshttpovermc.api.event.ApiInfo;
@@ -65,6 +66,8 @@ import java.util.function.Function;
  *   <li>方法返回 {@link AjaxResult} 原样序列化；返回其他对象自动包 {@link AjaxResult#success(Object)}；</li>
  *   <li>{@link com.github.cocosoys.mc.soyshttpovermc.annotations.ApiPermission} 由 {@link com.github.cocosoys.mc.soyshttpovermc.annotations.PermissionService} 判定，未注册服务时注解不阻断；</li>
  *   <li>参数支持 {@link com.github.cocosoys.mc.soyshttpovermc.annotations.RequestParam}（query 绑定 + 类型转换）与 {@link com.github.cocosoys.mc.soyshttpovermc.annotations.RequestBody}（String body）。</li>
+ *   <li><b>路径参数</b>：路径可含 {@code {name}} 模板段（如 {@code /system/user/{id}}），方法参数用
+ *       {@link com.github.cocosoys.mc.soyshttpovermc.annotations.PathVariable}(name = "id") 绑定并自动类型转换；匹配按段比对，多个模板同时命中时静态段多者优先（Spring specificity）。</li>
  * </ul>
  */
 @CustomLog
@@ -77,6 +80,7 @@ public class ApiRegistry {
      */
     private final Plugin hostPlugin;
     private final Map<String, EndpointMeta> routes = new ConcurrentHashMap<>();
+    private final Map<String, EndpointMeta> parameterizedRoutes = new ConcurrentHashMap<>();
     private volatile PermissionService permissionService;
     /**
      * 凭证 → 玩家名 解析器（由宿主注入 SessionTokenIssuer::subjectOf），供 ApiAccessEvent 携带玩家信息。
@@ -258,15 +262,17 @@ public class ApiRegistry {
                 if (!pluginsPrefix.isEmpty()) path = pluginsPrefix + path;
                 path = applyPrefix(path);
                 String key = method + " " + path;
+                boolean param = isParameterized(path);
+                Map<String, EndpointMeta> table = param ? parameterizedRoutes : routes;
                 EndpointMeta meta = new EndpointMeta(instance, m, apiName, permission, params, path, method, ownerName, cls.getName());
-                EndpointMeta old = routes.get(key);
+                EndpointMeta old = table.get(key);
                 if (old != null && !force) {
                     log.warnT("log.registry.duplicate-register",
                             "拒绝重复注册 API: {0}（已由插件 {1} 的 {2} 注册；如需覆盖请用强制注册 force=true）",
                             key, old.ownerPlugin, old.handlerClass);
                     continue;
                 }
-                routes.put(key, meta);
+                table.put(key, meta);
                 if (old != null) {
                     log.infoT("log.registry.force-override",
                             "插件 {0} 强制注册覆盖 API: {1}（原注册插件 {2}，原处理器 {3}）",
@@ -303,6 +309,15 @@ public class ApiRegistry {
                 it.remove();
             }
         }
+        Iterator<Map.Entry<String, EndpointMeta>> pit = parameterizedRoutes.entrySet().iterator();
+        while (pit.hasNext()) {
+            Map.Entry<String, EndpointMeta> en = pit.next();
+            EndpointMeta m = en.getValue();
+            if (m.instance == instance) {
+                removed.add(toInfo(m));
+                pit.remove();
+            }
+        }
         if (!removed.isEmpty()) {
             log.infoT("log.registry.unregister-instance", "卸载 API（实例 {0}）：共 {1} 个", instance.getClass().getName(), removed.size());
             fireApiEvent(new ApiUnregisteredEvent(removed.get(0).getOwnerPlugin(), removed));
@@ -324,6 +339,14 @@ public class ApiRegistry {
                 it.remove();
             }
         }
+        Iterator<Map.Entry<String, EndpointMeta>> pit = parameterizedRoutes.entrySet().iterator();
+        while (pit.hasNext()) {
+            EndpointMeta m = pit.next().getValue();
+            if (pluginName.equals(m.ownerPlugin)) {
+                removed.add(toInfo(m));
+                pit.remove();
+            }
+        }
         if (!removed.isEmpty()) {
             log.infoT("log.registry.unregister-plugin", "卸载 API（插件 {0}）：共 {1} 个", pluginName, removed.size());
             fireApiEvent(new ApiUnregisteredEvent(pluginName, removed));
@@ -341,6 +364,15 @@ public class ApiRegistry {
         pendingHeaders.get().clear(); // 每次请求清空待附加响应头（防跨请求残留）
         EndpointMeta meta = routes.get(method + " " + path);
         if (meta == null) meta = routes.get(ANY_METHOD + " " + path); // @RequestMapping 不限定方法
+        Map<String, String> pathVariables = null;
+        if (meta == null) {
+            ResolvedMatch pm = matchParameterized(method, path);
+            if (pm == null) pm = matchParameterized(ANY_METHOD, path);
+            if (pm != null) {
+                meta = pm.meta;
+                pathVariables = pm.vars;
+            }
+        }
         if (meta == null) return null;
 
         // 默认拒绝：auth 框架已启用（PermissionService 注册）时，既无 @ApiPermission 又无 @ApiPublic 的端点
@@ -399,12 +431,21 @@ public class ApiRegistry {
                 args[i] = body == null ? "" : new String(body, java.nio.charset.StandardCharsets.UTF_8);
                 continue;
             }
-            String value = query.get(pb.name);
-            if (value == null) {
-                if (pb.required) {
-                    return AjaxResult.errorT(400, "ajax.registry.missing-required-param", "缺少必填参数: {0}", pb.name);
+            String value;
+            if (pb.pathVariable) {
+                value = pathVariables == null ? null : pathVariables.get(pb.name);
+                if (value == null && pb.required) {
+                    return AjaxResult.errorT(400, "ajax.registry.missing-path-variable", "缺少路径参数: {0}", pb.name);
                 }
-                value = pb.defaultValue;
+                if (value == null) value = pb.defaultValue;
+            } else {
+                value = query.get(pb.name);
+                if (value == null) {
+                    if (pb.required) {
+                        return AjaxResult.errorT(400, "ajax.registry.missing-required-param", "缺少必填参数: {0}", pb.name);
+                    }
+                    value = pb.defaultValue;
+                }
             }
             try {
                 args[i] = convert(pb.type, value);
@@ -457,7 +498,11 @@ public class ApiRegistry {
     }
 
     public Map<String, EndpointMeta> getRoutes() {
-        return routes;
+        if (parameterizedRoutes.isEmpty()) return routes;
+        Map<String, EndpointMeta> all = new HashMap<>(routes.size() + parameterizedRoutes.size());
+        all.putAll(routes);
+        all.putAll(parameterizedRoutes);
+        return all;
     }
 
     /**
@@ -466,6 +511,9 @@ public class ApiRegistry {
     public List<ApiInfo> listEndpoints() {
         List<ApiInfo> list = new ArrayList<>();
         for (EndpointMeta m : routes.values()) {
+            list.add(toInfo(m));
+        }
+        for (EndpointMeta m : parameterizedRoutes.values()) {
             list.add(toInfo(m));
         }
         return list;
@@ -582,9 +630,13 @@ public class ApiRegistry {
          * true=参数由网关注入当前请求上下文（参数类型为 ApiRequestContext：IP/玩家/凭证等）
          */
         final boolean injectContext;
+        /**
+         * true=参数从路径模板 {name} 段提取（@PathVariable 绑定）
+         */
+        final boolean pathVariable;
 
         ParamBinding(String name, boolean required, String defaultValue, Class<?> type,
-                     boolean requestBody, boolean injectCredential, boolean injectContext) {
+                     boolean requestBody, boolean injectCredential, boolean injectContext, boolean pathVariable) {
             this.name = name;
             this.required = required;
             this.defaultValue = defaultValue;
@@ -592,6 +644,7 @@ public class ApiRegistry {
             this.requestBody = requestBody;
             this.injectCredential = injectCredential;
             this.injectContext = injectContext;
+            this.pathVariable = pathVariable;
         }
     }
 
@@ -603,25 +656,30 @@ public class ApiRegistry {
             // 请求上下文注入：参数类型为 ApiRequestContext 时自动注入
             // （含客户端 IP / 玩家名 / 玩家实体 / 凭证 / 请求头等，供开发者获取"当前请求者"）
             if (types[i] == ApiRequestContext.class) {
-                list.add(new ParamBinding(null, false, null, types[i], false, false, true));
+                list.add(new ParamBinding(null, false, null, types[i], false, false, true, false));
                 continue;
             }
             // 凭证注入：参数类型为 CredentialPresentation 时，网关自动注入当前请求解析出的凭证
             // （供 /api/auth/me、/api/auth/logout 等需要"当前登录者"的端点使用，无需手动解析请求头）
             if (types[i] == CredentialPresentation.class) {
-                list.add(new ParamBinding(null, false, null, types[i], false, true, false));
+                list.add(new ParamBinding(null, false, null, types[i], false, true, false, false));
                 continue;
             }
             com.github.cocosoys.mc.soyshttpovermc.annotations.RequestBody rb = find(anns[i], com.github.cocosoys.mc.soyshttpovermc.annotations.RequestBody.class);
             if (rb != null) {
-                list.add(new ParamBinding(null, false, null, types[i], true, false, false));
+                list.add(new ParamBinding(null, false, null, types[i], true, false, false, false));
+                continue;
+            }
+            com.github.cocosoys.mc.soyshttpovermc.annotations.PathVariable pv = find(anns[i], com.github.cocosoys.mc.soyshttpovermc.annotations.PathVariable.class);
+            if (pv != null) {
+                list.add(new ParamBinding(pv.name(), pv.required(), null, types[i], false, false, false, true));
                 continue;
             }
             com.github.cocosoys.mc.soyshttpovermc.annotations.RequestParam rp = find(anns[i], com.github.cocosoys.mc.soyshttpovermc.annotations.RequestParam.class);
             if (rp != null) {
-                list.add(new ParamBinding(rp.name(), rp.required(), rp.defaultValue(), types[i], false, false, false));
+                list.add(new ParamBinding(rp.name(), rp.required(), rp.defaultValue(), types[i], false, false, false, false));
             } else {
-                list.add(new ParamBinding("arg" + i, false, "", types[i], false, false, false));
+                list.add(new ParamBinding("arg" + i, false, "", types[i], false, false, false, false));
             }
         }
         return list;
@@ -682,6 +740,85 @@ public class ApiRegistry {
     private static String normalizePath(String p) {
         if (p == null || p.isEmpty()) return "/";
         return p.startsWith("/") ? p : "/" + p;
+    }
+
+    private static boolean isParameterized(String path) {
+        return path != null && path.contains("{") && path.contains("}");
+    }
+
+    /**
+     * 在参数化路由表中按段匹配（{@code {name}} 段匹配任意非空段并提取 path variable）；
+     * 多个模板同时命中时取「静态段更多」者优先（Spring specificity 规则）。
+     *
+     * @return 命中结果（端点 + 路径变量）；未命中返回 null
+     */
+    private ResolvedMatch matchParameterized(String method, String path) {
+        if (parameterizedRoutes.isEmpty() || path == null) return null;
+        String[] reqSegs = splitSegments(path);
+        ResolvedMatch best = null;
+        for (Map.Entry<String, EndpointMeta> en : parameterizedRoutes.entrySet()) {
+            String key = en.getKey();
+            int sp = key.indexOf(' ');
+            if (sp < 0 || !method.equals(key.substring(0, sp))) continue;
+            Map<String, String> vars = matchSegments(key.substring(sp + 1), reqSegs);
+            if (vars == null) continue;
+            int staticSegs = countStaticSegments(key.substring(sp + 1));
+            if (best == null || staticSegs > best.staticSegs) {
+                best = new ResolvedMatch(en.getValue(), vars, staticSegs);
+            }
+        }
+        return best;
+    }
+
+    private static String[] splitSegments(String path) {
+        String p = path == null ? "" : path;
+        while (p.startsWith("/")) p = p.substring(1);
+        while (p.endsWith("/")) p = p.substring(0, p.length() - 1);
+        if (p.isEmpty()) return new String[0];
+        return p.split("/");
+    }
+
+    /**
+     * 按段比对模板与请求路径：模板段 {name} 提取为 path variable（匹配任意非空段），普通段严格相等。
+     *
+     * @return 提取的路径变量（无变量时为空 Map）；不匹配返回 null
+     */
+    private static Map<String, String> matchSegments(String tmpl, String[] reqSegs) {
+        String[] tSegs = splitSegments(tmpl);
+        if (tSegs.length != reqSegs.length) return null;
+        Map<String, String> vars = null;
+        for (int i = 0; i < tSegs.length; i++) {
+            String ts = tSegs[i];
+            if (ts.startsWith("{") && ts.endsWith("}") && ts.length() > 2) {
+                String name = ts.substring(1, ts.length() - 1);
+                if (reqSegs[i] == null || reqSegs[i].isEmpty()) return null;
+                if (vars == null) vars = new HashMap<>();
+                vars.put(name, decode(reqSegs[i]));
+            } else if (!ts.equals(reqSegs[i])) {
+                return null;
+            }
+        }
+        return vars == null ? new HashMap<String, String>() : vars;
+    }
+
+    private static int countStaticSegments(String tmpl) {
+        int n = 0;
+        for (String s : splitSegments(tmpl)) {
+            if (!(s.startsWith("{") && s.endsWith("}") && s.length() > 2)) n++;
+        }
+        return n;
+    }
+
+    private static final class ResolvedMatch {
+        final EndpointMeta meta;
+        final Map<String, String> vars;
+        final int staticSegs;
+
+        ResolvedMatch(EndpointMeta meta, Map<String, String> vars, int staticSegs) {
+            this.meta = meta;
+            this.vars = vars;
+            this.staticSegs = staticSegs;
+        }
     }
 
     private static String classApiName(Class<?> cls) {
