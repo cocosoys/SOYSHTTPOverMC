@@ -33,6 +33,7 @@ import com.github.cocosoys.mc.soyshttpovermc.storage.StorageManager;
 import com.github.cocosoys.mc.soyshttpovermc.storage.SyncStorage;
 import com.github.cocosoys.mc.soyshttpovermc.storage.impl.YamlStorage;
 import com.github.cocosoys.mc.soyshttpovermc.web.*;
+import com.github.cocosoys.mc.soyshttpovermc.web.contract.ContractInjector;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.GatewayConfig;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.GatewayFilter;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.AuthPolicy;
@@ -73,6 +74,11 @@ import java.util.function.Supplier;
 public class HttpOverMcPluginProxy {
 
     private final HttpOverMcPlugin plugin;
+    /**
+     * 前端托管自动适配器（契约注入 + HTML 资源引用改写）；initApiFramework 时创建，
+     * 供 WebRegistry（exclude 声明登记）与 WebFrontendHandler（响应时处理）共享同一实例。
+     */
+    private ContractInjector contractInjector;
 
     public HttpOverMcPluginProxy(HttpOverMcPlugin plugin) {
         this.plugin = plugin;
@@ -571,7 +577,8 @@ public class HttpOverMcPluginProxy {
             plugin.getApiRegistry().setTokenUpgrader(plugin.getAuthLoginBridge()::upgradeHeadersIfOnline);
         }
 
-        plugin.setWebRegistry(new WebRegistry(plugin.getName()));
+        this.contractInjector = new ContractInjector(plugin, plugin.getApiRegistry());
+        plugin.setWebRegistry(new WebRegistry(plugin.getName(), contractInjector));
 
         plugin.setGatewayEventListener(new GatewayEventListener());
         plugin.getGatewayEventListener().setDebugEnabled(plugin.isDebugEventsEnabled());
@@ -664,7 +671,8 @@ public class HttpOverMcPluginProxy {
                 plugin.getWebContentCache(), plugin.getLargeFileMaxBytes(),
                 plugin.getCorsRegistry(), plugin.getWebInterceptorRegistry(),
                 () -> plugin.getPagePermissionChecker(),
-                () -> plugin.getCombinedPermissionService());
+                () -> plugin.getCombinedPermissionService(),
+                contractInjector);
         plugin.setWebFrontend(web);
 
         return stats;

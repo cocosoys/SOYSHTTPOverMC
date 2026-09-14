@@ -1,8 +1,11 @@
 package com.github.cocosoys.mc.soyshttpovermc.permission.local;
 
-import com.github.cocosoys.mc.soyshttpovermc.orm.SQL;
-import com.github.cocosoys.mc.soyshttpovermc.orm.YAML;
+import com.github.cocosoys.mc.soyshttpovermc.orm.DATA;
 import com.github.cocosoys.mc.soyshttpovermc.orm.query.Query;
+import com.github.cocosoys.mc.soyshttpovermc.spring.entity.SoysPermGroup;
+import com.github.cocosoys.mc.soyshttpovermc.spring.entity.SoysPermPermission;
+import com.github.cocosoys.mc.soyshttpovermc.spring.entity.SoysPermUser;
+import com.github.cocosoys.mc.soyshttpovermc.spring.entity.SoysPermUserGroup;
 import com.github.cocosoys.mc.soyshttpovermc.util.UuidUtil;
 import lombok.CustomLog;
 
@@ -16,7 +19,7 @@ import java.util.function.Consumer;
  *
  * <p>承载 4 张全关联 ORM 实体（{@link SoysPermGroup} / {@link SoysPermUser} /
  * {@link SoysPermUserGroup} / {@link SoysPermPermission}）的全部 CRUD 与本地判定。
- * 读写复用现有 ORM 门面（SQL.Pojo 优先、YAML.Pojo 兜底，双后端写镜像，见 {@code storage.backends.*}）。</p>
+ * 读写复用统一 ORM 门面 {@link DATA}（SQL 可用走 SQL，否则 YAML，见 {@code storage.backends.*}）。</p>
  *
  * <p>用户侧身份键一律为 UUID 主键（离线服为确定性离线 UUID，见
  * {@link com.github.cocosoys.mc.soyshttpovermc.util.UuidUtil}）：玩家名仅是属性。
@@ -99,25 +102,13 @@ public class LocalPermissionStore {
     // ==================== 双后端 IO ====================
 
     private <T> T getOrNull(Class<T> c, Object id) {
-        if (SQL.Pojo.isAvailable()) {
-            T r = SQL.Pojo.get(c, id);
-            if (r != null) return r;
-        }
-        if (YAML.Pojo.isAvailable()) {
-            return YAML.Pojo.get(c, id);
-        }
-        return null;
+        return DATA.get(c, id);
     }
 
     private boolean save(Object bean) {
         boolean ok = false;
         try {
-            if (SQL.Pojo.isAvailable()) {
-                if (SQL.Pojo.insert(bean)) ok = true;
-            }
-            if (YAML.Pojo.isAvailable()) {
-                if (YAML.Pojo.insert(bean)) ok = true;
-            }
+            ok = DATA.insert(bean);
         } catch (Throwable t) {
             log.warnT("log.permission.local-write-failed", "[permission/local] 写入本地权限表失败: {0}", t);
         }
@@ -127,12 +118,7 @@ public class LocalPermissionStore {
     private boolean delete(Class<?> c, Object id) {
         boolean ok = false;
         try {
-            if (SQL.Pojo.isAvailable()) {
-                if (SQL.Pojo.deleteById(c, id)) ok = true;
-            }
-            if (YAML.Pojo.isAvailable()) {
-                if (YAML.Pojo.deleteById(c, id)) ok = true;
-            }
+            ok = DATA.deleteById(c, id);
         } catch (Throwable t) {
             log.warnT("log.permission.local-delete-failed", "[permission/local] 删除本地权限表记录失败: {0}", t);
         }
@@ -140,15 +126,8 @@ public class LocalPermissionStore {
     }
 
     private <T> List<T> list(Class<T> c, Consumer<Query<T>> cond) {
-        if (SQL.Pojo.isAvailable()) {
-            List<T> r = SQL.Pojo.select(c, cond);
-            if (r != null && !r.isEmpty()) return r;
-        }
-        if (YAML.Pojo.isAvailable()) {
-            List<T> r = YAML.Pojo.select(c, cond);
-            if (r != null) return r;
-        }
-        return Collections.emptyList();
+        List<T> r = DATA.select(c, cond);
+        return r != null ? r : Collections.emptyList();
     }
 
     // ==================== 组 ====================

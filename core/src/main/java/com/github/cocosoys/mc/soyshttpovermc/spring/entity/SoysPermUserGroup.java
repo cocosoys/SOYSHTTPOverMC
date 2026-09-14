@@ -1,4 +1,4 @@
-package com.github.cocosoys.mc.soyshttpovermc.permission.local;
+package com.github.cocosoys.mc.soyshttpovermc.spring.entity;
 
 import com.dlz.db.annotation.IdType;
 import com.dlz.db.annotation.TableId;

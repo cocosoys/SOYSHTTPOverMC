@@ -2,6 +2,7 @@ package com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.bridge;
 
 import com.dlz.db.annotation.TableId;
 import com.dlz.db.annotation.TableName;
+import com.github.cocosoys.mc.soyshttpovermc.orm.DATA;
 import lombok.Data;
 
 /**
@@ -14,7 +15,7 @@ import lombok.Data;
  *   <li><b>服务端可撤销</b>：退出登录时按玩家枚举实体 → jti 进黑名单 + 删除实体；</li>
  *   <li><b>防越权</b>：验证时要求实体存在且未过期，仅凭篡改/伪造 JWT 无法通过。</li>
  * </ul>
- * 存储复用现有 ORM 门面（SQL.Pojo / YAML.Pojo，见 {@code storage.backends.*} 配置）。
+ * 存储复用统一 ORM 门面 {@link DATA}（SQL 可用走 SQL、否则 YAML，见 {@code storage.backends.*} 配置）。
  */
 @TableName("soys_remember")
 @Data

@@ -7,6 +7,7 @@ import com.github.cocosoys.mc.soyshttpovermc.permission.CombinedPermissionServic
 import com.github.cocosoys.mc.soyshttpovermc.util.HttpFrames;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.issuer.CredentialPresentation;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.util.AuthUtils;
+import com.github.cocosoys.mc.soyshttpovermc.web.contract.ContractInjector;
 import com.github.cocosoys.mc.soyshttpovermc.web.proto.FrameProto;
 import com.google.protobuf.ByteString;
 import lombok.CustomLog;
@@ -70,6 +71,10 @@ public class WebFrontendHandler {
      */
     private final Supplier<CombinedPermissionService> permissionService;
     /**
+     * 契约文件注入器（约定文件名 __SOYS_CONTEXT__.js，响应时替换环境原语；null=禁用）。
+     */
+    private final ContractInjector contractInjector;
+    /**
      * 网络页内容缓存：path -> (bytes, contentType, cachedAt)（按 NetworkPage.cacheTtlSeconds 失效）
      */
     private final java.util.concurrent.ConcurrentHashMap<String, NetworkCacheEntry> networkCache =
@@ -79,7 +84,8 @@ public class WebFrontendHandler {
                               WebContentCache webContent, long largeFileMaxBytes,
                               CorsRegistry corsRegistry, WebInterceptorRegistry interceptorRegistry,
                               Supplier<PagePermissionChecker> pagePermissionChecker,
-                              Supplier<CombinedPermissionService> permissionService) {
+                              Supplier<CombinedPermissionService> permissionService,
+                              ContractInjector contractInjector) {
         this.apiRegistry = apiRegistry;
         this.webRegistry = webRegistry;
         this.webContent = webContent;
@@ -88,6 +94,7 @@ public class WebFrontendHandler {
         this.interceptorRegistry = interceptorRegistry;
         this.pagePermissionChecker = pagePermissionChecker;
         this.permissionService = permissionService;
+        this.contractInjector = contractInjector;
         File root = null;
         String canonical = null;
         if (webRootPath != null && !webRootPath.trim().isEmpty()) {
@@ -225,11 +232,17 @@ public class WebFrontendHandler {
                 if (page.redirectTo != null) {
                     return HttpFrames.redirect(page.redirectCode > 0 ? page.redirectCode : 302, page.redirectTo);
                 }
+                byte[] pageBody = loadBytes(page.path, page.getDiskFile(), page::resolveBytes);
+                if (contractInjector != null) {
+                    pageBody = contractInjector.maybeInject(page.path, page.ownerPlugin, pageBody);
+                    if (pageBody != null && isHtmlContentType(page.effectiveContentType())) {
+                        pageBody = contractInjector.maybeRewriteHtml(page.path, page.ownerPlugin, pageBody);
+                    }
+                }
                 return FrameProto.HttpResponseFrame.newBuilder()
                         .setStatusCode(200)
                         .putHeaders("Content-Type", page.effectiveContentType())
-                        .setBody(ByteString.copyFrom(
-                                loadBytes(page.path, page.getDiskFile(), page::resolveBytes)))
+                        .setBody(ByteString.copyFrom(pageBody))
                         .setFragmentIndex(0)
                         .setTotalFragments(1)
                         .build();
@@ -260,11 +273,19 @@ public class WebFrontendHandler {
             FrameProto.HttpResponseFrame guard = checkPageGuard(headers, cleanPath, null);
             if (guard != null) return guard;
         }
+        byte[] hitBody = hit.bytes;
+        if (contractInjector != null) {
+            hitBody = contractInjector.maybeInject(hit.name, null, hitBody);
+            String hitContentType = hit.contentType != null ? hit.contentType : MimeTypes.forPath(hit.name);
+            if (hitBody != null && isHtmlContentType(hitContentType)) {
+                hitBody = contractInjector.maybeRewriteHtml(hit.name, null, hitBody);
+            }
+        }
         return FrameProto.HttpResponseFrame.newBuilder()
                 .setStatusCode(200)
                 .putHeaders("Content-Type", hit.contentType != null
                         ? hit.contentType : MimeTypes.forPath(hit.name))
-                .setBody(ByteString.copyFrom(hit.bytes))
+                .setBody(ByteString.copyFrom(hitBody))
                 .setFragmentIndex(0)
                 .setTotalFragments(1)
                 .build();
@@ -362,6 +383,10 @@ public class WebFrontendHandler {
     /**
      * 网络页缓存条目。
      */
+    private static boolean isHtmlContentType(String contentType) {
+        return contentType != null && contentType.toLowerCase(java.util.Locale.ROOT).contains("text/html");
+    }
+
     private static final class NetworkCacheEntry {
         final byte[] bytes;
         final String contentType;

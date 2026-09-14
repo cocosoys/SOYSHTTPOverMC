@@ -1,6 +1,6 @@
 package com.github.cocosoys.mc.soyshttpovermc.spring.service;
 
-import com.github.cocosoys.mc.soyshttpovermc.spring.entity.SystemInfoEntity;
+import com.github.cocosoys.mc.soyshttpovermc.spring.entity.vo.SystemInfoEntity;
 
 import java.util.Map;
 

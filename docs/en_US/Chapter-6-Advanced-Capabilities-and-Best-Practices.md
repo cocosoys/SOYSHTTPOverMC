@@ -12,7 +12,7 @@
 | `callLocalApi(method, path, headers, body)` | in-process loopback: call the plugin's own registered APIs directly (bypasses the network; equivalent to local dispatch) |
 | `sendApi(method, logicalPath, headers, body)` | generic send: prefixes via `resolveUrl`, then **local dispatch** (annotation-level `@ApiPublic/@ApiPermission` still apply); returns null on no route |
 | `resolveUrl(logicalPath)` | resolve the full locally accessible HTTP path (auto-adds three prefixes, below) |
-| `getServerPrefix()` / `getApiPrefix()` | proxy-server prefix (e.g. `/server/lobby`) / API prefix (`/api`) |
+| `serverPrefix()` / `apiPrefix()` | proxy-server prefix (e.g. `/server/lobby`) / API prefix (`/api`) |
 | `isAuthEnabled()` | whether gateway auth is enabled |
 
 ### 6.1.1 resolveUrl's Three Prefixes

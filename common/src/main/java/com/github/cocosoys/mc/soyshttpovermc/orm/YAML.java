@@ -3,8 +3,8 @@ package com.github.cocosoys.mc.soyshttpovermc.orm;
 /**
  * YAML 存储门面（仿 dlz-db-core 的 {@code DB} 门面，存储为本地 YAML 文件）。
  * <pre>
- *   List&lt;User&gt; users = YAML.Pojo.select(User.class);
- *   User u = YAML.Pojo.get(User.class, "id-1");
+ *   List&lt;User&gt; users = Store.select(User.class);
+ *   User u = Store.get(User.class, "id-1");
  *   YamlConfiguration raw = YAML.Pojo.get(User.class);
  * </pre>
  * 由宿主插件 onEnable 调用 {@code YAML.Pojo.init(getDataFolder())} 装配；

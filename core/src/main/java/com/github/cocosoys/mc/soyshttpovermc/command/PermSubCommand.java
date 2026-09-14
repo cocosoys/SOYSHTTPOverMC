@@ -4,10 +4,10 @@ import com.github.cocosoys.mc.soyshttpovermc.HttpOverMcPlugin;
 import com.github.cocosoys.mc.soyshttpovermc.i18n.I18n;
 import com.github.cocosoys.mc.soyshttpovermc.permission.CombinedPermissionService;
 import com.github.cocosoys.mc.soyshttpovermc.permission.local.LocalPermissionStore;
-import com.github.cocosoys.mc.soyshttpovermc.permission.local.SoysPermGroup;
-import com.github.cocosoys.mc.soyshttpovermc.permission.local.SoysPermPermission;
-import com.github.cocosoys.mc.soyshttpovermc.permission.local.SoysPermUser;
-import com.github.cocosoys.mc.soyshttpovermc.permission.local.SoysPermUserGroup;
+import com.github.cocosoys.mc.soyshttpovermc.spring.entity.SoysPermGroup;
+import com.github.cocosoys.mc.soyshttpovermc.spring.entity.SoysPermPermission;
+import com.github.cocosoys.mc.soyshttpovermc.spring.entity.SoysPermUser;
+import com.github.cocosoys.mc.soyshttpovermc.spring.entity.SoysPermUserGroup;
 import org.bukkit.command.CommandSender;
 
 import java.util.ArrayList;

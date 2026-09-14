@@ -8,7 +8,7 @@ import java.util.List;
 
 /**
  * 后端执行器接口（双后端通解：YAML 内存过滤 / SQL 参数化翻译）。
- * 门面 {@code YAML.Pojo / SQL.Pojo} 通过本接口委托执行。
+ * 门面 {@code Store}（内部路由 SQL.Pojo / YAML.Pojo）通过本接口委托执行。
  */
 public interface IBackendExecutor {
 

@@ -20,7 +20,7 @@ SoysHttpOverMcApi api = HttpOverMcPlugin.getInstance().getApi();
 | 5 HTTP 客户端 | `getHttpClient()` | 对外请求、本地回环、环境自适配 |
 | 6 扩展接入 | `getExtension()` | 登录提供者、子指令、拦截器、自定义策略 |
 
-其它门面能力：`registerReloadHook(Runnable)`、`getServerPrefix()`、`getApiPrefix()`、`getConfigSection(...)` 等。
+其它门面能力：`registerReloadHook(Runnable)`、`serverPrefix()`、`apiPrefix()`、`getConfigSection(...)` 等。
 
 ## A.2 能力组 1：ApiRegistrationApi
 
@@ -82,6 +82,15 @@ SoysHttpOverMcApi api = HttpOverMcPlugin.getInstance().getApi();
 | `void registerMimeType(String ext, String contentType)` | 注册/覆盖扩展名 Content-Type（全局，线程安全；自定义扩展名如 vue/ts/json5 需先注册浏览器才按正确类型渲染） |
 | `void sendLink(Player, String url, String display)` | 发送可点击链接消息（display 支持 `%url%` / `%url_标签%`，`&` 代替 `§` 颜色码） |
 | `void sendLink(Collection<? extends Player>, String url, String display)` | 批量发送 |
+| `String apiPrefix()` | 全局 API 前缀（网关 api-prefix，默认 `/api`） |
+| `String pluginsPrefix(String pluginName)` | 插件命名空间前缀（如 `/plugins/MCER`）；主插件自身 → 空串 |
+| `String pluginsPrefix(Plugin plugin)` | 同上，传插件主类实例 |
+| `String fullPrefix(String pluginName)` | `apiPrefix() + pluginsPrefix()` 完整路径前缀 |
+| `String fullPrefix(Plugin plugin)` | 同上，传插件主类实例 |
+| `String webResourcePrefix(String pluginName)` | Web 极简登记的 jar 资源路径前缀（`web/plugins/<插件名>/page/`） |
+| `String webResourcePrefix(Plugin plugin)` | 同上，传插件主类实例 |
+| `String serverPrefix()` | 群组服跨服前缀（如 `/server/lobby`）；独立服返回空串 |
+| `String fullPathPrefix(String pluginName)` | 完整三段 = `serverPrefix() + fullPrefix()`（如 `/server/lobby/api/plugins/Foo`） |
 
 ## A.6 能力组 5：HttpClientApi
 
@@ -93,7 +102,6 @@ SoysHttpOverMcApi api = HttpOverMcPlugin.getInstance().getApi();
 | `Object callLocalApi(String method, String path, Map headers, byte[] body)` | 本地回环（绕过网络，等价本地分发） |
 | `Object sendApi(String method, String logicalPath, Map headers, byte[] body)` | resolveUrl 补全前缀后本地分发；注解层权限判定照常生效；未命中返回 null |
 | `String resolveUrl(String logicalPath)` | 补全 /api + /server/<本服名>（群组服）+ /plugins/<插件名>（第三方） |
-| `String getServerPrefix()` | 群组服跨服前缀；独立服返回空串 |
 | `String getApiPrefix()` | 注解式 API 全局前缀 |
 | `boolean isAuthEnabled()` | 网关 auth 是否开启 |
 

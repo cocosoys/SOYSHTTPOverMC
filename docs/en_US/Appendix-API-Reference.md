@@ -20,7 +20,7 @@ SoysHttpOverMcApi api = HttpOverMcPlugin.getInstance().getApi();
 | 5 HTTP client | `getHttpClient()` | outbound requests, local loopback, environment adaptation |
 | 6 Extensions | `getExtension()` | login providers, subcommands, interceptors, custom policies |
 
-Other facade capabilities: `registerReloadHook(Runnable)`, `getServerPrefix()`, `getApiPrefix()`, `getConfigSection(...)` etc.
+Other facade capabilities: `registerReloadHook(Runnable)`, `serverPrefix()`, `apiPrefix()`, `getConfigSection(...)` etc.
 
 ## A.2 Group 1: ApiRegistrationApi
 
@@ -82,6 +82,15 @@ Also: `registerPage(..., List<String> permissions)` / `registerProxyPage(..., pe
 | `void registerMimeType(String ext, String contentType)` | register/override an extension's Content-Type (global, thread-safe; custom extensions like vue/ts/json5 must be registered first for browsers to render correctly) |
 | `void sendLink(Player, String url, String display)` | send a clickable link message (display supports `%url%` / `%url_label%`; `&` stands for the `§` color code) |
 | `void sendLink(Collection<? extends Player>, String url, String display)` | bulk send |
+| `String apiPrefix()` | global API prefix (gateway api-prefix, default `/api`) |
+| `String pluginsPrefix(String pluginName)` | plugin namespace prefix (e.g. `/plugins/MCER`); empty for the main plugin |
+| `String pluginsPrefix(Plugin plugin)` | same, with the plugin main class instance |
+| `String fullPrefix(String pluginName)` | `apiPrefix() + pluginsPrefix()` full path prefix |
+| `String fullPrefix(Plugin plugin)` | same, with the plugin main class instance |
+| `String webResourcePrefix(String pluginName)` | Web minimalist jar resource path prefix (`web/plugins/<plugin>/page/`) |
+| `String webResourcePrefix(Plugin plugin)` | same, with the plugin main class instance |
+| `String serverPrefix()` | proxy-server prefix (e.g. `/server/lobby`); empty on standalone |
+| `String fullPathPrefix(String pluginName)` | full 3-segment = `serverPrefix() + fullPrefix()` (e.g. `/server/lobby/api/plugins/Foo`) |
 
 ## A.6 Group 5: HttpClientApi
 
@@ -93,7 +102,6 @@ Also: `registerPage(..., List<String> permissions)` / `registerProxyPage(..., pe
 | `Object callLocalApi(String method, String path, Map headers, byte[] body)` | local loopback (bypasses the network, equivalent to local dispatch) |
 | `Object sendApi(String method, String logicalPath, Map headers, byte[] body)` | resolveUrl-prefixed local dispatch; annotation-level permissions still apply; null on no route |
 | `String resolveUrl(String logicalPath)` | adds /api + /server/<thisServer> (proxy) + /plugins/<plugin> (third-party) |
-| `String getServerPrefix()` | proxy-server prefix; empty on standalone |
 | `String getApiPrefix()` | the annotation API global prefix |
 | `boolean isAuthEnabled()` | whether gateway auth is enabled |
 

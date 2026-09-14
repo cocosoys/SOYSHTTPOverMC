@@ -1,5 +1,6 @@
-package com.github.cocosoys.mc.soyshttpovermc.spring.entity;
+package com.github.cocosoys.mc.soyshttpovermc.spring.entity.vo;
 
+import com.github.cocosoys.mc.soyshttpovermc.spring.entity.BaseEntity;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 

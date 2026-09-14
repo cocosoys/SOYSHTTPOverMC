@@ -10,7 +10,7 @@ import java.util.List;
 import java.util.function.Consumer;
 
 /**
- * SQL 存储的 Pojo 门面（与 {@link YAML.Pojo} 同一 API 表面，后端为 dlz-db-core + HikariCP）：
+ * SQL 存储的 Pojo 门面（与 {@link YAML.Pojo} 同一 API 表面，后端为 dlz-db-core + HikariCP）。
  * <pre>
  *   List&lt;User&gt; users = SQL.Pojo.select(User.class);
  *   List&lt;User&gt; admins = SQL.Pojo.select(User.class, q -&gt; q.eq(User::getRole, "admin"));

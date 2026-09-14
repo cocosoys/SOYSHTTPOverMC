@@ -1,8 +1,7 @@
 package com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.bridge;
 
 import com.github.cocosoys.mc.soyshttpovermc.enums.LoginMode;
-import com.github.cocosoys.mc.soyshttpovermc.orm.SQL;
-import com.github.cocosoys.mc.soyshttpovermc.orm.YAML;
+import com.github.cocosoys.mc.soyshttpovermc.orm.DATA;
 import com.github.cocosoys.mc.soyshttpovermc.util.AjaxResult;
 import com.github.cocosoys.mc.soyshttpovermc.util.ApiResponse;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.bridge.spi.LoginProvider;
@@ -326,16 +325,7 @@ public class AuthLoginBridge {
     private void persistRemember(RememberCredential rec) {
         if (rec == null) return;
         try {
-            if (SQL.Pojo.isAvailable()) {
-                SQL.Pojo.insert(rec);
-                return;
-            }
-        } catch (Throwable ignored) {
-        }
-        try {
-            if (YAML.Pojo.isAvailable()) {
-                YAML.Pojo.insert(rec);
-            }
+            DATA.insert(rec);
         } catch (Throwable ignored) {
         }
     }
@@ -343,55 +333,26 @@ public class AuthLoginBridge {
     private RememberCredential loadRemember(String jti) {
         if (jti == null) return null;
         try {
-            if (SQL.Pojo.isAvailable()) {
-                RememberCredential r = SQL.Pojo.get(RememberCredential.class, jti);
-                if (r != null) return r;
-            }
-        } catch (Throwable ignored) {
-        }
-        try {
-            if (YAML.Pojo.isAvailable()) {
-                return YAML.Pojo.get(RememberCredential.class, jti);
-            }
+            return DATA.get(RememberCredential.class, jti);
         } catch (Throwable ignored) {
         }
         return null;
     }
 
     private List<RememberCredential> listRemember(String player) {
-        List<RememberCredential> out = new ArrayList<>();
         try {
-            if (SQL.Pojo.isAvailable()) {
-                List<RememberCredential> r = SQL.Pojo.select(RememberCredential.class,
-                        q -> q.eq(RememberCredential::getPlayer, player));
-                if (r != null && !r.isEmpty()) return r;
-            }
+            List<RememberCredential> r = DATA.select(RememberCredential.class,
+                    q -> q.eq(RememberCredential::getPlayer, player));
+            return r != null ? r : new ArrayList<>();
         } catch (Throwable ignored) {
         }
-        try {
-            if (YAML.Pojo.isAvailable()) {
-                List<RememberCredential> r = YAML.Pojo.select(RememberCredential.class,
-                        q -> q.eq(RememberCredential::getPlayer, player));
-                if (r != null) out.addAll(r);
-            }
-        } catch (Throwable ignored) {
-        }
-        return out;
+        return new ArrayList<>();
     }
 
     private void deleteRemember(String jti) {
         if (jti == null) return;
         try {
-            if (SQL.Pojo.isAvailable()) {
-                SQL.Pojo.deleteById(RememberCredential.class, jti);
-                return;
-            }
-        } catch (Throwable ignored) {
-        }
-        try {
-            if (YAML.Pojo.isAvailable()) {
-                YAML.Pojo.deleteById(RememberCredential.class, jti);
-            }
+            DATA.deleteById(RememberCredential.class, jti);
         } catch (Throwable ignored) {
         }
     }

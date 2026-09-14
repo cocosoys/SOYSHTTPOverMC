@@ -1,6 +1,8 @@
 package com.github.cocosoys.mc.soyshttpovermc.api.impl;
 
+import com.github.cocosoys.mc.soyshttpovermc.HttpOverMcPlugin;
 import com.github.cocosoys.mc.soyshttpovermc.api.ApiToolkitApi;
+import com.github.cocosoys.mc.soyshttpovermc.enums.ProxyPlatform;
 import com.github.cocosoys.mc.soyshttpovermc.exception.ExceptionBus;
 import com.github.cocosoys.mc.soyshttpovermc.exception.ToolkitException;
 import com.github.cocosoys.mc.soyshttpovermc.util.JsonWriter;
@@ -21,12 +23,16 @@ import java.util.List;
  */
 public class ApiToolkitImpl implements ApiToolkitApi {
 
-    private final Plugin plugin;
+    private final HttpOverMcPlugin plugin;
     private final ApiRegistry apiRegistry;
+    private final String serverPrefix;
 
-    public ApiToolkitImpl(Plugin hostPlugin, ApiRegistry apiRegistry) {
-        this.plugin = hostPlugin;
+    public ApiToolkitImpl(HttpOverMcPlugin host, ApiRegistry apiRegistry) {
+        this.plugin = host;
         this.apiRegistry = apiRegistry;
+        boolean grouped = host.getProxyPlatform() != ProxyPlatform.STANDALONE;
+        String sn = host.getServerName();
+        this.serverPrefix = (grouped && sn != null && !sn.isEmpty()) ? "/server/" + sn : "";
     }
 
     @Override
@@ -125,5 +131,18 @@ public class ApiToolkitImpl implements ApiToolkitApi {
     @Override
     public String webResourcePrefix(Plugin plugin) {
         return webResourcePrefix(plugin == null ? null : plugin.getName());
+    }
+
+    @Override
+    public String serverPrefix() {
+        return serverPrefix;
+    }
+
+    @Override
+    public String fullPathPrefix(String pluginName) {
+        String sp = serverPrefix();
+        String fp = fullPrefix(pluginName);
+        if (fp == null || fp.isEmpty()) return sp;
+        return sp + (fp.startsWith("/") ? fp : "/" + fp);
     }
 }

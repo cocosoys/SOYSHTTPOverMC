@@ -1,6 +1,7 @@
 package com.github.cocosoys.mc.soyshttpovermc.web;
 
 import com.github.cocosoys.mc.soyshttpovermc.i18n.I18n;
+import com.github.cocosoys.mc.soyshttpovermc.web.contract.ContractInjector;
 import lombok.CustomLog;
 import org.bukkit.plugin.Plugin;
 
@@ -63,8 +64,11 @@ public class WebRegistry {
      */
     public static final String DEFAULT_METHOD = "GET";
 
-    public WebRegistry(String hostName) {
+    private final ContractInjector contractInjector;
+
+    public WebRegistry(String hostName, ContractInjector contractInjector) {
         this.hostName = hostName == null ? "" : hostName;
+        this.contractInjector = contractInjector;
     }
 
     /**
@@ -335,6 +339,23 @@ public class WebRegistry {
             return null;
         }
         table.put(key, e);
+        // 契约文件登记时解析 exclude 声明并缓存（jar/内存内容登记时读；
+        // 磁盘惰性资源内容登记时不可用，由响应时 ContractInjector.maybeInject 兜底）
+        if (contractInjector != null && ContractInjector.CONTRACT_FILE_NAME.equals(fileNameOf(e.path))) {
+            byte[] contractContent = e.content;
+            if (contractContent == null && e.resCl != null && e.resource != null) {
+                try (InputStream in = e.resCl.getResourceAsStream(e.resource)) {
+                    if (in != null) {
+                        contractContent = toBytes(in);
+                    }
+                } catch (Exception ignored) {
+                    contractContent = null;
+                }
+            }
+            if (contractContent != null) {
+                contractInjector.registerExcludes(e.ownerPlugin, contractContent);
+            }
+        }
         // 构建昵称路由索引（O(1) 匹配，避免 resolveFull 时遍历全部页面）
         if (e.nicknames != null && !e.nicknames.isEmpty()) {
             for (String nickname : e.nicknames) {
@@ -354,6 +375,11 @@ public class WebRegistry {
             log.infoT("log.web.register-force-overwrite", "插件 {0} 强制登记覆盖: {1}（原登记插件 {2}）", e.ownerPlugin, key, old.ownerPlugin);
         }
         return e;
+    }
+
+    private static String fileNameOf(String path) {
+        int slash = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'));
+        return slash >= 0 ? path.substring(slash + 1) : path;
     }
 
     /**

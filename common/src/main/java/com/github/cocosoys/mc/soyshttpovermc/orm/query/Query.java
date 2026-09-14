@@ -1,6 +1,6 @@
 package com.github.cocosoys.mc.soyshttpovermc.orm.query;
 
-import com.github.cocosoys.mc.soyshttpovermc.orm.YAML;
+import com.github.cocosoys.mc.soyshttpovermc.orm.DATA;
 import com.github.cocosoys.mc.soyshttpovermc.orm.executor.IBackendExecutor;
 import com.github.cocosoys.mc.soyshttpovermc.orm.meta.PojoMeta;
 
@@ -11,7 +11,7 @@ import java.util.function.Function;
 
 /**
  * 链式查询构建器（借鉴 dlz-db-core PojoQuery / MyBatis-Plus LambdaQueryWrapper 形态）：
- * {@code YAML.Pojo.selectW(User.class).eq(User::getRole,"admin").like(User::getName,"a").queryBeanList()}
+ * {@code Store.selectW(User.class).eq(User::getRole,"admin").like(User::getName,"a").queryBeanList()}
  * <p>条件以 Lambda 引用字段（重构安全），内部累积为 {@link ConditionTree}（双后端通解）。
  * 带 {@code ands/ors} 分组条件（平铺为 AND/OR 逻辑链）。</p>
  */
@@ -20,7 +20,7 @@ public class Query<T> {
     private final Class<T> beanClass;
     private final ConditionTree tree = new ConditionTree();
     /**
-     * 执行器（由门面注入：YAML.Pojo → YamlBackendExecutor；SQL.Pojo → SqlBackendExecutor）。
+     * 执行器（由门面注入：Store 路由到当前后端——SQL → SqlBackendExecutor；YAML → YamlBackendExecutor）。
      */
     private IBackendExecutor executor;
 
@@ -162,7 +162,7 @@ public class Query<T> {
     public List<T> queryBeanList() {
         IBackendExecutor e = executor;
         if (e == null) {
-            e = YAML.Pojo.executor();
+            e = DATA.executor();
         }
         return e.selectByTree(beanClass, tree);
     }
@@ -173,7 +173,7 @@ public class Query<T> {
     public Page<T> queryBeanPage() {
         IBackendExecutor e = executor;
         if (e == null) {
-            e = YAML.Pojo.executor();
+            e = DATA.executor();
         }
         return e.selectPageByTree(beanClass, tree);
     }

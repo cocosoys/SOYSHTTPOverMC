@@ -55,11 +55,6 @@ public interface HttpClientApi {
     String resolveUrl(String logicalPath);
 
     /**
-     * 群组服跨服前缀（如 {@code /server/lobby}）；独立服返回空串。
-     */
-    String getServerPrefix();
-
-    /**
      * 注解式 API 全局前缀（如 {@code /api}）。
      */
     String getApiPrefix();

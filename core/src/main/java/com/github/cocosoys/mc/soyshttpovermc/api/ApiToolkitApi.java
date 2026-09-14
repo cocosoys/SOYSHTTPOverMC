@@ -95,4 +95,18 @@ public interface ApiToolkitApi {
      * @return 如 {@code "web/plugins/MCER/page/"}；null → {@code ""}
      */
     String webResourcePrefix(Plugin plugin);
+
+    /**
+     * 群组服跨服前缀：群组服（BungeeCord / Velocity）下为 {@code /server/<本服名>}
+     * （本服名 = config.yml 的 proxy.server-name，用于跨服路由到本子服）；
+     * 独立服无此概念，返回空字符串 {@code ""}。
+     */
+    String serverPrefix();
+
+    /**
+     * 完整三段拼接 = {@link #serverPrefix()} + {@link #fullPrefix(String)}。
+     * 例：群组服插件 Foo → {@code /server/lobby/api/plugins/Foo}；独立服 → {@code /api/plugins/Foo}。
+     * 用于拼写群组服下插件自身 API / 网页的完整访问地址。
+     */
+    String fullPathPrefix(String pluginName);
 }

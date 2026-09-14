@@ -137,11 +137,6 @@ public class HttpClientImpl implements HttpClientApi {
     }
 
     @Override
-    public String getServerPrefix() {
-        return serverPrefix;
-    }
-
-    @Override
     public String getApiPrefix() {
         return apiPrefix;
     }

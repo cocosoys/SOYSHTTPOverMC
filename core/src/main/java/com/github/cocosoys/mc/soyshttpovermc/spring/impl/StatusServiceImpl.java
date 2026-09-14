@@ -1,9 +1,9 @@
 package com.github.cocosoys.mc.soyshttpovermc.spring.impl;
 
-import com.github.cocosoys.mc.soyshttpovermc.spring.entity.LatencyEntity;
-import com.github.cocosoys.mc.soyshttpovermc.spring.entity.RecentRequestEntity;
-import com.github.cocosoys.mc.soyshttpovermc.spring.entity.RequestCountEntity;
-import com.github.cocosoys.mc.soyshttpovermc.spring.entity.StatusEntity;
+import com.github.cocosoys.mc.soyshttpovermc.spring.entity.vo.LatencyEntity;
+import com.github.cocosoys.mc.soyshttpovermc.spring.entity.vo.RecentRequestEntity;
+import com.github.cocosoys.mc.soyshttpovermc.spring.entity.vo.RequestCountEntity;
+import com.github.cocosoys.mc.soyshttpovermc.spring.entity.vo.StatusEntity;
 import com.github.cocosoys.mc.soyshttpovermc.spring.service.IStatusService;
 import com.github.cocosoys.mc.soyshttpovermc.web.RequestStats;
 

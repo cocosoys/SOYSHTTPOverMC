@@ -13,14 +13,14 @@ import java.util.List;
 import java.util.function.Consumer;
 
 /**
- * YAML 存储的 Pojo 门面（仿 dlz-db-core 的 {@code DB.Pojo}，存储为 YAML）：
+ * YAML 存储的 Pojo 门面（仿 dlz-db-core 的 {@code DB.Pojo}，存储为 YAML）。
  * <pre>
- *   List&lt;User&gt; users = YAML.Pojo.select(User.class);                          // 直接返回列表
- *   List&lt;User&gt; admins = YAML.Pojo.select(User.class, q -&gt; q.eq(User::getRole, "admin"));
- *   User u = YAML.Pojo.get(User.class, "id-1");                                // 按主键取单条
+ *   List&lt;User&gt; users = Store.select(User.class);                                  // 直接返回列表
+ *   List&lt;User&gt; admins = Store.select(User.class, q -&gt; q.eq(User::getRole, "admin"));
+ *   User u = Store.get(User.class, "id-1");                                          // 按主键取单条
  *   YamlConfiguration raw = YAML.Pojo.get(User.class);                        // 原始文件视图
- *   YAML.Pojo.insert(user); YAML.Pojo.updateById(user); YAML.Pojo.deleteById(User.class, "id-1");
- *   Page&lt;User&gt; page = YAML.Pojo.selectPage(User.class, 1, 10);
+ *   Store.insert(user); Store.updateById(user); Store.deleteById(User.class, "id-1");
+ *   Page&lt;User&gt; page = Store.selectPage(User.class, 1, 10);
  * </pre>
  * 数据文件：{@code data/&lt;@TableName&gt;.yml}，根节点为表名，主键值为键（见 {@link YamlBackendExecutor}）。
  */

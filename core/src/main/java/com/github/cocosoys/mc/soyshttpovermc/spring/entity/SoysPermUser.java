@@ -1,8 +1,9 @@
-package com.github.cocosoys.mc.soyshttpovermc.permission.local;
+package com.github.cocosoys.mc.soyshttpovermc.spring.entity;
 
 import com.dlz.db.annotation.IdType;
 import com.dlz.db.annotation.TableId;
 import com.dlz.db.annotation.TableName;
+import com.github.cocosoys.mc.soyshttpovermc.permission.local.LocalPermissionStore;
 import lombok.Data;
 
 /**

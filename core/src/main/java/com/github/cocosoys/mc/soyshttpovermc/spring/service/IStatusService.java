@@ -1,7 +1,7 @@
 package com.github.cocosoys.mc.soyshttpovermc.spring.service;
 
-import com.github.cocosoys.mc.soyshttpovermc.spring.entity.RecentRequestEntity;
-import com.github.cocosoys.mc.soyshttpovermc.spring.entity.StatusEntity;
+import com.github.cocosoys.mc.soyshttpovermc.spring.entity.vo.RecentRequestEntity;
+import com.github.cocosoys.mc.soyshttpovermc.spring.entity.vo.StatusEntity;
 
 import java.util.List;
 

@@ -1,4 +1,4 @@
-package com.github.cocosoys.mc.soyshttpovermc.spring.entity;
+package com.github.cocosoys.mc.soyshttpovermc.spring.entity.vo;
 
 import lombok.Data;
 
