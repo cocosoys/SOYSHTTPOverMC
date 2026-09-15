@@ -22,7 +22,10 @@ import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.issuer.Cred
  *       GET /api/auth/status（已登录→返回状态；未登录+player参数→检查游戏端IP匹配自动登录）。</li>
  * </ul>
  * logout / me 依赖网关自动注入的 {@link CredentialPresentation} 参数（ApiRegistry 凭证注入），
- * 无凭证请求会被 com.github.cocosoys.mc.soyshttpovermc.annotations.AuthPolicy 先以 401 拒绝；各端点均标 {@link com.github.cocosoys.mc.soyshttpovermc.annotations.ApiPublic}（仅需登录、不做权限镜像）。
+ * 无凭证请求会被 com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.AuthPolicy 先以 401 拒绝，
+ * 故 logout/me 标 {@link com.github.cocosoys.mc.soyshttpovermc.annotations.ApiPublic}（仅需登录、不做权限镜像）；
+ * login/issue/mode/status 为登录链路入口，标 {@link com.github.cocosoys.mc.soyshttpovermc.annotations.Anonymous}
+ *（完全匿名：认证门放行 + 免权限），与 auth.yml exempt 互为双保险。
  */
 @RequestMapping("/auth")
 public class AuthController {
@@ -34,28 +37,28 @@ public class AuthController {
     }
 
     @ApiName("弹窗登录")
-    @ApiPublic
+    @Anonymous
     @PostMapping("/login")
     public ApiResponse login(@RequestBody String body, ApiRequestContext ctx) {
         return authService.login(body, ctx);
     }
 
     @ApiName("票据登录入口")
-    @ApiPublic
+    @Anonymous
     @GetMapping("/login")
     public ApiResponse serveLogin(@RequestParam(name = "ticket", required = false) String ticket) {
         return authService.serveLogin(ticket);
     }
 
     @ApiName("票据/免密登录提交")
-    @ApiPublic
+    @Anonymous
     @PostMapping("/issue")
     public ApiResponse issue(@RequestBody String body) {
         return authService.issue(body);
     }
 
     @ApiName("登录模式")
-    @ApiPublic
+    @Anonymous
     @GetMapping("/mode")
     public AjaxResult mode() {
         return authService.loginMode();
@@ -76,7 +79,7 @@ public class AuthController {
     }
 
     @ApiName("登录状态检查")
-    @ApiPublic
+    @Anonymous
     @GetMapping("/status")
     public ApiResponse status(ApiRequestContext ctx, @RequestParam(name = "player", required = false) String player) {
         return authService.checkStatus(ctx, player);

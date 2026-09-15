@@ -1,5 +1,6 @@
 package com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth;
 
+import com.github.cocosoys.mc.soyshttpovermc.web.gateway.AnonymousProbe;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.Credential;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.GatewayContext;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.PolicyResult;
@@ -50,6 +51,10 @@ public class AuthPolicy extends SecurityPolicy {
      * 网关统一的 API 前缀（config.yml api-prefix，默认 /api）：匹配 exempt/paths 时自动兼容逻辑路径
      */
     private volatile String apiPrefix = "/api";
+    /**
+     * 匿名端点探测器（由 GatewayFilter 注入，指向 ApiRegistry）：命中 @Anonymous 注解端点时本策略放行（免凭证）。
+     */
+    private volatile AnonymousProbe anonymousProbe;
 
     @Override
     public String name() {
@@ -136,6 +141,13 @@ public class AuthPolicy extends SecurityPolicy {
         this.apiPrefix = prefix == null ? "" : prefix.trim();
     }
 
+    /**
+     * 由 GatewayFilter 注入匿名端点探测器（ApiRegistry 实现）；命中 @Anonymous 的端点认证门放行。
+     */
+    public void setAnonymousProbe(AnonymousProbe probe) {
+        this.anonymousProbe = probe;
+    }
+
     @Override
     public boolean appliesTo(GatewayContext ctx) {
         String path = ctx.getPath();
@@ -145,6 +157,10 @@ public class AuthPolicy extends SecurityPolicy {
         for (String exempt : exemptPatterns) {
             if (matchesPattern(path, exempt)) return false;
         }
+        // @Anonymous 注解端点（如验证码/登录/探活）：认证门放行（免凭证）。
+        // 与 exempt 配置互为双保险——exempt 是运维手动豁免，@Anonymous 是代码层注解声明。
+        AnonymousProbe probe = anonymousProbe;
+        if (probe != null && probe.isAnonymous(ctx.getMethod(), path)) return false;
         if (pathPatterns.isEmpty()) return true; // 未配置路径 = 保护所有
         for (String pattern : pathPatterns) {
             if (matchesPattern(path, pattern)) return true;

@@ -591,6 +591,11 @@ public class HttpOverMcPluginProxy {
 
         plugin.setAuthService(new AuthServiceImpl(plugin.getAuthLoginBridge()));
         plugin.getApiRegistry().register(new AuthController(plugin.getAuthService()));
+
+        // 补注匿名端点探测器（@Anonymous 认证门放行；网关在 apiRegistry 创建前已 rebuild，幂等同步到 AuthPolicy）
+        if (plugin.getGateway() != null) {
+            plugin.getGateway().setAnonymousProbe(plugin.getApiRegistry());
+        }
     }
 
     /**
@@ -876,6 +881,7 @@ public class HttpOverMcPluginProxy {
         boolean gatewayEnabled = gwCfg != null && gwCfg.getBoolean("enabled", true);
         if (gatewayEnabled) {
             plugin.setGateway(new GatewayFilter());
+            plugin.getGateway().setAnonymousProbe(plugin.getApiRegistry()); // 幂等：onEnable 时 apiRegistry 未建(null 无害)；reload 时注入真值
             plugin.getGateway().reload(gatewayDir);
             ConfigurationSection https = GatewayConfig.loadYml(new File(gatewayDir, "https.yml"));
             if (https != null && https.getBoolean("enabled", true)) {

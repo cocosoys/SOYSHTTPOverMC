@@ -2,6 +2,7 @@ package com.github.cocosoys.mc.soyshttpovermc.spring.controller;
 
 import com.github.cocosoys.mc.soyshttpovermc.annotations.ApiName;
 import com.github.cocosoys.mc.soyshttpovermc.annotations.ApiPublic;
+import com.github.cocosoys.mc.soyshttpovermc.annotations.Anonymous;
 import com.github.cocosoys.mc.soyshttpovermc.annotations.GetMapping;
 import com.github.cocosoys.mc.soyshttpovermc.spring.service.ISystemService;
 import com.github.cocosoys.mc.soyshttpovermc.util.AjaxResult;
@@ -24,15 +25,15 @@ public class SystemController {
     }
 
     @ApiName("网关存活检测")
-    @ApiPublic
+    @Anonymous
     @GetMapping("/ping")
     public AjaxResult ping() {
-        // 公开端点（首页/探活脚本免凭证获取在线状态）；auth.yml 的 exempt 也一并豁免，双重保险
+        // 匿名端点（首页/探活脚本免凭证获取在线状态）；@Anonymous 认证门放行 + auth.yml exempt 双保险
         return AjaxResult.success(systemService.ping());
     }
 
     @ApiName("网关版本")
-    @ApiPublic
+    @Anonymous
     @GetMapping("/version")
     public AjaxResult version() {
         // 调用 service 获取版本信息实体（演示实体类用法）
@@ -44,7 +45,7 @@ public class SystemController {
      * 开发者无需自行解析请求头/令牌，直接拿到客户端 IP / 玩家名 / 玩家实体 / 凭证等。
      */
     @ApiName("请求上下文")
-    @ApiPublic
+    @Anonymous
     @GetMapping("/whoami")
     public AjaxResult whoami(ApiRequestContext ctx) {
         Map<String, Object> data = new HashMap<>();

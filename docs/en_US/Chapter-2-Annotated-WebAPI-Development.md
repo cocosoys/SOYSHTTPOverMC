@@ -132,7 +132,13 @@ Key `ApiRequestContext` methods:
 @GetMapping("/admin")
 public ApiResponse admin() { ... }
 
-@ApiPublic                          // public: skips permission checks
+@ApiPublic                          // requires login only: skips permission checks (auth gate still applies)
+@GetMapping("/me")
+public ApiResponse me() { ... }
+
+@Anonymous                          // fully anonymous: both auth gate and permission gate allow
+@GetMapping("/ping")
+public ApiResponse ping() { ... }
 @GetMapping("/public")
 public ApiResponse pub() { ... }
 ```
@@ -145,7 +151,7 @@ Check logic (`PlayerPermissionService` / `CombinedPermissionService`, details in
 
 ### 2.6.2 Class-Level Defaults
 
-`@ApiPermission` / `@ApiPublic` on the class set the default for all endpoints in that class; method-level annotations override the class level.
+`@ApiPermission` / `@ApiPublic` / `@Anonymous` on the class set the default for all endpoints in that class; method-level annotations override the class level.
 
 ## 2.7 Registering APIs (Facade Group 1)
 

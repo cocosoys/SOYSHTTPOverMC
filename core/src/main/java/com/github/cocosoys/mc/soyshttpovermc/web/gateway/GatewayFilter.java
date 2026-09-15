@@ -78,6 +78,10 @@ public class GatewayFilter {
      * 网关统一的 API 前缀（gateway/config.yml api-prefix，默认 /api；始终生效）
      */
     private volatile String apiPrefix = "/api";
+    /**
+     * 匿名端点探测器（ApiRegistry 实现）：注入给 AuthPolicy，命中 @Anonymous 的端点认证门放行。
+     */
+    private volatile AnonymousProbe anonymousProbe;
 
     public GatewayFilter() {
     }
@@ -87,6 +91,18 @@ public class GatewayFilter {
      */
     public String getApiPrefix() {
         return apiPrefix;
+    }
+
+    /**
+     * 注入匿名端点探测器（由主插件在 ApiRegistry 创建后调用；幂等同步到当前链中的 AuthPolicy）。
+     */
+    public void setAnonymousProbe(AnonymousProbe probe) {
+        this.anonymousProbe = probe;
+        for (SecurityPolicy p : policies) {
+            if (p instanceof AuthPolicy) {
+                ((AuthPolicy) p).setAnonymousProbe(probe);
+            }
+        }
     }
 
     /**
@@ -127,6 +143,7 @@ public class GatewayFilter {
                     if (p instanceof AuthPolicy) {
                         ((AuthPolicy) p).setIssuers(issuerList);
                         ((AuthPolicy) p).setApiPrefix(apiPrefix);
+                        ((AuthPolicy) p).setAnonymousProbe(anonymousProbe);
                     }
                     if (p.isEnabled()) list.add(p);
                 }

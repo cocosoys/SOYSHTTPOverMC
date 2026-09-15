@@ -132,7 +132,13 @@ public ApiResponse whoami(ApiRequestContext ctx) {
 @GetMapping("/admin")
 public ApiResponse admin() { ... }
 
-@ApiPublic                          // 公开：跳过权限判定
+@ApiPublic                          // 仅需登录：免权限判定（认证门仍需凭证）
+@GetMapping("/me")
+public ApiResponse me() { ... }
+
+@Anonymous                          // 完全匿名：认证门 + 授权门均放行
+@GetMapping("/ping")
+public ApiResponse ping() { ... }
 @GetMapping("/public")
 public ApiResponse pub() { ... }
 ```
@@ -145,7 +151,7 @@ public ApiResponse pub() { ... }
 
 ### 2.6.2 类级默认
 
-`@ApiPermission` / `@ApiPublic` 标注在类上作为该类所有端点的默认；方法级注解覆盖类级。
+`@ApiPermission` / `@ApiPublic` / `@Anonymous` 标注在类上作为该类所有端点的默认；方法级注解覆盖类级。
 
 ## 2.7 注册 API（门面能力组 1）
 

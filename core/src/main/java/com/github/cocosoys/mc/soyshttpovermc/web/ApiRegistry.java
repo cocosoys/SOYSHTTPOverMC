@@ -11,6 +11,7 @@ import com.github.cocosoys.mc.soyshttpovermc.enums.RequestMethod;
 import com.github.cocosoys.mc.soyshttpovermc.i18n.I18n;
 import com.github.cocosoys.mc.soyshttpovermc.util.AjaxResult;
 import com.github.cocosoys.mc.soyshttpovermc.util.ApiResponse;
+import com.github.cocosoys.mc.soyshttpovermc.web.gateway.AnonymousProbe;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.issuer.CredentialPresentation;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.util.AuthUtils;
 import lombok.CustomLog;
@@ -71,7 +72,7 @@ import java.util.function.Function;
  * </ul>
  */
 @CustomLog
-public class ApiRegistry {
+public class ApiRegistry implements AnonymousProbe {
 
     private static final String ANY_METHOD = "*";
 
@@ -385,9 +386,9 @@ public class ApiRegistry {
         CredentialPresentation credential = AuthUtils.extractPresentation(headers, "X-API-Key",
                 true, true, true, true);
 
-        // 权限判定（未注册 PermissionService 时注解不阻断）
+        // 权限判定（未注册 PermissionService 时注解不阻断；@Anonymous 端点跳过权限，匿名优先）
         PermissionService ps = permissionService;
-        if (ps != null && !meta.permission.isEmpty()) {
+        if (ps != null && !meta.permission.isEmpty() && !isAnonymousEndpoint(meta)) {
             try {
                 if (!ps.hasPermission(credential, meta.permission)) {
                     return AjaxResult.forbiddenT("ajax.registry.no-permission", "无权限访问: {0}（需要 {1}）", meta.apiName, meta.permission);
@@ -567,14 +568,40 @@ public class ApiRegistry {
     }
 
     /**
-     * 端点是否显式公开（方法级或类级 @ApiPublic 任一存在即可）。
+     * 端点是否免权限（方法级或类级 @ApiPublic / @Anonymous 任一存在即可）：
+     * 授权层默认拒绝（403）跳过；@Anonymous 同时放行认证门（见 {@link #isAnonymous}）。
      */
     private boolean isPublicEndpoint(EndpointMeta meta) {
         if (meta.method.getAnnotation(com.github.cocosoys.mc.soyshttpovermc.annotations.ApiPublic.class) != null)
             return true;
         if (meta.instance.getClass().getAnnotation(com.github.cocosoys.mc.soyshttpovermc.annotations.ApiPublic.class) != null)
             return true;
+        return isAnonymousEndpoint(meta);
+    }
+
+    /**
+     * 端点是否匿名（方法级或类级 @Anonymous 任一存在即可）：认证门放行 + 免权限。
+     */
+    private boolean isAnonymousEndpoint(EndpointMeta meta) {
+        if (meta.method.getAnnotation(com.github.cocosoys.mc.soyshttpovermc.annotations.Anonymous.class) != null)
+            return true;
+        if (meta.instance.getClass().getAnnotation(com.github.cocosoys.mc.soyshttpovermc.annotations.Anonymous.class) != null)
+            return true;
         return false;
+    }
+
+    @Override
+    public boolean isAnonymous(String httpMethod, String path) {
+        String method = httpMethod == null ? "" : httpMethod.toUpperCase();
+        String p = stripQuery(path);
+        EndpointMeta meta = routes.get(method + " " + p);
+        if (meta == null) meta = routes.get(ANY_METHOD + " " + p);
+        if (meta == null) {
+            ResolvedMatch pm = matchParameterized(method, p);
+            if (pm == null) pm = matchParameterized(ANY_METHOD, p);
+            if (pm != null) meta = pm.meta;
+        }
+        return meta != null && isAnonymousEndpoint(meta);
     }
 
     // ===== 元数据 =====
