@@ -13,6 +13,8 @@
  */
 (function (global) {
   'use strict';
+  // API 前缀：SOYS 契约注入（api-prefix 可被服务器管理员配置，禁止写死 /api）
+  var API = (global.SOYS_CONTEXT && global.SOYS_CONTEXT.apiPrefix) || '/api';
 
   var TOKEN_KEY = 'soys_token';
   var COOKIE_KEY = 'soys_session';
@@ -161,7 +163,7 @@
     if (!user || !pass) { errEl.textContent = '请输入玩家名和密码'; return; }
     var rememberEl = document.getElementById('soysRemember');
     var remember = !!(rememberEl && rememberEl.checked);
-    request('/api/auth/login', { method: 'POST', json: true,
+    request(API + '/auth/login', { method: 'POST', json: true,
       body: JSON.stringify({ username: user, password: pass, remember: remember }) }).then(function (r) {
       if (r.code === 200 && r.data && r.data.token) {
         setToken(r.data.token);

@@ -66,6 +66,7 @@
   }
   .hint code { color: var(--warn); }
 </style>
+<script src="/__SOYS_CONTEXT__.js"></script>
 </head>
 <body>
 
@@ -100,6 +101,7 @@
 <script>
 (function () {
   'use strict';
+  var API = (window.SOYS_CONTEXT && window.SOYS_CONTEXT.apiPrefix) || '/api';
 
   var $ = function (id) { return document.getElementById(id); };
   var ticket = new URLSearchParams(location.search).get('ticket');
@@ -127,7 +129,7 @@
     switchTo(false);
   } else {
     // 无票据 → 询问服务端登录模式（/api/auth/mode 已豁免鉴权）
-    fetch('/api/auth/mode', { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (j) {
+    fetch(API + '/auth/mode', { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (j) {
       if (j && j.code === 200 && j.data) {
         if (j.data.requiresPassword) {
           setTitle('需要登录票据', '本服已接入登录插件，网页登录需要一次性票据：请在游戏内执行对应命令获取网页登录链接后再访问。');
@@ -157,7 +159,7 @@
       body.set('username', $('inUser').value.trim());
     }
 
-    fetch('/api/auth/issue', {
+    fetch(API + '/auth/issue', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: body.toString()

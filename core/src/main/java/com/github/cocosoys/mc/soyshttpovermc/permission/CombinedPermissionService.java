@@ -1,6 +1,7 @@
 package com.github.cocosoys.mc.soyshttpovermc.permission;
 
 import com.github.cocosoys.mc.soyshttpovermc.permission.local.LocalPermissionStore;
+import com.github.cocosoys.mc.soyshttpovermc.spring.impl.LocalPermStorageImpl;
 import com.github.cocosoys.mc.soyshttpovermc.permission.provider.PermissionProvider;
 import com.github.cocosoys.mc.soyshttpovermc.permission.provider.ProviderRegistry;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.GatewayFilter;
@@ -54,7 +55,7 @@ public class CombinedPermissionService extends PlayerPermissionService {
     public CombinedPermissionService(JavaPlugin plugin, GatewayFilter gateway) {
         super(gateway);
         this.plugin = plugin;
-        this.localStore = new LocalPermissionStore();
+        this.localStore = new LocalPermissionStore(new LocalPermStorageImpl());
         this.providerRegistry = new ProviderRegistry(plugin, localStore);
         this.providerRegistry.reload();
     }

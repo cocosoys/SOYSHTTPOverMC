@@ -224,8 +224,10 @@
 
 <div class="toast" id="toast"></div>
 
+<script src="/__SOYS_CONTEXT__.js"></script>
 <script src="/soys-auth.js"></script>
 <script>
+var API = (window.SOYS_CONTEXT && window.SOYS_CONTEXT.apiPrefix) || '/api';
 const $ = id => document.getElementById(id);
 function toast(msg){
   const t = $('toast'); t.textContent = msg; t.classList.add('show');
@@ -240,7 +242,7 @@ async function probe(){
   // 登录窗口已打开：暂停探活轮询（配合 patchFetch 防重复弹窗）
   if (SoysAuth.isLoginOpen && SoysAuth.isLoginOpen()) return;
   try{
-    const r = await fetch('/api/ping', {cache:'no-store'});
+    const r = await fetch(API + '/ping', {cache:'no-store'});
     const j = await r.json();
     const d = (j && j.data !== undefined) ? j.data : j;
     const ok = r.ok && d && d.online;
@@ -276,7 +278,7 @@ function refreshLoginBtn(){
     navLogin.className = 'btn-mini ghost';
     return;
   }
-  SoysAuth.request('/api/auth/me').then(r=>{
+  SoysAuth.request(API + '/auth/me').then(r=>{
     if(r.code === 200 && r.data && r.data.player){
       const tag = r.data.mode === 'offline' ? '（离线）' : '';
       navLogin.textContent = r.data.player + tag;
@@ -294,7 +296,7 @@ function refreshLoginBtn(){
 navLogin.onclick = ()=>{
   if(SoysAuth.getToken()){
     if(!confirm('退出登录：' + navLogin.textContent.replace(/（离线）$/, '') + ' ？')) return;
-    SoysAuth.request('/api/auth/logout', {method:'POST'}).then(()=>{
+    SoysAuth.request(API + '/auth/logout', {method:'POST'}).then(()=>{
       SoysAuth.setToken(null);
       refreshLoginBtn();
       toast('已退出登录');

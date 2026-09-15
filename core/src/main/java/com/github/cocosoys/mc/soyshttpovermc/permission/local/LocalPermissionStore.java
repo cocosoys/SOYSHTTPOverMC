@@ -1,25 +1,25 @@
 package com.github.cocosoys.mc.soyshttpovermc.permission.local;
 
-import com.github.cocosoys.mc.soyshttpovermc.orm.DATA;
-import com.github.cocosoys.mc.soyshttpovermc.orm.query.Query;
 import com.github.cocosoys.mc.soyshttpovermc.spring.entity.SoysPermGroup;
 import com.github.cocosoys.mc.soyshttpovermc.spring.entity.SoysPermPermission;
 import com.github.cocosoys.mc.soyshttpovermc.spring.entity.SoysPermUser;
 import com.github.cocosoys.mc.soyshttpovermc.spring.entity.SoysPermUserGroup;
+import com.github.cocosoys.mc.soyshttpovermc.spring.service.ILocalPermStorage;
 import com.github.cocosoys.mc.soyshttpovermc.util.UuidUtil;
 import lombok.CustomLog;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.function.Consumer;
+
 
 /**
  * 本地内置权限表存取门面（配套 {@code permission.offline-fallback: local}）。
  *
  * <p>承载 4 张全关联 ORM 实体（{@link SoysPermGroup} / {@link SoysPermUser} /
  * {@link SoysPermUserGroup} / {@link SoysPermPermission}）的全部 CRUD 与本地判定。
- * 读写复用统一 ORM 门面 {@link DATA}（SQL 可用走 SQL，否则 YAML，见 {@code storage.backends.*}）。</p>
+ * 读写复用统一 ORM 门面（{@link com.github.cocosoys.mc.soyshttpovermc.orm.DATA}，SQL 可用走 SQL，
+ * 否则 YAML，见 {@code storage.backends.*}），IO 经 {@link ILocalPermStorage} 抽象。</p>
  *
  * <p>用户侧身份键一律为 UUID 主键（离线服为确定性离线 UUID，见
  * {@link com.github.cocosoys.mc.soyshttpovermc.util.UuidUtil}）：玩家名仅是属性。
@@ -37,6 +37,12 @@ import java.util.function.Consumer;
  */
 @CustomLog
 public class LocalPermissionStore {
+
+    private final ILocalPermStorage storage;
+
+    public LocalPermissionStore(ILocalPermStorage storage) {
+        this.storage = storage;
+    }
 
     // ==================== 规范化 ====================
 
@@ -99,37 +105,6 @@ public class LocalPermissionStore {
         return false;
     }
 
-    // ==================== 双后端 IO ====================
-
-    private <T> T getOrNull(Class<T> c, Object id) {
-        return DATA.get(c, id);
-    }
-
-    private boolean save(Object bean) {
-        boolean ok = false;
-        try {
-            ok = DATA.insert(bean);
-        } catch (Throwable t) {
-            log.warnT("log.permission.local-write-failed", "[permission/local] 写入本地权限表失败: {0}", t);
-        }
-        return ok;
-    }
-
-    private boolean delete(Class<?> c, Object id) {
-        boolean ok = false;
-        try {
-            ok = DATA.deleteById(c, id);
-        } catch (Throwable t) {
-            log.warnT("log.permission.local-delete-failed", "[permission/local] 删除本地权限表记录失败: {0}", t);
-        }
-        return ok;
-    }
-
-    private <T> List<T> list(Class<T> c, Consumer<Query<T>> cond) {
-        List<T> r = DATA.select(c, cond);
-        return r != null ? r : Collections.emptyList();
-    }
-
     // ==================== 组 ====================
 
     /**
@@ -148,7 +123,7 @@ public class LocalPermissionStore {
         g.setDisplay(display == null || display.isEmpty() ? gid : display);
         g.setDescription(description == null ? "" : description);
         g.setUpdatedAt(String.valueOf(now));
-        return save(g);
+        return storage.save(g);
     }
 
     /**
@@ -159,22 +134,22 @@ public class LocalPermissionStore {
         if (gid.isEmpty()) return false;
         // 删组权限
         for (SoysPermPermission p : listPermissions(SoysPermPermission.TYPE_GROUP, gid)) {
-            delete(SoysPermPermission.class, p.getId());
+            storage.delete(SoysPermPermission.class, p.getId());
         }
         // 删用户-组引用
-        for (SoysPermUserGroup ug : list(SoysPermUserGroup.class, c -> c.eq(SoysPermUserGroup::getGroup, gid))) {
-            delete(SoysPermUserGroup.class, ug.getId());
+        for (SoysPermUserGroup ug : storage.list(SoysPermUserGroup.class, c -> c.eq(SoysPermUserGroup::getGroup, gid))) {
+            storage.delete(SoysPermUserGroup.class, ug.getId());
         }
-        return delete(SoysPermGroup.class, gid);
+        return storage.delete(SoysPermGroup.class, gid);
     }
 
     public SoysPermGroup getGroup(String id) {
         String gid = normalize(id).toLowerCase();
-        return gid.isEmpty() ? null : getOrNull(SoysPermGroup.class, gid);
+        return gid.isEmpty() ? null : storage.get(SoysPermGroup.class, gid);
     }
 
     public List<SoysPermGroup> listGroups() {
-        List<SoysPermGroup> out = list(SoysPermGroup.class, q -> {
+        List<SoysPermGroup> out = storage.list(SoysPermGroup.class, q -> {
         });
         out.sort((a, b) -> Integer.compare(b.getWeight(), a.getWeight()));
         return out;
@@ -188,7 +163,7 @@ public class LocalPermissionStore {
         if (gid.isEmpty()) return false;
         ParsedNode p = parseNode(nodeInput);
         if (p.node.isEmpty()) return false;
-        return save(new SoysPermPermission(SoysPermPermission.TYPE_GROUP, gid, p.node, p.negative));
+        return storage.save(new SoysPermPermission(SoysPermPermission.TYPE_GROUP, gid, p.node, p.negative));
     }
 
     public boolean removeGroupPermission(String id, String nodeInput) {
@@ -196,7 +171,7 @@ public class LocalPermissionStore {
         if (gid.isEmpty()) return false;
         ParsedNode p = parseNode(nodeInput);
         if (p.node.isEmpty()) return false;
-        return delete(SoysPermPermission.class, SoysPermPermission.TYPE_GROUP + "|" + gid + "|" + p.node);
+        return storage.delete(SoysPermPermission.class, SoysPermPermission.TYPE_GROUP + "|" + gid + "|" + p.node);
     }
 
     public List<SoysPermPermission> listGroupPermissions(String id) {
@@ -212,7 +187,7 @@ public class LocalPermissionStore {
      */
     public SoysPermUser getUser(String player) {
         String pk = userKey(player);
-        return pk.isEmpty() ? null : getOrNull(SoysPermUser.class, pk);
+        return pk.isEmpty() ? null : storage.get(SoysPermUser.class, pk);
     }
 
     /**
@@ -240,7 +215,7 @@ public class LocalPermissionStore {
             u.setPlayer(name); // 同步最新玩家名属性
         }
         u.setUpdatedAt(String.valueOf(now));
-        return save(u);
+        return storage.save(u);
     }
 
     /**
@@ -250,12 +225,12 @@ public class LocalPermissionStore {
         String pk = userKey(player);
         if (pk.isEmpty()) return false;
         for (SoysPermPermission p : listPermissions(SoysPermPermission.TYPE_USER, pk)) {
-            delete(SoysPermPermission.class, p.getId());
+            storage.delete(SoysPermPermission.class, p.getId());
         }
-        for (SoysPermUserGroup ug : list(SoysPermUserGroup.class, c -> c.eq(SoysPermUserGroup::getUuid, pk))) {
-            delete(SoysPermUserGroup.class, ug.getId());
+        for (SoysPermUserGroup ug : storage.list(SoysPermUserGroup.class, c -> c.eq(SoysPermUserGroup::getUuid, pk))) {
+            storage.delete(SoysPermUserGroup.class, ug.getId());
         }
-        return delete(SoysPermUser.class, pk);
+        return storage.delete(SoysPermUser.class, pk);
     }
 
     /**
@@ -280,7 +255,7 @@ public class LocalPermissionStore {
             }
         }
         u.setUpdatedAt(String.valueOf(System.currentTimeMillis()));
-        return save(u);
+        return storage.save(u);
     }
 
     /**
@@ -309,16 +284,16 @@ public class LocalPermissionStore {
         if (pk.isEmpty() || gid.isEmpty()) return false;
         if (getUser(pk) == null) createUser(pk);
         if (getGroup(gid) == null) createGroup(gid, 0, gid, "");
-        SoysPermUserGroup exist = getOrNull(SoysPermUserGroup.class, pk + "|" + gid);
+        SoysPermUserGroup exist = storage.get(SoysPermUserGroup.class, pk + "|" + gid);
         if (exist != null) return true; // 已存在
-        return save(new SoysPermUserGroup(pk, gid));
+        return storage.save(new SoysPermUserGroup(pk, gid));
     }
 
     public boolean removeUserGroup(String player, String group) {
         String pk = userKey(player);
         String gid = normalize(group).toLowerCase();
         if (pk.isEmpty() || gid.isEmpty()) return false;
-        return delete(SoysPermUserGroup.class, pk + "|" + gid);
+        return storage.delete(SoysPermUserGroup.class, pk + "|" + gid);
     }
 
     /**
@@ -328,7 +303,7 @@ public class LocalPermissionStore {
         String pk = userKey(player);
         if (pk.isEmpty()) return Collections.emptyList();
         List<String> out = new ArrayList<>();
-        for (SoysPermUserGroup ug : list(SoysPermUserGroup.class, c -> c.eq(SoysPermUserGroup::getUuid, pk))) {
+        for (SoysPermUserGroup ug : storage.list(SoysPermUserGroup.class, c -> c.eq(SoysPermUserGroup::getUuid, pk))) {
             out.add(ug.getGroup());
         }
         return out;
@@ -340,13 +315,13 @@ public class LocalPermissionStore {
     public List<SoysPermUserGroup> listGroupMembers(String group) {
         String gid = normalize(group).toLowerCase();
         return gid.isEmpty() ? Collections.emptyList()
-                : list(SoysPermUserGroup.class, c -> c.eq(SoysPermUserGroup::getGroup, gid));
+                : storage.list(SoysPermUserGroup.class, c -> c.eq(SoysPermUserGroup::getGroup, gid));
     }
 
     // ==================== 权限 ====================
 
     private List<SoysPermPermission> listPermissions(String ownerType, String ownerId) {
-        return list(SoysPermPermission.class,
+        return storage.list(SoysPermPermission.class,
                 c -> c.eq(SoysPermPermission::getOwnerType, ownerType)
                         .eq(SoysPermPermission::getOwnerId, ownerId));
     }
@@ -369,7 +344,7 @@ public class LocalPermissionStore {
         if (getUser(pk) == null) createUser(pk);
         ParsedNode p = parseNode(nodeInput);
         if (p.node.isEmpty()) return false;
-        return save(new SoysPermPermission(SoysPermPermission.TYPE_USER, pk, p.node, p.negative));
+        return storage.save(new SoysPermPermission(SoysPermPermission.TYPE_USER, pk, p.node, p.negative));
     }
 
     public boolean removeUserPermission(String player, String nodeInput) {
@@ -377,7 +352,7 @@ public class LocalPermissionStore {
         if (pk.isEmpty()) return false;
         ParsedNode p = parseNode(nodeInput);
         if (p.node.isEmpty()) return false;
-        return delete(SoysPermPermission.class, SoysPermPermission.TYPE_USER + "|" + pk + "|" + p.node);
+        return storage.delete(SoysPermPermission.class, SoysPermPermission.TYPE_USER + "|" + pk + "|" + p.node);
     }
 
     /**
@@ -405,7 +380,7 @@ public class LocalPermissionStore {
     public boolean check(String player, String permission) {
         String pk = userKey(player);
         if (pk.isEmpty() || permission == null || permission.trim().isEmpty()) return false;
-        SoysPermUser user = getOrNull(SoysPermUser.class, pk);
+        SoysPermUser user = storage.get(SoysPermUser.class, pk);
         if (user == null) return false;
         if (isExpired(pk)) return false;
         String node = normalize(permission);

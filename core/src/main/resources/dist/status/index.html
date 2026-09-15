@@ -56,6 +56,7 @@
   #probe{margin-top:10px; font-size:13px; opacity:.85; white-space:pre-wrap}
   footer{margin-top:30px; opacity:.45; font-size:12px; text-align:center}
 </style>
+<script src="/__SOYS_CONTEXT__.js"></script>
 <script src="/soys-auth.js"></script>
 <script>SoysAuth.patchFetch();</script>
 </head>
@@ -96,13 +97,15 @@
   <footer>HTTP-Over-MC · 每次刷新都经 MC 连接隧道真实往返，证明静态页 + 动态接口都通</footer>
 
 <script>
+var API = (window.SOYS_CONTEXT && window.SOYS_CONTEXT.apiPrefix) || '/api';
+$('path').value = API + '/status';
 const $ = id => document.getElementById(id);
 function cls(code){ if(code>=500) return 'code5xx'; if(code===404) return 'code404'; return 'code200'; }
 async function load(){
   // 登录窗口已打开（用户正在输入账号密码）：暂停轮询，避免每 2s 请求受保护接口触发 401 无限弹窗
   if (typeof SoysAuth !== 'undefined' && SoysAuth.isLoginOpen && SoysAuth.isLoginOpen()) return;
   try{
-    const r = await fetch('/api/status', {cache:'no-store'});
+    const r = await fetch(API + '/status', {cache:'no-store'});
     const j = await r.json();
     const d = (j && j.data !== undefined) ? j.data : j;  // 兼容 AjaxResult {code,msg,data}
     $('online').textContent = d.online ? 'ONLINE' : 'OFFLINE';

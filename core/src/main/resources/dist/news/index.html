@@ -113,6 +113,7 @@
     .links a:not(.on){display:none}
   }
 </style>
+<script src="/__SOYS_CONTEXT__.js"></script>
 <script src="/soys-auth.js"></script>
 <script>SoysAuth.patchFetch();</script>
 </head>
@@ -235,10 +236,11 @@
 </div>
 
 <script>
+var API = (window.SOYS_CONTEXT && window.SOYS_CONTEXT.apiPrefix) || '/api';
 const $ = id => document.getElementById(id);
 async function probe(){
   try{
-    const r = await fetch('/api/ping', {cache:'no-store'});
+    const r = await fetch(API + '/ping', {cache:'no-store'});
     const j = await r.json();
     const d = (j && j.data !== undefined) ? j.data : j;
     const ok = r.ok && d && d.online;

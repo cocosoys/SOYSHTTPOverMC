@@ -8,7 +8,6 @@ import java.util.UUID;
 /**
  * 玩家身份工具：离线 UUID 获取 / 身份标识归一。
  *
- * <p>设计原则：<b>不重复造轮子、不写死算法</b>。</p>
  * <ul>
  *   <li>玩家名 → 离线 UUID：复用 MC 自带 {@link Bukkit#getOfflinePlayer(String)} →
  *       {@link org.bukkit.OfflinePlayer#getUniqueId()}，算法由服务器版本决定（该算法在部分高版本有变动，
