@@ -57,42 +57,57 @@ public interface ApiToolkitApi {
     String pluginsPrefix(String pluginName);
 
     /**
-     * 完整路径前缀 = apiPrefix() + pluginsPrefix(pluginName)。
+     * API 完整前缀 = apiPrefix() + pluginsPrefix(pluginName)。
      * 例：api-prefix=/api、插件 MCER → {@code "/api/plugins/MCER"}；主插件 → {@code "/api"}。
-     * 用于拼写插件自身 API / 网页的实际访问地址，无需手写常量。
+     * 用于拼写插件自身注解式 API（正常登记）的实际访问地址，无需手写常量。
      */
-    String fullPrefix(String pluginName);
+    String apiFullPrefix(String pluginName);
 
     /**
      * 插件命名空间前缀（插件实例重载）：等价 {@link #pluginsPrefix(String)} 传 {@code plugin.getName()}。
      *
      * @param plugin 插件主类实例（JavaPlugin）
-     * @return 如 {@code "/plugins/MCER"}；null / 主插件 → {@code ""}
+     * @return 如 {@code "/web/plugins/MCER"}；null / 主插件 → {@code ""}
      */
     String pluginsPrefix(Plugin plugin);
 
     /**
-     * 完整路径前缀（插件实例重载）：等价 {@link #fullPrefix(String)} 传 {@code plugin.getName()}。
+     * API 完整前缀（插件实例重载）：等价 {@link #apiFullPrefix(String)} 传 {@code plugin.getName()}。
      * 开发者直接传入自身插件主类实例即可，无需再写插件名字符串。
      */
-    String fullPrefix(Plugin plugin);
+    String apiFullPrefix(Plugin plugin);
+    /**
+     * 页面完整前缀 = "/web" + pluginsPrefix(pluginName)。
+     * 例：插件 MCER → {@code "/web/plugins/MCER"}；主插件 → {@code ""}（页面在根路径）。
+     * 与 {@link #webResourcePrefix(String)} 的关系：webResourcePrefix = pageFullPrefix + "/page"。
+     */
+    String pageFullPrefix(String pluginName);
 
     /**
-     * Web 极简登记的 jar 资源前缀（resourcePath 约定）：
+     * 页面完整前缀（插件实例重载）：等价 {@link #pageFullPrefix(String)} 传 {@code plugin.getName()}。
+     *
+     * @param plugin 插件主类实例（JavaPlugin）
+     * @return 如 {@code "/web/plugins/MCER"}；null / 主插件 → {@code ""}
+     */
+    String pageFullPrefix(Plugin plugin);
+
+
+    /**
+     * Web 极简登记的页面 URL 前缀：
      * 极简登记 {@code registerPage(content)} / {@code registerPage(resourcePath)} 自动生成的资源路径
-     * 位于 {@code web/plugins/<插件名>/page/} 之下。这是插件 jar 内的资源存放位置（resourcePath），
-     * 与 URL 访问前缀（{@link #fullPrefix(String)}）无关。
+     * 位于 {@code /web/plugins/<插件名>/page/} 之下。本值为其 URL 前缀（等价 pageFullPrefix + "/page"），
+     * 所有插件一致（含主插件）；jar 内实际放置路径为去掉前导 "/" 的 {@code web/plugins/<插件名>/page/}。
      *
      * @param pluginName 插件名（如 {@code "MCER"}）
-     * @return 如 {@code "web/plugins/MCER/page/"}（含尾斜杠，可直接拼接文件名）；null / 空 → {@code ""}
+     * @return 如 {@code "/web/plugins/MCER/page"}；null / 空 → {@code ""}
      */
     String webResourcePrefix(String pluginName);
 
     /**
-     * Web 极简 jar 资源前缀（插件实例重载）：等价 {@link #webResourcePrefix(String)} 传 {@code plugin.getName()}。
+     * Web 极简页面 URL 前缀（插件实例重载）：等价 {@link #webResourcePrefix(String)} 传 {@code plugin.getName()}。
      *
      * @param plugin 插件主类实例（JavaPlugin）
-     * @return 如 {@code "web/plugins/MCER/page/"}；null → {@code ""}
+     * @return 如 {@code "/web/plugins/MCER/page"}；null → {@code ""}
      */
     String webResourcePrefix(Plugin plugin);
 
@@ -104,7 +119,7 @@ public interface ApiToolkitApi {
     String serverPrefix();
 
     /**
-     * 完整三段拼接 = {@link #serverPrefix()} + {@link #fullPrefix(String)}。
+     * 完整三段拼接 = {@link #serverPrefix()} + {@link #apiFullPrefix(String)}。
      * 例：群组服插件 Foo → {@code /server/lobby/api/plugins/Foo}；独立服 → {@code /api/plugins/Foo}。
      * 用于拼写群组服下插件自身 API / 网页的完整访问地址。
      */

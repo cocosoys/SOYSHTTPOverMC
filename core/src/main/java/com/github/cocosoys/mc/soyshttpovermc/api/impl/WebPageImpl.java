@@ -44,7 +44,8 @@ public class WebPageImpl implements WebPageApi {
     private static final String DEFAULT_CONTENT_TYPE = "text/html; charset=utf-8";
 
     /**
-     * 极简自动登记命名空间：{@code web/plugins/<插件>/page/}（无 /plugins 前缀的代理空间，避免与手动登记冲突）。
+     * 极简自动登记命名空间：{@code web/plugins/<插件>/page/}——jar 内物理布局，亦是代理登记 URL 路径；
+     * 固定落在 /page/ 子空间，与手动登记的 {@code /web/plugins/<插件>/} 主空间隔离，避免路径相撞。
      */
     private static final String AUTO_BASE_PREFIX = "web/plugins/";
     private static final String AUTO_PAGE_DIR = "/page/";

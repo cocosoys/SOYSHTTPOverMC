@@ -85,12 +85,14 @@ SoysHttpOverMcApi api = HttpOverMcPlugin.getInstance().getApi();
 | `String apiPrefix()` | 全局 API 前缀（网关 api-prefix，默认 `/api`） |
 | `String pluginsPrefix(String pluginName)` | 插件命名空间前缀（如 `/plugins/MCER`）；主插件自身 → 空串 |
 | `String pluginsPrefix(Plugin plugin)` | 同上，传插件主类实例 |
-| `String fullPrefix(String pluginName)` | `apiPrefix() + pluginsPrefix()` 完整路径前缀 |
-| `String fullPrefix(Plugin plugin)` | 同上，传插件主类实例 |
-| `String webResourcePrefix(String pluginName)` | Web 极简登记的 jar 资源路径前缀（`web/plugins/<插件名>/page/`） |
+| `String apiFullPrefix(String pluginName)` | `apiPrefix() + pluginsPrefix()` 完整路径前缀（API 正常登记，如 `/api/plugins/MCER`） |
+| `String apiFullPrefix(Plugin plugin)` | 同上，传插件主类实例 |
+| `String pageFullPrefix(String pluginName)` | 页面完整前缀 = "/web" + pluginsPrefix()（如 `/web/plugins/MCER`）；主插件 → 空串 |
+| `String pageFullPrefix(Plugin plugin)` | 同上，传插件主类实例 |
+| `String webResourcePrefix(String pluginName)` | Web 极简登记的页面 URL 前缀（`/web/plugins/<插件名>/page`） |
 | `String webResourcePrefix(Plugin plugin)` | 同上，传插件主类实例 |
 | `String serverPrefix()` | 群组服跨服前缀（如 `/server/lobby`）；独立服返回空串 |
-| `String fullPathPrefix(String pluginName)` | 完整三段 = `serverPrefix() + fullPrefix()`（如 `/server/lobby/api/plugins/Foo`） |
+| `String fullPathPrefix(String pluginName)` | 完整三段 = `serverPrefix() + apiFullPrefix()`（如 `/server/lobby/api/plugins/Foo`） |
 
 ## A.6 能力组 5：HttpClientApi
 

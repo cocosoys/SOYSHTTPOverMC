@@ -19,10 +19,10 @@ import java.util.jar.JarFile;
  *
  * <h3>命名空间约定</h3>
  * <ul>
- *   <li><b>默认前缀</b>：登记时自动补充 {@code /plugins/<插件名>}，例如插件 Foo 登记 {@code /dashboard}
- *       → 实际访问地址 {@code /plugins/Foo/dashboard}；</li>
+ *   <li><b>默认前缀</b>：登记时自动补充 {@code /web/plugins/<插件名>}，例如插件 Foo 登记 {@code /dashboard}
+ *       → 实际访问地址 {@code /web/plugins/Foo/dashboard}；</li>
  *   <li><b>强制代理（无前缀）</b>：调用 {@code registerProxyPage} / {@code registerProxyResource}，
- *       以主插件 SOYSHTTPOverMC 名义代理登记，不加 {@code /plugins/<插件名>} 前缀
+ *       以主插件 SOYSHTTPOverMC 名义代理登记，不加 {@code /web/plugins/<插件名>} 前缀
  *       （例如 {@code /dashboard}）；ownerPlugin 仍标记为真实插件，故插件卸载时仍会一并清理；</li>
  *   <li><b>跳转</b>：{@code registerRedirect} / {@code registerProxyRedirect} 登记 302/301 跳转，
  *       访问 A 网址时浏览器自动跳转到 B 网址（可跳转站内路径或站外 URL）；</li>
@@ -86,7 +86,7 @@ public class WebRegistry {
         return path != null && path.indexOf('{') >= 0 && path.indexOf('}') > path.indexOf('{');
     }
 
-    // ===== 普通登记（自动 /plugins/<插件名> 前缀） =====
+    // ===== 普通登记（自动 /web/plugins/<插件名> 前缀） =====
 
     /**
      * 登记网页（直接内容；Content-Type 按路径扩展名推断）；重复路径默认阻止（force=true 可强制覆盖）。
@@ -181,7 +181,7 @@ public class WebRegistry {
         return registerRes(owner, path, httpMethod, resourceClassLoader, resourcePath, contentType, false, force, description, nicknames, permissions);
     }
 
-    // ===== 强制代理登记（无 /plugins/<插件名> 前缀） =====
+    // ===== 强制代理登记（无 /web/plugins/<插件名> 前缀） =====
 
     /**
      * 强制以主插件代理登记网页（直接内容；Content-Type 按路径扩展名推断）；重复路径默认阻止。
@@ -287,7 +287,7 @@ public class WebRegistry {
     // ===== 跳转登记（A 网址 → B 网址，302/301） =====
 
     /**
-     * 登记跳转（默认 302，路径自动补 /plugins/<插件名> 前缀）。访问 A 时浏览器自动跳转到 B。
+     * 登记跳转（默认 302，路径自动补 /web/plugins/<插件名> 前缀）。访问 A 时浏览器自动跳转到 B。
      */
     public Entry registerRedirect(Plugin owner, String fromPath, String toPath) {
         return registerRedirect(owner, fromPath, toPath, false, 302);
@@ -301,7 +301,7 @@ public class WebRegistry {
     }
 
     /**
-     * 强制代理跳转（无 /plugins/<插件名> 前缀；默认 302）。
+     * 强制代理跳转（无 /web/plugins/<插件名> 前缀；默认 302）。
      */
     public Entry registerProxyRedirect(Plugin owner, String fromPath, String toPath) {
         return registerRedirect(owner, fromPath, toPath, true, 302);
@@ -417,10 +417,10 @@ public class WebRegistry {
 
     /**
      * 批量登记磁盘目录（如插件自带的前端 dist/ 文件夹）：递归扫描 {@code dir} 下全部文件，
-     * 按相对路径挂到 {@code basePath} 下（非主插件自动补 /plugins/&lt;插件名&gt; 前缀）。
+     * 按相对路径挂到 {@code basePath} 下（非主插件自动补 /web/plugins/&lt;插件名&gt; 前缀）。
      * 每个文件以磁盘 File 形式惰性登记（请求时再读，支持磁盘热替换），不入内存。
      *
-     * <p>示例：{@code registerDirectory(owner, "/", distDir)} → 访问 /plugins/Foo/index.html 等；
+     * <p>示例：{@code registerDirectory(owner, "/", distDir)} → 访问 /web/plugins/Foo/index.html 等；
      * 配合 {@code registerProxyDirectory(owner, "/app", distDir)} 可挂到无前缀的 /app。</p>
      */
     public Set<Entry> registerDirectory(Plugin owner, String basePath, File dir) {
@@ -438,7 +438,7 @@ public class WebRegistry {
     }
 
     /**
-     * 强制代理目录批量登记（无 /plugins/&lt;插件名&gt; 前缀）。
+     * 强制代理目录批量登记（无 /web/plugins/&lt;插件名&gt; 前缀）。
      *
      * @return 实际登记成功的 {@link Entry} 集合；参数非法/目录无效返回 null
      */
@@ -447,7 +447,7 @@ public class WebRegistry {
     }
 
     /**
-     * 强制代理登记单个磁盘页（无 /plugins/&lt;插件名&gt; 前缀）。
+     * 强制代理登记单个磁盘页（无 /web/plugins/&lt;插件名&gt; 前缀）。
      * 以<b>惰性磁盘文件</b>形式登记：请求时才读盘，支持磁盘热替换（与目录批量登记一致）；
      * 文件缺失时仍登记（由磁盘来源为空处理），但不会抛错。重复路径默认阻止，{@code force=true} 强制覆盖。
      * 用于把核心内置页（/login、/status 等）纳入注册通道，同时保留 webroot 磁盘覆盖能力。
@@ -543,7 +543,7 @@ public class WebRegistry {
     }
 
     /**
-     * 强制代理 jar 资源目录批量登记（无 /plugins/&lt;插件名&gt; 前缀）。
+     * 强制代理 jar 资源目录批量登记（无 /web/plugins/&lt;插件名&gt; 前缀）。
      *
      * @return 实际登记成功的 {@link Entry} 集合；参数非法/无插件 jar 返回 null
      */
@@ -555,7 +555,7 @@ public class WebRegistry {
 
     /**
      * 登记网络文件/网络网页页面：访问 {@code page.path()} 时网关调用 {@code page.load()} 获取内容
-     * （自动补 /plugins/&lt;插件名&gt; 前缀，与普通登记页一致；支持 .html 后缀智能匹配）。
+     * （自动补 /web/plugins/&lt;插件名&gt; 前缀，与普通登记页一致；支持 .html 后缀智能匹配）。
      * 重复路径默认阻止（force=true 强制覆盖并打印强制登记的插件）。
      */
     public Entry registerNetworkPage(String ownerPlugin, NetworkPage page) {
@@ -1057,12 +1057,12 @@ public class WebRegistry {
     }
 
     /**
-     * 计算最终路径：非主插件且非代理 → 前置 /plugins/<插件名>
+     * 计算最终路径：非主插件且非代理 → 前置 /web/plugins/<插件名>
      */
     private String resolvePath(String ownerName, String path, boolean proxy) {
         String p = path.startsWith("/") ? path : "/" + path;
         if (!proxy && ownerName != null && !ownerName.equals(hostName)) {
-            p = "/plugins/" + ownerName + p;
+            p = "/web/plugins/" + ownerName + p;
         }
         return p;
     }

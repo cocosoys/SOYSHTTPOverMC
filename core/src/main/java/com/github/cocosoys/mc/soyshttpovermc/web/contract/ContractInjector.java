@@ -16,10 +16,10 @@ import java.util.regex.Pattern;
  *
  * <p><b>1. 契约注入</b>：约定文件名 {@code __SOYS_CONTEXT__.js}（存放路径不限，按文件名的
  * 最后一段识别）。请求命中该文件时，把内容中的占位符 {@code __SOYS_CONTEXT__} 替换为当前
- * 服务器的真实环境原语（scheme / host / port / apiPrefix / pluginsPrefix / fullPrefix /
- * pagePrefix / webResourcePrefix），使前端无需关心部署环境（换服务器、改 api-prefix 等均自动适配）。
+ * 服务器的真实环境原语（scheme / host / port / apiPrefix / pluginsPrefix / apiFullPrefix /
+ * pageFullPrefix / webResourcePrefix），使前端无需关心部署环境（换服务器、改 api-prefix 等均自动适配）。
  *
- * <p><b>2. HTML 资源引用改写</b>：托管在 {@code /plugins/<插件名>/} 下的前端页面，若其
+ * <p><b>2. HTML 资源引用改写</b>：托管在 {@code /web/plugins/<插件名>/} 下的前端页面，若其
  * HTML 内使用绝对路径资源引用（{@code /static/...}、{@code /assets/...}、{@code /favicon.ico}
  * 等），响应时自动补当前页面所属插件的前缀，避免 404。前端可在契约文件中声明排除列表：
  * <pre>{@code
@@ -30,6 +30,19 @@ import java.util.regex.Pattern;
  *
  * <p>两类处理均为<b>响应时替换</b>：每次请求读取内容后处理，重载 config.yml 后
  * host/port/前缀变化天然生效；契约注入对象仅含原语（不含 origin 拼接、不含群组服 serverPrefix）。
+ *
+ * <pre>
+ * window.SOYS_CONTEXT = {
+ *   "scheme": "http",                          // TLS 启用 → https
+ *   "host": "play.example.com",                // public-host → mc.host → server-ip 回退
+ *   "port": 25574,                             // public-port → mc.port → server-port 回退
+ *   "apiPrefix": "/api",                       // 网关 api-prefix
+ *   "pluginsPrefix": "/plugins/SOYSHTTPOverMC",             // 按登记插件 owner 计算；主插件 ""
+ *   "apiFullPrefix": "/api/plugins/SOYSHTTPOverMC",          // apiPrefix + pluginsPrefix 归一
+ *   "pageFullPrefix": "/web/plugins/SOYSHTTPOverMC",         // 页面 URL 前缀（主插件 ""）
+ *   "webResourcePrefix": "/web/plugins/SOYSHTTPOverMC/page"  // 快捷注册资源默认前缀
+ * };
+ * </pre>
  */
 public class ContractInjector {
 
@@ -103,7 +116,7 @@ public class ContractInjector {
 
     /**
      * 若 path 为 HTML 页面内容，则把绝对路径资源引用改写为当前页面所属插件的前缀路径；
-     * 否则原样返回。仅当 owner 非主插件（页面托管在 /plugins/&lt;名&gt;/ 下）时改写。
+     * 否则原样返回。仅当 owner 非主插件（页面托管在 /web/plugins/&lt;名&gt;/ 下）时改写。
      *
      * @param path      请求命中的资源路径
      * @param ownerName 登记该资源的插件名；null/空 → 视为主插件
@@ -117,7 +130,7 @@ public class ContractInjector {
         if (owner.equals(host.getName())) {
             return content; // 主插件页面本身在根路径，无需改写
         }
-        String prefix = "/plugins/" + owner;
+        String prefix = "/web/plugins/" + owner;
         List<String> excludes = excludesOf(owner);
         String text = new String(content, StandardCharsets.UTF_8);
         String rewritten = rewriteHtml(text, prefix, excludes);
@@ -194,7 +207,7 @@ public class ContractInjector {
         if (value.startsWith(prefix)) {
             return false;                 // 已带本插件前缀
         }
-        if (value.startsWith("/plugins/")) {
+        if (value.startsWith("/web/plugins/")) {
             return false;                 // 已是插件命名空间
         }
         if (excludes != null) {
@@ -262,9 +275,9 @@ public class ContractInjector {
         String apiPrefix = normalizeApiPrefix();
         boolean mainPlugin = owner.equals(host.getName());
         String pluginsPrefix = mainPlugin ? "" : "/plugins/" + owner;
-        String fullPrefix = joinFull(apiPrefix, pluginsPrefix);
-        String pagePrefix = mainPlugin ? "" : "/plugins/" + owner;
-        String webResourcePrefix = "web/plugins/" + owner + "/page/";
+        String apiFullPrefix = joinFull(apiPrefix, pluginsPrefix);
+        String pageFullPrefix = mainPlugin ? "" : "/web/plugins/" + owner;
+        String webResourcePrefix = "/web/plugins/" + owner + "/page";
 
         StringBuilder sb = new StringBuilder(256);
         sb.append('{');
@@ -273,8 +286,8 @@ public class ContractInjector {
         sb.append(",\"port\":").append(port);
         appendPair(sb, "apiPrefix", apiPrefix, false);
         appendPair(sb, "pluginsPrefix", pluginsPrefix, false);
-        appendPair(sb, "fullPrefix", fullPrefix, false);
-        appendPair(sb, "pagePrefix", pagePrefix, false);
+        appendPair(sb, "apiFullPrefix", apiFullPrefix, false);
+        appendPair(sb, "pageFullPrefix", pageFullPrefix, false);
         appendPair(sb, "webResourcePrefix", webResourcePrefix, false);
         sb.append('}');
         return sb.toString();
@@ -289,7 +302,7 @@ public class ContractInjector {
     }
 
     /**
-     * 与 ApiToolkitImpl.fullPrefix 同语义：apiPrefix + pluginsPrefix 归一拼接。
+     * 与 ApiToolkitImpl.apiFullPrefix 同语义：apiPrefix + pluginsPrefix 归一拼接。
      */
     private static String joinFull(String apiPrefix, String pluginsPrefix) {
         if (pluginsPrefix.isEmpty()) {

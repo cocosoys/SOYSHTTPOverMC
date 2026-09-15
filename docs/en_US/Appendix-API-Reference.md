@@ -85,12 +85,14 @@ Also: `registerPage(..., List<String> permissions)` / `registerProxyPage(..., pe
 | `String apiPrefix()` | global API prefix (gateway api-prefix, default `/api`) |
 | `String pluginsPrefix(String pluginName)` | plugin namespace prefix (e.g. `/plugins/MCER`); empty for the main plugin |
 | `String pluginsPrefix(Plugin plugin)` | same, with the plugin main class instance |
-| `String fullPrefix(String pluginName)` | `apiPrefix() + pluginsPrefix()` full path prefix |
-| `String fullPrefix(Plugin plugin)` | same, with the plugin main class instance |
-| `String webResourcePrefix(String pluginName)` | Web minimalist jar resource path prefix (`web/plugins/<plugin>/page/`) |
+| `String apiFullPrefix(String pluginName)` | `apiPrefix() + pluginsPrefix()` full path prefix (normal API registration, e.g. `/api/plugins/MCER`) |
+| `String apiFullPrefix(Plugin plugin)` | same, with the plugin main class instance |
+| `String pageFullPrefix(String pluginName)` | page full prefix = "/web" + pluginsPrefix() (e.g. `/web/plugins/MCER`); empty for the main plugin |
+| `String pageFullPrefix(Plugin plugin)` | same, with the plugin main class instance |
+| `String webResourcePrefix(String pluginName)` | Web minimalist page URL prefix (`/web/plugins/<plugin>/page`) |
 | `String webResourcePrefix(Plugin plugin)` | same, with the plugin main class instance |
 | `String serverPrefix()` | proxy-server prefix (e.g. `/server/lobby`); empty on standalone |
-| `String fullPathPrefix(String pluginName)` | full 3-segment = `serverPrefix() + fullPrefix()` (e.g. `/server/lobby/api/plugins/Foo`) |
+| `String fullPathPrefix(String pluginName)` | full 3-segment = `serverPrefix() + apiFullPrefix()` (e.g. `/server/lobby/api/plugins/Foo`) |
 
 ## A.6 Group 5: HttpClientApi
 

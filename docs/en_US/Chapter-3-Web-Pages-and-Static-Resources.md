@@ -4,7 +4,7 @@ SOYSHTTPOverMC offers two channels for hosting web pages: **programmatic registr
 
 ## 3.1 Namespace & Routing Conventions
 
-- **Default prefix**: third-party plugin registrations automatically get `/plugins/<pluginName>`; plugin Foo registering `/dashboard` → `/plugins/Foo/dashboard`;
+- **Default prefix**: third-party plugin registrations automatically get `/web/plugins/<pluginName>`; plugin Foo registering `/dashboard` → `/web/plugins/Foo/dashboard`;
 - **Forced proxy (no prefix)**: `registerProxyPage` / `registerProxyResource` register under the main plugin's name without the prefix (e.g. `/dashboard`); `owner` still records the real plugin and unregistration cleans them up together;
 - **Nickname routes**: registrations may carry `nicknames`; visiting a nickname path hits the same page (e.g. `/主页`);
 - **.html suffix smart matching**: after registering `/login`, both `/login` and `/login.html` work;
@@ -20,7 +20,7 @@ SOYSHTTPOverMC offers two channels for hosting web pages: **programmatic registr
 | `registerPage(owner, path, byte[] content [, contentType] [, force])` | register a page (raw bytes; Content-Type inferred from extension or explicit) |
 | `registerPage(owner, path, httpMethod, content, contentType, force, desc, nicknames)` | non-GET static responses (POST/PUT/DELETE/PATCH) |
 | `registerResource(owner, path, classLoader, resourcePath [, contentType] [, force])` | register a jar resource (read on demand, memory-friendly) |
-| `registerProxyPage(...)` / `registerProxyResource(...)` | same without the `/plugins/<pluginName>` prefix |
+| `registerProxyPage(...)` / `registerProxyResource(...)` | same without the `/web/plugins/<pluginName>` prefix |
 | `registerDirectory(owner, basePath, File dir [, proxy])` | bulk-register a disk directory (recursive, lazy read, hot-replaceable) |
 | `registerResourceDirectory(owner, basePath, classLoader, resourceRoot [, proxy])` | bulk-register a jar resource directory |
 | `registerNetworkPage(owner, NetworkPage page)` | register a network page (content fetched via `page.load()` on access; custom encrypted transport possible) |

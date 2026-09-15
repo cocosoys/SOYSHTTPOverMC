@@ -102,7 +102,7 @@ public class ApiToolkitImpl implements ApiToolkitApi {
     }
 
     @Override
-    public String fullPrefix(String pluginName) {
+    public String apiFullPrefix(String pluginName) {
         String base = apiPrefix();
         String pp = pluginsPrefix(pluginName);
         if (pp.isEmpty()) return base;
@@ -118,14 +118,26 @@ public class ApiToolkitImpl implements ApiToolkitApi {
     }
 
     @Override
-    public String fullPrefix(Plugin plugin) {
-        return fullPrefix(plugin == null ? null : plugin.getName());
+    public String apiFullPrefix(Plugin plugin) {
+        return apiFullPrefix(plugin == null ? null : plugin.getName());
     }
+    @Override
+    public String pageFullPrefix(String pluginName) {
+        String pp = pluginsPrefix(pluginName);
+        return pp.isEmpty() ? "" : "/web" + pp;
+    }
+
+    @Override
+    public String pageFullPrefix(Plugin plugin) {
+        return pageFullPrefix(plugin == null ? null : plugin.getName());
+    }
+
+
 
     @Override
     public String webResourcePrefix(String pluginName) {
         if (pluginName == null || pluginName.isEmpty()) return "";
-        return "web/plugins/" + pluginName + "/page/";
+        return "/web/plugins/" + pluginName + "/page";
     }
 
     @Override
@@ -141,7 +153,7 @@ public class ApiToolkitImpl implements ApiToolkitApi {
     @Override
     public String fullPathPrefix(String pluginName) {
         String sp = serverPrefix();
-        String fp = fullPrefix(pluginName);
+        String fp = apiFullPrefix(pluginName);
         if (fp == null || fp.isEmpty()) return sp;
         return sp + (fp.startsWith("/") ? fp : "/" + fp);
     }
