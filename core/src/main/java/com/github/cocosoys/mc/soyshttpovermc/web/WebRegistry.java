@@ -1236,7 +1236,7 @@ public class WebRegistry {
             this.description = description;
             this.nicknames = (nicknames == null || nicknames.isEmpty()) ? null : new ArrayList<>(nicknames);
             this.permissions = (permissions == null || permissions.isEmpty()) ? null : new ArrayList<>(permissions);
-            this.tags = (tags == null || tags.isEmpty()) ? null : new ArrayList<>(tags);
+            this.tags = (tags == null || tags.isEmpty()) ? new ArrayList<>() : new ArrayList<>(tags);
         }
 
         public byte[] resolveBytes() {
