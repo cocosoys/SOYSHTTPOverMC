@@ -151,6 +151,31 @@ public ApiResponse pub() { ... }
 
 ### 2.6.2 类级默认
 
+### 2.6.3 端点级限流 / 防重 / 元数据
+
+```java
+@RateLimiter(count = 5, time = 10, by = RateLimiter.LimitBy.IP) // 同一 IP 10 秒最多 5 次，超限 429
+@PostMapping("/submit")
+public ApiResponse submit(@RequestBody String body) { ... }
+
+@RepeatSubmit(interval = 5)        // 同一键（IP+方法+路径+请求体哈希）5 秒内重复提交 → 409；默认仅写方法
+@PostMapping("/claim")
+public ApiResponse claim(@RequestBody String body) { ... }
+
+@Hidden(reason = "内部调试端点")     // 从 API 清单 / 自动文档隐藏
+@Deprecated(since = "1.4.0", reason = "改用 /api/v2") // 废弃标记（SOYS 自定义，区别于 JDK 注解）
+@GetMapping("/orders")
+public ApiResponse orders() { ... }
+```
+
+- `@RateLimiter`：端点级限流（与网关全局 rate-limit 互补），按 IP / 玩家 / 双键计数，窗口内超限返回 429；
+  客户端 IP 与玩家均不可得（本地回环调用）时不限流。
+- `@RepeatSubmit`：防重复提交，写方法（POST/PUT/DELETE/PATCH）默认生效，`force=true` 可对 GET 生效。
+- `@Hidden`：元数据隐藏——注册与路由照常，仅清单 / 文档不可见。
+- `@Deprecated`：废弃标记（携带 since / reason），路由照常但清单标注废弃；与 `java.lang.Deprecated` 同名不同包，勿混淆。
+
+以上注解均支持方法级缺失时回退到类级。
+
 `@ApiPermission` / `@ApiPublic` / `@Anonymous` 标注在类上作为该类所有端点的默认；方法级注解覆盖类级。
 
 ## 2.7 注册 API（门面能力组 1）

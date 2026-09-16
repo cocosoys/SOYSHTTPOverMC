@@ -151,6 +151,33 @@ Check logic (`PlayerPermissionService` / `CombinedPermissionService`, details in
 
 ### 2.6.2 Class-Level Defaults
 
+### 2.6.3 Endpoint Rate Limit / Repeat Submit / Metadata
+
+```java
+@RateLimiter(count = 5, time = 10, by = RateLimiter.LimitBy.IP) // max 5 req per IP per 10s, else 429
+@PostMapping("/submit")
+public ApiResponse submit(@RequestBody String body) { ... }
+
+@RepeatSubmit(interval = 5)        // same key (IP+method+path+body hash) within 5s → 409; write methods only by default
+@PostMapping("/claim")
+public ApiResponse claim(@RequestBody String body) { ... }
+
+@Hidden(reason = "internal debug endpoint")     // hide from API list / auto docs
+@Deprecated(since = "1.4.0", reason = "use /api/v2 instead") // deprecation marker (SOYS custom, not the JDK one)
+@GetMapping("/orders")
+public ApiResponse orders() { ... }
+```
+
+- `@RateLimiter`: endpoint-level rate limiting (complements the gateway-wide rate-limit policy),
+  counted per IP / player / both; returns 429 when the window budget is exceeded. Not applied to local loopback calls.
+- `@RepeatSubmit`: duplicate-submission guard, effective on write methods (POST/PUT/DELETE/PATCH) by default;
+  `force = true` also covers GET.
+- `@Hidden`: metadata only — registration and routing still work, but the endpoint is excluded from lists/docs.
+- `@Deprecated`: deprecation marker with since/reason; routing still works but the list flags it.
+  Same name as `java.lang.Deprecated` but a different package — do not confuse them.
+
+All of the above fall back to the class level when the method-level annotation is absent.
+
 `@ApiPermission` / `@ApiPublic` / `@Anonymous` on the class set the default for all endpoints in that class; method-level annotations override the class level.
 
 ## 2.7 Registering APIs (Facade Group 1)

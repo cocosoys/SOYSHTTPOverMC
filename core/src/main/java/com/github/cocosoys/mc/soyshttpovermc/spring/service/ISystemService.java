@@ -1,8 +1,10 @@
 package com.github.cocosoys.mc.soyshttpovermc.spring.service;
 
+import com.github.cocosoys.mc.soyshttpovermc.spring.entity.vo.PingEntity;
 import com.github.cocosoys.mc.soyshttpovermc.spring.entity.vo.SystemInfoEntity;
+import com.github.cocosoys.mc.soyshttpovermc.spring.entity.vo.WhoAmIEntity;
+import com.github.cocosoys.mc.soyshttpovermc.web.ApiRequestContext;
 
-import java.util.Map;
 
 /**
  * 系统级 Service 接口（业务抽象声明，仿 MyBatis-Plus 的 XxxService）：
@@ -11,12 +13,17 @@ import java.util.Map;
 public interface ISystemService extends IBaseService<SystemInfoEntity> {
 
     /**
-     * 存活检测数据：{pong, time, name, port, online}
+     * 存活检测数据：{pong, time, name, port, online}（实体化返回）
      */
-    Map<String, Object> ping();
+    PingEntity ping();
 
     /**
      * 网关版本信息实体
      */
     SystemInfoEntity getVersion();
+
+    /**
+     * 请求上下文演示：从 {@link ApiRequestContext} 组装 whoami 实体（替代 controller 内 Map 组装）。
+     */
+    WhoAmIEntity whoAmI(ApiRequestContext ctx);
 }

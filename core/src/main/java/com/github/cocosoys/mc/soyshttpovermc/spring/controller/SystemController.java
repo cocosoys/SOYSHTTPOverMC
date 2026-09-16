@@ -8,8 +8,6 @@ import com.github.cocosoys.mc.soyshttpovermc.spring.service.ISystemService;
 import com.github.cocosoys.mc.soyshttpovermc.util.AjaxResult;
 import com.github.cocosoys.mc.soyshttpovermc.web.ApiRequestContext;
 
-import java.util.HashMap;
-import java.util.Map;
 
 /**
  * 内置系统 API（控制器层，仿 Spring MVC / MyBatis-Plus）：
@@ -48,13 +46,7 @@ public class SystemController {
     @Anonymous
     @GetMapping("/whoami")
     public AjaxResult whoami(ApiRequestContext ctx) {
-        Map<String, Object> data = new HashMap<>();
-        data.put("ip", ctx.getIp());
-        data.put("method", ctx.getHttpMethod());
-        data.put("path", ctx.getPath());
-        data.put("authenticated", ctx.isAuthenticated());
-        data.put("player", ctx.getPlayerName());
-        data.put("online", ctx.getPlayer() != null);
-        return AjaxResult.success(data);
+        // 组装下沉至 service 层（SystemServiceImpl.whoAmI 返回实体），controller 不做数据拼装
+        return AjaxResult.success(systemService.whoAmI(ctx));
     }
 }

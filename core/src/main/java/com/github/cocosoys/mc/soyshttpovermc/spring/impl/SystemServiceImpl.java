@@ -1,10 +1,10 @@
 package com.github.cocosoys.mc.soyshttpovermc.spring.impl;
 
+import com.github.cocosoys.mc.soyshttpovermc.spring.entity.vo.PingEntity;
 import com.github.cocosoys.mc.soyshttpovermc.spring.entity.vo.SystemInfoEntity;
+import com.github.cocosoys.mc.soyshttpovermc.spring.entity.vo.WhoAmIEntity;
 import com.github.cocosoys.mc.soyshttpovermc.spring.service.ISystemService;
-
-import java.util.HashMap;
-import java.util.Map;
+import com.github.cocosoys.mc.soyshttpovermc.web.ApiRequestContext;
 
 /**
  * 系统级 Service 实现（仿 MyBatis-Plus 的 {@code XxxServiceImpl extends ServiceImpl implements XxxService}）：
@@ -19,13 +19,13 @@ public class SystemServiceImpl extends BaseServiceImpl<SystemInfoEntity> impleme
     }
 
     @Override
-    public Map<String, Object> ping() {
-        Map<String, Object> data = new HashMap<>();
-        data.put("pong", true);
-        data.put("time", System.currentTimeMillis());
-        data.put("name", "SOYSHTTPOverMC");
-        data.put("port", port);
-        data.put("online", true);
+    public PingEntity ping() {
+        PingEntity data = new PingEntity();
+        data.setPong(true);
+        data.setTime(System.currentTimeMillis());
+        data.setName("SOYSHTTPOverMC");
+        data.setPort(port);
+        data.setOnline(true);
         return data;
     }
 
@@ -33,5 +33,19 @@ public class SystemServiceImpl extends BaseServiceImpl<SystemInfoEntity> impleme
     public SystemInfoEntity getVersion() {
         return new SystemInfoEntity("SOYSHTTPOverMC", "1.0.0",
                 "三协议端口: MC / 明文 HTTP / HTTPS", port);
+    }
+
+    @Override
+    public WhoAmIEntity whoAmI(ApiRequestContext ctx) {
+        WhoAmIEntity data = new WhoAmIEntity();
+        if (ctx != null) {
+            data.setIp(ctx.getIp());
+            data.setMethod(ctx.getHttpMethod());
+            data.setPath(ctx.getPath());
+            data.setAuthenticated(ctx.isAuthenticated());
+            data.setPlayer(ctx.getPlayerName());
+            data.setOnline(ctx.getPlayer() != null);
+        }
+        return data;
     }
 }

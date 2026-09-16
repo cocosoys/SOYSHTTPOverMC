@@ -19,15 +19,27 @@ public class ApiInfo implements Serializable {
     private final String permission;
     private final String handlerClass;
     private final String ownerPlugin;
+    private final boolean hidden;
+    private final boolean deprecated;
 
     public ApiInfo(String httpMethod, String path, String apiName,
                    String permission, String handlerClass, String ownerPlugin) {
+        this(httpMethod, path, apiName, permission, handlerClass, ownerPlugin, false, null);
+    }
+    /**
+     * 全量构造（含元数据）：hidden/deprecated 由 {@code @Hidden}/{@code @Deprecated} 注解解析而来。
+     */
+    public ApiInfo(String httpMethod, String path, String apiName,
+                   String permission, String handlerClass, String ownerPlugin,
+                   boolean hidden, com.github.cocosoys.mc.soyshttpovermc.annotations.Deprecated deprecated) {
         this.httpMethod = httpMethod == null ? "" : httpMethod;
         this.path = path == null ? "/" : path;
         this.apiName = apiName == null ? "" : apiName;
         this.permission = permission == null ? "" : permission;
         this.handlerClass = handlerClass == null ? "" : handlerClass;
         this.ownerPlugin = ownerPlugin == null ? "" : ownerPlugin;
+        this.hidden = hidden;
+        this.deprecated = deprecated != null;
     }
 
     /**
@@ -70,6 +82,20 @@ public class ApiInfo implements Serializable {
      */
     public String getOwnerPlugin() {
         return ownerPlugin;
+    }
+
+    /**
+     * 是否从 API 清单 / 自动文档中隐藏（@Hidden）
+     */
+    public boolean isHidden() {
+        return hidden;
+    }
+
+    /**
+     * 是否已废弃（SOYS @Deprecated，区别于 JDK 注解）
+     */
+    public boolean isDeprecated() {
+        return deprecated;
     }
 
     @Override

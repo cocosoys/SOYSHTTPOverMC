@@ -11,6 +11,10 @@ import com.github.cocosoys.mc.soyshttpovermc.enums.RequestMethod;
 import com.github.cocosoys.mc.soyshttpovermc.i18n.I18n;
 import com.github.cocosoys.mc.soyshttpovermc.util.AjaxResult;
 import com.github.cocosoys.mc.soyshttpovermc.util.ApiResponse;
+import com.github.cocosoys.mc.soyshttpovermc.annotations.Deprecated;
+import com.github.cocosoys.mc.soyshttpovermc.annotations.Hidden;
+import com.github.cocosoys.mc.soyshttpovermc.annotations.RateLimiter;
+import com.github.cocosoys.mc.soyshttpovermc.annotations.RepeatSubmit;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.AnonymousProbe;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.issuer.CredentialPresentation;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.util.AuthUtils;
@@ -82,6 +86,14 @@ public class ApiRegistry implements AnonymousProbe {
     private final Plugin hostPlugin;
     private final Map<String, EndpointMeta> routes = new ConcurrentHashMap<>();
     private final Map<String, EndpointMeta> parameterizedRoutes = new ConcurrentHashMap<>();
+    /**
+     * 端点级限流状态（@RateLimiter）：key → 窗口（起始毫秒 + 计数）；惰性过期 + 阈值触发清理。
+     */
+    private final ConcurrentHashMap<String, RateWindow> rateBuckets = new ConcurrentHashMap<>();
+    /**
+     * 防重复提交状态（@RepeatSubmit）：key → 上次提交时间；惰性过期 + 阈值触发清理。
+     */
+    private final ConcurrentHashMap<String, Long> repeatMarks = new ConcurrentHashMap<>();
     private volatile PermissionService permissionService;
     /**
      * 凭证 → 玩家名 解析器（由宿主注入 SessionTokenIssuer::subjectOf），供 ApiAccessEvent 携带玩家信息。
@@ -265,7 +277,16 @@ public class ApiRegistry implements AnonymousProbe {
                 String key = method + " " + path;
                 boolean param = isParameterized(path);
                 Map<String, EndpointMeta> table = param ? parameterizedRoutes : routes;
-                EndpointMeta meta = new EndpointMeta(instance, m, apiName, permission, params, path, method, ownerName, cls.getName());
+                RateLimiter rl = m.getAnnotation(RateLimiter.class);
+                if (rl == null) rl = instance.getClass().getAnnotation(RateLimiter.class);
+                RepeatSubmit rss = m.getAnnotation(RepeatSubmit.class);
+                if (rss == null) rss = instance.getClass().getAnnotation(RepeatSubmit.class);
+                boolean hidden = m.getAnnotation(Hidden.class) != null
+                        || instance.getClass().getAnnotation(Hidden.class) != null;
+                Deprecated dep = m.getAnnotation(Deprecated.class);
+                if (dep == null) dep = instance.getClass().getAnnotation(Deprecated.class);
+                EndpointMeta meta = new EndpointMeta(instance, m, apiName, permission, params, path, method, ownerName, cls.getName(),
+                        rl, rss, hidden, dep);
                 EndpointMeta old = table.get(key);
                 if (old != null && !force) {
                     log.warnT("log.registry.duplicate-register",
@@ -410,6 +431,24 @@ public class ApiRegistry implements AnonymousProbe {
         String traceId = headers == null ? null : headers.get("X-Soys-Trace-Id");
         ApiRequestContext requestContext = new ApiRequestContext(hostPlugin, method, meta.path, clientIp,
                 headers, credential, playerName, player, authenticated, sourceServer, traceId);
+
+        // 端点级限流（@RateLimiter）：按 IP/玩家在时间窗口内计数，超限 429；本地回环（无 IP 无玩家）不限制
+        if (meta.rateLimit != null) {
+            String rk = limitKey(meta.rateLimit, clientIp, playerName);
+            if (rk != null && !allowRateLimit(meta.rateLimit, rk)) {
+                return AjaxResult.errorT(429, "ajax.registry.rate-limited", "请求过于频繁，请稍后再试");
+            }
+        }
+
+        // 防重复提交（@RepeatSubmit）：写方法同一请求键（IP+玩家+body 哈希）在间隔内重复 → 409
+        if (meta.repeatSubmit != null) {
+            String bk = method + " " + meta.path + "|" + (clientIp == null ? "?" : clientIp)
+                    + "|" + (playerName == null ? "?" : playerName)
+                    + "|" + (body == null ? 0 : java.util.Arrays.hashCode(body));
+            if (!allowRepeatSubmit(meta.repeatSubmit, method, bk)) {
+                return AjaxResult.errorT(409, "ajax.registry.repeat-submit", "请勿重复提交，请稍后再试");
+            }
+        }
 
         // 参数绑定 + 调用
         Map<String, String> query = parseQuery(rawPath);
@@ -564,7 +603,8 @@ public class ApiRegistry implements AnonymousProbe {
     }
 
     private static ApiInfo toInfo(EndpointMeta m) {
-        return new ApiInfo(m.httpMethod, m.path, m.apiName, m.permission, m.handlerClass, m.ownerPlugin);
+        return new ApiInfo(m.httpMethod, m.path, m.apiName, m.permission, m.handlerClass, m.ownerPlugin,
+                m.hidden, m.deprecated);
     }
 
     /**
@@ -604,6 +644,72 @@ public class ApiRegistry implements AnonymousProbe {
         return meta != null && isAnonymousEndpoint(meta);
     }
 
+    // ===== 端点级限流（@RateLimiter）与防重复提交（@RepeatSubmit）=====
+
+    private static final class RateWindow {
+        long start;
+        int count;
+    }
+
+    /**
+     * 限流计数键：按注解维度（IP / 玩家 / 双键）拼接；客户端 IP 与玩家均不可得（本地回环）返回 null → 不限流。
+     */
+    private static String limitKey(RateLimiter rl, String clientIp, String playerName) {
+        switch (rl.by()) {
+            case PLAYER:
+                return playerName != null ? "p:" + playerName
+                        : (clientIp == null ? null : "ip:" + clientIp);
+            case BOTH:
+                if (playerName != null) {
+                    return "ip:" + (clientIp == null ? "?" : clientIp) + "|p:" + playerName;
+                }
+                return clientIp == null ? null : "ip:" + clientIp;
+            default: // IP
+                return clientIp == null ? null : "ip:" + clientIp;
+        }
+    }
+
+    /**
+     * 端点限流判定：窗口内计数 +1，超过 {@link RateLimiter#count()} 返回 false（→ 429）；
+     * 窗口过期自动重置；状态表超过阈值时顺带清理过期项（容量保护）。
+     */
+    private boolean allowRateLimit(RateLimiter rl, String key) {
+        long now = System.currentTimeMillis();
+        long windowMs = Math.max(1, rl.time()) * 1000L;
+        RateWindow w = rateBuckets.compute(key, (k, old) -> {
+            if (old == null || now - old.start >= windowMs) {
+                RateWindow n = new RateWindow();
+                n.start = now;
+                n.count = 1;
+                return n;
+            }
+            old.count++;
+            return old;
+        });
+        if (rateBuckets.size() > 4096) {
+            rateBuckets.entrySet().removeIf(e -> now - e.getValue().start >= windowMs);
+        }
+        return w.count <= Math.max(1, rl.count());
+    }
+
+    /**
+     * 防重复提交判定：interval 内同一键重复返回 false（→ 409）。
+     * 默认仅写方法（POST/PUT/DELETE/PATCH）生效；{@link RepeatSubmit#force()} 可对 GET 生效。
+     */
+    private boolean allowRepeatSubmit(RepeatSubmit rs, String httpMethod, String key) {
+        String m = httpMethod == null ? "" : httpMethod.toUpperCase();
+        boolean write = m.equals("POST") || m.equals("PUT") || m.equals("DELETE") || m.equals("PATCH");
+        if (!write && !rs.force()) return true;
+        long now = System.currentTimeMillis();
+        long intervalMs = Math.max(1, rs.interval()) * 1000L;
+        Long prev = repeatMarks.put(key, now);
+        if (prev != null && now - prev < intervalMs) return false;
+        if (repeatMarks.size() > 8192) {
+            repeatMarks.entrySet().removeIf(e -> now - e.getValue() >= intervalMs);
+        }
+        return true;
+    }
+
     // ===== 元数据 =====
 
     public static final class EndpointMeta {
@@ -628,9 +734,26 @@ public class ApiRegistry implements AnonymousProbe {
          * 处理器类全限定名
          */
         public final String handlerClass;
+        /**
+         * 端点级限流注解（@RateLimiter；方法级缺失回退类级，均无则 null）
+         */
+        public final RateLimiter rateLimit;
+        /**
+         * 防重复提交注解（@RepeatSubmit；方法级缺失回退类级，均无则 null）
+         */
+        public final RepeatSubmit repeatSubmit;
+        /**
+         * 是否从 API 清单隐藏（@Hidden 方法级或类级）
+         */
+        public final boolean hidden;
+        /**
+         * 废弃标记（SOYS 自定义 @Deprecated，与 java.lang.Deprecated 无关；方法级缺失回退类级）
+         */
+        public final Deprecated deprecated;
 
         EndpointMeta(Object instance, Method method, String apiName, String permission,
-                     List<ParamBinding> params, String path, String httpMethod, String ownerPlugin, String handlerClass) {
+                     List<ParamBinding> params, String path, String httpMethod, String ownerPlugin, String handlerClass,
+                     RateLimiter rateLimit, RepeatSubmit repeatSubmit, boolean hidden, Deprecated deprecated) {
             this.instance = instance;
             this.method = method;
             this.apiName = apiName;
@@ -640,6 +763,10 @@ public class ApiRegistry implements AnonymousProbe {
             this.httpMethod = httpMethod;
             this.ownerPlugin = ownerPlugin == null ? "" : ownerPlugin;
             this.handlerClass = handlerClass;
+            this.rateLimit = rateLimit;
+            this.repeatSubmit = repeatSubmit;
+            this.hidden = hidden;
+            this.deprecated = deprecated;
         }
     }
 

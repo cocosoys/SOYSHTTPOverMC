@@ -1,6 +1,9 @@
 package com.github.cocosoys.mc.soyshttpovermc.spring.impl;
 
 import com.github.cocosoys.mc.soyshttpovermc.enums.LoginMode;
+import com.github.cocosoys.mc.soyshttpovermc.spring.entity.vo.AuthStatusEntity;
+import com.github.cocosoys.mc.soyshttpovermc.spring.entity.vo.LoginModeEntity;
+import com.github.cocosoys.mc.soyshttpovermc.spring.entity.vo.LoginResultEntity;
 import com.github.cocosoys.mc.soyshttpovermc.spring.service.IAuthService;
 import com.github.cocosoys.mc.soyshttpovermc.util.AjaxResult;
 import com.github.cocosoys.mc.soyshttpovermc.util.ApiResponse;
@@ -20,6 +23,7 @@ import java.util.regex.Pattern;
  * <b>业务逻辑集中于此</b>，控制器只调用接口方法。复用 {@link AuthLoginBridge} 的
  * AuthMe 密码校验与 session-token 签发/撤销链路，与 AuthMe 网页登录（ticket 流程）互补：
  * 登录窗口（web/login.html）用"玩家名 + AuthMe 密码"直接登录，无需游戏内链接。
+ * 返回数据一律实体化（{@code spring/entity/vo}），不出现临时 Map 组装。
  */
 public class AuthServiceImpl implements IAuthService {
 
@@ -77,13 +81,13 @@ public class AuthServiceImpl implements IAuthService {
         }
         // 登录模式（与 bridge.login 内部同一策略）：玩家在线→online；不在线→offline（离线专属 cookie）
         LoginMode mode = bridge.getLoginModePolicy().decideLogin(player);
-        Map<String, Object> data = new HashMap<>();
-        data.put("player", player);
-        data.put("token", token);
-        data.put("cookieName", bridge.getCookieName());
-        data.put("ttlSeconds", bridge.getTtlSeconds());
-        data.put("mode", mode.name().toLowerCase()); // online / offline（离线模式登录标签）
-        data.put("authenticated", true);
+        LoginResultEntity data = new LoginResultEntity();
+        data.setPlayer(player);
+        data.setToken(token);
+        data.setCookieName(bridge.getCookieName());
+        data.setTtlSeconds(bridge.getTtlSeconds());
+        data.setMode(mode.name().toLowerCase()); // online / offline（离线模式登录标签）
+        data.setAuthenticated(true);
 
         // 记住我（设备免登录）：勾选且启用 → 签发长期设备凭证并下发 HttpOnly Cookie（soys_remember）
         Map<String, String> extra = null;
@@ -94,9 +98,9 @@ public class AuthServiceImpl implements IAuthService {
                 extra.put("Set-Cookie", bridge.getRememberCookieName() + "=" + rememberToken
                         + "; Path=/; Max-Age=" + bridge.getRememberTtlSeconds()
                         + "; HttpOnly; SameSite=Lax");
-                data.put("remember", true);
-                data.put("rememberCookieName", bridge.getRememberCookieName());
-                data.put("rememberTtlSeconds", bridge.getRememberTtlSeconds());
+                data.setRemember(true);
+                data.setRememberCookieName(bridge.getRememberCookieName());
+                data.setRememberTtlSeconds(bridge.getRememberTtlSeconds());
             }
         }
         return ApiResponse.status(200, AjaxResult.successDataT(data, "ajax.auth.login-success", "登录成功"), extra);
@@ -129,12 +133,13 @@ public class AuthServiceImpl implements IAuthService {
             return AjaxResult.unauthorizedT("ajax.auth.not-logged-in", "未登录或凭证无效");
         }
         LoginMode mode = bridge.modeOf(credential);
-        Map<String, Object> data = new HashMap<>();
-        data.put("player", player);
-        data.put("authenticated", true);
-        data.put("online", Bukkit.getPlayerExact(player) != null);
+        // me 与 checkStatus 已登录分支结构一致，复用 AuthStatusEntity
+        AuthStatusEntity data = new AuthStatusEntity();
+        data.setPlayer(player);
+        data.setAuthenticated(true);
+        data.setOnline(Bukkit.getPlayerExact(player) != null);
         // 登录模式：offline=玩家使用离线模式登录网页（打标签）；online=在线正常登录（含升级后）
-        data.put("mode", mode == null ? null : mode.name().toLowerCase());
+        data.setMode(mode == null ? null : mode.name().toLowerCase());
         return AjaxResult.success(data);
     }
 
@@ -164,12 +169,12 @@ public class AuthServiceImpl implements IAuthService {
         if (bridge == null) {
             return AjaxResult.errorT(503, "ajax.auth.issuer-not-enabled", "会话令牌颁发器未启用（请在 gateway/issuers/session-token.yml 设 enabled: true）");
         }
-        Map<String, Object> data = new HashMap<>();
-        data.put("requiresPassword", bridge.loginRequiresPassword());
-        data.put("cookieName", bridge.getCookieName());
-        data.put("ttlSeconds", bridge.getTtlSeconds());
-        data.put("rememberEnabled", bridge.isRememberEnabled());
-        data.put("rememberTtlSeconds", bridge.getRememberTtlSeconds());
+        LoginModeEntity data = new LoginModeEntity();
+        data.setRequiresPassword(bridge.loginRequiresPassword());
+        data.setCookieName(bridge.getCookieName());
+        data.setTtlSeconds(bridge.getTtlSeconds());
+        data.setRememberEnabled(bridge.isRememberEnabled());
+        data.setRememberTtlSeconds(bridge.getRememberTtlSeconds());
         return AjaxResult.success(data);
     }
 
@@ -186,12 +191,12 @@ public class AuthServiceImpl implements IAuthService {
             String loggedPlayer = bridge.subjectOf(credential);
             if (loggedPlayer != null) {
                 LoginMode mode = bridge.modeOf(credential);
-                Map<String, Object> data = new HashMap<>();
-                data.put("player", loggedPlayer);
-                data.put("authenticated", true);
-                data.put("online", Bukkit.getPlayerExact(loggedPlayer) != null);
-                data.put("mode", mode == null ? null : mode.name().toLowerCase());
-                data.put("ip", clientIp);
+                AuthStatusEntity data = new AuthStatusEntity();
+                data.setPlayer(loggedPlayer);
+                data.setAuthenticated(true);
+                data.setOnline(Bukkit.getPlayerExact(loggedPlayer) != null);
+                data.setMode(mode == null ? null : mode.name().toLowerCase());
+                data.setIp(clientIp);
                 return ApiResponse.status(200, AjaxResult.success(data), null);
             }
         }
@@ -210,16 +215,16 @@ public class AuthServiceImpl implements IAuthService {
                         Map<String, String> extra = new HashMap<>();
                         extra.put("Set-Cookie", cookie);
                         LoginMode mode = bridge.getLoginModePolicy().decideLogin(rememberedPlayer);
-                        Map<String, Object> data = new HashMap<>();
-                        data.put("player", rememberedPlayer);
-                        data.put("authenticated", true);
-                        data.put("online", Bukkit.getPlayerExact(rememberedPlayer) != null);
-                        data.put("mode", mode == null ? null : mode.name().toLowerCase());
-                        data.put("rememberAutoLogin", true);
-                        data.put("token", token);
-                        data.put("cookieName", bridge.getCookieName());
-                        data.put("ttlSeconds", bridge.getTtlSeconds());
-                        data.put("ip", clientIp);
+                        AuthStatusEntity data = new AuthStatusEntity();
+                        data.setPlayer(rememberedPlayer);
+                        data.setAuthenticated(true);
+                        data.setOnline(Bukkit.getPlayerExact(rememberedPlayer) != null);
+                        data.setMode(mode == null ? null : mode.name().toLowerCase());
+                        data.setRememberAutoLogin(true);
+                        data.setToken(token);
+                        data.setCookieName(bridge.getCookieName());
+                        data.setTtlSeconds(bridge.getTtlSeconds());
+                        data.setIp(clientIp);
                         return ApiResponse.status(200,
                                 AjaxResult.successDataT(data, "ajax.auth.remember-login-success", "设备凭证，已自动登录"),
                                 extra);
@@ -231,18 +236,18 @@ public class AuthServiceImpl implements IAuthService {
         // 2) 未登录：使用传入的 player 参数，检查游戏端登录状态 + IP 匹配
         if (player == null || player.isEmpty()) {
             // 无 player 参数 → 返回未登录状态（供前端判断是否需要显示登录表单）
-            Map<String, Object> data = new HashMap<>();
-            data.put("authenticated", false);
-            data.put("ip", clientIp);
+            AuthStatusEntity data = new AuthStatusEntity();
+            data.setAuthenticated(false);
+            data.setIp(clientIp);
             return ApiResponse.status(200, AjaxResult.success(data), null);
         }
 
         // 旧 IP 匹配免登录开关（config.yml auto.login.ip.enabled，默认 false）：关闭时不做 IP 自动登录
         if (!bridge.isIpEnabled()) {
-            Map<String, Object> data = new HashMap<>();
-            data.put("authenticated", false);
-            data.put("player", player);
-            data.put("ip", clientIp);
+            AuthStatusEntity data = new AuthStatusEntity();
+            data.setAuthenticated(false);
+            data.setPlayer(player);
+            data.setIp(clientIp);
             return ApiResponse.status(200, AjaxResult.success(data), null);
         }
 
@@ -252,12 +257,12 @@ public class AuthServiceImpl implements IAuthService {
                 && bridge.gameIpMatches(player, clientIp);
 
         if (!gameLoggedIn || !ipMatched) {
-            Map<String, Object> data = new HashMap<>();
-            data.put("authenticated", false);
-            data.put("player", player);
-            data.put("gameLoggedIn", gameLoggedIn);
-            data.put("ipMatched", ipMatched);
-            data.put("ip", clientIp);
+            AuthStatusEntity data = new AuthStatusEntity();
+            data.setAuthenticated(false);
+            data.setPlayer(player);
+            data.setGameLoggedIn(gameLoggedIn);
+            data.setIpMatched(ipMatched);
+            data.setIp(clientIp);
             return ApiResponse.status(200, AjaxResult.success(data), null);
         }
 
@@ -272,16 +277,16 @@ public class AuthServiceImpl implements IAuthService {
                 + "; HttpOnly; SameSite=Lax";
         Map<String, String> extra = new HashMap<>();
         extra.put("Set-Cookie", cookie);
-        Map<String, Object> data = new HashMap<>();
-        data.put("player", player);
-        data.put("authenticated", true);
-        data.put("online", true);
-        data.put("mode", "online");
-        data.put("autoLogin", true);
-        data.put("token", token);
-        data.put("cookieName", bridge.getCookieName());
-        data.put("ttlSeconds", bridge.getTtlSeconds());
-        data.put("ip", clientIp);
+        AuthStatusEntity data = new AuthStatusEntity();
+        data.setPlayer(player);
+        data.setAuthenticated(true);
+        data.setOnline(true);
+        data.setMode("online");
+        data.setAutoLogin(true);
+        data.setToken(token);
+        data.setCookieName(bridge.getCookieName());
+        data.setTtlSeconds(bridge.getTtlSeconds());
+        data.setIp(clientIp);
         return ApiResponse.status(200, AjaxResult.successDataT(data, "ajax.auth.auto-login-success", "IP 匹配，已自动登录"), extra);
     }
 

@@ -149,7 +149,7 @@ public class YamlBackendExecutor implements IBackendExecutor {
             throw new IllegalArgumentException(I18n.t("exception.orm.no-tableid-annotation", "实体 {0} 未标注 @TableId", beanClass.getSimpleName()));
         }
         ConfigSection root = getConfig(beanClass).getSection(meta.getTableName());
-        ConfigSection section = root == null ? null : root.getSection(String.valueOf(id));
+        ConfigSection section = root == null ? null : root.getSection(encodeId(String.valueOf(id)));
         return BeanCodec.deserialize(beanClass, section);
     }
 
@@ -252,7 +252,7 @@ public class YamlBackendExecutor implements IBackendExecutor {
         }
         synchronized (lock) {
             ConfigSection config = getConfig(beanClass);
-            String base = meta.getTableName() + "." + id;
+            String base = meta.getTableName() + "." + encodeId(id);
             config.set(base, null);
             ConfigSection section = config.createSection(base);
             BeanCodec.serialize(bean, section);
@@ -272,7 +272,7 @@ public class YamlBackendExecutor implements IBackendExecutor {
         PojoMeta meta = PojoMeta.of(beanClass);
         synchronized (lock) {
             ConfigSection config = getConfig(beanClass);
-            String path = meta.getTableName() + "." + id;
+            String path = meta.getTableName() + "." + encodeId(id);
             if (config.get(path) == null) return false;
             config.set(path, null);
             flush(config, fileOf(beanClass));
@@ -289,6 +289,15 @@ public class YamlBackendExecutor implements IBackendExecutor {
         } catch (IllegalAccessException e) {
             return null;
         }
+    }
+
+    /**
+     * YAML 点路径编码：Bukkit YamlConfiguration 以 {@code .} 作为路径分隔符，
+     * 主键 id 中含点（如权限节点 {@code USER|uuid|system.user.query}）会被误拆成嵌套路径，
+     * 导致写入后无法读回。统一将 {@code .} 替换为 {@code ·}（U+00B7），读写删除三处保持一致。
+     */
+    private static String encodeId(Object id) {
+        return String.valueOf(id).replace(".", "·");
     }
 
     // ===== 跨端搜索（实现：全量扫描 contains） =====
