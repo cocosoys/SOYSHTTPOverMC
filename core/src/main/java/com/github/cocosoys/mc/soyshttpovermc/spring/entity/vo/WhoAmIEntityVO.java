@@ -11,7 +11,7 @@ import lombok.EqualsAndHashCode;
  */
 @Data
 @EqualsAndHashCode(callSuper = true)
-public class WhoAmIEntity extends BaseEntity {
+public class WhoAmIEntityVO extends BaseEntity {
 
     private static final long serialVersionUID = 1L;
 
@@ -33,6 +33,6 @@ public class WhoAmIEntity extends BaseEntity {
     /** 该玩家是否在线 */
     private boolean online;
 
-    public WhoAmIEntity() {
+    public WhoAmIEntityVO() {
     }
 }

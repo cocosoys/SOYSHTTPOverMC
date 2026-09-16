@@ -186,6 +186,25 @@ public class WebPageImpl implements WebPageApi {
         } catch (Exception ex) {
             throw ExceptionBus.fire(new WebPageException("E_UNREGISTER", "exception.web.unregister", "卸载网页失败(plugin={0}): {1}", ex, pluginName, ex.getMessage()));
         }
+
+    }
+
+    @Override
+    public int unregisterByTag(String tag) {
+        try {
+            return webRegistry.unregisterByTag(tag);
+        } catch (Exception ex) {
+            throw ExceptionBus.fire(new WebPageException("E_UNREGISTER_TAG", "exception.web.unregister-tag", "按 tag 卸载网页失败(tag={0}): {1}", ex, tag, ex.getMessage()));
+        }
+    }
+
+    @Override
+    public void unregisterCors(String pluginName) {
+        try {
+            corsRegistry.unregisterPlugin(pluginName);
+        } catch (Exception ex) {
+            throw ExceptionBus.fire(new WebPageException("E_UNREGISTER_CORS", "exception.web.unregister-cors", "卸载 CORS 失败(plugin={0}): {1}", ex, pluginName, ex.getMessage()));
+        }
     }
 
     @Override

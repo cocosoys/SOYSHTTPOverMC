@@ -15,7 +15,7 @@ import lombok.EqualsAndHashCode;
  */
 @Data
 @EqualsAndHashCode(callSuper = true)
-public class AuthStatusEntity extends BaseEntity {
+public class AuthStatusEntityVO extends BaseEntity {
 
     private static final long serialVersionUID = 1L;
 
@@ -55,6 +55,6 @@ public class AuthStatusEntity extends BaseEntity {
     /** 网页 IP 与游戏端 IP 是否匹配（仅旧 IP 匹配分支填充） */
     private boolean ipMatched;
 
-    public AuthStatusEntity() {
+    public AuthStatusEntityVO() {
     }
 }

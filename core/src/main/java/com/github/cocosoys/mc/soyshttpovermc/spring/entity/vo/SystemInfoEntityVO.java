@@ -10,7 +10,7 @@ import lombok.EqualsAndHashCode;
  */
 @Data
 @EqualsAndHashCode(callSuper = true)
-public class SystemInfoEntity extends BaseEntity {
+public class SystemInfoEntityVO extends BaseEntity {
 
     private static final long serialVersionUID = 1L;
 
@@ -19,10 +19,10 @@ public class SystemInfoEntity extends BaseEntity {
     private String protocol;
     private int port;
 
-    public SystemInfoEntity() {
+    public SystemInfoEntityVO() {
     }
 
-    public SystemInfoEntity(String name, String version, String protocol, int port) {
+    public SystemInfoEntityVO(String name, String version, String protocol, int port) {
         this.name = name;
         this.version = version;
         this.protocol = protocol;

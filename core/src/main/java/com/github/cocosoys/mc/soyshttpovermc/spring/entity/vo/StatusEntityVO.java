@@ -19,7 +19,7 @@ import java.util.List;
  */
 @EqualsAndHashCode(callSuper = true)
 @Data
-public class StatusEntity extends BaseEntity {
+public class StatusEntityVO extends BaseEntity {
 
     private static final long serialVersionUID = 1L;
 
@@ -27,7 +27,7 @@ public class StatusEntity extends BaseEntity {
     private Integer port;
     private Long uptimeMillis;
     private String uptime;
-    private RequestCountEntity requests;
-    private LatencyEntity latency;
-    private List<RecentRequestEntity> recent;
+    private RequestCountEntityVO requests;
+    private LatencyEntityVO latency;
+    private List<RecentRequestEntityVO> recent;
 }

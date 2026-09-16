@@ -1,9 +1,9 @@
 package com.github.cocosoys.mc.soyshttpovermc.spring.impl;
 
-import com.github.cocosoys.mc.soyshttpovermc.spring.entity.vo.LatencyEntity;
-import com.github.cocosoys.mc.soyshttpovermc.spring.entity.vo.RecentRequestEntity;
-import com.github.cocosoys.mc.soyshttpovermc.spring.entity.vo.RequestCountEntity;
-import com.github.cocosoys.mc.soyshttpovermc.spring.entity.vo.StatusEntity;
+import com.github.cocosoys.mc.soyshttpovermc.spring.entity.vo.LatencyEntityVO;
+import com.github.cocosoys.mc.soyshttpovermc.spring.entity.vo.RecentRequestEntityVO;
+import com.github.cocosoys.mc.soyshttpovermc.spring.entity.vo.RequestCountEntityVO;
+import com.github.cocosoys.mc.soyshttpovermc.spring.entity.vo.StatusEntityVO;
 import com.github.cocosoys.mc.soyshttpovermc.spring.service.IStatusService;
 import com.github.cocosoys.mc.soyshttpovermc.web.RequestStats;
 
@@ -14,7 +14,7 @@ import java.util.List;
  * 隧道状态 Service 实现（仿 MyBatis-Plus 的 {@code XxxServiceImpl extends ServiceImpl implements XxxService}）：
  * <b>业务逻辑集中于此</b>，控制器只调用接口方法。数据来源为隧道统计 {@link RequestStats}。
  */
-public class StatusServiceImpl extends BaseServiceImpl<StatusEntity> implements IStatusService {
+public class StatusServiceImpl extends BaseServiceImpl<StatusEntityVO> implements IStatusService {
 
     private final RequestStats stats;
     private final int port;
@@ -25,23 +25,23 @@ public class StatusServiceImpl extends BaseServiceImpl<StatusEntity> implements 
     }
 
     @Override
-    public StatusEntity getStatus() {
+    public StatusEntityVO getStatus() {
         long up = System.currentTimeMillis() - stats.getStartTime();
 
-        StatusEntity status = new StatusEntity();
+        StatusEntityVO status = new StatusEntityVO();
         status.setOnline(true);
         status.setPort(port);
         status.setUptimeMillis(up);
         status.setUptime(formatUptime(up));
 
-        RequestCountEntity requests = new RequestCountEntity();
+        RequestCountEntityVO requests = new RequestCountEntityVO();
         requests.setTotal(stats.getTotal());
         requests.setGet(stats.getGetCount());
         requests.setPost(stats.getPostCount());
         requests.setOther(stats.getOtherCount());
         status.setRequests(requests);
 
-        LatencyEntity latency = new LatencyEntity();
+        LatencyEntityVO latency = new LatencyEntityVO();
         latency.setAvgMs(nonNegative(stats.getAvgLatencyMs()));
         latency.setMaxMs(nonNegative(stats.getMaxLatencyMs()));
         status.setLatency(latency);
@@ -51,14 +51,14 @@ public class StatusServiceImpl extends BaseServiceImpl<StatusEntity> implements 
     }
 
     @Override
-    public List<RecentRequestEntity> getRecentRequests() {
+    public List<RecentRequestEntityVO> getRecentRequests() {
         return buildRecent();
     }
 
-    private List<RecentRequestEntity> buildRecent() {
-        List<RecentRequestEntity> recent = new ArrayList<>();
+    private List<RecentRequestEntityVO> buildRecent() {
+        List<RecentRequestEntityVO> recent = new ArrayList<>();
         for (RequestStats.RecentReq r : stats.getRecent()) {
-            RecentRequestEntity item = new RecentRequestEntity();
+            RecentRequestEntityVO item = new RecentRequestEntityVO();
             item.setMethod(r.method);
             item.setPath(r.path);
             item.setCode(r.code);

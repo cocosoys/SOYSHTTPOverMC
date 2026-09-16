@@ -1,8 +1,8 @@
 package com.github.cocosoys.mc.soyshttpovermc.spring.impl;
 
-import com.github.cocosoys.mc.soyshttpovermc.spring.entity.vo.PingEntity;
-import com.github.cocosoys.mc.soyshttpovermc.spring.entity.vo.SystemInfoEntity;
-import com.github.cocosoys.mc.soyshttpovermc.spring.entity.vo.WhoAmIEntity;
+import com.github.cocosoys.mc.soyshttpovermc.spring.entity.vo.PingEntityVO;
+import com.github.cocosoys.mc.soyshttpovermc.spring.entity.vo.SystemInfoEntityVO;
+import com.github.cocosoys.mc.soyshttpovermc.spring.entity.vo.WhoAmIEntityVO;
 import com.github.cocosoys.mc.soyshttpovermc.spring.service.ISystemService;
 import com.github.cocosoys.mc.soyshttpovermc.web.ApiRequestContext;
 
@@ -10,7 +10,7 @@ import com.github.cocosoys.mc.soyshttpovermc.web.ApiRequestContext;
  * 系统级 Service 实现（仿 MyBatis-Plus 的 {@code XxxServiceImpl extends ServiceImpl implements XxxService}）：
  * <b>业务数据在此组装</b>，控制器只调用接口方法。
  */
-public class SystemServiceImpl extends BaseServiceImpl<SystemInfoEntity> implements ISystemService {
+public class SystemServiceImpl extends BaseServiceImpl<SystemInfoEntityVO> implements ISystemService {
 
     private final int port;
 
@@ -19,8 +19,8 @@ public class SystemServiceImpl extends BaseServiceImpl<SystemInfoEntity> impleme
     }
 
     @Override
-    public PingEntity ping() {
-        PingEntity data = new PingEntity();
+    public PingEntityVO ping() {
+        PingEntityVO data = new PingEntityVO();
         data.setPong(true);
         data.setTime(System.currentTimeMillis());
         data.setName("SOYSHTTPOverMC");
@@ -30,14 +30,14 @@ public class SystemServiceImpl extends BaseServiceImpl<SystemInfoEntity> impleme
     }
 
     @Override
-    public SystemInfoEntity getVersion() {
-        return new SystemInfoEntity("SOYSHTTPOverMC", "1.0.0",
+    public SystemInfoEntityVO getVersion() {
+        return new SystemInfoEntityVO("SOYSHTTPOverMC", "1.0.0",
                 "三协议端口: MC / 明文 HTTP / HTTPS", port);
     }
 
     @Override
-    public WhoAmIEntity whoAmI(ApiRequestContext ctx) {
-        WhoAmIEntity data = new WhoAmIEntity();
+    public WhoAmIEntityVO whoAmI(ApiRequestContext ctx) {
+        WhoAmIEntityVO data = new WhoAmIEntityVO();
         if (ctx != null) {
             data.setIp(ctx.getIp());
             data.setMethod(ctx.getHttpMethod());

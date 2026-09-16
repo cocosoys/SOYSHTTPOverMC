@@ -10,7 +10,7 @@ import lombok.EqualsAndHashCode;
  */
 @Data
 @EqualsAndHashCode(callSuper = true)
-public class PingEntity extends BaseEntity {
+public class PingEntityVO extends BaseEntity {
 
     private static final long serialVersionUID = 1L;
 
@@ -29,6 +29,6 @@ public class PingEntity extends BaseEntity {
     /** 恒为 true */
     private boolean online;
 
-    public PingEntity() {
+    public PingEntityVO() {
     }
 }

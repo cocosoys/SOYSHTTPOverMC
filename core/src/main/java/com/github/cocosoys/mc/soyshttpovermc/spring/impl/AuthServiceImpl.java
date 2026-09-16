@@ -1,9 +1,9 @@
 package com.github.cocosoys.mc.soyshttpovermc.spring.impl;
 
 import com.github.cocosoys.mc.soyshttpovermc.enums.LoginMode;
-import com.github.cocosoys.mc.soyshttpovermc.spring.entity.vo.AuthStatusEntity;
-import com.github.cocosoys.mc.soyshttpovermc.spring.entity.vo.LoginModeEntity;
-import com.github.cocosoys.mc.soyshttpovermc.spring.entity.vo.LoginResultEntity;
+import com.github.cocosoys.mc.soyshttpovermc.spring.entity.vo.AuthStatusEntityVO;
+import com.github.cocosoys.mc.soyshttpovermc.spring.entity.vo.LoginModeEntityVO;
+import com.github.cocosoys.mc.soyshttpovermc.spring.entity.vo.LoginResultEntityVO;
 import com.github.cocosoys.mc.soyshttpovermc.spring.service.IAuthService;
 import com.github.cocosoys.mc.soyshttpovermc.util.AjaxResult;
 import com.github.cocosoys.mc.soyshttpovermc.util.ApiResponse;
@@ -81,7 +81,7 @@ public class AuthServiceImpl implements IAuthService {
         }
         // 登录模式（与 bridge.login 内部同一策略）：玩家在线→online；不在线→offline（离线专属 cookie）
         LoginMode mode = bridge.getLoginModePolicy().decideLogin(player);
-        LoginResultEntity data = new LoginResultEntity();
+        LoginResultEntityVO data = new LoginResultEntityVO();
         data.setPlayer(player);
         data.setToken(token);
         data.setCookieName(bridge.getCookieName());
@@ -134,7 +134,7 @@ public class AuthServiceImpl implements IAuthService {
         }
         LoginMode mode = bridge.modeOf(credential);
         // me 与 checkStatus 已登录分支结构一致，复用 AuthStatusEntity
-        AuthStatusEntity data = new AuthStatusEntity();
+        AuthStatusEntityVO data = new AuthStatusEntityVO();
         data.setPlayer(player);
         data.setAuthenticated(true);
         data.setOnline(Bukkit.getPlayerExact(player) != null);
@@ -169,7 +169,7 @@ public class AuthServiceImpl implements IAuthService {
         if (bridge == null) {
             return AjaxResult.errorT(503, "ajax.auth.issuer-not-enabled", "会话令牌颁发器未启用（请在 gateway/issuers/session-token.yml 设 enabled: true）");
         }
-        LoginModeEntity data = new LoginModeEntity();
+        LoginModeEntityVO data = new LoginModeEntityVO();
         data.setRequiresPassword(bridge.loginRequiresPassword());
         data.setCookieName(bridge.getCookieName());
         data.setTtlSeconds(bridge.getTtlSeconds());
@@ -191,7 +191,7 @@ public class AuthServiceImpl implements IAuthService {
             String loggedPlayer = bridge.subjectOf(credential);
             if (loggedPlayer != null) {
                 LoginMode mode = bridge.modeOf(credential);
-                AuthStatusEntity data = new AuthStatusEntity();
+                AuthStatusEntityVO data = new AuthStatusEntityVO();
                 data.setPlayer(loggedPlayer);
                 data.setAuthenticated(true);
                 data.setOnline(Bukkit.getPlayerExact(loggedPlayer) != null);
@@ -215,7 +215,7 @@ public class AuthServiceImpl implements IAuthService {
                         Map<String, String> extra = new HashMap<>();
                         extra.put("Set-Cookie", cookie);
                         LoginMode mode = bridge.getLoginModePolicy().decideLogin(rememberedPlayer);
-                        AuthStatusEntity data = new AuthStatusEntity();
+                        AuthStatusEntityVO data = new AuthStatusEntityVO();
                         data.setPlayer(rememberedPlayer);
                         data.setAuthenticated(true);
                         data.setOnline(Bukkit.getPlayerExact(rememberedPlayer) != null);
@@ -236,7 +236,7 @@ public class AuthServiceImpl implements IAuthService {
         // 2) 未登录：使用传入的 player 参数，检查游戏端登录状态 + IP 匹配
         if (player == null || player.isEmpty()) {
             // 无 player 参数 → 返回未登录状态（供前端判断是否需要显示登录表单）
-            AuthStatusEntity data = new AuthStatusEntity();
+            AuthStatusEntityVO data = new AuthStatusEntityVO();
             data.setAuthenticated(false);
             data.setIp(clientIp);
             return ApiResponse.status(200, AjaxResult.success(data), null);
@@ -244,7 +244,7 @@ public class AuthServiceImpl implements IAuthService {
 
         // 旧 IP 匹配免登录开关（config.yml auto.login.ip.enabled，默认 false）：关闭时不做 IP 自动登录
         if (!bridge.isIpEnabled()) {
-            AuthStatusEntity data = new AuthStatusEntity();
+            AuthStatusEntityVO data = new AuthStatusEntityVO();
             data.setAuthenticated(false);
             data.setPlayer(player);
             data.setIp(clientIp);
@@ -257,7 +257,7 @@ public class AuthServiceImpl implements IAuthService {
                 && bridge.gameIpMatches(player, clientIp);
 
         if (!gameLoggedIn || !ipMatched) {
-            AuthStatusEntity data = new AuthStatusEntity();
+            AuthStatusEntityVO data = new AuthStatusEntityVO();
             data.setAuthenticated(false);
             data.setPlayer(player);
             data.setGameLoggedIn(gameLoggedIn);
@@ -277,7 +277,7 @@ public class AuthServiceImpl implements IAuthService {
                 + "; HttpOnly; SameSite=Lax";
         Map<String, String> extra = new HashMap<>();
         extra.put("Set-Cookie", cookie);
-        AuthStatusEntity data = new AuthStatusEntity();
+        AuthStatusEntityVO data = new AuthStatusEntityVO();
         data.setPlayer(player);
         data.setAuthenticated(true);
         data.setOnline(true);

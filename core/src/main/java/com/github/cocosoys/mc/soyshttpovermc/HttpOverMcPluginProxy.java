@@ -3,6 +3,7 @@ package com.github.cocosoys.mc.soyshttpovermc;
 import com.github.cocosoys.mc.soyshttpovermc.api.ReloadHttpConfigHandler;
 import com.github.cocosoys.mc.soyshttpovermc.api.event.HttpConfigReloadEvent;
 import com.github.cocosoys.mc.soyshttpovermc.api.event.SoysReadyEvent;
+import com.github.cocosoys.mc.soyshttpovermc.api.SoysExpansion;
 import com.github.cocosoys.mc.soyshttpovermc.api.impl.SoysHttpOverMcApiImpl;
 import com.github.cocosoys.mc.soyshttpovermc.command.SoysHttpCommand;
 import com.github.cocosoys.mc.soyshttpovermc.config.ConfigManager;
@@ -56,6 +57,7 @@ import com.github.cocosoys.mc.soyshttpovermc.web.http.sniffer.HttpSnifferInstall
 import com.github.cocosoys.mc.soyshttpovermc.web.http.sniffer.SocketSniffer;
 import lombok.CustomLog;
 import org.bukkit.configuration.ConfigurationSection;
+import org.bukkit.configuration.file.YamlConfiguration;
 
 import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLContext;
@@ -91,13 +93,13 @@ public class HttpOverMcPluginProxy {
      * config.yml 的 UTF-8 兼容读取缓存（经 PlatformYaml → 版本模块 Platform.loadYaml）。
      * 避免 Bukkit 1.7.x YamlConfiguration 读 UTF-8 中文报 "special characters are not allowed"。
      */
-    private volatile org.bukkit.configuration.file.YamlConfiguration coreConfig;
+    private volatile YamlConfiguration coreConfig;
 
     /**
      * 读取主配置 config.yml（UTF-8 兼容，经 PlatformYaml → adapter 版本实现）。
      */
-    public org.bukkit.configuration.file.YamlConfiguration coreConfig() {
-        org.bukkit.configuration.file.YamlConfiguration c = coreConfig;
+    public YamlConfiguration coreConfig() {
+        YamlConfiguration c = coreConfig;
         if (c == null) {
             synchronized (this) {
                 c = coreConfig;
@@ -267,7 +269,7 @@ public class HttpOverMcPluginProxy {
     /**
      * language.yml 配置对象（国际化：current/rule/sources）；reload 时由 ConfigManager 重新装配。
      */
-    public org.bukkit.configuration.file.YamlConfiguration getLanguageConfig() {
+    public YamlConfiguration getLanguageConfig() {
         LanguageConfig cfg = plugin.getLanguageConfig();
         return cfg == null ? null : cfg.raw();
     }
@@ -290,7 +292,7 @@ public class HttpOverMcPluginProxy {
     /**
      * pages.yml 配置对象（web.* 段 / pages 段统一在此；可能为 null=文件落盘失败）。
      */
-    public org.bukkit.configuration.file.YamlConfiguration getPagesConfig() {
+    public YamlConfiguration getPagesConfig() {
         PagesConfig cfg = plugin.getPagesConfig();
         return cfg == null ? null : cfg.raw();
     }
@@ -659,6 +661,8 @@ public class HttpOverMcPluginProxy {
     private void initApiImpl() {
         plugin.setApi(new SoysHttpOverMcApiImpl(plugin, plugin.getApiRegistry(), plugin.getWebRegistry(),
                 plugin.getGateway(), plugin.getLargeFileLoaderRegistry(), plugin.getCorsRegistry()));
+        // 模块扩展门面就绪：SoysExpansion.bootstrap 供附属插件零参数 register()
+        SoysExpansion.bootstrap(plugin.getApi());
     }
 
     /**

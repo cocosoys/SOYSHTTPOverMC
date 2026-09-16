@@ -11,6 +11,7 @@ import com.github.cocosoys.mc.soyshttpovermc.enums.RequestMethod;
 import com.github.cocosoys.mc.soyshttpovermc.i18n.I18n;
 import com.github.cocosoys.mc.soyshttpovermc.util.AjaxResult;
 import com.github.cocosoys.mc.soyshttpovermc.util.ApiResponse;
+import com.github.cocosoys.mc.soyshttpovermc.util.JsonReader;
 import com.github.cocosoys.mc.soyshttpovermc.annotations.Deprecated;
 import com.github.cocosoys.mc.soyshttpovermc.annotations.Hidden;
 import com.github.cocosoys.mc.soyshttpovermc.annotations.RateLimiter;
@@ -468,7 +469,17 @@ public class ApiRegistry implements AnonymousProbe {
                 continue;
             }
             if (pb.requestBody) {
-                args[i] = body == null ? "" : new String(body, java.nio.charset.StandardCharsets.UTF_8);
+                String text = body == null ? "" : new String(body, java.nio.charset.StandardCharsets.UTF_8);
+                if (pb.type == String.class) {
+                    args[i] = text;
+                } else {
+                    // 实体参数：JSON -> POJO 绑定（JsonReader 零依赖反序列化），失败返回 400
+                    try {
+                        args[i] = JsonReader.fromJson(text, pb.type);
+                    } catch (Exception e) {
+                        return AjaxResult.errorT(400, "ajax.registry.invalid-body", "请求体 JSON 解析失败: {0}", e.getMessage());
+                    }
+                }
                 continue;
             }
             String value;
@@ -484,7 +495,13 @@ public class ApiRegistry implements AnonymousProbe {
                     if (pb.required) {
                         return AjaxResult.errorT(400, "ajax.registry.missing-required-param", "缺少必填参数: {0}", pb.name);
                     }
-                    value = pb.defaultValue;
+                    if (pb.defaultSet) {
+                        value = pb.defaultValue;
+                    } else {
+                        // 未显式提供默认值：引用类型传 null，基本类型传类型默认值（convert 内兜底）
+                        args[i] = convert(pb.type, null);
+                        continue;
+                    }
                 }
             }
             try {
@@ -774,6 +791,11 @@ public class ApiRegistry implements AnonymousProbe {
         final String name;
         final boolean required;
         final String defaultValue;
+        /**
+         * true=注解显式指定了默认值（@RequestParam(defaultValue=...)）；false=未指定，
+         * 参数缺失时绑定 null（引用类型）或类型默认值（基本类型），避免空串类型转换 400。
+         */
+        final boolean defaultSet;
         final Class<?> type;
         final boolean requestBody;
         /**
@@ -790,10 +812,12 @@ public class ApiRegistry implements AnonymousProbe {
         final boolean pathVariable;
 
         ParamBinding(String name, boolean required, String defaultValue, Class<?> type,
-                     boolean requestBody, boolean injectCredential, boolean injectContext, boolean pathVariable) {
+                     boolean requestBody, boolean injectCredential, boolean injectContext, boolean pathVariable,
+                     boolean defaultSet) {
             this.name = name;
             this.required = required;
             this.defaultValue = defaultValue;
+            this.defaultSet = defaultSet;
             this.type = type;
             this.requestBody = requestBody;
             this.injectCredential = injectCredential;
@@ -810,30 +834,30 @@ public class ApiRegistry implements AnonymousProbe {
             // 请求上下文注入：参数类型为 ApiRequestContext 时自动注入
             // （含客户端 IP / 玩家名 / 玩家实体 / 凭证 / 请求头等，供开发者获取"当前请求者"）
             if (types[i] == ApiRequestContext.class) {
-                list.add(new ParamBinding(null, false, null, types[i], false, false, true, false));
+                list.add(new ParamBinding(null, false, null, types[i], false, false, true, false, false));
                 continue;
             }
             // 凭证注入：参数类型为 CredentialPresentation 时，网关自动注入当前请求解析出的凭证
             // （供 /api/auth/me、/api/auth/logout 等需要"当前登录者"的端点使用，无需手动解析请求头）
             if (types[i] == CredentialPresentation.class) {
-                list.add(new ParamBinding(null, false, null, types[i], false, true, false, false));
+                list.add(new ParamBinding(null, false, null, types[i], false, true, false, false, false));
                 continue;
             }
             com.github.cocosoys.mc.soyshttpovermc.annotations.RequestBody rb = find(anns[i], com.github.cocosoys.mc.soyshttpovermc.annotations.RequestBody.class);
             if (rb != null) {
-                list.add(new ParamBinding(null, false, null, types[i], true, false, false, false));
+                list.add(new ParamBinding(null, false, null, types[i], true, false, false, false, false));
                 continue;
             }
             com.github.cocosoys.mc.soyshttpovermc.annotations.PathVariable pv = find(anns[i], com.github.cocosoys.mc.soyshttpovermc.annotations.PathVariable.class);
             if (pv != null) {
-                list.add(new ParamBinding(pv.name(), pv.required(), null, types[i], false, false, false, true));
+                list.add(new ParamBinding(pv.name(), pv.required(), null, types[i], false, false, false, true, false));
                 continue;
             }
             com.github.cocosoys.mc.soyshttpovermc.annotations.RequestParam rp = find(anns[i], com.github.cocosoys.mc.soyshttpovermc.annotations.RequestParam.class);
             if (rp != null) {
-                list.add(new ParamBinding(rp.name(), rp.required(), rp.defaultValue(), types[i], false, false, false, false));
+                list.add(new ParamBinding(rp.name(), rp.required(), rp.defaultValue(), types[i], false, false, false, false, !"".equals(rp.defaultValue())));
             } else {
-                list.add(new ParamBinding("arg" + i, false, "", types[i], false, false, false, false));
+                list.add(new ParamBinding("arg" + i, false, "", types[i], false, false, false, false, false));
             }
         }
         return list;
@@ -848,7 +872,13 @@ public class ApiRegistry implements AnonymousProbe {
     }
 
     private static Object convert(Class<?> type, String value) {
-        if (value == null) return null;
+        if (value == null) {
+            if (type == int.class) return 0;
+            if (type == long.class) return 0L;
+            if (type == double.class) return 0d;
+            if (type == boolean.class) return false;
+            return null;
+        }
         if (type == String.class) return value;
         if (type == int.class || type == Integer.class) return Integer.parseInt(value.trim());
         if (type == long.class || type == Long.class) return Long.parseLong(value.trim());

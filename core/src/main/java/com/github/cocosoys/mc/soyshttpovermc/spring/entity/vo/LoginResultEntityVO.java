@@ -10,7 +10,7 @@ import lombok.EqualsAndHashCode;
  */
 @Data
 @EqualsAndHashCode(callSuper = true)
-public class LoginResultEntity extends BaseEntity {
+public class LoginResultEntityVO extends BaseEntity {
 
     private static final long serialVersionUID = 1L;
 
@@ -41,6 +41,6 @@ public class LoginResultEntity extends BaseEntity {
     /** 记住我有效期（秒，仅 remember=true 时有意义） */
     private long rememberTtlSeconds;
 
-    public LoginResultEntity() {
+    public LoginResultEntityVO() {
     }
 }

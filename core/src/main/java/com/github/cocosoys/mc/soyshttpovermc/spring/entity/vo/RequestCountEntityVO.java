@@ -5,10 +5,10 @@ import lombok.Data;
 import java.io.Serializable;
 
 /**
- * 隧道状态 - 请求计数实体（嵌套于 {@link StatusEntity}）。
+ * 隧道状态 - 请求计数实体（嵌套于 {@link StatusEntityVO}）。
  */
 @Data
-public class RequestCountEntity implements Serializable {
+public class RequestCountEntityVO implements Serializable {
 
     private static final long serialVersionUID = 1L;
 

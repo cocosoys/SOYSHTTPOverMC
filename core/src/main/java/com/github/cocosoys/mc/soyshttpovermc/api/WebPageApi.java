@@ -206,6 +206,18 @@ public interface WebPageApi {
     void unregisterPluginPages(String pluginName);
 
     /**
+     * 按 tag 卸载网页（精确反注册，供 SoysExpansion 等按模块清理）。
+     *
+     * @return 卸载的网页数量
+     */
+    int unregisterByTag(String tag);
+
+    /**
+     * 卸载指定插件注册的全部 CORS 声明（反注册闭环，供 SoysExpansion 等按插件清理）。
+     */
+    void unregisterCors(String pluginName);
+
+    /**
      * 注册自定义错误页（替换通用 404/500 等错误响应）。content 为完整 HTML/文本字节。
      * 插件禁用时自动卸载。
      *
