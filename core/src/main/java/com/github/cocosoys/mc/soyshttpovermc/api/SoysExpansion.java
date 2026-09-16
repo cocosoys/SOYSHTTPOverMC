@@ -3,11 +3,15 @@ package com.github.cocosoys.mc.soyshttpovermc.api;
 import com.github.cocosoys.mc.soyshttpovermc.web.CorsRegistry;
 import com.github.cocosoys.mc.soyshttpovermc.web.WebRegistry;
 import lombok.CustomLog;
+import lombok.Data;
+import lombok.Getter;
 import org.bukkit.plugin.Plugin;
 import org.bukkit.plugin.java.JavaPlugin;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -24,7 +28,21 @@ import java.util.concurrent.ConcurrentHashMap;
  *     &#64;GetMapping("/items")
  *     public AjaxResult items(...) { ... }
  *
- *     &#64;Override protected String resourceRoot() { return "dist"; }  // 可选：自动托管 jar 内 web 目录
+ *     &#64;Override protected String resourceRoot() { return "dist"; }  // 可选：自动托管 jar 内 dist 目录
+ *
+ *     // 可选：需要把部分端点挂到有 /plugins 前缀的代理路径（如 /api/plugins/插件名/items）时，
+ *     &#64;Override protected java.util.List&lt;Object&gt; buildControllers() {
+ *          List&lt;Object&gt; list = new ArrayList<>();
+ *          list.add(this);
+ *          return list;
+ *     }
+ *
+ *     // 可选：需要把部分端点挂到无 /plugins 前缀的代理路径（如 /api/*）时，
+ *     &#64;Override protected java.util.List&lt;Object&gt; buildProxyControllers() {
+ *          List&lt;Object&gt; list = new ArrayList<>();
+ *          list.add(new SysLogController(new SysLogServiceImpl()));
+ *          return list;
+ *     }
  * }
  *
  * // onEnable 中一行注册：
@@ -40,16 +58,17 @@ import java.util.concurrent.ConcurrentHashMap;
  *
  * <p><b>注册自动处理项</b>：① 端点注解扫描（方法级映射/权限/限流等照常生效）；
  * ② owner 自动识别（{@link JavaPlugin#getProvidingPlugin(Class)}）；
- * ③ 非 proxy 模式自动补 /plugins/&lt;插件名&gt; 前缀；④ {@code resourceRoot()} 非空时自动
+ * ③ 正常登记自动补 /plugins/&lt;插件名&gt; 前缀，{@link #buildProxyControllers()} 代理登记无前缀；
  * 托管 jar 内资源目录（页面打 {@code expansion:&lt;identifier&gt;} tag，可精确卸载）；
  * ⑤ {@link #cors()} 非空时自动注册 CORS；⑥ 登记到模块注册表，{@link #unregister()} 时
  * 精确反注册端点 / 页面 / CORS。重复 identifier 拒绝注册。</p>
  */
 @CustomLog
+@Getter
 public abstract class SoysExpansion {
 
     // ===== 静态门面（静态注册管理器）=====
-    private static volatile SoysHttpOverMcApi api;
+    private @Getter static volatile SoysHttpOverMcApi api;
 
     /**
      * 由主插件（SOYSHTTPOverMC）在 API 门面就绪后调用一次；reload 重建门面时幂等覆盖。
@@ -125,15 +144,10 @@ public abstract class SoysExpansion {
     }
 
     /**
-     * 是否强制代理登记（无 /plugins/&lt;插件名&gt; 前缀）。默认 false = 自动加插件命名空间前缀。
-     */
-    protected boolean proxy() {
-        return false;
-    }
-
     /**
      * CORS 声明值对象（{@link #cors()} 返回数组元素）。
      */
+    @Data
     public static final class CorsSpec {
 
         public final String pathPrefix;
@@ -264,13 +278,6 @@ public abstract class SoysExpansion {
     }
 
     /**
-     * 是否已注册。
-     */
-    public final boolean isRegistered() {
-        return registered;
-    }
-
-    /**
      * 已注册模块全量清单（identifier → 扩展实例），供调试/文档使用。
      */
     public static ConcurrentHashMap<String, SoysExpansion> registered() {
@@ -282,6 +289,41 @@ public abstract class SoysExpansion {
      */
     protected final Plugin getOwner() {
         return owner;
+    }
+
+    /**
+     * 当前 SOYS API 门面（bootstrap 注入；未初始化时为 null）。
+     */
+    protected final SoysHttpOverMcApi getApi() {
+        return api;
+    }
+
+    /**
+     * 待登记端点实例列表（注册与注销共用同一来源）。
+     *
+     * <p>默认返回本扩展自身（{@code singletonList(this)}）——即"端点在扩展类上书写"的极简形态。
+     * 当端点书写在独立 Controller 类中（如 MCERP 的 AuthController / SysUserController / …）
+     * 时，覆写本方法返回全部实例列表即可批量注册，{@link #registerController()} 与
+     *  会自动遍历本来源，无需重写注册逻辑。</p>
+     *
+     * @return 待登记实例列表（null / 空列表视为无端点，空操作成功）
+     */
+    protected List<Object> buildControllers() {
+        return Collections.singletonList(this);
+    }
+
+    /**
+     * 代理登记端点实例列表（无 /plugins/&lt;插件名&gt; 前缀；注册与注销共用同一来源）。
+     *
+     * <p>默认返回空列表——即默认无代理端点。需要把端点挂到无插件命名空间的路径
+     * （如 {@code /api/prod-api/*}）时，覆写本方法返回对应实例列表；与
+     * {@link #buildControllers()} 可同时使用（同一实例亦可同时出现在两个来源，
+     * 注销按实例幂等，先清后空操作无害）。</p>
+     *
+     * @return 待代理登记实例列表（null / 空列表视为无代理端点，空操作成功）
+     */
+    protected List<Object> buildProxyControllers() {
+        return Collections.emptyList();
     }
 
     // ===== 可覆写单类注册钩子（模板方法模式；骨架按序调用）=====
@@ -307,27 +349,31 @@ public abstract class SoysExpansion {
     /**
      * 正常登记端点（自动补 /plugins/&lt;插件名&gt; 前缀）。
      *
-     * <p>默认：{@link #proxy()} 为 false 时登记本实例；{@link #proxy()} 为 true 时跳过
-     * （空操作视为成功）。</p>
+     * <p>默认：遍历 {@link #buildControllers()} 返回的全部实例逐例登记；
+     * 空列表视为无端点（空操作成功）。</p>
      *
-     * <p><b>覆写场景</b>：controller 的注册代码书写在其它类中（如 MCERP 的独立 Controller 类）
-     * 时，在覆写中调用 {@code api().getApiRegistration().registerController(instance, getOwner())}
-     * 登记该实例即可；希望保留默认行为后再追加注册其它实例时，先调用
-     * {@code super.registerController()}。</p>
+     * <p><b>覆写场景</b>：需在批量登记之外追加实例时，先调用
+     * {@code super.registerController()} 再自行登记额外实例。</p>
      *
-     * @return true=无异常完成（端点已登记或按模式跳过）；false=失败（骨架将整体回滚）
+     * @return true=无异常完成（端点已登记或空列表跳过）；false=失败（骨架将整体回滚）
      */
     protected boolean registerController() {
-        if (proxy()) {
-            return true; // 代理模式不执行正常登记
-        }
         Plugin o = owner;
         SoysHttpOverMcApi a = api;
         if (a == null || o == null) {
             return false;
         }
         try {
-            a.getApiRegistration().registerController(this, o, false);
+            List<Object> controllers = buildControllers();
+            if (controllers == null || controllers.isEmpty()) {
+                return true; // 未提供端点实例 → 空操作成功
+            }
+            for (Object c : controllers) {
+                if (c == null) {
+                    continue;
+                }
+                a.getApiRegistration().registerController(c, o, false);
+            }
             return true;
         } catch (Exception ex) {
             log.warn("SoysExpansion 端点注册失败（正常登记）: {0}: {1}", getIdentifier(), ex.getMessage());
@@ -338,24 +384,31 @@ public abstract class SoysExpansion {
     /**
      * 代理登记端点（无 /plugins/&lt;插件名&gt; 前缀）。
      *
-     * <p>默认：{@link #proxy()} 为 true 时登记本实例；{@link #proxy()} 为 false 时跳过
-     * （空操作视为成功）。</p>
+     * <p>默认：遍历 {@link #buildProxyControllers()} 返回的全部实例逐例代理登记；
+     * 空列表视为无代理端点（空操作成功）。</p>
      *
-     * <p>覆写场景同 {@link #registerController()}，走 {@code registerProxyController} 通道。</p>
+     * <p>与 {@link #registerController()} 可同时生效——同一扩展可同时拥有正常命名空间端点
+     * 与代理端点。</p>
      *
-     * @return true=无异常完成（端点已登记或按模式跳过）；false=失败（骨架将整体回滚）
+     * @return true=无异常完成（端点已登记或空列表跳过）；false=失败（骨架将整体回滚）
      */
     protected boolean registerProxyController() {
-        if (!proxy()) {
-            return true; // 正常模式不执行代理登记
-        }
         Plugin o = owner;
         SoysHttpOverMcApi a = api;
         if (a == null || o == null) {
             return false;
         }
         try {
-            a.getApiRegistration().registerProxyController(this, o, false);
+            List<Object> controllers = buildProxyControllers();
+            if (controllers == null || controllers.isEmpty()) {
+                return true; // 未提供代理端点实例 → 空操作成功
+            }
+            for (Object c : controllers) {
+                if (c == null) {
+                    continue;
+                }
+                a.getApiRegistration().registerProxyController(c, o, false);
+            }
             return true;
         } catch (Exception ex) {
             log.warn("SoysExpansion 端点注册失败（代理登记）: {0}: {1}", getIdentifier(), ex.getMessage());
@@ -433,20 +486,62 @@ public abstract class SoysExpansion {
     // ===== 可覆写单类注销钩子（模板方法模式；骨架按序调用）=====
 
     /**
-     * 端点反注册（正常登记侧）：默认 {@code unregisterController(this)} 精确移除本扩展全部端点。
-     *
-     * <p>注意：若覆写 {@link #registerController()} 注册了额外实例，请一并覆写本方法卸载它们
-     * （默认只卸载本实例）。</p>
+     * 端点反注册骨架：依次执行 {@link #unregisterController()}（正常登记侧）与
+     * {@link #unregisterProxyController()}（代理登记侧）。
      */
     protected void unregisterControllers() {
+        unregisterController();
+        unregisterProxyController();
+    }
+
+    /**
+     * 端点反注册（正常登记侧）：遍历 {@link #buildControllers()} 逐实例卸载。
+     *
+     * <p>若覆写 {@link #registerController()} 追加注册了列表之外的实例，请一并覆写本方法。</p>
+     */
+    protected void unregisterController() {
         SoysHttpOverMcApi a = api;
         if (a == null) {
             return;
         }
         try {
-            a.getApiRegistration().unregisterController(this);
+            List<Object> controllers = buildControllers();
+            if (controllers == null || controllers.isEmpty()) {
+                return;
+            }
+            for (Object c : controllers) {
+                if (c == null) {
+                    continue;
+                }
+                a.getApiRegistration().unregisterController(c);
+            }
         } catch (Exception ex) {
             log.warn("SoysExpansion 端点反注册失败（正常登记）: {0}: {1}", getIdentifier(), ex.getMessage());
+        }
+    }
+
+    /**
+     * 端点反注册（代理登记侧）：遍历 {@link #buildProxyControllers()} 逐实例卸载
+     * （与 {@link #unregisterController()} 幂等——ApiRegistry 按实例整体卸载，不分通道）。
+     */
+    protected void unregisterProxyController() {
+        SoysHttpOverMcApi a = api;
+        if (a == null) {
+            return;
+        }
+        try {
+            List<Object> controllers = buildProxyControllers();
+            if (controllers == null || controllers.isEmpty()) {
+                return;
+            }
+            for (Object c : controllers) {
+                if (c == null) {
+                    continue;
+                }
+                a.getApiRegistration().unregisterController(c);
+            }
+        } catch (Exception ex) {
+            log.warn("SoysExpansion 端点反注册失败（代理登记）: {0}: {1}", getIdentifier(), ex.getMessage());
         }
     }
 
