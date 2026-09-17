@@ -32,3 +32,11 @@ auto:
       activetime: 7
     ip:
       enabled: false
+
+# X-API-Key 权限降级开关：
+#   api-key.local-fallback-all — false=关闭（默认，安全优先）：本地权限表（local）不可用时，
+#                                 X-API-Key 按无权限拒绝（403）；true=开启：local 不可用时
+#                                 X-API-Key 退化为拥有所有权限（fail-open，仅建议内网/信任环境）。
+#                                 （权限判定走 local：管理员用 /soyshttp perm user <key值> 为 key 配置权限）
+api-key:
+  local-fallback-all: false

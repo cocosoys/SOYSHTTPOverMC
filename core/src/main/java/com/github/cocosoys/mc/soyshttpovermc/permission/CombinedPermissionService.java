@@ -51,9 +51,11 @@ public class CombinedPermissionService extends PlayerPermissionService {
     private final JavaPlugin plugin;
     private final ProviderRegistry providerRegistry;
     private final LocalPermissionStore localStore;
+    private final GatewayFilter gateway;
 
     public CombinedPermissionService(JavaPlugin plugin, GatewayFilter gateway) {
         super(gateway);
+        this.gateway = gateway;
         this.plugin = plugin;
         this.localStore = new LocalPermissionStore(new LocalPermStorageImpl());
         this.providerRegistry = new ProviderRegistry(plugin, localStore);
@@ -62,6 +64,17 @@ public class CombinedPermissionService extends PlayerPermissionService {
 
     @Override
     public boolean hasPermission(CredentialPresentation credential, String permission) {
+        // 0. X-API-Key（静态 keys 认证通过）专用分支：key 值作为本地权限表主体判定。
+        //    命中→放行；查无→继续原链（若同时携带玩家凭证仍有机会通过，或逻辑）；
+        //    local 不可用→按 auth.yml api-key.local-fallback-all 开关决定全权限放行或拒绝。
+        String apiKey = credential == null ? null : credential.getApiKey();
+        if (apiKey != null && !apiKey.isEmpty()
+                && gateway.getAuthPolicy() != null && gateway.getAuthPolicy().isValidKey(apiKey)) {
+            if (checkApiKeyPermission(apiKey, permission)) {
+                return true;
+            }
+        }
+
         // 1. 先调用父类判断（Bukkit 原生 + 离线 OP 检查）
         //    返回 true 则直接通过，不再向下执行（性能优化）
         if (super.hasPermission(credential, permission)) {
@@ -174,5 +187,26 @@ public class CombinedPermissionService extends PlayerPermissionService {
      */
     public LocalPermissionStore getLocalStore() {
         return localStore;
+    }
+
+    /**
+     * X-API-Key 专用权限判定：key 值作为本地权限表主体（复用 {@link LocalPermissionStore#check}，
+     * key → 离线 UUID 主键，与 /soyshttp perm user &lt;key值&gt; 配置路径同构）。
+     * local 可用且命中 → true；查无 → false（上层继续原链）；local 存储不可用（异常）→
+     * 按 auth.yml {@code api-key.local-fallback-all} 开关：true=全权限放行（fail-open），false=拒绝。
+     */
+    private boolean checkApiKeyPermission(String apiKey, String permission) {
+        try {
+            return localStore.check(apiKey, permission);
+        } catch (Throwable t) {
+            boolean fallbackAll = gateway.getAuthPolicy() != null
+                    && gateway.getAuthPolicy().isApiKeyLocalFallbackAll();
+            if (fallbackAll) {
+                plugin.getLogger().warning("[Permission] X-API-Key 本地权限表不可用，按配置全权限放行: " + apiKey);
+                return true;
+            }
+            plugin.getLogger().warning("[Permission] X-API-Key 本地权限表不可用且未开启 api-key.local-fallback-all，按拒绝处理: " + apiKey);
+            return false;
+        }
     }
 }

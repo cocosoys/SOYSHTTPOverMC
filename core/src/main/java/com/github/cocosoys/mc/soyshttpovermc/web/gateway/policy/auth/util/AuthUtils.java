@@ -148,9 +148,9 @@ public final class AuthUtils {
     }
 
     /**
-     * 常量时间匹配任一静态 key
+     * 常量时间匹配任一静态 key（public：供 AuthPolicy.isValidKey 及权限层复用）
      */
-    private static boolean matchAnyKey(Set<String> keys, String presented) {
+    public static boolean matchAnyKey(Set<String> keys, String presented) {
         if (keys == null || presented == null) return false;
         for (String k : keys) {
             if (constantTimeEquals(k, presented)) return true;

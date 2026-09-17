@@ -46,6 +46,12 @@ public class AuthPolicy extends SecurityPolicy {
     private boolean rememberEnabled = true;   // auto.login.ttl.enable（默认 true）
     private int rememberTtlDays = 7;          // auto.login.ttl.activetime（默认 7 天）
     private boolean ipEnabled = false;        // auto.login.ip.enabled（默认 false）
+    /**
+     * X-API-Key 本地权限降级开关（auth.yml api-key.local-fallback-all，默认 false）：
+     * true=本地权限表（local）不可用时 X-API-Key 退化为拥有所有权限（fail-open）；
+     * false=不可用时按无权限拒绝（安全优先，默认）。
+     */
+    private boolean apiKeyLocalFallbackAll = false;
     private volatile List<CredentialIssuer> issuers = new ArrayList<>();
     /**
      * 网关统一的 API 前缀（config.yml api-prefix，默认 /api）：匹配 exempt/paths 时自动兼容逻辑路径
@@ -97,6 +103,9 @@ public class AuthPolicy extends SecurityPolicy {
             ConfigurationSection ip = autoLogin.getConfigurationSection("ip");
             ipEnabled = ip != null && ip.getBoolean("enabled", false);
         }
+        // X-API-Key 本地权限降级开关（api-key.local-fallback-all，默认 false）
+        ConfigurationSection apiKeyCfg = cfg.getConfigurationSection("api-key");
+        apiKeyLocalFallbackAll = apiKeyCfg != null && apiKeyCfg.getBoolean("local-fallback-all", false);
     }
 
     /**
@@ -125,6 +134,22 @@ public class AuthPolicy extends SecurityPolicy {
      */
     public boolean isIpEnabled() {
         return ipEnabled;
+    }
+
+    /**
+     * X-API-Key 本地权限降级开关（auth.yml api-key.local-fallback-all，默认 false）。
+     * true=local 不可用时 X-API-Key 全权限放行；false=按无权限拒绝。供权限判定层（CombinedPermissionService）使用。
+     */
+    public boolean isApiKeyLocalFallbackAll() {
+        return apiKeyLocalFallbackAll;
+    }
+
+    /**
+     * 请求值是否为已配置的静态 key（常量时间比较，实时读 reload 后的 keys）。
+     * 供权限判定层识别「已通过认证门」的 X-API-Key，避免把未认证的请求头误当 key。
+     */
+    public boolean isValidKey(String key) {
+        return AuthUtils.matchAnyKey(keys, key);
     }
 
     /**
