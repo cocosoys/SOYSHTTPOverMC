@@ -1,6 +1,6 @@
 package com.github.cocosoys.mc.soyshttpovermc.api;
 
-import com.github.cocosoys.mc.soyshttpovermc.web.CorsRegistry;
+import com.github.cocosoys.mc.soyshttpovermc.web.DataHandle;
 import com.github.cocosoys.mc.soyshttpovermc.web.WebRegistry;
 import lombok.CustomLog;
 import lombok.Data;
@@ -8,7 +8,6 @@ import lombok.Getter;
 import org.bukkit.plugin.Plugin;
 import org.bukkit.plugin.java.JavaPlugin;
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;

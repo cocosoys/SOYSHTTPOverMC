@@ -16,7 +16,7 @@ import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.bridge.spi.
  *       子指令（继承 {@link SubCommand} 实现 4 个方法即可，op 校验 / help 聚合自动完成）。</li>
  * </ul>
  *
- * <p>API 访问监听事件：监听 Bukkit 事件 {@code soys.soyshttpovermc.api.event.ApiAccessEvent}
+ * <p>API 访问监听事件：监听 Bukkit 事件 {@code soys.soyshttpovermc.api.event.ApiEvent.ApiAccessEvent}
  * 及按请求类型细分的 {@code ApiGetEvent} / {@code ApiPostEvent} / {@code ApiPutEvent} /
  * {@code ApiDeleteEvent} / {@code ApiPatchEvent} / {@code ApiOtherEvent}，事件直接携带
  * 玩家名（playerName）与玩家实体（player，离线为 null）。</p>

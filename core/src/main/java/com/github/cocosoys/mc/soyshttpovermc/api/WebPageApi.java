@@ -288,4 +288,5 @@ public interface WebPageApi {
      */
     CorsRegistry.CorsEntry registerCors(Plugin owner, String pathPrefix, String origin, String methods,
                          String headers, boolean credentials);
+
 }

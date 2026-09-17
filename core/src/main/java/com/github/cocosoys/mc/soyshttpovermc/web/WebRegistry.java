@@ -1,9 +1,11 @@
 package com.github.cocosoys.mc.soyshttpovermc.web;
 
 import com.github.cocosoys.mc.soyshttpovermc.i18n.I18n;
+import com.github.cocosoys.mc.soyshttpovermc.api.event.WebResourcesEvent;
 import com.github.cocosoys.mc.soyshttpovermc.web.contract.ContractInjector;
 import lombok.CustomLog;
 import org.bukkit.plugin.Plugin;
+import org.bukkit.Bukkit;
 
 import java.io.*;
 import java.util.*;
@@ -64,7 +66,11 @@ public class WebRegistry {
      */
     public static final String DEFAULT_METHOD = "GET";
 
+    /**
+     * 契约注入器（__SOYS_CONTEXT__.js 注入 / HTML 资源引用改写）。
+     */
     private final ContractInjector contractInjector;
+
 
     public WebRegistry(String hostName, ContractInjector contractInjector) {
         this.hostName = hostName == null ? "" : hostName;
@@ -1299,6 +1305,30 @@ public class WebRegistry {
         }
     }
 
+    /**
+     * 触发 web 资源访问监听（资源解析命中后、响应构造前调用；copy 快照，监听器修改不影响注册内容）。
+     * <p>细分：onResource 恒触发；.html 命中追加 onHtml；.js 命中追加 onJs；
+     * 任一监听器置 result.handled 后短路，不再触发后续监听器。</p>
+     *
+     * @param method    HTTP 方法（大写）
+     * @param cleanPath 去 query 的请求路径
+     * @param query     原始 query 串（无 ?；可为 null）
+     * @param headers   请求头
+     * @param accessed  本次请求已访问的资源快照列表（请求级累积；正常 1 项）
+     * @return 触发后的访问上下文（含可写 result）；无监听器返回 null
+     */
+    public WebResourceAccess fireResourceAccess(String method, String cleanPath, String query,
+                                                Map<String, String> headers, List<ResourceAccess> accessed) {
+        ResourceAccess current = accessed == null || accessed.isEmpty() ? null : accessed.get(accessed.size() - 1);
+        WebResourceAccess acc = new WebResourceAccess(method, headers, cleanPath, query,
+                accessed == null ? Collections.<ResourceAccess>emptyList()
+                        : Collections.unmodifiableList(new ArrayList<>(accessed)),
+                current, new ResourceAccessResult());
+        // web 资源访问事件（加载前）：每资源仅发射一次（不拆 Html/Js 子事件，降低事件分发开销）；
+        // 细分判断由监听器通过事件 isHtml()/isJs() 自行过滤
+        Bukkit.getPluginManager().callEvent(new WebResourcesEvent.WebResourcesAccessEvent(acc));
+        return acc;
+    }
     private static byte[] toBytes(InputStream in) throws Exception {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         byte[] b = new byte[8192];

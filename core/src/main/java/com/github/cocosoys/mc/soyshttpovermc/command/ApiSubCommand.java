@@ -1,7 +1,7 @@
 package com.github.cocosoys.mc.soyshttpovermc.command;
 
 import com.github.cocosoys.mc.soyshttpovermc.HttpOverMcPlugin;
-import com.github.cocosoys.mc.soyshttpovermc.api.event.ApiInfo;
+import com.github.cocosoys.mc.soyshttpovermc.web.ApiInfo;
 import com.github.cocosoys.mc.soyshttpovermc.i18n.I18n;
 import com.github.cocosoys.mc.soyshttpovermc.util.StringListUtil;
 import com.github.cocosoys.mc.soyshttpovermc.web.ApiRegistry;

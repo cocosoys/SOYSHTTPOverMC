@@ -1,6 +1,7 @@
 package com.github.cocosoys.mc.soyshttpovermc.web;
 
 import com.github.cocosoys.mc.soyshttpovermc.i18n.I18n;
+import com.github.cocosoys.mc.soyshttpovermc.api.event.WebResourcesEvent;
 import com.github.cocosoys.mc.soyshttpovermc.util.AjaxResult;
 import com.github.cocosoys.mc.soyshttpovermc.util.ApiResponse;
 import com.github.cocosoys.mc.soyshttpovermc.permission.CombinedPermissionService;
@@ -11,6 +12,7 @@ import com.github.cocosoys.mc.soyshttpovermc.web.contract.ContractInjector;
 import com.github.cocosoys.mc.soyshttpovermc.web.proto.FrameProto;
 import com.google.protobuf.ByteString;
 import lombok.CustomLog;
+import org.bukkit.Bukkit;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
@@ -168,14 +170,25 @@ public class WebFrontendHandler {
             headers = ctx.headers();
         }
 
-        FrameProto.HttpResponseFrame resp = handleInner(m, rawPath, headers, body);
+        java.util.List<WebResourceAccess> loadedResources = new java.util.ArrayList<>();
+        FrameProto.HttpResponseFrame resp;
+        try {
+            resp = handleInner(m, rawPath, headers, body, loadedResources);
+        } finally {
+            // web 资源全部加载完毕事件（每请求一次；纯通知，不可干预响应）
+            if (!loadedResources.isEmpty()) {
+                Bukkit.getPluginManager().callEvent(new WebResourcesEvent.WebResourcesLoadedEvent(
+                        java.util.Collections.unmodifiableList(new java.util.ArrayList<>(loadedResources))));
+            }
+        }
         return cors == null ? resp : corsRegistry.attach(cors, resp);
     }
 
     /**
      * 实际路由：注解式 API → favicon → 插件登记网页 → 静态资源。
      */
-    private FrameProto.HttpResponseFrame handleInner(String m, String rawPath, Map<String, String> headers, byte[] body) {
+    private FrameProto.HttpResponseFrame handleInner(String m, String rawPath, Map<String, String> headers, byte[] body,
+                                                     List<WebResourceAccess> loadedResources) {
 
         // 1) 注解式 API 优先（@GetMapping 等注册的路由；业务端点一律归属 spring 包）
         if (apiRegistry != null) {
@@ -196,6 +209,9 @@ public class WebFrontendHandler {
         }
 
         String cleanPath = stripQuery(rawPath);
+        String query = null;
+        int qi = rawPath.indexOf('?');
+        if (qi >= 0) query = rawPath.substring(qi + 1);
         if (cleanPath.isEmpty() || cleanPath.equals("/")) cleanPath = "/";
 
         // favicon：优先本地插件配置目录 web/favicon.ico（磁盘，可热替换），再 jar 内置 /dist/favicon.ico，仍缺失才 204 无内容
@@ -224,6 +240,11 @@ public class WebFrontendHandler {
         if (webRegistry != null) {
             WebRegistry.Entry page = webRegistry.resolve(m, cleanPath);
             if (page != null) {
+                // web 资源访问监听（copy 快照；监听器可跳转拦截 / 拒绝 / 替换本次响应）
+                WebResourceAccess acc = webRegistry.fireResourceAccess(m, cleanPath, query, headers,
+                        java.util.Collections.singletonList(ResourceAccess.of(page)));
+                if (acc != null) loadedResources.add(acc);
+                if (acc != null && acc.result().isHandled()) return fromResourceResult(acc.result());
                 // 网页访问权限守卫：仅对可导航（HTML 页 / 跳转）生效，资源不拦
                 if (page.isNavigable()) {
                     FrameProto.HttpResponseFrame guard = checkPageGuard(headers, cleanPath, page.permissions);
@@ -250,6 +271,11 @@ public class WebFrontendHandler {
             // 网络文件/网络网页页面（NetworkPage 抽象：开发者自定义传输，如加密；按需 load + 可选缓存）
             NetworkPage np = webRegistry.resolveNetworkPage(m, cleanPath);
             if (np != null) {
+                // web 资源访问监听（网络页命中）
+                WebResourceAccess acc = webRegistry.fireResourceAccess(m, cleanPath, query, headers,
+                        java.util.Collections.singletonList(ResourceAccess.of(cleanPath, np.contentType(), null)));
+                if (acc != null) loadedResources.add(acc);
+                if (acc != null && acc.result().isHandled()) return fromResourceResult(acc.result());
                 // 网页访问权限守卫：网络页按 HTML 路径判定
                 if (MimeTypes.isHtmlPath(cleanPath)) {
                     FrameProto.HttpResponseFrame guard = checkPageGuard(headers, cleanPath,
@@ -268,7 +294,11 @@ public class WebFrontendHandler {
         if (hit == null) {
             return notFound(cleanPath);
         }
-        // 网页访问权限守卫：静态资源仅拦截 HTML 页（css/js/图片等资源不拦，避免破坏页面渲染）
+        // web 资源访问监听（静态资源命中；copy 快照）
+        WebResourceAccess acc = webRegistry.fireResourceAccess(m, cleanPath, query, headers,
+                java.util.Collections.singletonList(ResourceAccess.of(hit.name, hit.contentType, null)));
+        if (acc != null) loadedResources.add(acc);
+        if (acc != null && acc.result().isHandled()) return fromResourceResult(acc.result());
         if (MimeTypes.isHtmlPath(hit.name)) {
             FrameProto.HttpResponseFrame guard = checkPageGuard(headers, cleanPath, null);
             if (guard != null) return guard;
@@ -286,6 +316,23 @@ public class WebFrontendHandler {
                 .putHeaders("Content-Type", hit.contentType != null
                         ? hit.contentType : MimeTypes.forPath(hit.name))
                 .setBody(ByteString.copyFrom(hitBody))
+                .setFragmentIndex(0)
+                .setTotalFragments(1)
+                .build();
+    }
+
+    /**
+     * 由 web 资源监听器结果构造响应（跳转拦截 / 拒绝 / 替换内容）。
+     */
+    private FrameProto.HttpResponseFrame fromResourceResult(ResourceAccessResult r) {
+        if (r.location() != null) {
+            return HttpFrames.redirect(r.statusCode() > 0 ? r.statusCode() : 302, r.location());
+        }
+        int status = r.statusCode() > 0 ? r.statusCode() : 200;
+        return FrameProto.HttpResponseFrame.newBuilder()
+                .setStatusCode(status)
+                .putHeaders("Content-Type", r.contentType() == null ? MimeTypes.forExt("txt") : r.contentType())
+                .setBody(ByteString.copyFrom(r.body() == null ? new byte[0] : r.body()))
                 .setFragmentIndex(0)
                 .setTotalFragments(1)
                 .build();

@@ -1,6 +1,7 @@
 package com.github.cocosoys.mc.soyshttpovermc.event;
 
 import com.github.cocosoys.mc.soyshttpovermc.api.event.*;
+import com.github.cocosoys.mc.soyshttpovermc.web.ApiInfo;
 import lombok.CustomLog;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -22,32 +23,32 @@ public class GatewayEventListener implements Listener {
     }
 
     @EventHandler
-    public void onRequest(GatewayRequestEvent e) {
+    public void onRequest(GatewayEvent.GatewayRequestEvent e) {
         if (!debugEnabled) return;
         log.infoT("log.event.request", "[EVENT] request {0} {1} ip={2}{3}", e.getMethod(), e.getPath(), e.getIp(), e.isTls() ? " (TLS)" : "");
     }
 
     @EventHandler
-    public void onDenied(GatewayAccessDeniedEvent e) {
+    public void onDenied(GatewayEvent.GatewayAccessDeniedEvent e) {
         if (!debugEnabled) return;
         log.infoT("log.event.denied", "[EVENT] denied {0} {1} ip={2} policy={3} code={4} reason={5}",
                 e.getMethod(), e.getPath(), e.getIp(), e.getPolicyName(), e.getStatusCode(), e.getReason());
     }
 
     @EventHandler
-    public void onServed(GatewayRequestServedEvent e) {
+    public void onServed(GatewayEvent.GatewayRequestServedEvent e) {
         if (!debugEnabled) return;
         log.infoT("log.event.served", "[EVENT] served {0} {1} code={2} {3}ms", e.getMethod(), e.getPath(), e.getStatusCode(), e.getLatencyMs());
     }
 
     @EventHandler
-    public void onIssued(GatewayCredentialIssuedEvent e) {
+    public void onIssued(GatewayEvent.GatewayCredentialIssuedEvent e) {
         if (!debugEnabled) return;
         log.infoT("log.event.issued", "[EVENT] credential issued subject={0} issuer={1}", e.getSubject(), e.getIssuerName());
     }
 
     @EventHandler
-    public void onApiRegistered(ApiRegisteredEvent e) {
+    public void onApiRegistered(ApiEvent.ApiRegisteredEvent e) {
         if (!debugEnabled) return;
         StringBuilder sb = new StringBuilder("[EVENT] api registered plugin=").append(e.getOwnerPlugin())
                 .append(" count=").append(e.getApis().size());
@@ -58,7 +59,7 @@ public class GatewayEventListener implements Listener {
     }
 
     @EventHandler
-    public void onApiUnregistered(ApiUnregisteredEvent e) {
+    public void onApiUnregistered(ApiEvent.ApiUnregisteredEvent e) {
         if (!debugEnabled) return;
         log.infoT("log.event.api-unregistered", "[EVENT] api unregistered plugin={0} count={1}", e.getOwnerPlugin(), e.getApis().size());
     }

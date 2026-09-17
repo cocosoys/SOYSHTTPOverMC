@@ -1,7 +1,7 @@
 package com.github.cocosoys.mc.soyshttpovermc.command;
 
 import com.github.cocosoys.mc.soyshttpovermc.HttpOverMcPlugin;
-import com.github.cocosoys.mc.soyshttpovermc.api.event.GatewayCredentialIssuedEvent;
+import com.github.cocosoys.mc.soyshttpovermc.api.event.GatewayEvent;
 import com.github.cocosoys.mc.soyshttpovermc.i18n.I18n;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.GatewayFilter;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.issuer.CredentialIssuer;
@@ -91,7 +91,7 @@ public class KeySubCommand extends SubCommand {
             msg(sender, sb.toString());
             // 触发凭证下发事件（供其他插件联动；同步事件，命令路径在主线程）
             try {
-                plugin.getServer().getPluginManager().callEvent(new GatewayCredentialIssuedEvent(subject, issuer, c));
+                plugin.getServer().getPluginManager().callEvent(new GatewayEvent.GatewayCredentialIssuedEvent(subject, issuer, c));
             } catch (Throwable ignored) {
             }
         }

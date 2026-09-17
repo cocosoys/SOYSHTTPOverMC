@@ -1,7 +1,7 @@
 package com.github.cocosoys.mc.soyshttpovermc.api;
 
 import com.github.cocosoys.mc.soyshttpovermc.annotations.PermissionService;
-import com.github.cocosoys.mc.soyshttpovermc.api.event.ApiInfo;
+import com.github.cocosoys.mc.soyshttpovermc.web.ApiInfo;
 import org.bukkit.plugin.Plugin;
 
 import java.util.List;

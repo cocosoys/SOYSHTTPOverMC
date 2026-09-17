@@ -1,7 +1,7 @@
 package com.github.cocosoys.mc.soyshttpovermc.api.impl;
 
 import com.github.cocosoys.mc.soyshttpovermc.HttpOverMcPlugin;
-import com.github.cocosoys.mc.soyshttpovermc.api.DataHandle;
+import com.github.cocosoys.mc.soyshttpovermc.web.DataHandle;
 import com.github.cocosoys.mc.soyshttpovermc.api.DataRegistrationApi;
 import com.github.cocosoys.mc.soyshttpovermc.orm.AutoOps;
 import com.github.cocosoys.mc.soyshttpovermc.orm.DataSpec;

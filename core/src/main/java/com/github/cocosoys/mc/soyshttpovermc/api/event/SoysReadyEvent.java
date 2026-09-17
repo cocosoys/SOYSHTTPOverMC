@@ -1,5 +1,7 @@
 package com.github.cocosoys.mc.soyshttpovermc.api.event;
 
+import lombok.Getter;
+
 import com.github.cocosoys.mc.soyshttpovermc.api.SoysHttpOverMcApi;
 import org.bukkit.event.Event;
 import org.bukkit.event.HandlerList;
@@ -16,21 +18,18 @@ import org.bukkit.event.HandlerList;
  *
  * <p>事件为同步事件（主线程触发）；监听器异常不影响触发方。
  */
+@Getter
 public class SoysReadyEvent extends Event {
 
     private static final HandlerList HANDLERS = new HandlerList();
 
+    /**
+     * 就绪后的对外门面（注册 API / 网页 / 凭证 / 拦截器等）。
+     */
     private final SoysHttpOverMcApi api;
 
     public SoysReadyEvent(SoysHttpOverMcApi api) {
         this.api = api;
-    }
-
-    /**
-     * 就绪后的对外门面（注册 API / 网页 / 凭证 / 拦截器等）。
-     */
-    public SoysHttpOverMcApi getApi() {
-        return api;
     }
 
     @Override

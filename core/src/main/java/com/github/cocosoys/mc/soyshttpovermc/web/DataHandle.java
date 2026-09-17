@@ -1,5 +1,6 @@
-package com.github.cocosoys.mc.soyshttpovermc.api;
+package com.github.cocosoys.mc.soyshttpovermc.web;
 
+import com.github.cocosoys.mc.soyshttpovermc.api.DataRegistrationApi;
 import com.github.cocosoys.mc.soyshttpovermc.orm.DataSpec;
 import org.bukkit.plugin.Plugin;
 

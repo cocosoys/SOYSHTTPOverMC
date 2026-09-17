@@ -1,6 +1,7 @@
 package com.github.cocosoys.mc.soyshttpovermc.api;
 
 import com.github.cocosoys.mc.soyshttpovermc.orm.DataSpec;
+import com.github.cocosoys.mc.soyshttpovermc.web.DataHandle;
 import org.bukkit.plugin.Plugin;
 
 import java.util.List;

@@ -1,10 +1,9 @@
 package com.github.cocosoys.mc.soyshttpovermc.command;
 
 import com.github.cocosoys.mc.soyshttpovermc.HttpOverMcPlugin;
-import com.github.cocosoys.mc.soyshttpovermc.api.DataHandle;
+import com.github.cocosoys.mc.soyshttpovermc.web.DataHandle;
 import com.github.cocosoys.mc.soyshttpovermc.api.DataRegistrationApi;
 import com.github.cocosoys.mc.soyshttpovermc.i18n.I18n;
-import com.github.cocosoys.mc.soyshttpovermc.orm.DataSpec;
 import com.github.cocosoys.mc.soyshttpovermc.orm.SchemaRegistry;
 import com.github.cocosoys.mc.soyshttpovermc.orm.SoysSchemaMeta;
 import com.github.cocosoys.mc.soyshttpovermc.orm.executor.SqlBackendExecutor;

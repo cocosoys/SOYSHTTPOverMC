@@ -493,4 +493,5 @@ public class WebPageImpl implements WebPageApi {
         if (corsRegistry == null) return null;
         return corsRegistry.register(owner == null ? null : owner.getName(), pathPrefix, origin, methods, headers, credentials);
     }
+
 }

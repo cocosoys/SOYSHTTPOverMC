@@ -1,8 +1,6 @@
 package com.github.cocosoys.mc.soyshttpovermc.web.http.sniffer;
 
-import com.github.cocosoys.mc.soyshttpovermc.api.event.GatewayAccessDeniedEvent;
-import com.github.cocosoys.mc.soyshttpovermc.api.event.GatewayRequestEvent;
-import com.github.cocosoys.mc.soyshttpovermc.api.event.GatewayRequestServedEvent;
+import com.github.cocosoys.mc.soyshttpovermc.api.event.GatewayEvent;
 import com.github.cocosoys.mc.soyshttpovermc.enums.SnifferChannelState;
 import com.github.cocosoys.mc.soyshttpovermc.util.HttpFrames;
 import com.github.cocosoys.mc.soyshttpovermc.web.ApiRequestContext;
@@ -485,7 +483,7 @@ public class SocketSniffer {
         long t0 = System.nanoTime();
         int code = 200;
         final String ip = clientIp(ctx, p.headers);
-        fire(new GatewayRequestEvent(p.method, p.path, ip, tls, p.headers));
+        fire(new GatewayEvent.GatewayRequestEvent(p.method, p.path, ip, tls, p.headers));
         try {
             GatewayFilter gw = gateway;
             if (gw != null) {
@@ -499,7 +497,7 @@ public class SocketSniffer {
                 PolicyResult res = oc.result;
                 if (!res.isAllow()) {
                     code = res.getStatusCode();
-                    fire(new GatewayAccessDeniedEvent(p.method, p.path, ip, tls,
+                    fire(new GatewayEvent.GatewayAccessDeniedEvent(p.method, p.path, ip, tls,
                             oc.policy == null ? "unknown" : oc.policy.name(), code, res.getBody()));
                     writeDeny(ctx, res, tls);
                     return;
@@ -572,7 +570,7 @@ public class SocketSniffer {
         } finally {
             long dtUs = (System.nanoTime() - t0) / 1000;
             stats.recordRequest(p.method, p.path, code, dtUs);
-            fire(new GatewayRequestServedEvent(p.method, p.path, ip, tls, code, dtUs));
+            fire(new GatewayEvent.GatewayRequestServedEvent(p.method, p.path, ip, tls, code, dtUs));
         }
     }
 

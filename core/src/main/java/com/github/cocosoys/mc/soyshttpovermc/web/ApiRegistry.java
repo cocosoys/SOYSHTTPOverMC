@@ -1,12 +1,8 @@
 package com.github.cocosoys.mc.soyshttpovermc.web;
 
 import com.github.cocosoys.mc.soyshttpovermc.annotations.GetMapping;
-import com.github.cocosoys.mc.soyshttpovermc.annotations.PathVariable;
 import com.github.cocosoys.mc.soyshttpovermc.annotations.PermissionService;
-import com.github.cocosoys.mc.soyshttpovermc.api.event.ApiAccessEvent;
-import com.github.cocosoys.mc.soyshttpovermc.api.event.ApiInfo;
-import com.github.cocosoys.mc.soyshttpovermc.api.event.ApiRegisteredEvent;
-import com.github.cocosoys.mc.soyshttpovermc.api.event.ApiUnregisteredEvent;
+import com.github.cocosoys.mc.soyshttpovermc.api.event.ApiEvent;
 import com.github.cocosoys.mc.soyshttpovermc.enums.RequestMethod;
 import com.github.cocosoys.mc.soyshttpovermc.i18n.I18n;
 import com.github.cocosoys.mc.soyshttpovermc.util.AjaxResult;
@@ -51,9 +47,9 @@ import java.util.function.Function;
  *
  * <h3>插件归属与生命周期（自动）</h3>
  * 注册时网关会<b>自动标记注册该 API 的插件名</b>（按处理器实例的 ClassLoader 归属，无需调用方手动传入）。
- * 监听 {@link ApiRegisteredEvent} 可获取本批端点清单（方法 / 路径 / 端点名 / 权限 / 处理器类 / 所属插件）。
+ * 监听 {@link ApiEvent.ApiRegisteredEvent} 可获取本批端点清单（方法 / 路径 / 端点名 / 权限 / 处理器类 / 所属插件）。
  * 插件卸载时（{@code PluginDisableEvent}）网关会<b>自动卸载其名下全部 API</b>并触发
- * {@link ApiUnregisteredEvent}；亦可调用 {@link #unregister(Object)} / {@link #unregisterPlugin(String)} 显式卸载。
+ * {@link ApiEvent.ApiUnregisteredEvent}；亦可调用 {@link #unregister(Object)} / {@link #unregisterPlugin(String)} 显式卸载。
  *
  * <h3>路由约定</h3>
  * <ul>
@@ -97,7 +93,7 @@ public class ApiRegistry implements AnonymousProbe {
     private final ConcurrentHashMap<String, Long> repeatMarks = new ConcurrentHashMap<>();
     private volatile PermissionService permissionService;
     /**
-     * 凭证 → 玩家名 解析器（由宿主注入 SessionTokenIssuer::subjectOf），供 ApiAccessEvent 携带玩家信息。
+     * 凭证 → 玩家名 解析器（由宿主注入 SessionTokenIssuer::subjectOf），供 ApiEvent.ApiAccessEvent 携带玩家信息。
      */
     private volatile Function<CredentialPresentation, String> playerResolver;
     /**
@@ -136,7 +132,7 @@ public class ApiRegistry implements AnonymousProbe {
     }
 
     /**
-     * 注入凭证 → 玩家名解析器（令牌/凭证 → 玩家），供 {@link ApiAccessEvent} 事件携带
+     * 注入凭证 → 玩家名解析器（令牌/凭证 → 玩家），供 {@link ApiEvent.ApiAccessEvent} 事件携带
      * playerName/player（离线 player=null）。宿主注入 {@code PlayerPermissionService::subjectOf}。
      */
     public void setPlayerResolver(Function<CredentialPresentation, String> resolver) {
@@ -314,7 +310,7 @@ public class ApiRegistry implements AnonymousProbe {
             return;
         }
         // 发射注册事件（同步事件，确保在主线程触发；监听器异常不影响注册）
-        fireApiEvent(new ApiRegisteredEvent(ownerName, registered));
+        fireApiEvent(new ApiEvent.ApiRegisteredEvent(ownerName, registered));
     }
 
     /**
@@ -343,7 +339,7 @@ public class ApiRegistry implements AnonymousProbe {
         }
         if (!removed.isEmpty()) {
             log.infoT("log.registry.unregister-instance", "卸载 API（实例 {0}）：共 {1} 个", instance.getClass().getName(), removed.size());
-            fireApiEvent(new ApiUnregisteredEvent(removed.get(0).getOwnerPlugin(), removed));
+            fireApiEvent(new ApiEvent.ApiUnregisteredEvent(removed.get(0).getOwnerPlugin(), removed));
         }
         return removed;
     }
@@ -372,7 +368,7 @@ public class ApiRegistry implements AnonymousProbe {
         }
         if (!removed.isEmpty()) {
             log.infoT("log.registry.unregister-plugin", "卸载 API（插件 {0}）：共 {1} 个", pluginName, removed.size());
-            fireApiEvent(new ApiUnregisteredEvent(pluginName, removed));
+            fireApiEvent(new ApiEvent.ApiUnregisteredEvent(pluginName, removed));
         }
         return removed;
     }
@@ -398,29 +394,9 @@ public class ApiRegistry implements AnonymousProbe {
         }
         if (meta == null) return null;
 
-        // 默认拒绝：auth 框架已启用（PermissionService 注册）时，既无 @ApiPermission 又无 @ApiPublic 的端点
-        // 默认拒绝（安全优先）；未注册 PermissionService 时不强制（兼容关闭注解鉴权的旧部署）。
-        if (permissionService != null && meta.permission.isEmpty() && !isPublicEndpoint(meta)) {
-            return AjaxResult.errorT(403, "ajax.registry.default-denied", "默认拒绝：端点未声明公开(@ApiPublic)或权限(@ApiPermission)");
-        }
-
-        // 统一解析请求凭证（权限判定 / 参数注入 / 访问事件共用，避免重复解析）
+        // 统一解析请求凭证（权限判定 / 参数注入 / 访问事件 / 完成事件共用，避免重复解析）
         CredentialPresentation credential = AuthUtils.extractPresentation(headers, "X-API-Key",
                 true, true, true, true);
-
-        // 权限判定（未注册 PermissionService 时注解不阻断；@Anonymous 端点跳过权限，匿名优先）
-        PermissionService ps = permissionService;
-        if (ps != null && !meta.permission.isEmpty() && !isAnonymousEndpoint(meta)) {
-            try {
-                if (!ps.hasPermission(credential, meta.permission)) {
-                    return AjaxResult.forbiddenT("ajax.registry.no-permission", "无权限访问: {0}（需要 {1}）", meta.apiName, meta.permission);
-                }
-            } catch (Exception e) {
-                log.warnT("log.registry.permission-service-error", "PermissionService 异常，按拒绝处理: {0}", e);
-                return AjaxResult.forbiddenT("ajax.registry.permission-service-error", "权限服务异常");
-            }
-        }
-
         // 请求上下文（IP/玩家/凭证）：供参数注入（ApiRequestContext）与访问事件共用
         Function<CredentialPresentation, String> resolver = playerResolver;
         String playerName = resolver == null ? null : resolver.apply(credential);
@@ -432,12 +408,64 @@ public class ApiRegistry implements AnonymousProbe {
         String traceId = headers == null ? null : headers.get("X-Soys-Trace-Id");
         ApiRequestContext requestContext = new ApiRequestContext(hostPlugin, method, meta.path, clientIp,
                 headers, credential, playerName, player, authenticated, sourceServer, traceId);
+        // 请求参数（query 解析：@RequestParam 来源；访问/完成事件共用）
+        Map<String, String> query = parseQuery(rawPath);
+
+        // API 请求处理完成事件统一出口：所有命中路由的返回均经此触发（含被拒/异常/成功）
+        final EndpointMeta fmeta = meta;
+        final Map<String, String> fquery = query;
+        java.util.function.Function<Object, Object> finish = result -> {
+            int status = 200;
+            String reason = "OK";
+            Object responseBody = result;
+            if (result instanceof ApiResponse) {
+                ApiResponse ar = (ApiResponse) result;
+                status = ar.statusCode();
+                if (ar.body() != null) {
+                    responseBody = ar.body();
+                    reason = ar.body().getMsg();
+                }
+            } else if (result instanceof AjaxResult) {
+                AjaxResult aj = (AjaxResult) result;
+                status = aj.getCode();
+                reason = aj.getMsg();
+            }
+            try {
+                fireApiEvent(ApiEvent.ApiAccessCompletedEvent.forMethod(method, rawPath, fmeta.apiName, fmeta.permission,
+                        fmeta.ownerPlugin, authenticated, playerName,
+                        playerName != null && player == null, credential,
+                        status, reason, fquery, responseBody, body, headers));
+            } catch (Throwable ignored) {
+            }
+            return result;
+        };
+
+        // 默认拒绝：auth 框架已启用（PermissionService 注册）时，既无 @ApiPermission 又无 @ApiPublic 的端点
+        // 默认拒绝（安全优先）；未注册 PermissionService 时不强制（兼容关闭注解鉴权的旧部署）。
+        if (permissionService != null && meta.permission.isEmpty() && !isPublicEndpoint(meta)) {
+            return finish.apply(AjaxResult.errorT(403, "ajax.registry.default-denied", "默认拒绝：端点未声明公开(@ApiPublic)或权限(@ApiPermission)"));
+        }
+
+
+        // 权限判定（未注册 PermissionService 时注解不阻断；@Anonymous 端点跳过权限，匿名优先）
+        PermissionService ps = permissionService;
+        if (ps != null && !meta.permission.isEmpty() && !isAnonymousEndpoint(meta)) {
+            try {
+                if (!ps.hasPermission(credential, meta.permission)) {
+                    return finish.apply(AjaxResult.forbiddenT("ajax.registry.no-permission", "无权限访问: {0}（需要 {1}）", meta.apiName, meta.permission));
+                }
+            } catch (Exception e) {
+                log.warnT("log.registry.permission-service-error", "PermissionService 异常，按拒绝处理: {0}", e);
+                return finish.apply(AjaxResult.forbiddenT("ajax.registry.permission-service-error", "权限服务异常"));
+            }
+        }
+
 
         // 端点级限流（@RateLimiter）：按 IP/玩家在时间窗口内计数，超限 429；本地回环（无 IP 无玩家）不限制
         if (meta.rateLimit != null) {
             String rk = limitKey(meta.rateLimit, clientIp, playerName);
             if (rk != null && !allowRateLimit(meta.rateLimit, rk)) {
-                return AjaxResult.errorT(429, "ajax.registry.rate-limited", "请求过于频繁，请稍后再试");
+                return finish.apply(AjaxResult.errorT(429, "ajax.registry.rate-limited", "请求过于频繁，请稍后再试"));
             }
         }
 
@@ -447,12 +475,11 @@ public class ApiRegistry implements AnonymousProbe {
                     + "|" + (playerName == null ? "?" : playerName)
                     + "|" + (body == null ? 0 : java.util.Arrays.hashCode(body));
             if (!allowRepeatSubmit(meta.repeatSubmit, method, bk)) {
-                return AjaxResult.errorT(409, "ajax.registry.repeat-submit", "请勿重复提交，请稍后再试");
+                return finish.apply(AjaxResult.errorT(409, "ajax.registry.repeat-submit", "请勿重复提交，请稍后再试"));
             }
         }
 
         // 参数绑定 + 调用
-        Map<String, String> query = parseQuery(rawPath);
         Object[] args = new Object[meta.params.size()];
         for (int i = 0; i < meta.params.size(); i++) {
             ParamBinding pb = meta.params.get(i);
@@ -477,7 +504,7 @@ public class ApiRegistry implements AnonymousProbe {
                     try {
                         args[i] = JsonReader.fromJson(text, pb.type);
                     } catch (Exception e) {
-                        return AjaxResult.errorT(400, "ajax.registry.invalid-body", "请求体 JSON 解析失败: {0}", e.getMessage());
+                        return finish.apply(AjaxResult.errorT(400, "ajax.registry.invalid-body", "请求体 JSON 解析失败: {0}", e.getMessage()));
                     }
                 }
                 continue;
@@ -486,14 +513,14 @@ public class ApiRegistry implements AnonymousProbe {
             if (pb.pathVariable) {
                 value = pathVariables == null ? null : pathVariables.get(pb.name);
                 if (value == null && pb.required) {
-                    return AjaxResult.errorT(400, "ajax.registry.missing-path-variable", "缺少路径参数: {0}", pb.name);
+                    return finish.apply(AjaxResult.errorT(400, "ajax.registry.missing-path-variable", "缺少路径参数: {0}", pb.name));
                 }
                 if (value == null) value = pb.defaultValue;
             } else {
                 value = query.get(pb.name);
                 if (value == null) {
                     if (pb.required) {
-                        return AjaxResult.errorT(400, "ajax.registry.missing-required-param", "缺少必填参数: {0}", pb.name);
+                        return finish.apply(AjaxResult.errorT(400, "ajax.registry.missing-required-param", "缺少必填参数: {0}", pb.name));
                     }
                     if (pb.defaultSet) {
                         value = pb.defaultValue;
@@ -507,16 +534,16 @@ public class ApiRegistry implements AnonymousProbe {
             try {
                 args[i] = convert(pb.type, value);
             } catch (Exception e) {
-                return AjaxResult.errorT(400, "ajax.registry.invalid-param-type", "参数 {0} 类型不合法: {1}", pb.name, value);
+                return finish.apply(AjaxResult.errorT(400, "ajax.registry.invalid-param-type", "参数 {0} 类型不合法: {1}", pb.name, value));
             }
         }
 
         // API 访问监听事件（按请求类型细分 GET/POST/...）：命中路由且通过权限判定后、处理器调用前触发。
         // 事件直接携带 token/cookie 解析出的玩家名与玩家实体（离线 player=null），
-        // 监听 ApiAccessEvent 收全部 / 监听 ApiGetEvent 等只收对应方法。
+        // 监听 ApiEvent.ApiAccessEvent 收全部 / 监听 ApiGetEvent 等只收对应方法。
         try {
-            fireApiEvent(ApiAccessEvent.forMethod(hostPlugin, meta.httpMethod, meta.path, meta.apiName,
-                    meta.permission, meta.ownerPlugin, authenticated, playerName, player, credential));
+            fireApiEvent(ApiEvent.ApiAccessEvent.forMethod(hostPlugin, meta.httpMethod, meta.path, meta.apiName,
+                    meta.permission, meta.ownerPlugin, authenticated, playerName, player, credential, query, body));
         } catch (Throwable ignored) {
         }
 
@@ -538,19 +565,19 @@ public class ApiRegistry implements AnonymousProbe {
             }
             // 响应控制：ApiResponse 携带自定义状态码/响应头（302 跳转、Set-Cookie、错误状态码等），
             // 由 WebFrontendHandler 组装帧时使用；普通 AjaxResult / 任意对象按 200 + JSON 信封处理。
-            if (ret instanceof ApiResponse) return ret;
-            if (ret instanceof AjaxResult) return ret;
-            return AjaxResult.success(ret);
+            if (ret instanceof ApiResponse) return finish.apply(ret);
+            if (ret instanceof AjaxResult) return finish.apply(ret);
+            return finish.apply(AjaxResult.success(ret));
         } catch (InvocationTargetException e) {
             Throwable cause = e.getCause() == null ? e : e.getCause();
             String ref = AuthUtils.generateToken("err_", 6);
             log.warnT("log.registry.api-handle-error", "API 处理异常 {0} (ref={1}): {2}", meta.method.getName(), ref, cause, cause);
             // 脱敏：不向外暴露内部异常信息，仅返回关联 ref 便于服务端定位
-            return AjaxResult.errorT(500, "ajax.registry.internal-error", "服务器内部错误 (ref={0})", ref);
+            return finish.apply(AjaxResult.errorT(500, "ajax.registry.internal-error", "服务器内部错误 (ref={0})", ref));
         } catch (Exception e) {
             String ref = AuthUtils.generateToken("err_", 6);
             log.warnT("log.registry.api-invoke-error", "API 调用异常 {0} (ref={1}): {2}", meta.method.getName(), ref, e, e);
-            return AjaxResult.errorT(500, "ajax.registry.internal-error", "服务器内部错误 (ref={0})", ref);
+            return finish.apply(AjaxResult.errorT(500, "ajax.registry.internal-error", "服务器内部错误 (ref={0})", ref));
         }
     }
 

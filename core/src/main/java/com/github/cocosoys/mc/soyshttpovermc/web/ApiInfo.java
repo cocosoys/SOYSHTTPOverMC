@@ -1,4 +1,6 @@
-package com.github.cocosoys.mc.soyshttpovermc.api.event;
+package com.github.cocosoys.mc.soyshttpovermc.web;
+
+import lombok.Getter;
 
 import java.io.Serializable;
 
@@ -9,17 +11,42 @@ import java.io.Serializable;
  * <p>该对象是只读快照，便于监听方做路由审计、自动文档、权限联动等，
  * 不持有处理器实例引用，避免插件卸载后内存泄漏。</p>
  */
+@Getter
 public class ApiInfo implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
+    /**
+     * HTTP 方法（GET/POST/... 或 * 表示不限定方法）
+     */
     private final String httpMethod;
+    /**
+     * 实际挂载路径（含网关自动添加的 /api 前缀，如 /api/ping）
+     */
     private final String path;
+    /**
+     * 端点展示名（@ApiName，缺省为处理器类名）
+     */
     private final String apiName;
+    /**
+     * 所需权限（@ApiPermission，未声明为空字符串）
+     */
     private final String permission;
+    /**
+     * 处理器类的全限定名
+     */
     private final String handlerClass;
+    /**
+     * 注册该 API 的插件名（由 ApiRegistry 自动标记）
+     */
     private final String ownerPlugin;
+    /**
+     * 是否从 API 清单 / 自动文档中隐藏（@Hidden）
+     */
     private final boolean hidden;
+    /**
+     * 是否已废弃（SOYS @Deprecated，区别于 JDK 注解）
+     */
     private final boolean deprecated;
 
     public ApiInfo(String httpMethod, String path, String apiName,
@@ -40,62 +67,6 @@ public class ApiInfo implements Serializable {
         this.ownerPlugin = ownerPlugin == null ? "" : ownerPlugin;
         this.hidden = hidden;
         this.deprecated = deprecated != null;
-    }
-
-    /**
-     * HTTP 方法（GET/POST/... 或 * 表示不限定方法）
-     */
-    public String getHttpMethod() {
-        return httpMethod;
-    }
-
-    /**
-     * 实际挂载路径（含网关自动添加的 /api 前缀，如 /api/ping）
-     */
-    public String getPath() {
-        return path;
-    }
-
-    /**
-     * 端点展示名（@ApiName，缺省为处理器类名）
-     */
-    public String getApiName() {
-        return apiName;
-    }
-
-    /**
-     * 所需权限（@ApiPermission，未声明为空字符串）
-     */
-    public String getPermission() {
-        return permission;
-    }
-
-    /**
-     * 处理器类的全限定名
-     */
-    public String getHandlerClass() {
-        return handlerClass;
-    }
-
-    /**
-     * 注册该 API 的插件名（由 ApiRegistry 自动标记）
-     */
-    public String getOwnerPlugin() {
-        return ownerPlugin;
-    }
-
-    /**
-     * 是否从 API 清单 / 自动文档中隐藏（@Hidden）
-     */
-    public boolean isHidden() {
-        return hidden;
-    }
-
-    /**
-     * 是否已废弃（SOYS @Deprecated，区别于 JDK 注解）
-     */
-    public boolean isDeprecated() {
-        return deprecated;
     }
 
     @Override
