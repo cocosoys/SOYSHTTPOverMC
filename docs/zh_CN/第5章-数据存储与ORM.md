@@ -170,7 +170,109 @@ YAML.Pojo.save(User.class);                      // 显式落盘（原子写）
 - 插件每 30 秒异步上报心跳（serverId + 服名 + host + port），serverId 规则：群组服 = `proxy.server-name`，独立服 = `standalone-<host>:<port>`；
 - JWT 全局密钥从共享存储下发，保证跨服验签一致。
 
-## 5.8 版本注意
+
+## 5.8 数据层自动化运维（Auto Ops / DataRegistrationApi）
+
+> 把"运维人工初始化"（复制默认 data 文件、执行 init.sql、写入种子数据、schema 升级）提升为
+> **完全自动化**。主插件与 `SoysExpansion` 附属插件统一走同一机制，行为受 config.yml
+> `auto.ops.*` 控制。
+
+### 5.8.1 config 开关
+
+```yaml
+auto:
+  ops:
+    enabled: true    # 总开关（false = 全部跳过）
+    init: true       # 自动初始化（默认文件复制 + init.sql + 种子 + 首次安装的迁移）
+    update: true     # 自动更新（已有安装的版本化迁移）
+    fail: block      # block=失败阻止启动（SOYS disable）/ warn=跳过并告警
+```
+
+### 5.8.2 meta 版本表（soys_schema_meta）
+
+- 存储：SQL 表 `soys_schema_meta` 或 YAML 文件 `data/soys_schema_meta.yml`（文件名 = 表名）；
+- 记录粒度：**每表一行**（`plugin` + `tableName` 逻辑双主键，dlz 单主键约束下以 `plugin:tableName`
+  组合键实现），`tableName = "*"` 行为插件级迁移记录（schemaVersion + 已执行脚本 JSON）；
+- 作用：卸载 / 重装 / 更新时**自动识别**——卸载插件（删 jar）后重装，meta 仍在 → 自动走
+  "保留数据更新"，数据不丢；purge（显式清理）后才回到全新安装。
+
+### 5.8.3 迁移脚本约定（schemaVersion + V{n}）
+
+- 插件声明 `schemaVersion()`（Expansion 钩子，默认 0 = 仅 init.sql + 种子，无迁移）；
+- 脚本位置：jar 内 `sql/migrations/V<n>__<描述>.sql`（n 从 1 起递增）；
+- 执行规则：**全新安装不执行迁移**——data/*.yml 与 init.sql 即最新版本完整结构，
+  初始化后 meta 直接标记为最高版本；**已安装（老用户）按 meta 增量执行 V(meta+1)..V(schemaVersion)**；
+  无 meta 但检测到旧数据时同样按升级路径执行；**每脚本执行成功后立即落 meta**（中途失败不重跑已成功项）；
+- **双通道 + 目录结构**：MySQL 方言执行 `sql/migrations/V<n>/<表名>.sql`（ALTER 等 SQL 变更）；
+  **YAML 后端**执行 `data/migrations/V<n>/<表名>.yml`（声明式补字段，见下方格式）；
+  版本号 = 子目录名 `V<n>`，文件名 = 表名（禁止旧 `V{n}__描述` 扁平命名）；SQLite 跳过迁移
+  （运行时自动建表 + 容忍式补列已覆盖）；
+- 升级路径：提高 schemaVersion（如 1→2）并新增 `V2__xxx.sql`，重启或
+  `/soyshttp data <插件> update` 自动增量执行。
+
+YAML 迁移脚本格式（`V{n}__*.yml`）：
+
+```yaml
+# data/migrations/V2/soys_perm_user.yml —— 为既有记录补充缺失字段默认值
+# 目标表 = 文件名（<表名>.yml），脚本无需 table 字段；若声明则必须与文件名一致
+add-fields:
+  vip_level: "0"             # 键 = 实体字段名，值 = 默认值
+```
+
+- 执行：经 ORM 共享缓存视图读写（`YamlBackendExecutor.getConfig/save`），与运行时写路径共用锁；
+- 表不在数据包表清单（DataSpec.tableClasses / seedData 推断）时跳过并告警。
+### 5.8.4 Expansion 声明式数据钩子
+
+```java
+@Override
+protected String[] dataRoots() { return new String[]{"data"}; }   // jar 内默认文件根（复制不覆盖）
+
+@Override
+protected String[] sqlRoots()  { return new String[]{"sql"}; }    // jar 内 SQL 根（init.sql + migrations）
+
+@Override
+protected List<Object> seedData() {                               // 种子实体（表空才插）
+    return Arrays.asList(new MyConfig("default"));
+}
+
+@Override
+protected int schemaVersion() { return 1; }                       // 当前 schema 版本（配套 V1__*.sql）
+```
+
+- 注册时自动完成：默认文件复制（不覆盖）→ 建表 → init.sql（仅 MySQL）→ 迁移 → 种子 → meta 记录；
+- `unregister()` 只摘数据登记（数据与 meta 保留），**永不删除数据**；
+- 显式清理（purge / 清空重装）为破坏性操作，由调用方二次确认。
+
+### 5.8.5 DataRegistrationApi（能力组 7）
+
+```java
+DataRegistrationApi data = api.getDataRegistration();
+
+DataHandle h = data.register(owner, spec);   // 自动安装 / 更新（meta 识别）
+data.unregister(h);                          // 摘登记（数据保留）
+data.purge(h);                               // 显式清理（DROP/删文件 + 删 meta，他属校验）
+data.reinstall(h, false);                    // 保留数据重装
+data.isInstalled("MCERP");                   // 是否已安装
+data.tablesOf("MCERP");                      // 归属表清单
+```
+
+`DataSpec` 字段：`pluginName`（必填）/ `schemaVersion` / `dataRoots` / `sqlRoots` /
+`seedData` / `tableClasses`（缺省由 seedData 推断）。
+
+### 5.8.6 运维命令 /soyshttp data
+
+```
+/soyshttp data <插件> status                   # 状态（版本/脚本/归属表/存储后端/句柄）
+/soyshttp data <插件> update [版本]             # 显式迁移（默认到声明版本，可指定目标）
+/soyshttp data <插件> reinstall                # 保留数据重装
+/soyshttp data <插件> uninstall                # 摘登记（数据与 meta 保留）
+```
+
+- update/reinstall/uninstall 仅对**已登记数据句柄**的插件有效（第三方插件经
+  `DataRegistrationApi.register` 登记后生效）；主插件自身数据随启动自动管理；
+- purge 不在命令中暴露（防误删），需要清空数据请经 API 显式调用并二次确认。
+
+## 5.9 版本注意
 
 - **1.6.4 / 1.7.10 旧驱动兼容**：服务端自带旧版 JDBC3 驱动（`org.sqlite.Conn` / `com.mysql.jdbc.ConnectionImpl` 无 `isValid(int)`），adapter 各版本模块的 `JdbcCompat` 已自动兼容（isValid→isClosed 包装 + connectionTestQuery + detectMysqlDriver），无需补丁脚本；
 - sqlite 主存储 + ORM 已在 1.6.4 / 1.7.10 实测通过；

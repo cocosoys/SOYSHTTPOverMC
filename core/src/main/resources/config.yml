@@ -236,7 +236,8 @@ permission:
   # 提示：local 为内置提供者，加入后在线/离线权限判断都会查询本地权限表
   providers: []
 
-  # 离线玩家权限判断降级策略（当没有权限插件支持离线查询时使用）
+  # 离线玩家权限判断降级策略（当没有权限插件支持离线查询时使用，默认会存在local）
+  # 如果你希望offline-fallback: op-only，同时没有任何当前支持的权限插件又不想要启用local，可写providers: [""]
   #   op-only（默认）— 仅 OP 玩家返回 true（从 ops.json 读取）
   #   local           — 查插件内置本地权限表（data/soys_perm_*.yml 或 SQL 表），
   #                     经 /soyshttp perm 管理用户/组/权限（支持 : 与 . 等价）
@@ -314,3 +315,23 @@ storage:
     enabled: true
     async: true
     sync-on-startup: false
+
+# ============================================================================
+#  自动运维（Auto Ops）
+# ----------------------------------------------------------------------------
+#  enabled — 自动运维总开关（默认 true）：关闭后所有自动数据操作（默认文件复制、
+#            init.sql 执行、种子数据）均跳过，仅可经显式命令触发（二期）。
+#  init    — 自动初始化（默认 true）：默认数据文件复制（已存在不覆盖）+
+#            init.sql（幂等约定，仅 MySQL 方言）执行 + 种子数据（表空才插入）。
+#  update  — 自动更新（默认 true）。
+#  fail    — 初始化/更新失败策略：
+#            disable（默认）= 仅禁用失败的对应插件：主插件自身失败 → 禁用 SOYS；
+#                            附属插件（Expansion）数据失败 → 仅禁用该附属插件，
+#                            主插件及其它插件继续运行（不会连坐）；
+#            warn         = 跳过并告警：继续运行，相关功能可能缺失。
+auto:
+  ops:
+    enabled: true
+    init: true
+    update: true
+    fail: disable

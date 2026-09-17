@@ -3,9 +3,11 @@
 -- 适用: MySQL 5.x / 8.x / MariaDB（SQLite 亦兼容，见下方说明）
 -- ----------------------------------------------------------------------------
 -- 【重要说明】
--- 1) 插件运行时若表不存在会自动执行 CREATE TABLE IF NOT EXISTS
---    （SqlBackendExecutor.ensureTable + 容忍式补列 ALTER），本脚本用于
---    运维提前建表 / DBA 核对 schema / 批量授权，二者不冲突，可重复执行。
+-- 1) 【初始化 = 最新版本完整结构】本脚本始终维护为当前 schemaVersion 的最终形态
+--    （含各版本迁移新增的列 / 索引）；全新安装直接使用本脚本，不再执行
+--    sql/migrations/ 下的迁移脚本（迁移仅用于老用户版本升级，见 7）。
+--    插件运行时若表不存在也会自动 CREATE TABLE IF NOT EXISTS
+--    （SqlBackendExecutor.ensureTable + 容忍式补列 ALTER），二者不冲突，可重复执行。
 -- 2) 列名规则: 实体字段驼峰转小写下划线（createdAt → created_at），
 --    与 YAML 端 data/<表名>.yml 的键名完全一致（双端同构）。
 -- 3) 类型映射: String → VARCHAR(255)；主键 String → VARCHAR(64)
@@ -16,6 +18,9 @@
 -- 5) SQLite 兼容: SQLite 不支持 COMMENT 子句与 TINYINT（但类型宽松，TINYINT 可接受），
 --    如需在 SQLite 手工执行，请删除各列的 COMMENT 子句；插件运行时会自动建表，
 --    不依赖本脚本。
+-- 7) 版本迁移（sql/migrations/V<n>/<表名>.sql，仅 MySQL）：仅当存在旧数据
+--    且 meta.schema_version < 声明版本时增量执行 V(cur+1)..V(schemaVersion)；
+--    全新安装不执行（初始化已含最新结构）。
 -- 6) MySQL 建议库字符集 utf8mb4:
 --    CREATE DATABASE IF NOT EXISTS minecraft DEFAULT CHARACTER SET utf8mb4;
 --    执行时请使用: mysql --default-character-set=utf8mb4 -u<用户> -p < 库名 < init.sql
@@ -26,8 +31,10 @@ CREATE TABLE IF NOT EXISTS `soys_perm_user` (
   `uuid`       VARCHAR(64)  PRIMARY KEY COMMENT '玩家 UUID（主键，区分大小写）',
   `player`     VARCHAR(255)          COMMENT '玩家名（冗余；改名后以 uuid 为准）',
   `expiry`     VARCHAR(255)          COMMENT '用户级权限过期时间（毫秒时间戳字符串；空 = 不过期）',
+  `vip_level`  VARCHAR(64)  NOT NULL DEFAULT '0' COMMENT '会员等级（V2 迁移字段，最新结构内置）',
   `created_at` VARCHAR(255)          COMMENT '创建时间（毫秒时间戳字符串）',
-  `updated_at` VARCHAR(255)          COMMENT '最后更新时间（毫秒时间戳字符串）'
+  `updated_at` VARCHAR(255)          COMMENT '最后更新时间（毫秒时间戳字符串）',
+  KEY `idx_perm_user_player` (`player`)
 );
 
 -- ---------- 权限组定义表 ----------
@@ -68,4 +75,20 @@ CREATE TABLE IF NOT EXISTS `soys_remember` (
   `player`     VARCHAR(255)          COMMENT '玩家名',
   `issued_at`  VARCHAR(255)          COMMENT '签发时间（毫秒时间戳字符串）',
   `expires_at` VARCHAR(255)          COMMENT '过期时间（毫秒时间戳字符串；过期自动清理/拉黑）'
+);
+
+-- ---------- 自动运维元数据表（soys_schema_meta） ----------
+-- 记录每个表的归属插件 / schema 版本 / 已执行脚本，供卸载 / 重装 / 更新自动识别。
+-- 逻辑双主键（plugin + table_name）以组合键 id = "<plugin>:<table_name>" 实现
+-- （dlz ORM 单主键约束）；table_name = '*' 行为插件级迁移记录。
+-- schema_version: 已应用最高迁移版本（如 0/1/2…）；executed_scripts: 已执行脚本 JSON 数组。
+CREATE TABLE IF NOT EXISTS `soys_schema_meta` (
+  `id`               VARCHAR(64)  PRIMARY KEY COMMENT '组合主键（<plugin>:<table_name>）',
+  `plugin`           VARCHAR(255)          COMMENT '归属插件（主插件名 / Expansion identifier）',
+  `table_name`       VARCHAR(255)          COMMENT '表名（* = 插件级迁移记录；否则为 ORM 表名）',
+  `schema_version`   INT                   COMMENT '当前 schema 版本（已应用最高迁移版本）',
+  `state`            VARCHAR(255)          COMMENT '状态（INSTALLED / UNINSTALLED，预留）',
+  `executed_scripts` TEXT                  COMMENT '已执行脚本 JSON 数组（插件级行使用）',
+  `created_at`       VARCHAR(255)          COMMENT '创建时间（毫秒时间戳字符串）',
+  `updated_at`       VARCHAR(255)          COMMENT '最后更新时间（毫秒时间戳字符串）'
 );

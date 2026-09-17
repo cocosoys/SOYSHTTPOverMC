@@ -17,6 +17,7 @@ import com.github.cocosoys.mc.soyshttpovermc.exception.ExceptionBus;
  *   api.getToolkit().toJson(obj);                                  // 能力组 4
  *   api.getHttpClient().sendGet("https://example.com");            // 能力组 5
  *   api.getExtension().registerLoginProvider(provider);            // 能力组 6
+ *   api.getDataRegistration().register(owner, spec);              // 能力组 7
  * </pre>
  *
  * <p>各分组接口：</p>
@@ -27,6 +28,7 @@ import com.github.cocosoys.mc.soyshttpovermc.exception.ExceptionBus;
  *   <li>{@link ApiToolkitApi} —— 工具（JSON / Content-Type）</li>
  *   <li>{@link HttpClientApi} —— HTTP 请求 / 本地回环</li>
  *   <li>{@link ExtensionApi} —— 扩展接入（登录插件提供者 / /soyshttp 子指令）</li>
+ *   <li>{@link DataRegistrationApi} —— 数据层自动化运维（安装 / 更新 / 重装 / 清理）</li>
  * </ul>
  *
  * <p>异常统一经 {@link ExceptionBus} 处理：操作失败时门面会构造对应模块的专用异常并
@@ -67,6 +69,11 @@ public interface SoysHttpOverMcApi {
      * 能力组 6：扩展接入（登录插件提供者 / /soyshttp 子指令）
      */
     ExtensionApi getExtension();
+
+    /**
+     * 能力组 7：数据层自动化运维（meta 表识别，安装 / 更新 / 重装 / 清理事务）
+     */
+    DataRegistrationApi getDataRegistration();
 
     /**
      * 注册热重载钩子：提供 /soyshttp 子指令的其它插件实现 {@link ReloadHttpConfigHandler} 后注册，

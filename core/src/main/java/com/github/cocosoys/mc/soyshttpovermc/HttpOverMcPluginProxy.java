@@ -15,6 +15,8 @@ import com.github.cocosoys.mc.soyshttpovermc.event.ApiLifecycleListener;
 import com.github.cocosoys.mc.soyshttpovermc.event.GatewayEventListener;
 import com.github.cocosoys.mc.soyshttpovermc.i18n.I18n;
 import com.github.cocosoys.mc.soyshttpovermc.log.LogKit;
+import com.github.cocosoys.mc.soyshttpovermc.orm.AutoOps;
+import com.github.cocosoys.mc.soyshttpovermc.orm.DataSpec;
 import com.github.cocosoys.mc.soyshttpovermc.orm.YAML;
 import com.github.cocosoys.mc.soyshttpovermc.orm.executor.SqlBackendExecutor;
 import com.github.cocosoys.mc.soyshttpovermc.platform.PlatformBukkitImpl;
@@ -24,6 +26,10 @@ import com.github.cocosoys.mc.soyshttpovermc.spi.Platforms;
 import com.github.cocosoys.mc.soyshttpovermc.spring.controller.AuthController;
 import com.github.cocosoys.mc.soyshttpovermc.spring.controller.StatusController;
 import com.github.cocosoys.mc.soyshttpovermc.spring.controller.SystemController;
+import com.github.cocosoys.mc.soyshttpovermc.spring.entity.SoysPermGroup;
+import com.github.cocosoys.mc.soyshttpovermc.spring.entity.SoysPermPermission;
+import com.github.cocosoys.mc.soyshttpovermc.spring.entity.SoysPermUser;
+import com.github.cocosoys.mc.soyshttpovermc.spring.entity.SoysPermUserGroup;
 import com.github.cocosoys.mc.soyshttpovermc.spring.impl.AuthServiceImpl;
 import com.github.cocosoys.mc.soyshttpovermc.spring.impl.StatusServiceImpl;
 import com.github.cocosoys.mc.soyshttpovermc.spring.impl.SystemServiceImpl;
@@ -39,6 +45,7 @@ import com.github.cocosoys.mc.soyshttpovermc.web.gateway.GatewayConfig;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.GatewayFilter;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.AuthPolicy;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.bridge.AuthLoginBridge;
+import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.bridge.RememberCredential;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.bridge.provider.AuthMeLoginProvider;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.bridge.spi.LoginProviderContext;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.bridge.spi.LoginProviderFactory;
@@ -196,6 +203,34 @@ public class HttpOverMcPluginProxy {
         log.infoT("log.plugin.orm-yaml-ready", "ORM(YAML) 已装配: dataDir={0}", yamlOrmDir);
         // 3.9) ORM（SQL 后端）装配
         SqlBackendExecutor.init(plugin.getPlatform());
+        // 3.95) 自动运维：meta 版本表 + 全事务（默认文件复制 / init.sql / 迁移 / 种子；受 auto.ops.* 控制）
+        DataSpec autoOpsSpec = new DataSpec();
+        autoOpsSpec.setPluginName("SOYSHTTPOverMC");
+        autoOpsSpec.setSchemaVersion(2); // 主插件 schema 版本（V1 建索引 / V2 加 vip_level，SQL+YAML 双通道）
+        autoOpsSpec.setDataRoots(new String[]{"data"});
+        autoOpsSpec.setSqlRoots(new String[]{"sql"});
+        autoOpsSpec.setTableClasses(new Class<?>[]{
+                SoysPermUser.class,
+                SoysPermGroup.class,
+                SoysPermPermission.class,
+                SoysPermUserGroup.class,
+                RememberCredential.class
+        });
+        String autoOpsErr = AutoOps.install(
+                plugin.getPlatform(), plugin.getClass().getClassLoader(), autoOpsSpec);
+        if (autoOpsErr != null) {
+            // 失败策略二态（auto.ops.fail）：disable（默认）= 主插件自身失败 → 禁用 SOYS 本体；
+            // warn = 跳过并告警继续。
+            String failAct = AutoOps.failAction(plugin.getPlatform());
+            if ("warn".equalsIgnoreCase(failAct)) {
+                plugin.getLogger().warning("自动运维初始化失败（auto.ops.fail=warn，跳过继续）: " + autoOpsErr);
+            } else {
+                plugin.getLogger().severe("自动运维初始化失败（auto.ops.fail=disable，禁用 SOYSHTTPOverMC）: " + autoOpsErr);
+                plugin.getServer().getPluginManager().disablePlugin(plugin);
+                return;
+            }
+        }
+
         // 4) 安全网关 + TLS 上下文
         rebuildGateway(gatewayDir);
         // 4.5) AuthMe 网页登录接入

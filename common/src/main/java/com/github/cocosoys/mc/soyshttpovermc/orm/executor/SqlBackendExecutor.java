@@ -195,6 +195,36 @@ public class SqlBackendExecutor implements IBackendExecutor {
         }
     }
 
+    /**
+     * 执行原生 SQL（自动运维 init.sql 等场景；多条语句请先自行拆分）。
+     * @throws RuntimeException 执行失败（调用方按 auto.ops.fail 策略处理）
+     */
+    public void execSql(String sql) {
+        if (sql == null || sql.trim().isEmpty()) {
+            return;
+        }
+        ex().update(sql.trim());
+    }
+
+    /**
+     * 探测表是否存在（JDBC DatabaseMetaData，MySQL / SQLite 通用）。
+     * 用于区分"全新安装"与"老版本升级但 meta 缺失"（避免把老数据当新装处理）。
+     */
+    public boolean tableExists(String table) {
+        if (table == null || table.trim().isEmpty()) {
+            return false;
+        }
+        try (java.sql.Connection c = ex().getConnectionSupplier().get();
+             java.sql.ResultSet rs = c.getMetaData().getTables(null, null, table.trim(), null)) {
+            try {
+                return rs.next();
+            } finally {
+                rs.close();
+            }
+        } catch (Exception e) {
+            return false;
+        }
+    }
     private static String sqlType(Class<?> type) {
         if (type == String.class) return "VARCHAR(255)";
         if (type == Integer.class || type == int.class) return "INT";

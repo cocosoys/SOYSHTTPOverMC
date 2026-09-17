@@ -28,7 +28,7 @@ import java.util.concurrent.ConcurrentHashMap;
  *     &#64;GetMapping("/items")
  *     public AjaxResult items(...) { ... }
  *
- *     &#64;Override protected String resourceRoot() { return "dist"; }  // 可选：自动托管 jar 内 dist 目录
+ *     &#64;Override protected String resourceRoot() { return "dist"; }  // 可选：自动托管 dist 目录。惰性登记（请求时读盘，支持热替换），优先级：/plugins/插件名称/dist → jar中的dist
  *
  *     // 可选：需要把部分端点挂到有 /plugins 前缀的代理路径（如 /api/plugins/插件名/items）时，
  *     &#64;Override protected java.util.List&lt;Object&gt; buildControllers() {
@@ -59,7 +59,9 @@ import java.util.concurrent.ConcurrentHashMap;
  * <p><b>注册自动处理项</b>：① 端点注解扫描（方法级映射/权限/限流等照常生效）；
  * ② owner 自动识别（{@link JavaPlugin#getProvidingPlugin(Class)}）；
  * ③ 正常登记自动补 /plugins/&lt;插件名&gt; 前缀，{@link #buildProxyControllers()} 代理登记无前缀；
- * 托管 jar 内资源目录（页面打 {@code expansion:&lt;identifier&gt;} tag，可精确卸载）；
+ * 托管 jar 内资源目录（页面打 {@code expansion:identifier} tag，可精确卸载）；
+ * ④ {@link #dataRoots()} / {@link #sqlRoots()} / {@link #seedData()} 非空时自动执行数据层初始化
+ *    （默认文件复制 + init.sql + 种子数据，受 config auto.ops.* 控制；先于端点注册）；
  * ⑤ {@link #cors()} 非空时自动注册 CORS；⑥ 登记到模块注册表，{@link #unregister()} 时
  * 精确反注册端点 / 页面 / CORS。重复 identifier 拒绝注册。</p>
  */
@@ -88,6 +90,7 @@ public abstract class SoysExpansion {
     private volatile String tag;                 // "expansion:" + identifier，页面精确卸载用
     private volatile boolean hasCors;            // 本次是否注册过 CORS（卸载时按插件兜底清）
     private volatile Set<WebRegistry.Entry> pages = Collections.emptySet();
+    private volatile DataHandle dataHandle;            // 数据层登记句柄（unregister 摘登记，数据保留）
 
     // ===== 元信息（仅 getIdentifier 必填）=====
 
@@ -128,8 +131,49 @@ public abstract class SoysExpansion {
     // ===== 声明式钩子 =====
 
     /**
-     * 页面资源目录（jar 内根路径，如 "dist"）：非空时 {@link #registerPages()} 自动
-     * {@code registerResourceDirectory} 托管整目录，页面统一打
+     * 数据默认文件资源根（jar 内，如 {@code "data"}）：非空时 {@link #registerData()} 自动
+     * 复制其下所有文件到数据文件夹同名相对目录——<b>已存在不覆盖</b>（保留运维/运行期修改），
+     * 受 config {@code auto.ops.*} 控制。返回 null = 无默认数据文件。
+     */
+    protected String[] dataRoots() {
+        return null;
+    }
+
+    /**
+     * SQL 初始化脚本资源根（jar 内，如 {@code "sql"}）：非空时 {@link #registerData()} 自动
+     * 执行其下 {@code init.sql}——<b>仅 MySQL 方言后端</b>（SQLite 语法不兼容且运行时已自动建表），
+     * 脚本须幂等（IF NOT EXISTS / IGNORE，一期无"已执行"标记）。返回 null = 无初始化脚本。
+     */
+    protected String[] sqlRoots() {
+        return null;
+    }
+
+    /**
+     * 种子数据（实体实例列表）：非空时 {@link #registerData()} 按类分组，
+     * <b>对应表为空</b>才批量插入（SQL 自动建表 / YAML 懒生成由 ORM 保证，幂等）。
+     * 返回 null / 空 = 无种子数据。
+     */
+    protected List<Object> seedData() {
+        return null;
+
+    }
+
+    /**
+     * 当前 schema 版本（>=0）：0 = 仅 init.sql + 种子，无版本迁移。
+     * 迁移脚本约定 {@code sql/migrations/V&lt;n&gt;__&lt;描述&gt;.sql}（n 从 1 起）：
+     * 全新安装执行 V1..V(schemaVersion)；已安装则按 meta 记录增量执行 V(meta+1)..V(schemaVersion)。
+     * 返回当前声明版本即可，升级插件 jar 时提高该值并附带对应迁移脚本，
+     * 服务器启动自动完成 schema 升级（受 config auto.ops.update 控制）。
+     */
+    protected int schemaVersion() {
+        return 0;
+    }
+
+
+    /**
+     * 页面资源根（如 "dist"）：非空时 {@link #registerPages()} 自动托管——
+     * 优先<b>惰性登记</b>插件数据文件夹 {@code plugins/&lt;插件名&gt;/&lt;resourceRoot&gt;}（请求时才读盘，
+     * 支持磁盘热替换），该磁盘目录不存在时回退 jar 内同名资源目录。页面统一打
      * {@code expansion:&lt;identifier&gt;} tag。返回 null = 无页面资源。
      */
     protected String resourceRoot() {
@@ -217,7 +261,12 @@ public abstract class SoysExpansion {
         this.tag = tagOf(id);
 
         // 依次执行单类注册钩子；任一失败回滚已成功部分（不触发 onUnregister）
-        boolean ok = registerControllers();
+        // 数据层自动初始化（默认文件/init.sql/种子；受 auto.ops.* 控制）——先于端点注册，
+        // 保证业务端点上线时数据已就绪。失败 = 初始化未完成 → 整体注册失败（数据不完整比不可用更危险）
+        boolean ok = registerData();
+        if (ok) {
+            ok = registerControllers();
+        }
         if (ok) {
             ok = registerPages();
         }
@@ -261,6 +310,7 @@ public abstract class SoysExpansion {
         }
         String id = getIdentifier() == null ? "" : getIdentifier().trim();
         try {
+            unregisterData();
             unregisterControllers();
             unregisterPages();
             unregisterCors();
@@ -303,7 +353,7 @@ public abstract class SoysExpansion {
      *
      * <p>默认返回本扩展自身（{@code singletonList(this)}）——即"端点在扩展类上书写"的极简形态。
      * 当端点书写在独立 Controller 类中（如 MCERP 的 AuthController / SysUserController / …）
-     * 时，覆写本方法返回全部实例列表即可批量注册，{@link #registerController()} 与
+     * 时，覆写本方法返回全部实例列表即可批量注册，{@link #registerCommonController()} 与
      *  会自动遍历本来源，无需重写注册逻辑。</p>
      *
      * @return 待登记实例列表（null / 空列表视为无端点，空操作成功）
@@ -329,17 +379,17 @@ public abstract class SoysExpansion {
     // ===== 可覆写单类注册钩子（模板方法模式；骨架按序调用）=====
 
     /**
-     * 端点注册骨架：依次执行 {@link #registerController()}（正常登记）与
+     * 端点注册骨架：依次执行 {@link #registerCommonController()}（正常登记）与
      * {@link #registerProxyController()}（代理登记）。
      *
      * <p>两个子钩子均可独立覆写：例如既想正常登记又想代理登记时，分别覆写
-     * {@link #registerController()} / {@link #registerProxyController()} 并各自执行注册即可，
+     * {@link #registerCommonController()} / {@link #registerProxyController()} 并各自执行注册即可，
      * 无需重写本聚合方法。</p>
      *
      * @return true=两类端点均无异常完成；false=任一失败（骨架将整体回滚）
      */
     protected boolean registerControllers() {
-        boolean ok = registerController();
+        boolean ok = registerCommonController();
         if (ok) {
             ok = registerProxyController();
         }
@@ -357,7 +407,7 @@ public abstract class SoysExpansion {
      *
      * @return true=无异常完成（端点已登记或空列表跳过）；false=失败（骨架将整体回滚）
      */
-    protected boolean registerController() {
+    protected boolean registerCommonController() {
         Plugin o = owner;
         SoysHttpOverMcApi a = api;
         if (a == null || o == null) {
@@ -387,7 +437,7 @@ public abstract class SoysExpansion {
      * <p>默认：遍历 {@link #buildProxyControllers()} 返回的全部实例逐例代理登记；
      * 空列表视为无代理端点（空操作成功）。</p>
      *
-     * <p>与 {@link #registerController()} 可同时生效——同一扩展可同时拥有正常命名空间端点
+     * <p>与 {@link #registerCommonController()} 可同时生效——同一扩展可同时拥有正常命名空间端点
      * 与代理端点。</p>
      *
      * @return true=无异常完成（端点已登记或空列表跳过）；false=失败（骨架将整体回滚）
@@ -417,9 +467,15 @@ public abstract class SoysExpansion {
     }
 
     /**
-     * 页面资源托管：{@code resourceRoot()} 非空时批量登记 jar 内资源目录，页面打
+     * 页面资源托管：{@code resourceRoot()} 非空时自动登记页面资源，页面打
      * {@code expansion:&lt;identifier&gt;} tag（供 {@link #unregisterPages()} 精确卸载）。
-     * 覆写示例：改为逐页 {@code registerPage(...)} 手动登记（此时应同步维护本类页面状态或一并覆写注销钩子）。
+     *
+     * <p><b>惰性登记（磁盘优先）</b>：优先登记插件数据文件夹下的
+     * {@code plugins/&lt;插件名&gt;/&lt;resourceRoot&gt;} 磁盘目录——请求时才读盘，支持磁盘热替换；
+     * 磁盘目录不存在时回退登记 jar 内同名资源目录（classpath）。两种来源均自动补
+     * /web/plugins/&lt;插件名&gt; 前缀。</p>
+     *
+     * <p>覆写示例：改为逐页 {@code registerPage(...)} 手动登记（此时应同步维护本类页面状态或一并覆写注销钩子）。</p>
      *
      * @return true=无异常完成（含未声明资源目录的空操作）；false=失败（骨架将回滚已注册部分）
      */
@@ -436,8 +492,16 @@ public abstract class SoysExpansion {
         try {
             Set<WebRegistry.Entry> reg = new HashSet<>();
             String t = tag;
-            Set<WebRegistry.Entry> es = a.getWebPage().registerResourceDirectory(o, "/",
-                    o.getClass().getClassLoader(), root.trim());
+            Set<WebRegistry.Entry> es;
+            // 1) 磁盘优先：数据文件夹/<resourceRoot> 存在 → 惰性登记（请求时读盘，支持热替换）
+            java.io.File disk = new java.io.File(o.getDataFolder(), root.trim());
+            if (disk.isDirectory()) {
+                es = a.getWebPage().registerDirectory(o, "/", disk);
+            } else {
+                // 2) 回退：jar 内同名资源目录（classpath）
+                es = a.getWebPage().registerResourceDirectory(o, "/",
+                        o.getClass().getClassLoader(), root.trim());
+            }
             if (es != null) {
                 for (WebRegistry.Entry e : es) {
                     e.tags.add(t);
@@ -497,7 +561,7 @@ public abstract class SoysExpansion {
     /**
      * 端点反注册（正常登记侧）：遍历 {@link #buildControllers()} 逐实例卸载。
      *
-     * <p>若覆写 {@link #registerController()} 追加注册了列表之外的实例，请一并覆写本方法。</p>
+     * <p>若覆写 {@link #registerCommonController()} 追加注册了列表之外的实例，请一并覆写本方法。</p>
      */
     protected void unregisterController() {
         SoysHttpOverMcApi a = api;
@@ -581,6 +645,76 @@ public abstract class SoysExpansion {
     /**
      * 骨架失败回滚：对"已执行过注册钩子"的类型逐一反注册（不触发 onUnregister，不经过完整 unregister 流程）。
      */
+    /**
+     * 数据层自动化运维登记：构造 {@link DataSpec}（声明式钩子自动装配）→
+     * 经 {@link DataRegistrationApi#register(Plugin, DataSpec)} 完成安装 / 更新事务
+     * （meta 表自动识别：首次安装 vs 保留数据更新）。
+     *
+     * <p><b>生命周期边界</b>：{@link #unregister()} 只摘数据登记（数据保留、meta 不动），
+     * <b>永不删除数据</b>；显式清理 / 清空重装经 {@code DataRegistrationApi#purge/reinstall}
+     * 由插件自行调用（二次确认由调用方负责）。</p>
+     *
+     * @return true=成功（或未声明任何数据源 / 开关跳过）；false=失败（骨架将整体回滚）
+     */
+    private boolean registerData() {
+        String[] roots = dataRoots();
+        String[] sqls = sqlRoots();
+        List<Object> seed = seedData();
+        if ((roots == null || roots.length == 0)
+                && (sqls == null || sqls.length == 0)
+                && (seed == null || seed.isEmpty())
+                && schemaVersion() <= 0) {
+            return true; // 未声明任何数据源 → 空操作成功
+        }
+        Plugin o = owner;
+        SoysHttpOverMcApi a = api;
+        if (o == null || a == null) {
+            log.warn("SoysExpansion 数据登记失败: owner/api 未就绪: {0}", getIdentifier());
+            return false;
+        }
+        try {
+            com.github.cocosoys.mc.soyshttpovermc.orm.DataSpec spec = new com.github.cocosoys.mc.soyshttpovermc.orm.DataSpec();
+            spec.setPluginName(getIdentifier());
+            spec.setSchemaVersion(schemaVersion());
+            spec.setDataRoots(roots);
+            spec.setSqlRoots(sqls);
+            spec.setSeedData(seed);
+            DataHandle h = a.getDataRegistration().register(o, spec);
+            if (h == null) {
+                // 失败策略已在 DataRegistrationApi.register 内处理（fail=disable → 禁用本插件）
+                log.warn("SoysExpansion 数据登记失败: {0}", getIdentifier());
+                return false;
+            }
+            this.dataHandle = h;
+            return true;
+        } catch (Exception ex) {
+            log.warn("SoysExpansion 数据登记异常: {0}: {1}", getIdentifier(), ex.getMessage());
+            return false;
+        }
+    }
+
+
+    /**
+     * 摘除数据登记（unregister 时调用）：经 {@link DataRegistrationApi#unregister(DataHandle)}
+     * 摘句柄——数据保留、meta 不动（重装同 identifier 自动走保留数据更新）。
+     */
+    private void unregisterData() {
+        DataHandle h = dataHandle;
+        if (h == null) {
+            return;
+        }
+        dataHandle = null;
+        SoysHttpOverMcApi a = api;
+        if (a == null) {
+            return;
+        }
+        try {
+            a.getDataRegistration().unregister(h);
+        } catch (Exception ex) {
+            log.warn("SoysExpansion 数据登记摘除异常: {0}: {1}", getIdentifier(), ex.getMessage());
+        }
+    }
+
     private void rollbackPartial() {
         try {
             unregisterControllers();

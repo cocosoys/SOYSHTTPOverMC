@@ -23,6 +23,7 @@ public class SoysHttpOverMcApiImpl implements SoysHttpOverMcApi {
     private final ApiToolkitImpl toolkit;
     private final HttpClientImpl httpClient;
     private final ExtensionImpl extension;
+    private final DataRegistrationImpl dataRegistration;
     private final HttpOverMcPlugin hostPlugin;
 
     public SoysHttpOverMcApiImpl(Plugin hostPlugin, ApiRegistry apiRegistry,
@@ -36,6 +37,7 @@ public class SoysHttpOverMcApiImpl implements SoysHttpOverMcApi {
         this.toolkit = new ApiToolkitImpl(this.hostPlugin, apiRegistry);
         this.httpClient = new HttpClientImpl(this.hostPlugin, apiRegistry);
         this.extension = new ExtensionImpl(this.hostPlugin);
+        this.dataRegistration = new DataRegistrationImpl(this.hostPlugin);
     }
 
     @Override
@@ -66,6 +68,11 @@ public class SoysHttpOverMcApiImpl implements SoysHttpOverMcApi {
     @Override
     public ExtensionApi getExtension() {
         return extension;
+    }
+
+    @Override
+    public DataRegistrationApi getDataRegistration() {
+        return dataRegistration;
     }
 
     @Override

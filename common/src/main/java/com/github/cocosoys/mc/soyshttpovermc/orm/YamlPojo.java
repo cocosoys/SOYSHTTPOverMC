@@ -32,6 +32,13 @@ public class YamlPojo {
     /**
      * 插件装配：设置数据目录（dataFolder），创建共享 YAML 后端。
      */
+
+    /**
+     * 当前数据目录（与 {@link YamlBackendExecutor#getDataDir()} 一致）。
+     */
+    public File getDataDir() {
+        return dataDir;
+    }
     public void init(File dataFolder) {
         this.dataDir = dataFolder == null ? new File("data") : dataFolder;
         this.executor = YamlBackendExecutor.get(this.dataDir);
