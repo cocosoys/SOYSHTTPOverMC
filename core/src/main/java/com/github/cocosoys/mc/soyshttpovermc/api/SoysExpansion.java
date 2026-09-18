@@ -193,10 +193,19 @@ public abstract class SoysExpansion {
     @Data
     public static final class CorsSpec {
 
+        /** 路径前缀（空或 "/" = 全局）。 */
         public final String pathPrefix;
+
+        /** 允许来源（* 或 https://example.com，逗号分隔多源）。 */
         public final String origin;
+
+        /** 允许方法（GET,POST；null = 默认全方法）。 */
         public final String methods;
+
+        /** 允许头（null = *）。 */
         public final String headers;
+
+        /** 是否允许携带凭据（origin 为 * 时建议 false，否则浏览器拒绝）。 */
         public final boolean credentials;
 
         /**
@@ -336,14 +345,14 @@ public abstract class SoysExpansion {
     /**
      * 本扩展归属的插件（register() 时经 getProvidingPlugin 自动识别；注册前为 null）。
      */
-    protected final Plugin getOwner() {
+    public final Plugin getOwner() {
         return owner;
     }
 
     /**
      * 当前 SOYS API 门面（bootstrap 注入；未初始化时为 null）。
      */
-    protected final SoysHttpOverMcApi getApi() {
+    public final SoysHttpOverMcApi getApi() {
         return api;
     }
 

@@ -12,9 +12,9 @@
 # 字段说明:
 #   uuid        玩家 UUID（主键；区分大小写）
 #   player      玩家名（冗余展示；改名后以 uuid 为准）
-#   expiry      用户级权限过期时间（毫秒时间戳字符串；留空 = 不过期）
-#   created_at  创建时间（毫秒时间戳字符串）
-#   updated_at  最后更新时间（毫秒时间戳字符串）
+#   expiry      用户级权限过期时间（yyyy-MM-dd HH:mm:ss；留空 = 不过期）
+#   created_at  创建时间（yyyy-MM-dd HH:mm:ss）
+#   updated_at  最后更新时间（yyyy-MM-dd HH:mm:ss）
 # 示例记录（键为 UUID，值为字段键值对）:
 #   "01234567-89ab-cdef-0123-456789abcdef":
 #     player: "Steve"

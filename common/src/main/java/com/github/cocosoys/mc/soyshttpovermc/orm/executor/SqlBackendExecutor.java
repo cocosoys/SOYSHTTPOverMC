@@ -1,5 +1,6 @@
 package com.github.cocosoys.mc.soyshttpovermc.orm.executor;
 
+import com.github.cocosoys.mc.soyshttpovermc.orm.convertor.BeanCodec;
 import com.dlz.db.convertor.columnname.ColumnNameLower;
 import com.dlz.db.core.DlzDbProperties;
 import com.dlz.db.core.ISqlExecutor;
@@ -231,7 +232,7 @@ public class SqlBackendExecutor implements IBackendExecutor {
         if (type == Long.class || type == long.class) return "BIGINT";
         if (type == Double.class || type == double.class || type == Float.class || type == float.class) return "DOUBLE";
         if (type == Boolean.class || type == boolean.class) return "TINYINT";
-        if (type == java.util.Date.class || type == Date.class) return "BIGINT";
+        if (type == java.util.Date.class || type == Date.class) return "VARCHAR(255)"; // Date 统一存 yyyy-MM-dd HH:mm:ss 字符串（与 YAML 同构）
         if (type.isEnum()) return "VARCHAR(64)";
         return "TEXT"; // 嵌套（List/Map/对象）→ JSON
     }
@@ -253,27 +254,27 @@ public class SqlBackendExecutor implements IBackendExecutor {
                 switch (c.op) {
                     case EQ:
                         where.append(" = ?");
-                        args.add(c.value);
+                        args.add(encodeCond(c.value));
                         break;
                     case NE:
                         where.append(" <> ?");
-                        args.add(c.value);
+                        args.add(encodeCond(c.value));
                         break;
                     case GT:
                         where.append(" > ?");
-                        args.add(c.value);
+                        args.add(encodeCond(c.value));
                         break;
                     case GE:
                         where.append(" >= ?");
-                        args.add(c.value);
+                        args.add(encodeCond(c.value));
                         break;
                     case LT:
                         where.append(" < ?");
-                        args.add(c.value);
+                        args.add(encodeCond(c.value));
                         break;
                     case LE:
                         where.append(" <= ?");
-                        args.add(c.value);
+                        args.add(encodeCond(c.value));
                         break;
                     case LIKE:
                         where.append(" LIKE ?");
@@ -286,7 +287,7 @@ public class SqlBackendExecutor implements IBackendExecutor {
                         for (int i = 0; i < vals.size(); i++) {
                             if (i > 0) where.append(",");
                             where.append("?");
-                            args.add(vals.get(i));
+                            args.add(encodeCond(vals.get(i)));
                         }
                         where.append(')');
                         break;
@@ -366,7 +367,7 @@ public class SqlBackendExecutor implements IBackendExecutor {
         if (type == Boolean.class || type == boolean.class)
             return raw instanceof Boolean ? raw : raw instanceof Number ? ((Number) raw).intValue() != 0 : Boolean.parseBoolean(String.valueOf(raw));
         if (type == java.util.Date.class)
-            return raw instanceof java.util.Date ? raw : new java.util.Date(raw instanceof Number ? ((Number) raw).longValue() : Long.parseLong(String.valueOf(raw)));
+            return BeanCodec.coerceDate(raw);
         if (type.isEnum()) return Enum.valueOf((Class<Enum>) type, String.valueOf(raw));
         return raw;
     }
@@ -390,8 +391,13 @@ public class SqlBackendExecutor implements IBackendExecutor {
         return vals.toArray();
     }
 
+    /** 条件值编码（Date → 统一日期字符串，与列存储一致）。 */
+    private static Object encodeCond(Object v) {
+        return v instanceof java.util.Date ? BeanCodec.formatDate((java.util.Date) v) : v;
+    }
+
     private static Object encodeValue(Object v) {
-        if (v instanceof java.util.Date) return ((java.util.Date) v).getTime();
+        if (v instanceof java.util.Date) return BeanCodec.formatDate((java.util.Date) v);
         if (v instanceof Enum) return ((Enum<?>) v).name();
         return v;
     }

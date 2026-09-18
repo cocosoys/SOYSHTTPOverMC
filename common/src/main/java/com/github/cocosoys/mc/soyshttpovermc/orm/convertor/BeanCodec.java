@@ -9,18 +9,73 @@ import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
 import java.util.*;
 
 /**
  * Bean ↔ ConfigSection 节点双向编解码（YAML 后端的数据映射层）：
  * <ul>
- *   <li>标量字段：String/数值/布尔/Date(毫秒)/枚举(name) 直接存节点值；</li>
+ *   <li>标量字段：String/数值/布尔/Date(yyyy-MM-dd HH:mm:ss)/枚举(name) 直接存节点值；</li>
  *   <li>嵌套字段：List&lt;标量&gt; → 列表；List&lt;对象&gt; → 列表（对象转 Section）；Map → 节点；对象 → Section。</li>
  * </ul>
+ *
+ * <p><b>Date 存储约定</b>：统一编码为 {@value #DATE_TIME_PATTERN} 字符串落库（YAML 与 SQL 双端同构）。
+ * 读取兼容三种历史形态：{@link Date} 对象 / 数值(epoch 毫秒) / 字符串（epoch 毫秒数字或日期字符串）。</p>
  */
 public final class BeanCodec {
 
+    /** 日期时间统一格式。 */
+    public static final String DATE_TIME_PATTERN = "yyyy-MM-dd HH:mm:ss";
+
+    private static final ThreadLocal<SimpleDateFormat> SDF = ThreadLocal.withInitial(
+            () -> new SimpleDateFormat(DATE_TIME_PATTERN));
+
     private BeanCodec() {
+    }
+
+    // ===== 日期工具（供 ORM / 命令 / JSON 序列化共用） =====
+
+    /**
+     * 格式化 {@link Date} → {@value #DATE_TIME_PATTERN} 字符串；null → null。
+     */
+    public static String formatDate(Date d) {
+        return d == null ? null : SDF.get().format(d);
+    }
+
+    /**
+     * 解析日期字符串（严格）：优先按 epoch 毫秒数字（旧数据/脚本兼容），
+     * 否则按 {@value #DATE_TIME_PATTERN} 解析；失败抛 {@link ParseException}。
+     */
+    public static Date parseDate(String s) throws ParseException {
+        if (s == null) {
+            throw new ParseException("null", 0);
+        }
+        String t = s.trim();
+        if (t.isEmpty()) {
+            throw new ParseException("empty", 0);
+        }
+        try {
+            return new Date(Long.parseLong(t));
+        } catch (NumberFormatException ignore) {
+            // 继续按日期格式解析
+        }
+        return SDF.get().parse(t);
+    }
+
+    /**
+     * 宽松还原为 {@link Date}（ORM 读侧兼容）：null → null；Date 原样；
+     * Number → epoch 毫秒；字符串 → {@link #parseDate(String)}，失败返回 null。
+     */
+    public static Date coerceDate(Object raw) {
+        if (raw == null) return null;
+        if (raw instanceof Date) return (Date) raw;
+        if (raw instanceof Number) return new Date(((Number) raw).longValue());
+        try {
+            return parseDate(String.valueOf(raw));
+        } catch (ParseException e) {
+            return null;
+        }
     }
 
     // ===== 序列化：Bean → ConfigSection（写入目标节点） =====
@@ -44,7 +99,7 @@ public final class BeanCodec {
 
     private static Object encodeValue(Object value) {
         if (value instanceof Date) {
-            return ((Date) value).getTime();
+            return formatDate((Date) value);
         }
         if (value instanceof Enum) {
             return ((Enum<?>) value).name();
@@ -170,8 +225,7 @@ public final class BeanCodec {
             return raw instanceof Boolean ? raw : Boolean.parseBoolean(String.valueOf(raw));
         }
         if (type == Date.class) {
-            long ms = raw instanceof Number ? ((Number) raw).longValue() : Long.parseLong(String.valueOf(raw));
-            return new Date(ms);
+            return coerceDate(raw);
         }
         if (type.isEnum()) {
             return Enum.valueOf((Class<Enum>) type, String.valueOf(raw));

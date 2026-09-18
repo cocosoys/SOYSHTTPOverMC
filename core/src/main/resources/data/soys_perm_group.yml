@@ -14,8 +14,8 @@
 #   prefix      前缀（如聊天前缀）
 #   weight      权重（int，数字越大优先级越高）
 #   description 描述
-#   created_at  创建时间（毫秒时间戳字符串）
-#   updated_at  最后更新时间（毫秒时间戳字符串）
+#   created_at  创建时间（yyyy-MM-dd HH:mm:ss）
+#   updated_at  最后更新时间（yyyy-MM-dd HH:mm:ss）
 # 示例记录:
 #   "admin":
 #     display: "管理员"

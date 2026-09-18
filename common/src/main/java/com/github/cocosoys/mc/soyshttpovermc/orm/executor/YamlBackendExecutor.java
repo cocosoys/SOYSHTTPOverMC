@@ -29,7 +29,7 @@ import java.util.concurrent.ConcurrentHashMap;
  *   "id-1":                  ← @TableId 主键值作键
  *     name: "a"
  *     role: "admin"
- *     create_time: 1759...   ← 列名驼峰转下划线；Date 存毫秒
+ *     create_time: "2026-09-18 12:00:00"   ← 列名驼峰转下划线；Date 存 yyyy-MM-dd HH:mm:ss 字符串
  * </pre>
  * <ul>
  *   <li>读：全量加载 ConfigSection（内存缓存文件视图），按 {@link ConditionTree} 逐条求值（O(n)）；</li>
@@ -208,7 +208,7 @@ public class YamlBackendExecutor implements IBackendExecutor {
             try {
                 fm.field.setAccessible(true);
                 Object v = fm.field.get(bean);
-                return v instanceof java.util.Date ? ((java.util.Date) v).getTime() : v;
+                return v instanceof java.util.Date ? BeanCodec.formatDate((java.util.Date) v) : v;
             } catch (IllegalAccessException e) {
                 return null;
             }

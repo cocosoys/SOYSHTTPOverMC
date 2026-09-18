@@ -3,6 +3,7 @@ package com.github.cocosoys.mc.soyshttpovermc.orm;
 import com.github.cocosoys.mc.soyshttpovermc.orm.executor.SqlBackendExecutor;
 
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -86,16 +87,15 @@ public final class SchemaRegistry {
      * @param scripts 已执行脚本清单（可空）
      */
     public static boolean recordPlugin(String plugin, int version, List<String> scripts) {
-        long now = System.currentTimeMillis();
         SoysSchemaMeta row = getPlugin(plugin);
         if (row == null) {
             row = new SoysSchemaMeta(plugin, PLUGIN_ROW);
             row.setState(STATE_INSTALLED);
-            row.setCreatedAt(String.valueOf(now));
+            row.setCreatedAt(new Date());
         }
         row.setSchemaVersion(version);
         row.setExecutedScripts(toJson(scripts));
-        row.setUpdatedAt(String.valueOf(now));
+        row.setUpdatedAt(new Date());
         return DATA.insert(row) || upsert(row);
     }
 
@@ -103,15 +103,14 @@ public final class SchemaRegistry {
      * 记录表归属行（tableName = ORM 表名）。
      */
     public static boolean recordTable(String plugin, String tableName) {
-        long now = System.currentTimeMillis();
         SoysSchemaMeta row = get(plugin, tableName);
         if (row == null) {
             row = new SoysSchemaMeta(plugin, tableName);
             row.setState(STATE_INSTALLED);
             row.setSchemaVersion(0);
-            row.setCreatedAt(String.valueOf(now));
+            row.setCreatedAt(new Date());
         }
-        row.setUpdatedAt(String.valueOf(now));
+        row.setUpdatedAt(new Date());
         return DATA.insert(row) || upsert(row);
     }
 

@@ -28,11 +28,22 @@ import java.util.Set;
 @Data
 public final class DataSpec {
 
+    /** 归属标识（主插件名 / Expansion identifier），写 meta 归属。 */
     private String pluginName;
+
+    /** 当前 schema 版本（>=0；0 = 仅 init.sql + 种子，无迁移）。 */
     private int schemaVersion;
+
+    /** jar 内默认数据文件根（如 "data"），复制（不覆盖）。 */
     private String[] dataRoots;
+
+    /** jar 内 SQL 资源根（如 "sql"），执行 init.sql + migrations。 */
     private String[] sqlRoots;
+
+    /** 种子实体实例列表（按类分组，表空才插入）。 */
     private List<Object> seedData;
+
+    /** 归属表实体类（确保建表 / purge 识别；缺省由 seedData 推断）。 */
     private Class<?>[] tableClasses;
     /**
      * 合并后的归属表实体类集合：显式 {@code tableClasses} + {@code seedData} 推断（去重，保持声明顺序）。

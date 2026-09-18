@@ -18,10 +18,13 @@ import lombok.Data;
  * </ul>
  *
  * <p>主键为合成键 {@code ownerType|ownerId|permission}（用户输入，INPUT 类型）。</p>
+ *
+ * <p>审计字段（createTime 等）继承自 {@link BaseEntity}，落库列 {@code created_at}
+ * （yyyy-MM-dd HH:mm:ss）。</p>
  */
 @TableName("soys_perm_permission")
 @Data
-public class SoysPermPermission {
+public class SoysPermPermission extends BaseEntity {
 
     /** 主体类型：组。 */
     public static final String TYPE_GROUP = "GROUP";
@@ -55,10 +58,6 @@ public class SoysPermPermission {
      */
     private boolean negative;
 
-    /**
-     * 创建时刻（epoch 毫秒字符串）。
-     */
-    private String createdAt;
 
     public SoysPermPermission() {
     }
@@ -69,6 +68,6 @@ public class SoysPermPermission {
         this.ownerId = ownerId;
         this.permission = permission;
         this.negative = negative;
-        this.createdAt = String.valueOf(System.currentTimeMillis());
+        setCreateTime(new java.util.Date());
     }
 }

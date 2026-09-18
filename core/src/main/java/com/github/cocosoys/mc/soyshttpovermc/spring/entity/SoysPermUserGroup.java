@@ -14,7 +14,7 @@ import lombok.Data;
  */
 @TableName("soys_perm_user_group")
 @Data
-public class SoysPermUserGroup {
+public class SoysPermUserGroup extends BaseEntity {
 
     /**
      * 合成主键 {@code uuid|group}（uuid 标准小写带横线；group 小写归一）。

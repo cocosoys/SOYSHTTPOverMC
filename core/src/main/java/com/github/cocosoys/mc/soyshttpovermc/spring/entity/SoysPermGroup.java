@@ -12,10 +12,13 @@ import lombok.Data;
  * 组权限存于 {@link SoysPermPermission}（ownerType=GROUP），用户归属存于 {@link SoysPermUserGroup}。</p>
  *
  * <p>主键为组标识（小写，如 {@code default} / {@code vip} / {@code admin}），由调用方输入（INPUT）。</p>
+ *
+ * <p>审计字段（createTime/updateTime 等）继承自 {@link BaseEntity}，落库列
+ * {@code created_at} / {@code updated_at}（yyyy-MM-dd HH:mm:ss）。</p>
  */
 @TableName("soys_perm_group")
 @Data
-public class SoysPermGroup {
+public class SoysPermGroup extends BaseEntity {
 
     /**
      * 组标识（主键，小写；如 default / vip / admin）。
@@ -43,15 +46,6 @@ public class SoysPermGroup {
      */
     private String description;
 
-    /**
-     * 创建时刻（epoch 毫秒字符串）。
-     */
-    private String createdAt;
-
-    /**
-     * 最近更新时刻（epoch 毫秒字符串）。
-     */
-    private String updatedAt;
 
     public SoysPermGroup() {
     }

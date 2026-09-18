@@ -13,8 +13,15 @@ public class RecentRequestEntityVO implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
+    /** 请求方法（GET/POST/...）。 */
     private String method;
+
+    /** 请求路径。 */
     private String path;
+
+    /** HTTP 状态码。 */
     private Integer code;
+
+    /** 处理耗时（毫秒；null = 无延迟样本）。 */
     private Double ms;
 }

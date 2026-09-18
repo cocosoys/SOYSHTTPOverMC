@@ -3,13 +3,16 @@ package com.github.cocosoys.mc.soyshttpovermc.spring.entity;
 import com.dlz.db.annotation.IdType;
 import com.dlz.db.annotation.TableId;
 import com.dlz.db.annotation.TableName;
+import com.fasterxml.jackson.annotation.JsonFormat;
 import com.github.cocosoys.mc.soyshttpovermc.permission.local.LocalPermissionStore;
 import lombok.Data;
+
+import java.util.Date;
 
 /**
  * 本地内置权限表 · 用户实体（ORM，落 {@code data/soys_perm_user.yml} 或 SQL 表 {@code soys_perm_user}）。
  *
- * <p>用户整体过期字段 {@link #expiry}（epoch 毫秒字符串；空=永久）。用户直接权限存于
+ * <p>用户整体过期字段 {@link #expiry}（yyyy-MM-dd HH:mm:ss；null=永久）。用户直接权限存于
  * {@link SoysPermPermission}（ownerType=USER、ownerId=uuid），用户归属组存于 {@link SoysPermUserGroup}。</p>
  *
  * <p>主键为玩家 UUID（离线服为确定性离线 UUID，见 {@link com.github.cocosoys.mc.soyshttpovermc.util.UuidUtil}）；
@@ -18,7 +21,7 @@ import lombok.Data;
  */
 @TableName("soys_perm_user")
 @Data
-public class SoysPermUser {
+public class SoysPermUser extends BaseEntity {
 
     /**
      * 玩家 UUID（主键，标准小写带横线；离线服为离线 UUID）。
@@ -32,19 +35,10 @@ public class SoysPermUser {
     private String player;
 
     /**
-     * 用户整体过期时刻（epoch 毫秒字符串；空=永久）。
+     * 用户整体过期时刻（yyyy-MM-dd HH:mm:ss；null=永久）。
      */
-    private String expiry;
-
-    /**
-     * 创建时刻（epoch 毫秒字符串）。
-     */
-    private String createdAt;
-
-    /**
-     * 最近更新时刻（epoch 毫秒字符串）。
-     */
-    private String updatedAt;
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
+    private Date expiry;
 
     public SoysPermUser() {
     }

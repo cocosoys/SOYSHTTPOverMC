@@ -30,10 +30,10 @@
 CREATE TABLE IF NOT EXISTS `soys_perm_user` (
   `uuid`       VARCHAR(64)  PRIMARY KEY COMMENT '玩家 UUID（主键，区分大小写）',
   `player`     VARCHAR(255)          COMMENT '玩家名（冗余；改名后以 uuid 为准）',
-  `expiry`     VARCHAR(255)          COMMENT '用户级权限过期时间（毫秒时间戳字符串；空 = 不过期）',
+  `expiry`     VARCHAR(255)          COMMENT '用户级权限过期时间（yyyy-MM-dd HH:mm:ss；空 = 不过期）',
   `vip_level`  VARCHAR(64)  NOT NULL DEFAULT '0' COMMENT '会员等级（V2 迁移字段，最新结构内置）',
-  `created_at` VARCHAR(255)          COMMENT '创建时间（毫秒时间戳字符串）',
-  `updated_at` VARCHAR(255)          COMMENT '最后更新时间（毫秒时间戳字符串）',
+  `created_at` VARCHAR(255)          COMMENT '创建时间（yyyy-MM-dd HH:mm:ss）',
+  `updated_at` VARCHAR(255)          COMMENT '最后更新时间（yyyy-MM-dd HH:mm:ss）',
   KEY `idx_perm_user_player` (`player`)
 );
 
@@ -44,8 +44,8 @@ CREATE TABLE IF NOT EXISTS `soys_perm_group` (
   `prefix`      VARCHAR(255)          COMMENT '前缀（如聊天前缀）',
   `weight`      INT                   COMMENT '权重（数字越大优先级越高）',
   `description` VARCHAR(255)          COMMENT '描述',
-  `created_at`  VARCHAR(255)          COMMENT '创建时间（毫秒时间戳字符串）',
-  `updated_at`  VARCHAR(255)          COMMENT '最后更新时间（毫秒时间戳字符串）'
+  `created_at`  VARCHAR(255)          COMMENT '创建时间（yyyy-MM-dd HH:mm:ss）',
+  `updated_at`  VARCHAR(255)          COMMENT '最后更新时间（yyyy-MM-dd HH:mm:ss）'
 );
 
 -- ---------- 权限节点表 ----------
@@ -58,7 +58,7 @@ CREATE TABLE IF NOT EXISTS `soys_perm_permission` (
   `owner_id`    VARCHAR(255)          COMMENT '归属 ID（组 ID 或玩家 UUID）',
   `permission`  VARCHAR(255)          COMMENT '权限节点',
   `negative`    TINYINT               COMMENT '负权限标记: 1 = 拒绝',
-  `created_at`  VARCHAR(255)          COMMENT '创建时间（毫秒时间戳字符串）'
+  `created_at`  VARCHAR(255)          COMMENT '创建时间（yyyy-MM-dd HH:mm:ss）'
 );
 
 -- ---------- 用户 - 权限组关联表 ----------
@@ -73,8 +73,8 @@ CREATE TABLE IF NOT EXISTS `soys_perm_user_group` (
 CREATE TABLE IF NOT EXISTS `soys_remember` (
   `jti`        VARCHAR(64)  PRIMARY KEY COMMENT '凭证 ID（JWT jti）',
   `player`     VARCHAR(255)          COMMENT '玩家名',
-  `issued_at`  VARCHAR(255)          COMMENT '签发时间（毫秒时间戳字符串）',
-  `expires_at` VARCHAR(255)          COMMENT '过期时间（毫秒时间戳字符串；过期自动清理/拉黑）'
+  `issued_at`  VARCHAR(255)          COMMENT '签发时间（yyyy-MM-dd HH:mm:ss）',
+  `expires_at` VARCHAR(255)          COMMENT '过期时间（yyyy-MM-dd HH:mm:ss；过期自动清理/拉黑）'
 );
 
 -- ---------- 自动运维元数据表（soys_schema_meta） ----------
@@ -89,6 +89,6 @@ CREATE TABLE IF NOT EXISTS `soys_schema_meta` (
   `schema_version`   INT                   COMMENT '当前 schema 版本（已应用最高迁移版本）',
   `state`            VARCHAR(255)          COMMENT '状态（INSTALLED / UNINSTALLED，预留）',
   `executed_scripts` TEXT                  COMMENT '已执行脚本 JSON 数组（插件级行使用）',
-  `created_at`       VARCHAR(255)          COMMENT '创建时间（毫秒时间戳字符串）',
-  `updated_at`       VARCHAR(255)          COMMENT '最后更新时间（毫秒时间戳字符串）'
+  `created_at`       VARCHAR(255)          COMMENT '创建时间（yyyy-MM-dd HH:mm:ss）',
+  `updated_at`       VARCHAR(255)          COMMENT '最后更新时间（yyyy-MM-dd HH:mm:ss）'
 );

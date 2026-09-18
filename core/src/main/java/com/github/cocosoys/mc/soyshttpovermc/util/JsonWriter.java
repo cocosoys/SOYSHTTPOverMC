@@ -40,6 +40,8 @@ public final class JsonWriter {
             appendArray(sb, v);
         } else if (v instanceof CharSequence) {
             appendString(sb, v.toString());
+        } else if (v instanceof java.util.Date) {
+            appendString(sb, com.github.cocosoys.mc.soyshttpovermc.orm.convertor.BeanCodec.formatDate((java.util.Date) v));
         } else {
             // POJO：反射公开 getter 序列化
             Map<String, Object> bean = beanToMap(v);

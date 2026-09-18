@@ -17,8 +17,8 @@
 #   schema_version   当前 schema 版本（已应用最高迁移版本，如 0/1/2…）
 #   state            状态（INSTALLED / UNINSTALLED，预留）
 #   executed_scripts 已执行脚本 JSON 数组（插件级行使用，如 ["init.sql","V1__demo.sql"]）
-#   created_at       创建时间（毫秒时间戳字符串）
-#   updated_at       最后更新时间（毫秒时间戳字符串）
+#   created_at       创建时间（yyyy-MM-dd HH:mm:ss）
+#   updated_at       最后更新时间（yyyy-MM-dd HH:mm:ss）
 # ----------------------------------------------------------------------------
 # 记录示例（首次安装后由自动运维写入；本模板保持空表）:
 #   soys_schema_meta:

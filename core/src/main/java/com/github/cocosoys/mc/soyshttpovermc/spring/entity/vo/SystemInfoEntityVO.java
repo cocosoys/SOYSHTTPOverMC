@@ -14,9 +14,16 @@ public class SystemInfoEntityVO extends BaseEntity {
 
     private static final long serialVersionUID = 1L;
 
+    /** 插件名称（SOYSHTTPOverMC）。 */
     private String name;
+
+    /** 插件版本号。 */
     private String version;
+
+    /** 网关协议标识。 */
     private String protocol;
+
+    /** 网关监听端口。 */
     private int port;
 
     public SystemInfoEntityVO() {

@@ -13,6 +13,9 @@ public class LatencyEntityVO implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
+    /** 平均延迟（毫秒；null = 暂无样本）。 */
     private Double avgMs;
+
+    /** 最大延迟（毫秒；null = 暂无样本）。 */
     private Double maxMs;
 }

@@ -2,8 +2,11 @@ package com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.bridge;
 
 import com.dlz.db.annotation.TableId;
 import com.dlz.db.annotation.TableName;
+import com.fasterxml.jackson.annotation.JsonFormat;
 import com.github.cocosoys.mc.soyshttpovermc.orm.DATA;
 import lombok.Data;
+
+import java.util.Date;
 
 /**
  * “记住我”（设备免登录）凭证登记（ORM 实体，落 {@code data/soys_remember.yml} 或 SQL 表）。
@@ -33,19 +36,21 @@ public class RememberCredential {
     private String player;
 
     /**
-     * 签发时刻（epoch 毫秒字符串）。
+     * 签发时刻（yyyy-MM-dd HH:mm:ss）。
      */
-    private String issuedAt;
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
+    private Date issuedAt;
 
     /**
-     * 过期时刻（epoch 毫秒字符串）。
+     * 过期时刻（yyyy-MM-dd HH:mm:ss）。
      */
-    private String expiresAt;
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
+    private Date expiresAt;
 
     public RememberCredential() {
     }
 
-    public RememberCredential(String jti, String player, String issuedAt, String expiresAt) {
+    public RememberCredential(String jti, String player, Date issuedAt, Date expiresAt) {
         this.jti = jti;
         this.player = player;
         this.issuedAt = issuedAt;

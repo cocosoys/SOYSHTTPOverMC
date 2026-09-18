@@ -257,7 +257,7 @@ public class AuthLoginBridge {
             if (p == null || p.jti == null) return null;
             long now = System.currentTimeMillis();
             persistRemember(new RememberCredential(p.jti, player,
-                    Long.toString(now), Long.toString(now + rememberTtlMillis)));
+                    new java.util.Date(now), new java.util.Date(now + rememberTtlMillis)));
             return token;
         } catch (Throwable t) {
             return null;
@@ -274,13 +274,8 @@ public class AuthLoginBridge {
             if (p == null) return null;
             RememberCredential rec = loadRemember(p.jti);
             if (rec == null) return null;
-            long exp;
-            try {
-                exp = Long.parseLong(rec.getExpiresAt());
-            } catch (Exception e) {
-                exp = 0;
-            }
-            if (exp < System.currentTimeMillis()) return null;
+            java.util.Date exp = rec.getExpiresAt();
+            if (exp == null || exp.before(new java.util.Date())) return null;
             return rec.getPlayer();
         } catch (Throwable t) {
             return null;

@@ -244,7 +244,7 @@ public class PermSubCommand extends SubCommand {
     private void userCmd(CommandSender sender, LocalPermissionStore store, String[] args) {
         if (args.length < 4) {
             msgT(sender, "command.perm.user.usage",
-                    "§e用法：/soyshttp perm user <玩家> group add|remove <组> / add|remove <权限> / list / expiry <epoch|clear>");
+                    "§e用法：/soyshttp perm user <玩家> group add|remove <组> / add|remove <权限> / list / expiry <yyyy-MM-dd HH:mm:ss|clear>");
             return;
         }
         String player = args[2];
@@ -306,9 +306,9 @@ public class PermSubCommand extends SubCommand {
                     msgT(sender, "command.perm.user.not-registered", "§c玩家 §f{0} §c未在本地权限表登记", player);
                     return;
                 }
-                String expiry = "".equals(u.getExpiry())
+                String expiry = u.getExpiry() == null
                         ? I18n.t("command.perm.user.expiry-forever", "永久")
-                        : u.getExpiry();
+                        : com.github.cocosoys.mc.soyshttpovermc.orm.convertor.BeanCodec.formatDate(u.getExpiry());
                 msgT(sender, "command.perm.user.detail", "§a玩家 §f{0} §7(过期={1})", player, expiry);
                 List<String> groups = store.listUserGroups(player);
                 String groupsLine = groups.isEmpty()
@@ -330,7 +330,7 @@ public class PermSubCommand extends SubCommand {
             }
             case "expiry": {
                 if (args.length < 5) {
-                    msgT(sender, "command.perm.user.expiry-usage", "§c用法：/soyshttp perm user <玩家> expiry <epoch|clear>");
+                    msgT(sender, "command.perm.user.expiry-usage", "§c用法：/soyshttp perm user <玩家> expiry <yyyy-MM-dd HH:mm:ss|clear>");
                     return;
                 }
                 boolean ok = store.setUserExpiry(player, args[4]);
@@ -343,7 +343,7 @@ public class PermSubCommand extends SubCommand {
                         msgT(sender, "command.perm.user.expiry-set", "§a玩家 §f{0} §a整体过期已设为 §f{1}", player, exp);
                     }
                 } else {
-                    msgT(sender, "command.perm.user.expiry-failed", "§c设置过期失败（须为 epoch 毫秒或 clear）");
+                    msgT(sender, "command.perm.user.expiry-failed", "§c设置过期失败（须为 yyyy-MM-dd HH:mm:ss 或 clear）");
                 }
                 break;
             }

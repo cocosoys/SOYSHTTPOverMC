@@ -113,16 +113,15 @@ public class LocalPermissionStore {
     public boolean createGroup(String id, int weight, String display, String description) {
         String gid = normalize(id).toLowerCase();
         if (gid.isEmpty()) return false;
-        long now = System.currentTimeMillis();
         SoysPermGroup g = getGroup(gid);
         if (g == null) {
             g = new SoysPermGroup(gid);
-            g.setCreatedAt(String.valueOf(now));
+            g.setCreateTime(new java.util.Date());
         }
         g.setWeight(weight);
         g.setDisplay(display == null || display.isEmpty() ? gid : display);
         g.setDescription(description == null ? "" : description);
-        g.setUpdatedAt(String.valueOf(now));
+        g.setUpdateTime(new java.util.Date());
         return storage.save(g);
     }
 
@@ -205,16 +204,15 @@ public class LocalPermissionStore {
         String pk = userKey(player);
         if (pk.isEmpty()) return false;
         String name = UuidUtil.isUuid(player) ? null : player.trim(); // 名字输入才记录玩家名属性
-        long now = System.currentTimeMillis();
         SoysPermUser u = getUser(pk);
         if (u == null) {
             u = new SoysPermUser(pk);
-            u.setCreatedAt(String.valueOf(now));
+            u.setCreateTime(new java.util.Date());
         }
         if (name != null && !name.equals(u.getPlayer())) {
             u.setPlayer(name); // 同步最新玩家名属性
         }
-        u.setUpdatedAt(String.valueOf(now));
+        u.setUpdateTime(new java.util.Date());
         return storage.save(u);
     }
 
@@ -236,25 +234,24 @@ public class LocalPermissionStore {
     /**
      * 设置用户整体过期时刻。
      *
-     * @param expiryEpoch epoch 毫秒字符串；空串或 "0" = 清除（永久）。
+     * @param expiryInput yyyy-MM-dd HH:mm:ss（兼容 epoch 毫秒数字）；"clear" / "0" / 空 = 清除（永久）。
      */
-    public boolean setUserExpiry(String player, String expiryEpoch) {
+    public boolean setUserExpiry(String player, String expiryInput) {
         String pk = userKey(player);
         if (pk.isEmpty()) return false;
         SoysPermUser u = getUser(pk);
         if (u == null) u = new SoysPermUser(pk);
-        String exp = expiryEpoch == null ? "" : expiryEpoch.trim();
+        String exp = expiryInput == null ? "" : expiryInput.trim();
         if (exp.isEmpty() || "0".equals(exp) || "clear".equalsIgnoreCase(exp)) {
-            u.setExpiry("");
+            u.setExpiry(null);
         } else {
             try {
-                long v = Long.parseLong(exp);
-                u.setExpiry(String.valueOf(v));
-            } catch (NumberFormatException e) {
+                u.setExpiry(com.github.cocosoys.mc.soyshttpovermc.orm.convertor.BeanCodec.parseDate(exp));
+            } catch (java.text.ParseException e) {
                 return false;
             }
         }
-        u.setUpdatedAt(String.valueOf(System.currentTimeMillis()));
+        u.setUpdateTime(new java.util.Date());
         return storage.save(u);
     }
 
@@ -264,13 +261,8 @@ public class LocalPermissionStore {
     public boolean isExpired(String player) {
         SoysPermUser u = getUser(player);
         if (u == null) return false;
-        String e = u.getExpiry();
-        if (e == null || e.isEmpty()) return false;
-        try {
-            return Long.parseLong(e) < System.currentTimeMillis();
-        } catch (NumberFormatException ex) {
-            return false;
-        }
+        java.util.Date e = u.getExpiry();
+        return e != null && e.before(new java.util.Date());
     }
 
     // ==================== 用户-组 ====================

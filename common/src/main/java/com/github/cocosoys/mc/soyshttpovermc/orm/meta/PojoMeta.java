@@ -56,25 +56,28 @@ public class PojoMeta {
 
     private static List<FieldMeta> resolveFields(Class<?> c) {
         List<FieldMeta> list = new ArrayList<>();
-        for (Field f : c.getDeclaredFields()) {
-            if (Modifier.isStatic(f.getModifiers()) || Modifier.isTransient(f.getModifiers())) {
-                continue;
+        // 递归收集父类字段（继承 BaseEntity 等审计字段亦参与 ORM 映射；Object 终止）
+        for (Class<?> k = c; k != null && k != Object.class; k = k.getSuperclass()) {
+            for (Field f : k.getDeclaredFields()) {
+                if (Modifier.isStatic(f.getModifiers()) || Modifier.isTransient(f.getModifiers())) {
+                    continue;
+                }
+                TableId tid = f.getAnnotation(TableId.class);
+                TableField tf = f.getAnnotation(TableField.class);
+                boolean pk = tid != null;
+                if (tf != null && !tf.exist()) {
+                    continue; // @TableField(exist=false)：双端均忽略该字段
+                }
+                String column;
+                if (tid != null && tid.value() != null && !tid.value().isEmpty()) {
+                    column = tid.value();
+                } else if (tf != null && tf.value() != null && !tf.value().isEmpty()) {
+                    column = tf.value();
+                } else {
+                    column = ColumnNameConvertor.camelToUnderline(f.getName());
+                }
+                list.add(new FieldMeta(f, column, pk));
             }
-            TableId tid = f.getAnnotation(TableId.class);
-            TableField tf = f.getAnnotation(TableField.class);
-            boolean pk = tid != null;
-            if (tf != null && !tf.exist()) {
-                continue; // @TableField(exist=false)：双端均忽略该字段
-            }
-            String column;
-            if (tid != null && tid.value() != null && !tid.value().isEmpty()) {
-                column = tid.value();
-            } else if (tf != null && tf.value() != null && !tf.value().isEmpty()) {
-                column = tf.value();
-            } else {
-                column = ColumnNameConvertor.camelToUnderline(f.getName());
-            }
-            list.add(new FieldMeta(f, column, pk));
         }
         return list;
     }

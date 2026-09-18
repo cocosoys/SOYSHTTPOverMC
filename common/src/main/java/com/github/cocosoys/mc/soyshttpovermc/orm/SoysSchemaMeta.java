@@ -1,9 +1,14 @@
-package com.github.cocosoys.mc.soyshttpovermc.orm;
+    package com.github.cocosoys.mc.soyshttpovermc.orm;
 
 import com.dlz.db.annotation.IdType;
 import com.dlz.db.annotation.TableId;
 import com.dlz.db.annotation.TableName;
+import com.dlz.db.annotation.TableField;
+import com.fasterxml.jackson.annotation.JsonFormat;
+import com.github.cocosoys.mc.soyshttpovermc.orm.convertor.BeanCodec;
 import lombok.Data;
+
+import java.util.Date;
 
 /**
  * 自动运维元数据表（Schema Registry）：记录<b>每个表</b>的归属插件、schema 版本与已执行脚本，
@@ -60,14 +65,18 @@ public class SoysSchemaMeta {
     private String executedScripts;
 
     /**
-     * 创建时刻（epoch 毫秒字符串）。
+     * 创建时刻（yyyy-MM-dd HH:mm:ss；落库列 created_at）。
      */
-    private String createdAt;
+    @TableField("created_at")
+    @JsonFormat(pattern = BeanCodec.DATE_TIME_PATTERN)
+    private Date createdAt;
 
     /**
-     * 最近更新时刻（epoch 毫秒字符串）。
+     * 最近更新时刻（yyyy-MM-dd HH:mm:ss；落库列 updated_at）。
      */
-    private String updatedAt;
+    @TableField("updated_at")
+    @JsonFormat(pattern = BeanCodec.DATE_TIME_PATTERN)
+    private Date updatedAt;
 
     public SoysSchemaMeta() {
     }

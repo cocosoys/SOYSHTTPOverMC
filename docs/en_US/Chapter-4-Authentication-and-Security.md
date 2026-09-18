@@ -204,7 +204,7 @@ Rules (real implementation):
 
 - **Node matching**: `:` equals `.` (`test:ping` ≡ `test.ping`); `-` prefix is negative (stripped on write, stored as `permission + negative=true`); `*` matches everything; `a.*` matches the segment;
 - **No group inheritance** (phase 1 is flat: groups only hold permissions);
-- **Expiry granularity**: user-level expiry only (epoch millis; `0` = forever); expired users are denied;
+- **Expiry granularity**: user-level expiry only (yyyy-MM-dd HH:mm:ss; empty = forever); expired users are denied;
 - **Storage**: `data/soys_perm_group.yml` + `data/soys_perm_user.yml` (or SQL tables when an SQL backend is enabled);
 - **User primary key**: `uuid` (auto-recorded on first permission check while online; after renames, uuid matching takes priority, name matching only when uuid is absent);
 - **Caching**: each check queries ORM directly (no extra cache layer).
