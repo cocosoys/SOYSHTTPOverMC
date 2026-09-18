@@ -8,7 +8,7 @@ import lombok.Data;
 /**
  * 本地内置权限表 · 统一权限实体（ORM，落 {@code data/soys_perm_permission.yml} 或 SQL 表 {@code soys_perm_permission}）。
  *
- * <p>组权限与用户直接权限共用本表，以 {@link #ownerType} 区分（GROUP / USER），{@link #ownerId} 为组名或玩家名。</p>
+ * <p>组 / 用户 / X-API-Key 权限共用本表，以 {@link #ownerType} 区分（GROUP / USER / APIKEY），
  *
  * <p>节点规范化约定：</p>
  * <ul>
@@ -31,6 +31,9 @@ public class SoysPermPermission extends BaseEntity {
     /** 主体类型：用户。 */
     public static final String TYPE_USER = "USER";
 
+    /** 主体类型：X-API-Key（本地表 soys_api_key，ownerId=主键 id）。 */
+    public static final String TYPE_APIKEY = "APIKEY";
+
     /**
      * 合成主键 {@code ownerType|ownerId|permission}。
      */
@@ -38,12 +41,12 @@ public class SoysPermPermission extends BaseEntity {
     private String id;
 
     /**
-     * 主体类型：{@link #TYPE_GROUP} / {@link #TYPE_USER}。
+     * 主体类型：{@link #TYPE_GROUP} / {@link #TYPE_USER} / {@link #TYPE_APIKEY}。
      */
     private String ownerType;
 
     /**
-     * 主体标识：组名（GROUP）或玩家 UUID（USER，标准小写带横线；离线服为离线 UUID，见
+     * 主体标识：组名（GROUP）、玩家 UUID（USER）或 X-API-Key 主键 id（APIKEY，见 soys_api_key 实体）。
      * {@link com.github.cocosoys.mc.soyshttpovermc.util.UuidUtil}）。
      */
     private String ownerId;

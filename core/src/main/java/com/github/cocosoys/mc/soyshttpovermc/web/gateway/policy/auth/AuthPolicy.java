@@ -5,30 +5,30 @@ import com.github.cocosoys.mc.soyshttpovermc.web.gateway.Credential;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.GatewayContext;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.PolicyResult;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.SecurityPolicy;
+import com.github.cocosoys.mc.soyshttpovermc.permission.local.ApiKeyStore;
+import com.github.cocosoys.mc.soyshttpovermc.spring.impl.LocalPermStorageImpl;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.issuer.CredentialIssuer;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.util.AuthUtils;
 import org.bukkit.configuration.ConfigurationSection;
 
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 
 /**
  * 统一凭证鉴权策略（order 20）：支持三种凭证来源 + 可插拔颁发器，按路径保护。
  * <ul>
- *   <li><b>X-API-Key 头</b>：header 可配（默认 X-API-Key），值匹配静态 keys；</li>
- *   <li><b>Authorization</b>：Bearer &lt;key&gt;（匹配静态 keys）或 Basic（用户名=key）；</li>
+ *   <li><b>X-API-Key 头</b>：header 可配（默认 X-API-Key），值经 SHA-256 哈希匹配本地表
+ *       （soys_api_key 表，由 /soyshttp apikey 管理；auth.yml keys 已迁移至该表）；</li>
+ *   <li><b>Authorization</b>：Bearer &lt;key&gt;（哈希匹配本地表）或 Basic（用户名=key）；</li>
  *   <li><b>Cookie</b>：请求携带的 cookie 交由 gateway/issuers/ 下启用的
  *       {@link CredentialIssuer} 校验（如 session-token 会话令牌）。</li>
  * </ul>
- * 静态 keys 与任一启用颁发器匹配即放行，全部不匹配 → 401。
+ * 本地表 key 与任一启用颁发器匹配即放行，全部不匹配 → 401。
  * 接入新登录插件 = 实现 CredentialIssuer + gateway/issuers/ 放 yml，无需改本策略。
  * 凭证解析/路径匹配/常量时间比较复用 {@link AuthUtils}。
  */
 public class AuthPolicy extends SecurityPolicy {
 
-    private final Set<String> keys = new HashSet<>();
     private final List<String> pathPatterns = new ArrayList<>();
     private final List<String> exemptPatterns = new ArrayList<>(); // 豁免路径（公开端点，跳过鉴权）
     private String header = "X-API-Key";
@@ -53,6 +53,10 @@ public class AuthPolicy extends SecurityPolicy {
      */
     private boolean apiKeyLocalFallbackAll = false;
     private volatile List<CredentialIssuer> issuers = new ArrayList<>();
+    /**
+     * 本地 API Key 表（soys_api_key 实体；懒创建）。
+     */
+    private volatile ApiKeyStore apiKeyStore;
     /**
      * 网关统一的 API 前缀（config.yml api-prefix，默认 /api）：匹配 exempt/paths 时自动兼容逻辑路径
      */
@@ -79,8 +83,6 @@ public class AuthPolicy extends SecurityPolicy {
         header = cfg.getString("header", "X-API-Key");
         // 网页登录使用的登录插件提供者名（LoginProvider 的 name，如 authme；留空=自动取第一个可用）
         loginProviderName = cfg.getString("login-provider", "");
-        keys.clear();
-        keys.addAll(cfg.getStringList("keys"));
         pathPatterns.clear();
         for (String p : cfg.getStringList("paths")) {
             if (p != null && !p.trim().isEmpty()) pathPatterns.add(p.trim());
@@ -145,11 +147,28 @@ public class AuthPolicy extends SecurityPolicy {
     }
 
     /**
-     * 请求值是否为已配置的静态 key（常量时间比较，实时读 reload 后的 keys）。
+     * 本地 API Key 表门面（懒创建；与权限层各自持实例，共享统一 ORM 存储）。
+     */
+    public ApiKeyStore getApiKeyStore() {
+        ApiKeyStore s = apiKeyStore;
+        if (s == null) {
+            synchronized (this) {
+                s = apiKeyStore;
+                if (s == null) {
+                    s = new ApiKeyStore(new LocalPermStorageImpl());
+                    apiKeyStore = s;
+                }
+            }
+        }
+        return s;
+    }
+
+    /**
+     * 请求值是否为有效的本地表 key（存在 && 启用 && 未过期）。
      * 供权限判定层识别「已通过认证门」的 X-API-Key，避免把未认证的请求头误当 key。
      */
     public boolean isValidKey(String key) {
-        return AuthUtils.matchAnyKey(keys, key);
+        return getApiKeyStore().isValid(key);
     }
 
     /**
@@ -240,6 +259,6 @@ public class AuthPolicy extends SecurityPolicy {
      */
     public Credential resolveFromHeaders(java.util.Map<String, String> headers) {
         return AuthUtils.resolveCredential(headers, header,
-                acceptHeader, acceptBearer, acceptBasic, acceptCookie, issuers, keys);
+                acceptHeader, acceptBearer, acceptBasic, acceptCookie, issuers, null, getApiKeyStore());
     }
 }

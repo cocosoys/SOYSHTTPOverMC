@@ -1,6 +1,7 @@
 package com.github.cocosoys.mc.soyshttpovermc.storage;
 
 import com.github.cocosoys.mc.soyshttpovermc.enums.StorageType;
+import com.github.cocosoys.mc.soyshttpovermc.util.JsonWriter;
 import lombok.CustomLog;
 
 import java.util.Base64;
@@ -94,7 +95,10 @@ public class RecordSyncStorage implements SyncStorage {
     @Override
     public void revokeToken(String jti, String serverId) {
         if (jti == null || jti.isEmpty()) return;
-        String data = "{\"server_id\":\"" + jsonEsc(serverId) + "\",\"revoked_at\":" + System.currentTimeMillis() + "}";
+        java.util.LinkedHashMap<String, Object> m = new java.util.LinkedHashMap<>();
+        m.put("server_id", serverId == null ? "" : serverId);
+        m.put("revoked_at", System.currentTimeMillis());
+        String data = JsonWriter.write(m);
         manager.saveAsync(new SyncRecord("blacklist:" + jti, T_BLACKLIST, data));
         revokedCache.put(jti, System.currentTimeMillis() + CACHE_TTL_MS);
     }
@@ -104,10 +108,15 @@ public class RecordSyncStorage implements SyncStorage {
     @Override
     public void recordIssued(String serverId, String subject, String mode, boolean admin,
                              String jti, long issuedAt, long expiresAt) {
-        String data = "{\"server_id\":\"" + jsonEsc(serverId) + "\",\"subject\":\"" + jsonEsc(subject)
-                + "\",\"mode\":\"" + jsonEsc(mode) + "\",\"admin\":" + (admin ? 1 : 0)
-                + ",\"jti\":\"" + jsonEsc(jti) + "\",\"issued_at\":" + issuedAt
-                + ",\"expires_at\":" + expiresAt + "}";
+        java.util.LinkedHashMap<String, Object> m = new java.util.LinkedHashMap<>();
+        m.put("server_id", serverId == null ? "" : serverId);
+        m.put("subject", subject == null ? "" : subject);
+        m.put("mode", mode == null ? "" : mode);
+        m.put("admin", admin ? Integer.valueOf(1) : Integer.valueOf(0));
+        m.put("jti", jti == null ? "" : jti);
+        m.put("issued_at", issuedAt);
+        m.put("expires_at", expiresAt);
+        String data = JsonWriter.write(m);
         // append-only：nonce 保证 key 唯一（同 jti 多次签发/升级不互相覆盖）
         String key = "audit:" + jti + ":" + Long.toHexString(System.nanoTime());
         manager.saveAsync(new SyncRecord(key, T_AUDIT, data));
@@ -117,8 +126,12 @@ public class RecordSyncStorage implements SyncStorage {
 
     @Override
     public void heartbeat(String serverId, String name, String host, int port) {
-        String data = "{\"name\":\"" + jsonEsc(name) + "\",\"host\":\"" + jsonEsc(host)
-                + "\",\"port\":" + port + ",\"last_heartbeat\":" + System.currentTimeMillis() + "}";
+        java.util.LinkedHashMap<String, Object> m = new java.util.LinkedHashMap<>();
+        m.put("name", name == null ? "" : name);
+        m.put("host", host == null ? "" : host);
+        m.put("port", Integer.valueOf(port));
+        m.put("last_heartbeat", System.currentTimeMillis());
+        String data = JsonWriter.write(m);
         manager.saveAsync(new SyncRecord("instance:" + serverId, T_INSTANCE, data));
     }
 
@@ -156,8 +169,4 @@ public class RecordSyncStorage implements SyncStorage {
         }
     }
 
-    private static String jsonEsc(String s) {
-        if (s == null) return "";
-        return s.replace("\\", "\\\\").replace("\"", "\\\"");
-    }
 }

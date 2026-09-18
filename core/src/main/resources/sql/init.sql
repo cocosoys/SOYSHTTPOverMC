@@ -54,8 +54,8 @@ CREATE TABLE IF NOT EXISTS `soys_perm_group` (
 -- negative:   1 = 负权限（拒绝）
 CREATE TABLE IF NOT EXISTS `soys_perm_permission` (
   `id`          VARCHAR(64)  PRIMARY KEY COMMENT '记录 ID',
-  `owner_type`  VARCHAR(255)          COMMENT '归属类型: GROUP / USER',
-  `owner_id`    VARCHAR(255)          COMMENT '归属 ID（组 ID 或玩家 UUID）',
+  `owner_type`  VARCHAR(255)          COMMENT '归属类型: GROUP / USER / APIKEY（X-API-Key）',
+  `owner_id`    VARCHAR(255)          COMMENT '归属 ID（组 ID / 玩家 UUID / X-API-Key 主键 id）',
   `permission`  VARCHAR(255)          COMMENT '权限节点',
   `negative`    TINYINT               COMMENT '负权限标记: 1 = 拒绝',
   `create_time`  VARCHAR(255)          COMMENT '创建时间（yyyy-MM-dd HH:mm:ss）'
@@ -91,4 +91,28 @@ CREATE TABLE IF NOT EXISTS `soys_schema_meta` (
   `executed_scripts` TEXT                  COMMENT '已执行脚本 JSON 数组（插件级行使用）',
   `create_time`       VARCHAR(255)          COMMENT '创建时间（yyyy-MM-dd HH:mm:ss）',
   `update_time`       VARCHAR(255)          COMMENT '最后更新时间（yyyy-MM-dd HH:mm:ss）'
+);
+
+-- ---------- X-API-Key 本地表（认证与权限门共用；密钥不存明文） ----------
+-- api_key: 密钥 SHA-256 全量哈希（唯一；明文仅生成时展示一次）
+-- fingerprint: SHA-256 前 8 位短指纹（唯一；日志/展示脱敏，不参与校验）
+-- uuid: 绑定玩家 UUID（可空 = 未绑定；未来接入后 key 等效该玩家凭证，一期仅存储）
+-- expiry: 过期时刻（yyyy-MM-dd HH:mm:ss；空 = 永久有效）
+-- last_used_at / used_count: 使用统计（校验命中时更新）
+-- 权限节点复用 soys_perm_permission（owner_type=APIKEY，owner_id=本表 id，支持否定/通配/过期）
+CREATE TABLE IF NOT EXISTS `soys_api_key` (
+  `id`           VARCHAR(64)  PRIMARY KEY COMMENT '主键（平台生成 UUID）',
+  `api_key`      VARCHAR(255) NOT NULL COMMENT '密钥 SHA-256 全量哈希（唯一；不存明文）',
+  `fingerprint`  VARCHAR(255) NOT NULL COMMENT '短指纹（SHA-256 前 8 位，唯一）',
+  `uuid`         VARCHAR(64)           COMMENT '绑定玩家 UUID（可空 = 未绑定）',
+  `player`       VARCHAR(255)          COMMENT '绑定玩家名（冗余；改名后以 uuid 为准）',
+  `enabled`      TINYINT      NOT NULL DEFAULT 1 COMMENT '是否启用（0=停用）',
+  `expiry`       VARCHAR(255)          COMMENT '过期时刻（yyyy-MM-dd HH:mm:ss；空 = 永久）',
+  `last_used_at` VARCHAR(255)          COMMENT '最后使用时刻（yyyy-MM-dd HH:mm:ss）',
+  `used_count`   BIGINT       NOT NULL DEFAULT 0 COMMENT '累计使用次数',
+  `remark`       VARCHAR(255)          COMMENT '备注',
+  `create_time`  VARCHAR(255)          COMMENT '创建时间（yyyy-MM-dd HH:mm:ss）',
+  `update_time`  VARCHAR(255)          COMMENT '最后更新时间（yyyy-MM-dd HH:mm:ss）',
+  UNIQUE KEY `uk_api_key_hash` (`api_key`),
+  UNIQUE KEY `uk_api_key_fp` (`fingerprint`)
 );

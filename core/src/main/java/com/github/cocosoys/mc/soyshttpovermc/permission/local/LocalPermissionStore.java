@@ -364,6 +364,24 @@ public class LocalPermissionStore {
     // ==================== 判定 ====================
 
     /**
+     * 通用主体权限判定（供 X-API-Key 等非玩家主体复用）：{@code checkPermissions(ownerType, ownerId, node)}。
+     * 否定（精确/通配）优先拒绝；肯定（精确/通配）命中 → true；否则 false。
+     */
+    public boolean checkPermissions(String ownerType, String ownerId, String permission) {
+        if (ownerType == null || ownerId == null || ownerId.isEmpty()
+                || permission == null || permission.trim().isEmpty()) return false;
+        String node = normalize(permission);
+        if (node.isEmpty()) return false;
+        for (SoysPermPermission p : listPermissions(ownerType, ownerId)) {
+            if (p.isNegative() && match(p.getPermission(), node)) return false;
+        }
+        for (SoysPermPermission p : listPermissions(ownerType, ownerId)) {
+            if (!p.isNegative() && match(p.getPermission(), node)) return true;
+        }
+        return false;
+    }
+
+    /**
      * 本地权限判定：{@code check(player, node)}。
      *
      * <p>规则：用户不存在/整体过期 → false；聚合（用户直接 ∪ 组）；否定（精确/通配）优先拒绝；

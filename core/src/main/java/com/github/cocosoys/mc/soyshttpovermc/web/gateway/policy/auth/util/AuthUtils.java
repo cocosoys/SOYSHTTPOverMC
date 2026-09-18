@@ -2,6 +2,7 @@ package com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.util;
 
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.Credential;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.issuer.CredentialIssuer;
+import com.github.cocosoys.mc.soyshttpovermc.permission.local.ApiKeyStore;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.issuer.CredentialPresentation;
 
 import java.nio.charset.StandardCharsets;
@@ -108,9 +109,9 @@ public final class AuthUtils {
 
     /**
      * 解析请求携带的凭证为 {@link Credential}（权限控制抽象载体）。
-     * 复用与 AuthPolicy 一致的校验逻辑：静态 keys（常量时间比较）+ 启用的颁发器。
+     * 复用与 AuthPolicy 一致的校验逻辑：静态 keys（常量时间比较）+ 本地 API Key 表（SHA-256 哈希匹配）+ 启用的颁发器。
      * 有效返回非 null（含脱敏 subject 与 source），无效返回 null。
-     * 这是「带有效 X-API-Key 可旁路 HTTPS 强制升级」与「未来按权限细分」共用的唯一校验入口。
+     * 这是「带有效 X-API-Key 可旁路 HTTPS 强制升级」与「按权限细分」共用的唯一校验入口。
      */
     public static Credential resolveCredential(Map<String, String> headers,
                                                String apiKeyHeader,
@@ -119,7 +120,8 @@ public final class AuthUtils {
                                                boolean acceptBasic,
                                                boolean acceptCookie,
                                                java.util.List<CredentialIssuer> issuers,
-                                               Set<String> keys) {
+                                               Set<String> keys,
+                                               ApiKeyStore apiKeyStore) {
         CredentialPresentation p = extractPresentation(headers, apiKeyHeader,
                 acceptHeader, acceptBearer, acceptBasic, acceptCookie);
         // 1) 静态 key：X-API-Key 头 / Bearer / Basic 用户名=key
@@ -131,6 +133,18 @@ public final class AuthUtils {
         }
         if (acceptBasic && matchAnyKey(keys, p.getBasicUser())) {
             return new Credential("basic:" + fingerprint(p.getBasicUser()), "basic");
+        }
+        // 1.5) 本地 API Key 表（soys_api_key；SHA-256 哈希匹配，不比较明文）
+        if (apiKeyStore != null) {
+            if (acceptHeader && apiKeyStore.isValid(p.getApiKey())) {
+                return new Credential("api-key:" + fingerprint(p.getApiKey()), "api-key");
+            }
+            if (acceptBearer && apiKeyStore.isValid(p.getBearer())) {
+                return new Credential("bearer:" + fingerprint(p.getBearer()), "bearer");
+            }
+            if (acceptBasic && apiKeyStore.isValid(p.getBasicUser())) {
+                return new Credential("basic:" + fingerprint(p.getBasicUser()), "basic");
+            }
         }
         // 2) 启用的颁发器校验（Bearer / X-API-Key / Cookie 均可识别）
         if (issuers != null) {
@@ -161,7 +175,7 @@ public final class AuthUtils {
     /**
      * 密钥指纹（SHA-256 前 8 位），用于 subject 脱敏，避免日志泄露原始密钥。
      */
-    private static String fingerprint(String v) {
+    public static String fingerprint(String v) {
         if (v == null) return "?";
         String h = sha256Hex(v);
         return h.length() > 8 ? h.substring(0, 8) : h;

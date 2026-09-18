@@ -58,6 +58,7 @@ public class SoysHttpCommand implements CommandExecutor, TabCompleter {
         registerSubCommand(new MigrateSub(plugin));
         registerSubCommand(new SyncSub(plugin));
         registerSubCommand(new PermSubCommand(plugin));
+        registerSubCommand(new ApiKeySubCommand(plugin));
         registerSubCommand(new DataSubCommand(plugin));
         // help 作为独立子指令（最后注册，使其在总览中排在末尾；其内部复用本类的 sendUsage）
         registerSubCommand(new HelpSubCommand(plugin, this));

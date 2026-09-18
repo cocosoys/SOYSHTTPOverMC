@@ -1,0 +1,41 @@
+# ============================================================================
+# SOYSHTTPOverMC · X-API-Key 本地表（YAML 后端初始化模板）
+# 表: soys_api_key（认证门 + 权限门共用；密钥不存明文）
+# ----------------------------------------------------------------------------
+# · 存储位置: <插件数据文件夹>/data/soys_api_key.yml
+#             （目录由 config.yml 的 storage.backends.yaml.file 指定，默认 data/）
+# · 根节点:   soys_api_key（= @TableName，与 SQL 表名一致）
+# · 记录键:   平台生成 UUID（= @TableId 主键，与 SQL 主键一致）
+# · 列名:     实体字段驼峰转小写下划线（createTime → create_time），与 SQL 列名一致
+# · 运行时:   文件不存在时后端自动创建空表；本文件仅作为初始化模板 / 格式参考
+# ----------------------------------------------------------------------------
+# 字段说明:
+#   id            平台生成 UUID（主键）
+#   api_key       密钥 SHA-256 全量哈希（唯一；明文仅生成时展示一次，不落库）
+#   fingerprint   SHA-256 前 8 位短指纹（唯一；日志/展示脱敏，不参与校验）
+#   uuid          绑定玩家 UUID（可空 = 未绑定；未来接入后 key 等效该玩家凭证，一期仅存储）
+#   player        绑定玩家名（冗余；改名后以 uuid 为准）
+#   enabled       是否启用（true = 启用，默认；false = 停用，认证门直接拒绝）
+#   expiry        过期时刻（yyyy-MM-dd HH:mm:ss；留空 = 永久有效）
+#   last_used_at  最后使用时刻（yyyy-MM-dd HH:mm:ss；校验命中时更新）
+#   used_count    累计使用次数（校验命中时 +1）
+#   remark        备注（用途/归属说明等）
+#   create_time   创建时间（yyyy-MM-dd HH:mm:ss）
+#   update_time   最后更新时间（yyyy-MM-dd HH:mm:ss）
+# 权限节点: 复用 soys_perm_permission 表（owner_type = APIKEY，owner_id = 本表 id，
+#           支持否定/通配/过期；由 /soyshttp apikey grant|revoke 管理）
+# 示例记录（键为平台 UUID，值为字段键值对）:
+#   "01234567-89ab-cdef-0123-456789abcdef":
+#     api_key: "<SHA-256 全量哈希，64 位 hex>"
+#     fingerprint: "<前 8 位 hex>"
+#     uuid: ""
+#     player: ""
+#     enabled: true
+#     expiry: ""
+#     last_used_at: ""
+#     used_count: 0
+#     remark: "内网接口调用"
+#     create_time: "2026-09-18 12:00:00"
+#     update_time: "2026-09-18 12:00:00"
+# ============================================================================
+soys_api_key: {}

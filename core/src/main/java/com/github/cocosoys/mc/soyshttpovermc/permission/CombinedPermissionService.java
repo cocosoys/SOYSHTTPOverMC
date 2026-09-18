@@ -1,5 +1,6 @@
 package com.github.cocosoys.mc.soyshttpovermc.permission;
 
+import com.github.cocosoys.mc.soyshttpovermc.permission.local.ApiKeyStore;
 import com.github.cocosoys.mc.soyshttpovermc.permission.local.LocalPermissionStore;
 import com.github.cocosoys.mc.soyshttpovermc.spring.impl.LocalPermStorageImpl;
 import com.github.cocosoys.mc.soyshttpovermc.permission.provider.PermissionProvider;
@@ -53,6 +54,7 @@ public class CombinedPermissionService extends PlayerPermissionService {
     private final JavaPlugin plugin;
     private final ProviderRegistry providerRegistry;
     private final LocalPermissionStore localStore;
+    private final ApiKeyStore apiKeyStore;
     private final GatewayFilter gateway;
 
     public CombinedPermissionService(JavaPlugin plugin, GatewayFilter gateway) {
@@ -60,6 +62,7 @@ public class CombinedPermissionService extends PlayerPermissionService {
         this.gateway = gateway;
         this.plugin = plugin;
         this.localStore = new LocalPermissionStore(new LocalPermStorageImpl());
+        this.apiKeyStore = new ApiKeyStore(new LocalPermStorageImpl());
         this.providerRegistry = new ProviderRegistry(plugin, localStore);
         this.providerRegistry.reload();
     }
@@ -192,14 +195,14 @@ public class CombinedPermissionService extends PlayerPermissionService {
     }
 
     /**
-     * X-API-Key 专用权限判定：key 值作为本地权限表主体（复用 {@link LocalPermissionStore#check}，
-     * key → 离线 UUID 主键，与 /soyshttp perm user &lt;key值&gt; 配置路径同构）。
-     * local 可用且命中 → true；查无 → false（上层继续原链）；local 存储不可用（异常）→
+     * X-API-Key 专用权限判定：按请求明文 SHA-256 哈希查本地表 soys_api_key（{@link ApiKeyStore}），
+     * key 有效则查其权限节点（ownerType=APIKEY，ownerId=key 主键，见 /soyshttp apikey 管理）。
+     * 命中 → true；查无 → false（上层继续原链）；存储不可用（异常）→
      * 按 auth.yml {@code api-key.local-fallback-all} 开关：true=全权限放行（fail-open），false=拒绝。
      */
     private boolean checkApiKeyPermission(String apiKey, String permission) {
         try {
-            return localStore.check(apiKey, permission);
+            return apiKeyStore.checkPermission(apiKey, permission);
         } catch (Throwable t) {
             boolean fallbackAll = gateway.getAuthPolicy() != null
                     && gateway.getAuthPolicy().isApiKeyLocalFallbackAll();

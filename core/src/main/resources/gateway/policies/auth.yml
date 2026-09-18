@@ -1,14 +1,15 @@
 # 统一凭证鉴权策略（order 20）：支持三种凭证来源 + 可插拔颁发器，按路径保护。
-# 1) X-API-Key 头（header 可配，默认 X-API-Key）：值匹配静态 keys；
-# 2) Authorization：Bearer <key>（匹配静态 keys）或 Basic（用户名=key）；
+# 1) X-API-Key 头（header 可配，默认 X-API-Key）：值经 SHA-256 哈希匹配本地表
+#    soys_api_key（由 /soyshttp apikey 管理；auth.yml keys 静态源已迁移至该表）；
+# 2) Authorization：Bearer <key>（哈希匹配本地表）或 Basic（用户名=key）；
 # 3) Cookie：请求携带的 cookie 交由 gateway/issuers/ 下启用的颁发器校验（如 session-token）。
-# 静态 keys 与任一启用颁发器匹配即放行，全部不匹配 → 401。
+# 本地表 key 与任一启用颁发器匹配即放行，全部不匹配 → 401。
 enabled: true
 header: X-API-Key
 # 网页登录使用的登录插件提供者（LoginProvider 的 name，如 authme；留空=自动选用第一个已加载的可用登录插件）。
 # 若未接入任何登录插件，网页登录自动切换为「免密码」模式：仅需输入用户名即可签发会话令牌（见 AuthLoginBridge）。
 login-provider: ""
-keys: []                 # 静态凭证（X-API-Key 头 或 Authorization: Bearer 均可匹配）
+# keys 静态源已迁移至本地表 soys_api_key（/soyshttp apikey 管理）；此处不再读取。
 paths: [/api/*]          # 空=保护所有路径；* 全匹配；/api/* 前缀匹配。
 exempt: [/ping, /whoami, /auth/login, /auth/issue, /auth/mode, /auth/status, /homepage/config, /homepage/live]  # 豁免路径（公开端点）：命中则跳过鉴权直接放行。/ping 为存活检测；/auth/login 为登录窗口登录接口（登录前无凭证）；/auth/issue 为票据/免密登录提交；/auth/mode 为前端登录页模式探测；/auth/status 为登录状态检查（未登录时调用，支持游戏端IP匹配自动登录）；/homepage/* 为主页公开配置/实时数据；logout/me 仍需凭证。
 accept:
@@ -37,6 +38,6 @@ auto:
 #   api-key.local-fallback-all — false=关闭（默认，安全优先）：本地权限表（local）不可用时，
 #                                 X-API-Key 按无权限拒绝（403）；true=开启：local 不可用时
 #                                 X-API-Key 退化为拥有所有权限（fail-open，仅建议内网/信任环境）。
-#                                 （权限判定走 local：管理员用 /soyshttp perm user <key值> 为 key 配置权限）
+#                                 （权限判定走 local：管理员用 /soyshttp apikey grant <id|指纹> <权限> 为 key 配置权限）
 api-key:
   local-fallback-all: false
