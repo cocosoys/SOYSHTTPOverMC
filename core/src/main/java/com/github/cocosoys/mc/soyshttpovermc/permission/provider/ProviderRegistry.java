@@ -1,6 +1,7 @@
 package com.github.cocosoys.mc.soyshttpovermc.permission.provider;
 
 import com.github.cocosoys.mc.soyshttpovermc.permission.local.LocalPermissionStore;
+import lombok.CustomLog;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.util.*;
@@ -30,6 +31,7 @@ import java.util.*;
  *   <li>local      — 插件内置本地权限表（offline-fallback=local 配套，在线/离线均可查）</li>
  * </ul>
  */
+@CustomLog
 public class ProviderRegistry {
 
     private final JavaPlugin plugin;
@@ -78,13 +80,13 @@ public class ProviderRegistry {
                     }
                 }
                 if (found == null) {
-                    plugin.getLogger().warning("[Permission] 未知的权限提供者: " + name
-                            + "（支持: luckperms/essentials/essentialx/permsex/local），已跳过");
+                    log.warnT("log.permission.unknown-provider",
+                            "未知的权限提供者: {0}（支持: luckperms/essentials/essentialx/permsex/local），已跳过", name);
                     continue;
                 }
                 if (!found.isAvailable()) {
-                    plugin.getLogger().warning("[Permission] 权限提供者 " + name
-                            + " 对应的插件未安装或未启用，已跳过");
+                    log.warnT("log.permission.provider-unavailable",
+                            "权限提供者 {0} 对应的插件未安装或未启用，已跳过", name);
                     continue;
                 }
                 if (!addedNames.contains(found.name())) {
@@ -101,11 +103,11 @@ public class ProviderRegistry {
                 if (i > 0) sb.append(", ");
                 sb.append(result.get(i).name());
             }
-            plugin.getLogger().info("[Permission] 权限判断组合已加载: " + sb
-                    + "（任一返回 true 即权限通过）");
+            log.infoT("log.permission.combo-loaded",
+                    "权限判断组合已加载: {0}（任一返回 true 即权限通过）", sb);
         } else {
-            plugin.getLogger().info("[Permission] 未启用任何权限插件提供者，"
-                    + "将仅使用 Bukkit 原生权限（在线玩家）+ OP 降级（离线玩家）");
+            log.infoT("log.permission.no-provider",
+                    "未启用任何权限插件提供者，将仅使用 Bukkit 原生权限（在线玩家）+ OP 降级（离线玩家）");
         }
     }
 

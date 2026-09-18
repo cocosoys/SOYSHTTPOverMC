@@ -82,10 +82,11 @@ public final class ExceptionBus {
     }
 
     private static void dispatch(SoysHttpException e) {
-        StringBuilder sb = new StringBuilder();
-        sb.append('[').append(e.getModule()).append("] ").append(e.getCode()).append(' ').append(e.getMessage());
-        if (e.getPlugin() != null) sb.append(" (plugin=").append(e.getPlugin()).append(')');
-        log.error(sb.toString());
+        if (e.getPlugin() != null) {
+            log.errorT("log.exception.dispatch-with-plugin", "[{0}] {1} {2} (plugin={3})", e.getModule(), e.getCode(), e.getMessage(), e.getPlugin());
+        } else {
+            log.errorT("log.exception.dispatch", "[{0}] {1} {2}", e.getModule(), e.getCode(), e.getMessage());
+        }
         Throwable cause = e.getCause();
         if (cause != null) log.errorT("log.exception.caused-by", "  Caused by: {0}", cause);
 

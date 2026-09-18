@@ -3,12 +3,9 @@
 import com.dlz.db.annotation.IdType;
 import com.dlz.db.annotation.TableId;
 import com.dlz.db.annotation.TableName;
-import com.dlz.db.annotation.TableField;
-import com.fasterxml.jackson.annotation.JsonFormat;
-import com.github.cocosoys.mc.soyshttpovermc.orm.convertor.BeanCodec;
+import com.github.cocosoys.mc.soyshttpovermc.spring.entity.BaseEntity;
 import lombok.Data;
-
-import java.util.Date;
+import lombok.EqualsAndHashCode;
 
 /**
  * 自动运维元数据表（Schema Registry）：记录<b>每个表</b>的归属插件、schema 版本与已执行脚本，
@@ -31,7 +28,8 @@ import java.util.Date;
  */
 @TableName("soys_schema_meta")
 @Data
-public class SoysSchemaMeta {
+@EqualsAndHashCode(callSuper = true)
+public class SoysSchemaMeta extends BaseEntity {
 
     /**
      * 组合主键：{@code <plugin>:<tableName>}（dlz 单主键约束；逻辑双主键）。
@@ -63,20 +61,6 @@ public class SoysSchemaMeta {
      * 已执行脚本清单（JSON 数组字符串，如 {@code ["init.sql","V2__xxx.sql"]}；插件级行使用）。
      */
     private String executedScripts;
-
-    /**
-     * 创建时刻（yyyy-MM-dd HH:mm:ss；落库列 created_at）。
-     */
-    @TableField("created_at")
-    @JsonFormat(pattern = BeanCodec.DATE_TIME_PATTERN)
-    private Date createdAt;
-
-    /**
-     * 最近更新时刻（yyyy-MM-dd HH:mm:ss；落库列 updated_at）。
-     */
-    @TableField("updated_at")
-    @JsonFormat(pattern = BeanCodec.DATE_TIME_PATTERN)
-    private Date updatedAt;
 
     public SoysSchemaMeta() {
     }

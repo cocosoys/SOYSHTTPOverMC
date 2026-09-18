@@ -1,5 +1,6 @@
 package com.github.cocosoys.mc.soyshttpovermc.web.http.handler.standalone;
 
+import com.github.cocosoys.mc.soyshttpovermc.util.JsonWriter;
 import com.github.cocosoys.mc.soyshttpovermc.i18n.I18n;
 import com.github.cocosoys.mc.soyshttpovermc.web.RequestStats;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.Credential;
@@ -20,6 +21,7 @@ import io.netty.handler.ssl.SslHandler;
 import io.netty.util.CharsetUtil;
 import io.netty.util.ReferenceCountUtil;
 import org.bukkit.plugin.java.JavaPlugin;
+import lombok.CustomLog;
 
 import javax.net.ssl.SSLEngine;
 import java.net.InetSocketAddress;
@@ -40,6 +42,7 @@ import java.util.function.Supplier;
  *
  * <p>支持 TLS（HTTPS）、网关策略链、跨服路由（通过 HttpRequestHandler）。
  */
+@CustomLog
 public class StandaloneHttpServer {
 
     private final JavaPlugin plugin;
@@ -101,8 +104,7 @@ public class StandaloneHttpServer {
             ChannelFuture f = b.bind(host, port).sync();
             serverChannel = f.channel();
             running = true;
-            plugin.getLogger().info("[HTTP-Over-MC] 独立 HTTP 服务器已启动: " + host + ":" + port
-                    + (tlsEngineSupplier != null ? " (TLS/HTTPS)" : " (HTTP)"));
+            log.infoT("log.server.standalone-started", "独立 HTTP 服务器已启动: {0}:{1} {2}", host, port, (tlsEngineSupplier != null ? " (TLS/HTTPS)" : " (HTTP)"));
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             shutdown();
@@ -134,7 +136,7 @@ public class StandaloneHttpServer {
             workerGroup.shutdownGracefully();
             workerGroup = null;
         }
-        plugin.getLogger().info("[HTTP-Over-MC] 独立 HTTP 服务器已关闭");
+        log.infoT("log.server.standalone-stopped", "独立 HTTP 服务器已关闭");
     }
 
     public boolean isRunning() {
@@ -197,8 +199,11 @@ public class StandaloneHttpServer {
                     stats.recordRequest(method, path, statusCode, elapsedUs);
                 }
             } catch (Throwable t) {
-                plugin.getLogger().warning("[HTTP-Over-MC] 独立服务器处理请求异常: " + t);
-                writeResponse(ctx, 500, "{\"msg\":\"Internal Server Error\",\"code\":500}".getBytes(CharsetUtil.UTF_8),
+                log.warnT("log.server.standalone-request-error", "独立服务器处理请求异常: {0}", t);
+                java.util.Map<String, Object> err = new java.util.LinkedHashMap<>();
+                err.put("msg", "Internal Server Error");
+                err.put("code", 500);
+                writeResponse(ctx, 500, JsonWriter.write(err).getBytes(CharsetUtil.UTF_8),
                         "application/json; charset=utf-8", false);
             } finally {
                 ReferenceCountUtil.release(req);
@@ -207,7 +212,7 @@ public class StandaloneHttpServer {
 
         @Override
         public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
-            plugin.getLogger().warning("[HTTP-Over-MC] 独立服务器连接异常: " + cause);
+            log.warnT("log.server.standalone-connection-error", "独立服务器连接异常: {0}", cause);
             ctx.close();
         }
 

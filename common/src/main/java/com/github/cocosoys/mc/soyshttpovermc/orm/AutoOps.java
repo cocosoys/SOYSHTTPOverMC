@@ -590,7 +590,7 @@ public final class AutoOps {
         String file = path.substring(path.lastIndexOf('/') + 1);
         int dot = file.lastIndexOf('.');
         if (dot <= 0) {
-            log.warnT("log.autoops.migrate-yaml-bad",
+            log.warnT("log.autoops.migrate-yaml-bad-name",
                     "[自动运维] YAML 迁移文件名不合法（应为 <表名>.yml）: {0}", path);
             return;
         }
@@ -599,12 +599,12 @@ public final class AutoOps {
         ConfigSection fields = doc.getSection("add-fields");
         String declared = doc.getString("table");
         if (fields == null) {
-            log.warnT("log.autoops.migrate-yaml-bad",
+            log.warnT("log.autoops.migrate-yaml-bad-add-fields",
                     "[自动运维] YAML 迁移缺少 add-fields: {0}", path);
             return;
         }
         if (declared != null && !declared.trim().isEmpty() && !table.equalsIgnoreCase(declared.trim())) {
-            log.warnT("log.autoops.migrate-yaml-bad",
+            log.warnT("log.autoops.migrate-yaml-bad-table",
                     "[自动运维] YAML 迁移 table 与文件名不一致: {0}（文件 {1} vs 声明 {2}）", path, table, declared);
             return;
         }

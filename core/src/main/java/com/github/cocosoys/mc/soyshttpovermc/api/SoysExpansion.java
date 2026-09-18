@@ -245,22 +245,22 @@ public abstract class SoysExpansion {
      */
     public final boolean register() {
         if (registered) {
-            log.warn("SoysExpansion 已注册，忽略重复注册: {0}", getClass().getName());
+            log.warnT("log.expansion.duplicate-register", "SoysExpansion 已注册，忽略重复注册: {0}", getClass().getName());
             return false;
         }
         SoysHttpOverMcApi a = api;
         if (a == null) {
-            log.warn("SoysExpansion 未初始化（主插件未调用 bootstrap），无法注册: {0}", getClass().getName());
+            log.warnT("log.expansion.bootstrap-missing", "SoysExpansion 未初始化（主插件未调用 bootstrap），无法注册: {0}", getClass().getName());
             return false;
         }
         String id = getIdentifier();
         if (id == null || id.trim().isEmpty()) {
-            log.warn("SoysExpansion 的 getIdentifier() 不能为空: {0}", getClass().getName());
+            log.warnT("log.expansion.identifier-empty", "SoysExpansion 的 getIdentifier() 不能为空: {0}", getClass().getName());
             return false;
         }
         id = id.trim();
         if (REGISTERED.containsKey(id)) {
-            log.warn("SoysExpansion identifier 冲突，已存在同名扩展，拒绝注册: {0}", id);
+            log.warnT("log.expansion.identifier-conflict", "SoysExpansion identifier 冲突，已存在同名扩展，拒绝注册: {0}", id);
             return false;
         }
 
@@ -283,7 +283,7 @@ public abstract class SoysExpansion {
         }
         if (!ok) {
             rollbackPartial();
-            log.warn("SoysExpansion 注册失败，已回滚已注册部分: {0}", id);
+            log.warnT("log.expansion.register-failed-rollback", "SoysExpansion 注册失败，已回滚已注册部分: {0}", id);
             return false;
         }
 
@@ -293,15 +293,15 @@ public abstract class SoysExpansion {
         try {
             if (!onRegister()) {
                 unregister();
-                log.warn("SoysExpansion onRegister() 返回 false，已整体回滚: {0}", id);
+                log.warnT("log.expansion.on-register-false", "SoysExpansion onRegister() 返回 false，已整体回滚: {0}", id);
                 return false;
             }
         } catch (Exception ex) {
             unregister();
-            log.warn("SoysExpansion onRegister() 异常，已整体回滚: {0}: {1}", id, ex.getMessage());
+            log.warnT("log.expansion.on-register-error", "SoysExpansion onRegister() 异常，已整体回滚: {0}: {1}", id, ex.getMessage());
             return false;
         }
-        log.info("SoysExpansion 已注册: {0} (owner={1}, pages={2}, cors={3})",
+        log.infoT("log.expansion.registered", "SoysExpansion 已注册: {0} (owner={1}, pages={2}, cors={3})",
                 id, owner == null ? "?" : owner.getName(), pages.size(), hasCors);
         return true;
     }
@@ -328,10 +328,10 @@ public abstract class SoysExpansion {
             try {
                 onUnregister();
             } catch (Exception ex) {
-                log.warn("SoysExpansion onUnregister() 异常: {0}: {1}", id, ex.getMessage());
+                log.warnT("log.expansion.on-unregister-error", "SoysExpansion onUnregister() 异常: {0}: {1}", id, ex.getMessage());
             }
         }
-        log.info("SoysExpansion 已反注册: {0}", id);
+        log.infoT("log.expansion.unregistered", "SoysExpansion 已反注册: {0}", id);
         return true;
     }
 
@@ -434,7 +434,7 @@ public abstract class SoysExpansion {
             }
             return true;
         } catch (Exception ex) {
-            log.warn("SoysExpansion 端点注册失败（正常登记）: {0}: {1}", getIdentifier(), ex.getMessage());
+            log.warnT("log.expansion.controller-register-fail", "SoysExpansion 端点注册失败（正常登记）: {0}: {1}", getIdentifier(), ex.getMessage());
             return false;
         }
     }
@@ -469,7 +469,7 @@ public abstract class SoysExpansion {
             }
             return true;
         } catch (Exception ex) {
-            log.warn("SoysExpansion 端点注册失败（代理登记）: {0}: {1}", getIdentifier(), ex.getMessage());
+            log.warnT("log.expansion.proxy-register-fail", "SoysExpansion 端点注册失败（代理登记）: {0}: {1}", getIdentifier(), ex.getMessage());
             return false;
         }
     }
@@ -519,7 +519,7 @@ public abstract class SoysExpansion {
             this.pages = reg;
             return true;
         } catch (Exception ex) {
-            log.warn("SoysExpansion 页面托管失败: {0}: {1}", getIdentifier(), ex.getMessage());
+            log.warnT("log.expansion.pages-register-fail", "SoysExpansion 页面托管失败: {0}: {1}", getIdentifier(), ex.getMessage());
             return false;
         }
     }
@@ -550,7 +550,7 @@ public abstract class SoysExpansion {
             }
             return true;
         } catch (Exception ex) {
-            log.warn("SoysExpansion CORS 注册失败: {0}: {1}", getIdentifier(), ex.getMessage());
+            log.warnT("log.expansion.cors-register-fail", "SoysExpansion CORS 注册失败: {0}: {1}", getIdentifier(), ex.getMessage());
             return false;
         }
     }
@@ -588,7 +588,7 @@ public abstract class SoysExpansion {
                 a.getApiRegistration().unregisterController(c);
             }
         } catch (Exception ex) {
-            log.warn("SoysExpansion 端点反注册失败（正常登记）: {0}: {1}", getIdentifier(), ex.getMessage());
+            log.warnT("log.expansion.controller-unregister-fail", "SoysExpansion 端点反注册失败（正常登记）: {0}: {1}", getIdentifier(), ex.getMessage());
         }
     }
 
@@ -613,7 +613,7 @@ public abstract class SoysExpansion {
                 a.getApiRegistration().unregisterController(c);
             }
         } catch (Exception ex) {
-            log.warn("SoysExpansion 端点反注册失败（代理登记）: {0}: {1}", getIdentifier(), ex.getMessage());
+            log.warnT("log.expansion.proxy-unregister-fail", "SoysExpansion 端点反注册失败（代理登记）: {0}: {1}", getIdentifier(), ex.getMessage());
         }
     }
 
@@ -628,7 +628,7 @@ public abstract class SoysExpansion {
         try {
             a.getWebPage().unregisterByTag(tag);
         } catch (Exception ex) {
-            log.warn("SoysExpansion 页面反注册失败: {0}: {1}", getIdentifier(), ex.getMessage());
+            log.warnT("log.expansion.pages-unregister-fail", "SoysExpansion 页面反注册失败: {0}: {1}", getIdentifier(), ex.getMessage());
         }
     }
 
@@ -644,7 +644,7 @@ public abstract class SoysExpansion {
         try {
             a.getWebPage().unregisterCors(o.getName());
         } catch (Exception ex) {
-            log.warn("SoysExpansion CORS 反注册失败: {0}: {1}", getIdentifier(), ex.getMessage());
+            log.warnT("log.expansion.cors-unregister-fail", "SoysExpansion CORS 反注册失败: {0}: {1}", getIdentifier(), ex.getMessage());
         }
     }
 
@@ -677,7 +677,7 @@ public abstract class SoysExpansion {
         Plugin o = owner;
         SoysHttpOverMcApi a = api;
         if (o == null || a == null) {
-            log.warn("SoysExpansion 数据登记失败: owner/api 未就绪: {0}", getIdentifier());
+            log.warnT("log.expansion.data-register-no-ready", "SoysExpansion 数据登记失败: owner/api 未就绪: {0}", getIdentifier());
             return false;
         }
         try {
@@ -690,13 +690,13 @@ public abstract class SoysExpansion {
             DataHandle h = a.getDataRegistration().register(o, spec);
             if (h == null) {
                 // 失败策略已在 DataRegistrationApi.register 内处理（fail=disable → 禁用本插件）
-                log.warn("SoysExpansion 数据登记失败: {0}", getIdentifier());
+                log.warnT("log.expansion.data-register-fail", "SoysExpansion 数据登记失败: {0}", getIdentifier());
                 return false;
             }
             this.dataHandle = h;
             return true;
         } catch (Exception ex) {
-            log.warn("SoysExpansion 数据登记异常: {0}: {1}", getIdentifier(), ex.getMessage());
+            log.warnT("log.expansion.data-register-error", "SoysExpansion 数据登记异常: {0}: {1}", getIdentifier(), ex.getMessage());
             return false;
         }
     }
@@ -719,7 +719,7 @@ public abstract class SoysExpansion {
         try {
             a.getDataRegistration().unregister(h);
         } catch (Exception ex) {
-            log.warn("SoysExpansion 数据登记摘除异常: {0}: {1}", getIdentifier(), ex.getMessage());
+            log.warnT("log.expansion.data-unregister-error", "SoysExpansion 数据登记摘除异常: {0}: {1}", getIdentifier(), ex.getMessage());
         }
     }
 

@@ -19,7 +19,7 @@ import lombok.Data;
  *
  * <p>主键为合成键 {@code ownerType|ownerId|permission}（用户输入，INPUT 类型）。</p>
  *
- * <p>审计字段（createTime 等）继承自 {@link BaseEntity}，落库列 {@code created_at}
+ * <p>审计字段（createTime 等）继承自 {@link BaseEntity}，落库列 {@code create_time}
  * （yyyy-MM-dd HH:mm:ss）。</p>
  */
 @TableName("soys_perm_permission")

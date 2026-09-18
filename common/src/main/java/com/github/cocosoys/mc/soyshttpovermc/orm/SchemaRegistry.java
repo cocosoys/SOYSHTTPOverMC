@@ -91,11 +91,11 @@ public final class SchemaRegistry {
         if (row == null) {
             row = new SoysSchemaMeta(plugin, PLUGIN_ROW);
             row.setState(STATE_INSTALLED);
-            row.setCreatedAt(new Date());
+            row.setCreateTime(new Date());
         }
         row.setSchemaVersion(version);
         row.setExecutedScripts(toJson(scripts));
-        row.setUpdatedAt(new Date());
+        row.setUpdateTime(new Date());
         return DATA.insert(row) || upsert(row);
     }
 
@@ -108,9 +108,9 @@ public final class SchemaRegistry {
             row = new SoysSchemaMeta(plugin, tableName);
             row.setState(STATE_INSTALLED);
             row.setSchemaVersion(0);
-            row.setCreatedAt(new Date());
+            row.setCreateTime(new Date());
         }
-        row.setUpdatedAt(new Date());
+        row.setUpdateTime(new Date());
         return DATA.insert(row) || upsert(row);
     }
 

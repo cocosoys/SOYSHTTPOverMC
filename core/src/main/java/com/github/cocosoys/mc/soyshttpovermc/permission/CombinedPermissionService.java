@@ -6,6 +6,7 @@ import com.github.cocosoys.mc.soyshttpovermc.permission.provider.PermissionProvi
 import com.github.cocosoys.mc.soyshttpovermc.permission.provider.ProviderRegistry;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.GatewayFilter;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.issuer.CredentialPresentation;
+import lombok.CustomLog;
 
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
@@ -46,6 +47,7 @@ import java.util.List;
  *   offline-fallback: op-only
  * </pre>
  */
+@CustomLog
 public class CombinedPermissionService extends PlayerPermissionService {
 
     private final JavaPlugin plugin;
@@ -202,10 +204,12 @@ public class CombinedPermissionService extends PlayerPermissionService {
             boolean fallbackAll = gateway.getAuthPolicy() != null
                     && gateway.getAuthPolicy().isApiKeyLocalFallbackAll();
             if (fallbackAll) {
-                plugin.getLogger().warning("[Permission] X-API-Key 本地权限表不可用，按配置全权限放行: " + apiKey);
+                log.warnT("log.permission.api-key-fallback-all",
+                        "X-API-Key 本地权限表不可用，按配置全权限放行: {0}", apiKey);
                 return true;
             }
-            plugin.getLogger().warning("[Permission] X-API-Key 本地权限表不可用且未开启 api-key.local-fallback-all，按拒绝处理: " + apiKey);
+            log.warnT("log.permission.api-key-rejected",
+                    "X-API-Key 本地权限表不可用且未开启 api-key.local-fallback-all，按拒绝处理: {0}", apiKey);
             return false;
         }
     }

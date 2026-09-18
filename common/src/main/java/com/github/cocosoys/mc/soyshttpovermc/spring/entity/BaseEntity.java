@@ -2,6 +2,7 @@ package com.github.cocosoys.mc.soyshttpovermc.spring.entity;
 
 import com.dlz.db.annotation.TableField;
 import com.fasterxml.jackson.annotation.JsonFormat;
+import com.github.cocosoys.mc.soyshttpovermc.orm.convertor.BeanCodec;
 import com.github.cocosoys.mc.soyshttpovermc.util.JsonWriter;
 import lombok.Data;
 
@@ -16,7 +17,7 @@ import java.util.Map;
  *   <li><b>序列化控制</b>：实现 {@link Serializable} + 固定 {@code serialVersionUID}，
  *       跨版本反序列化时版本号不匹配即安全报错，避免脏数据；</li>
  *   <li><b>公共审计字段</b>：createBy / createTime / updateBy / updateTime / remark
- *       （仅 createTime/updateTime 落库，分别映射 created_at / updated_at 列；其余 exist=false 不持久化）；</li>
+ *       （仅 createTime/updateTime 落库；其余 exist=false 不持久化）；</li>
  *   <li><b>附加参数</b>：params（Map），承载查询条件/扩展数据；</li>
  *   <li><b>便捷转换</b>：{@link #toMap()} 反射转 Map，可直接放入 {@code AjaxResult.success(data)}。</li>
  * </ul>
@@ -31,18 +32,16 @@ public abstract class BaseEntity implements Serializable {
     @TableField(exist = false)
     private String createBy;
 
-    /** 创建时间（yyyy-MM-dd HH:mm:ss；落库列 created_at）。 */
-    @TableField("created_at")
-    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
+    /** 创建时间（yyyy-MM-dd HH:mm:ss）。 */
+    @JsonFormat(pattern = BeanCodec.DATE_TIME_PATTERN)
     private Date createTime;
 
     /** 更新人（预留；不落库）。 */
     @TableField(exist = false)
     private String updateBy;
 
-    /** 更新时间（yyyy-MM-dd HH:mm:ss；落库列 updated_at）。 */
-    @TableField("updated_at")
-    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
+    /** 更新时间（yyyy-MM-dd HH:mm:ss）。 */
+    @JsonFormat(pattern = BeanCodec.DATE_TIME_PATTERN)
     private Date updateTime;
 
     /** 备注（预留；不落库）。 */

@@ -3,6 +3,7 @@ package com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.bridge;
 import com.dlz.db.annotation.TableId;
 import com.dlz.db.annotation.TableName;
 import com.fasterxml.jackson.annotation.JsonFormat;
+import com.github.cocosoys.mc.soyshttpovermc.orm.convertor.BeanCodec;
 import com.github.cocosoys.mc.soyshttpovermc.orm.DATA;
 import lombok.Data;
 
@@ -38,13 +39,13 @@ public class RememberCredential {
     /**
      * 签发时刻（yyyy-MM-dd HH:mm:ss）。
      */
-    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
+    @JsonFormat(pattern = BeanCodec.DATE_TIME_PATTERN)
     private Date issuedAt;
 
     /**
      * 过期时刻（yyyy-MM-dd HH:mm:ss）。
      */
-    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
+    @JsonFormat(pattern = BeanCodec.DATE_TIME_PATTERN)
     private Date expiresAt;
 
     public RememberCredential() {

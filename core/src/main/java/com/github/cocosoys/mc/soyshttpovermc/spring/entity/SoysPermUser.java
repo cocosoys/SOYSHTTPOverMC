@@ -4,6 +4,7 @@ import com.dlz.db.annotation.IdType;
 import com.dlz.db.annotation.TableId;
 import com.dlz.db.annotation.TableName;
 import com.fasterxml.jackson.annotation.JsonFormat;
+import com.github.cocosoys.mc.soyshttpovermc.orm.convertor.BeanCodec;
 import com.github.cocosoys.mc.soyshttpovermc.permission.local.LocalPermissionStore;
 import lombok.Data;
 
@@ -37,7 +38,7 @@ public class SoysPermUser extends BaseEntity {
     /**
      * 用户整体过期时刻（yyyy-MM-dd HH:mm:ss；null=永久）。
      */
-    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
+    @JsonFormat(pattern = BeanCodec.DATE_TIME_PATTERN)
     private Date expiry;
 
     public SoysPermUser() {

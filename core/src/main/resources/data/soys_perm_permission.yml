@@ -14,13 +14,13 @@
 #   owner_id    归属 ID: 组 ID 或玩家 UUID（与 owner_type 对应）
 #   permission  权限节点；":" 与 "." 等价（如 "test:ping" ≡ "test.ping"）
 #   negative    负权限标记: true = 拒绝（节点以 - 开头写入时自动剥离前缀并置 true）
-#   created_at  创建时间（yyyy-MM-dd HH:mm:ss）
+#   create_time  创建时间（yyyy-MM-dd HH:mm:ss）
 # 示例记录（负权限）:
 #   "p-1":
 #     owner_type: "USER"
 #     owner_id: "01234567-89ab-cdef-0123-456789abcdef"
 #     permission: "test:ping"
 #     negative: false
-#     created_at: "1759000000000"
+#     create_time: "2026-09-18 12:00:00"
 # ============================================================================
 soys_perm_permission: {}

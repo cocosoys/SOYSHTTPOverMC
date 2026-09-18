@@ -381,12 +381,24 @@ public class SessionTokenIssuer extends CredentialIssuer {
         }
 
         /**
+         * 令牌展示状态（避免魔法字符串 + 供前端/命令 i18n 展示）。
+         */
+        public enum TokenStatus {
+            /** 有效。 */
+            VALID,
+            /** 已过期。 */
+            EXPIRED,
+            /** 已注销（revoked）。 */
+            REVOKED
+        }
+
+        /**
          * 展示用状态：已注销 / 已过期 / 有效。
          */
-        public String status() {
-            if (revoked) return "已注销";
-            if (System.currentTimeMillis() > expiresAt) return "已过期";
-            return "有效";
+        public TokenStatus status() {
+            if (revoked) return TokenStatus.REVOKED;
+            if (System.currentTimeMillis() > expiresAt) return TokenStatus.EXPIRED;
+            return TokenStatus.VALID;
         }
     }
 

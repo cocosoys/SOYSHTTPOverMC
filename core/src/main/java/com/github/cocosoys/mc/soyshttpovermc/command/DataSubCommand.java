@@ -86,7 +86,7 @@ public class DataSubCommand extends SubCommand {
                 if (api.reinstall(pluginName)) {
                     msgT(sender, "command.data.reinstalled", "§a{0} 已保留数据重装完成", pluginName);
                 } else {
-                    msgT(sender, "command.data.op-failed", "§c{0} 重装失败（未登记数据句柄或迁移失败，见日志）", pluginName);
+                    msgT(sender, "command.data.op-failed-reinstall", "§c{0} 重装失败（未登记数据句柄或迁移失败，见日志）", pluginName);
                 }
                 break;
             case "uninstall":
@@ -98,7 +98,7 @@ public class DataSubCommand extends SubCommand {
                     msgT(sender, "command.data.uninstalled",
                             "§a{0} 数据登记已摘除（数据与 meta 保留，重装自动走保留数据更新）", pluginName);
                 } else {
-                    msgT(sender, "command.data.op-failed", "§c{0} 摘除失败（未登记数据句柄）", pluginName);
+                    msgT(sender, "command.data.op-failed-uninstall", "§c{0} 摘除失败（未登记数据句柄）", pluginName);
                 }
                 break;
             default:
@@ -154,7 +154,7 @@ public class DataSubCommand extends SubCommand {
         if (ok) {
             msgT(sender, "command.data.updated", "§a{0} 数据更新完成", pluginName);
         } else {
-            msgT(sender, "command.data.op-failed", "§c{0} 更新失败（未登记数据句柄或迁移失败，见日志）", pluginName);
+            msgT(sender, "command.data.op-failed-update", "§c{0} 更新失败（未登记数据句柄或迁移失败，见日志）", pluginName);
         }
     }
 

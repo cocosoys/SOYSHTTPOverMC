@@ -30,11 +30,11 @@ public final class DataRegistrationImpl implements DataRegistrationApi {
     @Override
     public DataHandle register(Plugin owner, DataSpec spec) {
         if (owner == null) {
-            log.warnT("log.datareg.fail", "[数据注册] owner 为空，拒绝登记");
+            log.warnT("log.datareg.fail-owner-null", "[数据注册] owner 为空，拒绝登记");
             return null;
         }
         if (spec == null || spec.getPluginName() == null || spec.getPluginName().trim().isEmpty()) {
-            log.warnT("log.datareg.fail", "[数据注册] DataSpec/pluginName 为空，拒绝登记");
+            log.warnT("log.datareg.fail-spec-null", "[数据注册] DataSpec/pluginName 为空，拒绝登记");
             return null;
         }
         String name = spec.getPluginName().trim();
@@ -54,7 +54,7 @@ public final class DataRegistrationImpl implements DataRegistrationApi {
                             "[数据注册] {0} 安装/更新失败（禁用该插件失败）: {1}", name, err);
                 }
             } else {
-                log.warnT("log.datareg.fail", "[数据注册] {0} 安装/更新失败: {1}", name, err);
+                log.warnT("log.datareg.fail-install", "[数据注册] {0} 安装/更新失败: {1}", name, err);
             }
             return null;
         }
@@ -79,12 +79,12 @@ public final class DataRegistrationImpl implements DataRegistrationApi {
     @Override
     public boolean purge(DataHandle handle) {
         if (handle == null || !handle.isRegistered()) {
-            log.warnT("log.datareg.fail", "[数据注册] purge 失败：句柄未登记");
+            log.warnT("log.datareg.fail-purge-no-handle", "[数据注册] purge 失败：句柄未登记");
             return false;
         }
         String err = AutoOps.purge(hostPlugin.getPlatform(), handle.getSpec());
         if (err != null) {
-            log.warnT("log.datareg.fail", "[数据注册] {0} 清理失败: {1}", handle.getSpec().getPluginName(), err);
+            log.warnT("log.datareg.fail-purge", "[数据注册] {0} 清理失败: {1}", handle.getSpec().getPluginName(), err);
             return false;
         }
         return true;
@@ -125,7 +125,7 @@ public final class DataRegistrationImpl implements DataRegistrationApi {
     public boolean update(String pluginName) {
         DataHandle h = handleOf(pluginName);
         if (h == null) {
-            log.warnT("log.datareg.fail", "[数据注册] {0} 未登记数据句柄，无法显式更新（启动时已自动更新）", pluginName);
+            log.warnT("log.datareg.fail-update-no-handle", "[数据注册] {0} 未登记数据句柄，无法显式更新（启动时已自动更新）", pluginName);
             return false;
         }
         return reinstall(pluginName); // 更新 = 保留数据重装（补复制/补列/迁移/种子补缺/meta 刷新）
@@ -135,7 +135,7 @@ public final class DataRegistrationImpl implements DataRegistrationApi {
     public boolean update(String pluginName, int targetVersion) {
         DataHandle h = handleOf(pluginName);
         if (h == null) {
-            log.warnT("log.datareg.fail", "[数据注册] {0} 未登记数据句柄，无法显式更新", pluginName);
+            log.warnT("log.datareg.fail-update-no-handle", "[数据注册] {0} 未登记数据句柄，无法显式更新", pluginName);
             return false;
         }
         if (targetVersion < 0) {
@@ -144,7 +144,7 @@ public final class DataRegistrationImpl implements DataRegistrationApi {
         h.getSpec().setSchemaVersion(targetVersion); // 临时覆盖目标版本（meta 幂等不回退）
         String err = AutoOps.install(hostPlugin.getPlatform(), h.getOwner().getClass().getClassLoader(), h.getSpec());
         if (err != null) {
-            log.warnT("log.datareg.fail", "[数据注册] {0} 迁移到 V{1} 失败: {2}", pluginName, targetVersion, err);
+            log.warnT("log.datareg.fail-migrate", "[数据注册] {0} 迁移到 V{1} 失败: {2}", pluginName, targetVersion, err);
             return false;
         }
         return true;
@@ -160,12 +160,12 @@ public final class DataRegistrationImpl implements DataRegistrationApi {
     public boolean reinstall(String pluginName) {
         DataHandle h = handleOf(pluginName);
         if (h == null) {
-            log.warnT("log.datareg.fail", "[数据注册] {0} 未登记数据句柄，无法重装", pluginName);
+            log.warnT("log.datareg.fail-reinstall-no-handle", "[数据注册] {0} 未登记数据句柄，无法重装", pluginName);
             return false;
         }
         String err = AutoOps.install(hostPlugin.getPlatform(), h.getOwner().getClass().getClassLoader(), h.getSpec());
         if (err != null) {
-            log.warnT("log.datareg.fail", "[数据注册] {0} 重装失败: {1}", pluginName, err);
+            log.warnT("log.datareg.fail-reinstall", "[数据注册] {0} 重装失败: {1}", pluginName, err);
             return false;
         }
         return true;

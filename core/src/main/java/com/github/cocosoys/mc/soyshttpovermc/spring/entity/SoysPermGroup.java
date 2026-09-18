@@ -14,7 +14,7 @@ import lombok.Data;
  * <p>主键为组标识（小写，如 {@code default} / {@code vip} / {@code admin}），由调用方输入（INPUT）。</p>
  *
  * <p>审计字段（createTime/updateTime 等）继承自 {@link BaseEntity}，落库列
- * {@code created_at} / {@code updated_at}（yyyy-MM-dd HH:mm:ss）。</p>
+ * {@code create_time} / {@code update_time}（yyyy-MM-dd HH:mm:ss）。</p>
  */
 @TableName("soys_perm_group")
 @Data

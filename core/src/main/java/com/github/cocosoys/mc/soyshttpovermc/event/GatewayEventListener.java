@@ -50,12 +50,10 @@ public class GatewayEventListener implements Listener {
     @EventHandler
     public void onApiRegistered(ApiEvent.ApiRegisteredEvent e) {
         if (!debugEnabled) return;
-        StringBuilder sb = new StringBuilder("[EVENT] api registered plugin=").append(e.getOwnerPlugin())
-                .append(" count=").append(e.getApis().size());
+        log.infoT("log.event.api-registered", "[EVENT] api registered plugin={0} count={1}", e.getOwnerPlugin(), e.getApis().size());
         for (ApiInfo a : e.getApis()) {
-            sb.append("\n    ").append(a.toString());
+            log.infoT("log.event.api-registered-detail", "    {0}", a);
         }
-        log.info(sb.toString());
     }
 
     @EventHandler

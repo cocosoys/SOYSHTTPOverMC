@@ -6,20 +6,20 @@
 #             （目录由 config.yml 的 storage.backends.yaml.file 指定，默认 data/）
 # · 根节点:   soys_perm_user（= @TableName，与 SQL 表名一致）
 # · 记录键:   玩家 UUID（= @TableId 主键，与 SQL 主键一致，区分大小写）
-# · 列名:     实体字段驼峰转小写下划线（createdAt → created_at），与 SQL 列名一致
+# · 列名:     实体字段驼峰转小写下划线（createTime → create_time），与 SQL 列名一致
 # · 运行时:   文件不存在时后端自动创建空表；本文件仅作为初始化模板 / 格式参考
 # ----------------------------------------------------------------------------
 # 字段说明:
 #   uuid        玩家 UUID（主键；区分大小写）
 #   player      玩家名（冗余展示；改名后以 uuid 为准）
 #   expiry      用户级权限过期时间（yyyy-MM-dd HH:mm:ss；留空 = 不过期）
-#   created_at  创建时间（yyyy-MM-dd HH:mm:ss）
-#   updated_at  最后更新时间（yyyy-MM-dd HH:mm:ss）
+#   create_time  创建时间（yyyy-MM-dd HH:mm:ss）
+#   update_time  最后更新时间（yyyy-MM-dd HH:mm:ss）
 # 示例记录（键为 UUID，值为字段键值对）:
 #   "01234567-89ab-cdef-0123-456789abcdef":
 #     player: "Steve"
 #     expiry: ""
-#     created_at: "1759000000000"
-#     updated_at: "1759000000000"
+#     create_time: "2026-09-18 12:00:00"
+#     update_time: "2026-09-18 12:00:00"
 # ============================================================================
 soys_perm_user: {}

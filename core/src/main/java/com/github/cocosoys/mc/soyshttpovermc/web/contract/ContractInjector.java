@@ -1,12 +1,15 @@
 package com.github.cocosoys.mc.soyshttpovermc.web.contract;
 
 import com.github.cocosoys.mc.soyshttpovermc.HttpOverMcPlugin;
+import com.github.cocosoys.mc.soyshttpovermc.util.JsonWriter;
 import com.github.cocosoys.mc.soyshttpovermc.web.ApiRegistry;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -279,18 +282,17 @@ public class ContractInjector {
         String pageFullPrefix = mainPlugin ? "" : "/web/plugins/" + owner;
         String webResourcePrefix = "/web/plugins/" + owner + "/page";
 
-        StringBuilder sb = new StringBuilder(256);
-        sb.append('{');
-        appendPair(sb, "scheme", scheme, true);
-        appendPair(sb, "host", hostVal, false);
-        sb.append(",\"port\":").append(port);
-        appendPair(sb, "apiPrefix", apiPrefix, false);
-        appendPair(sb, "pluginsPrefix", pluginsPrefix, false);
-        appendPair(sb, "apiFullPrefix", apiFullPrefix, false);
-        appendPair(sb, "pageFullPrefix", pageFullPrefix, false);
-        appendPair(sb, "webResourcePrefix", webResourcePrefix, false);
-        sb.append('}');
-        return sb.toString();
+        // 契约 JSON 统一经 JsonWriter 输出（键序由 LinkedHashMap 保持，值统一转义）
+        Map<String, Object> contract = new LinkedHashMap<>();
+        contract.put("scheme", scheme);
+        contract.put("host", hostVal);
+        contract.put("port", port);
+        contract.put("apiPrefix", apiPrefix);
+        contract.put("pluginsPrefix", pluginsPrefix);
+        contract.put("apiFullPrefix", apiFullPrefix);
+        contract.put("pageFullPrefix", pageFullPrefix);
+        contract.put("webResourcePrefix", webResourcePrefix);
+        return JsonWriter.write(contract);
     }
 
     private String normalizeApiPrefix() {
@@ -314,48 +316,5 @@ public class ContractInjector {
         String b = apiPrefix.endsWith("/") ? apiPrefix.substring(0, apiPrefix.length() - 1) : apiPrefix;
         String p = pluginsPrefix.startsWith("/") ? pluginsPrefix : "/" + pluginsPrefix;
         return b + p;
-    }
-
-    private static void appendPair(StringBuilder sb, String key, String value, boolean first) {
-        if (!first) {
-            sb.append(',');
-        }
-        sb.append('"').append(key).append("\":\"").append(escape(value)).append('"');
-    }
-
-    private static String escape(String s) {
-        StringBuilder sb = new StringBuilder(s.length() + 8);
-        for (int i = 0; i < s.length(); i++) {
-            char c = s.charAt(i);
-            switch (c) {
-                case '"':
-                    sb.append("\\\"");
-                    break;
-                case '\\':
-                    sb.append("\\\\");
-                    break;
-                case '\n':
-                    sb.append("\\n");
-                    break;
-                case '\r':
-                    sb.append("\\r");
-                    break;
-                case '\t':
-                    sb.append("\\t");
-                    break;
-                default:
-                    if (c < 0x20) {
-                        sb.append("\\u");
-                        String hex = Integer.toHexString(c);
-                        for (int pad = hex.length(); pad < 4; pad++) {
-                            sb.append('0');
-                        }
-                        sb.append(hex);
-                    } else {
-                        sb.append(c);
-                    }
-            }
-        }
-        return sb.toString();
     }
 }

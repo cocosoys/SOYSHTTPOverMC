@@ -61,7 +61,7 @@ public class TokensSubCommand extends SubCommand {
             return;
         }
         List<SessionTokenIssuer.IssuedRecord> all = issuer.listIssued();
-        long active = all.stream().filter(r -> "有效".equals(r.status())).count();
+        long active = all.stream().filter(r -> r.status() == SessionTokenIssuer.IssuedRecord.TokenStatus.VALID).count();
         msgT(sender, "command.tokens.summary",
                 "§a已颁发令牌（共 {0} 个，其中有效 {1} 个）:", all.size(), active);
         if (all.isEmpty()) {
@@ -71,11 +71,18 @@ public class TokensSubCommand extends SubCommand {
         String yes = I18n.t("command.tokens.admin-label", "是");
         String no = I18n.t("command.tokens.not-admin-label", "否");
         for (SessionTokenIssuer.IssuedRecord r : all) {
-            String statusColor = "已注销".equals(r.status()) ? "§7" : "有效".equals(r.status()) ? "§a" : "§e";
+            SessionTokenIssuer.IssuedRecord.TokenStatus st = r.status();
+            String statusColor = st == SessionTokenIssuer.IssuedRecord.TokenStatus.REVOKED ? "§7"
+                    : st == SessionTokenIssuer.IssuedRecord.TokenStatus.VALID ? "§a" : "§e";
+            String statusText = st == SessionTokenIssuer.IssuedRecord.TokenStatus.REVOKED
+                    ? I18n.t("command.tokens.status.revoked", "已注销")
+                    : st == SessionTokenIssuer.IssuedRecord.TokenStatus.EXPIRED
+                    ? I18n.t("command.tokens.status.expired", "已过期")
+                    : I18n.t("command.tokens.status.valid", "有效");
             sender.sendMessage("  §f" + r.subject
                     + "  §7mode=§f" + r.mode
                     + "  §7admin=§f" + (r.admin ? yes : no)
-                    + "  " + statusColor + r.status()
+                    + "  " + statusColor + statusText
                     + I18n.t("command.tokens.issued-label", "  §7签发=§f{0}", FMT.format(new Date(r.issuedAt)))
                     + I18n.t("command.tokens.expires-label", "  §7过期=§f{0}", FMT.format(new Date(r.expiresAt))));
         }

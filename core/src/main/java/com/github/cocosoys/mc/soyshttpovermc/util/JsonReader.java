@@ -1,17 +1,30 @@
 package com.github.cocosoys.mc.soyshttpovermc.util;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.github.cocosoys.mc.soyshttpovermc.orm.convertor.BeanCodec;
+
 import java.lang.reflect.Constructor;
+import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
 /**
- * 零依赖的最小 JSON 反序列化器（与 {@link JsonWriter} 对称，避免引入 Jackson）。
+ * 零依赖的最小 JSON 反序列化器（与 {@link JsonWriter} 对称，只消费 jackson-annotations 注解）。
  * <p>支持：对象 → {@link Map}、数组 → {@link List}、字符串/数字/布尔/null（含转义与
  * Unicode），以及 POJO 反射绑定（按 JSON 键名找 {@code setXxx} setter，类型转换覆盖
- * String/int/long/boolean/double/float/List/Map/嵌套 POJO）。</p>
+ * String/int/long/boolean/double/float/Date/List/Map/嵌套 POJO）。</p>
+ * <p><b>注解支持（反序列化侧）</b>：
+ * <ul>
+ *   <li>{@link JsonProperty}：JSON 键 → 实体字段名反向映射（RuoYi 风格 {@code create_time} → {@code createTime}）；</li>
+ *   <li>{@link JsonFormat}：Date 字段按注解 pattern 解析（缺省回退 {@link BeanCodec#parseDate}）。</li>
+ * </ul></p>
  * <p>用途：{@code @RequestBody} 绑定实体参数——{@code JsonReader.fromJson(body, SysMenu.class)}。
  * 解析或绑定失败抛出 {@link IllegalArgumentException}，由调用方转 400 响应。</p>
  */
@@ -91,6 +104,15 @@ public final class JsonReader {
         if (type == boolean.class || type == Boolean.class) {
             return v instanceof Boolean ? v : Boolean.parseBoolean(String.valueOf(v).trim());
         }
+        if (type == Date.class) {
+            if (v instanceof Date) return v;
+            if (v instanceof Number) return new Date(((Number) v).longValue());
+            try {
+                return BeanCodec.parseDate(String.valueOf(v));
+            } catch (ParseException e) {
+                throw new IllegalArgumentException("无法将 " + v.getClass().getSimpleName() + " 转换为 java.util.Date: " + v, e);
+            }
+        }
         if (type.isAssignableFrom(v.getClass())) {
             return v; // Map/List/String/Number 等原样
         }
@@ -103,7 +125,7 @@ public final class JsonReader {
         throw new IllegalArgumentException("无法将 " + v.getClass().getSimpleName() + " 转换为 " + type.getName());
     }
 
-    /** POJO 绑定：JSON 键 → setXxx setter；未知字段忽略（宽容）；绑定失败抛异常。 */
+    /** POJO 绑定：JSON 键 → setXxx setter（支持 @JsonProperty 反向映射）；未知字段忽略（宽容）；绑定失败抛异常。 */
     private static Object bindBean(Map<?, ?> map, Class<?> type) {
         Object bean = newInstance((Class<Object>) type);
         for (Map.Entry<?, ?> e : map.entrySet()) {
@@ -116,8 +138,16 @@ public final class JsonReader {
                 continue;
             }
             Class<?> paramType = setter.getParameterTypes()[0];
+            Object value = e.getValue();
             try {
-                setter.invoke(bean, convert(e.getValue(), paramType));
+                if (paramType == Date.class && value != null) {
+                    JsonFormat jf = jsonFormatOnField(type, decap(setter.getName().substring(3)));
+                    if (jf != null && !jf.pattern().isEmpty()) {
+                        setter.invoke(bean, parseDateWith(jf.pattern(), String.valueOf(value)));
+                        continue;
+                    }
+                }
+                setter.invoke(bean, convert(value, paramType));
             } catch (Exception ex) {
                 throw new IllegalArgumentException("字段 " + key + " 绑定失败: " + ex.getMessage(), ex);
             }
@@ -125,14 +155,70 @@ public final class JsonReader {
         return bean;
     }
 
+    /** @JsonProperty 反向映射：JSON 键 → 实体字段名（字段注解优先，getter/setter 方法注解回退）；未命中原样返回。 */
+    private static String fieldNameByJsonProperty(Class<?> type, String jsonKey) {
+        for (Class<?> c = type; c != null && c != Object.class; c = c.getSuperclass()) {
+            for (Field f : c.getDeclaredFields()) {
+                JsonProperty jp = f.getAnnotation(JsonProperty.class);
+                if (jp != null && jsonKey.equals(jp.value())) {
+                    return f.getName();
+                }
+            }
+        }
+        for (Method m : type.getMethods()) {
+            JsonProperty jp = m.getAnnotation(JsonProperty.class);
+            if (jp == null || !jsonKey.equals(jp.value())) {
+                continue;
+            }
+            if (m.getParameterCount() == 1 && m.getName().startsWith("set")) {
+                return decap(m.getName().substring(3));
+            }
+            if (m.getParameterCount() == 0) {
+                if (m.getName().startsWith("get")) {
+                    return decap(m.getName().substring(3));
+                }
+                if (m.getName().startsWith("is")) {
+                    return decap(m.getName().substring(2));
+                }
+            }
+        }
+        return jsonKey;
+    }
+
     private static Method findSetter(Class<?> type, String field) {
-        String setterName = "set" + Character.toUpperCase(field.charAt(0)) + field.substring(1);
+        String mapped = fieldNameByJsonProperty(type, field);
+        String setterName = "set" + Character.toUpperCase(mapped.charAt(0)) + mapped.substring(1);
         for (Method m : type.getMethods()) {
             if (m.getName().equals(setterName) && m.getParameterCount() == 1) {
                 return m;
             }
         }
         return null;
+    }
+
+    /** 按字段名在类层次查找 @JsonFormat 注解（反序列化侧读取用）。 */
+    private static JsonFormat jsonFormatOnField(Class<?> type, String fieldName) {
+        for (Class<?> c = type; c != null && c != Object.class; c = c.getSuperclass()) {
+            try {
+                Field f = c.getDeclaredField(fieldName);
+                return f.getAnnotation(JsonFormat.class);
+            } catch (NoSuchFieldException ignored) {
+            }
+        }
+        return null;
+    }
+
+    private static Date parseDateWith(String pattern, String s) {
+        try {
+            return new SimpleDateFormat(pattern).parse(s);
+        } catch (ParseException e) {
+            throw new IllegalArgumentException("日期格式错误: " + s + "（期望 " + pattern + "）", e);
+        }
+    }
+
+    private static String decap(String s) {
+        if (s.isEmpty()) return s;
+        return Character.toLowerCase(s.charAt(0)) + s.substring(1);
     }
 
     // ===== 词法解析 =====

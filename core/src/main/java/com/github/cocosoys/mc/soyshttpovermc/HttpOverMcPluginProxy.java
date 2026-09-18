@@ -1,5 +1,6 @@
 package com.github.cocosoys.mc.soyshttpovermc;
 
+import com.github.cocosoys.mc.soyshttpovermc.util.JsonWriter;
 import com.github.cocosoys.mc.soyshttpovermc.api.ReloadHttpConfigHandler;
 import com.github.cocosoys.mc.soyshttpovermc.api.event.HttpConfigReloadEvent;
 import com.github.cocosoys.mc.soyshttpovermc.api.event.SoysReadyEvent;
@@ -137,7 +138,7 @@ public class HttpOverMcPluginProxy {
             com.github.cocosoys.mc.soyshttpovermc.platform.PlatformYaml.save(coreConfig(),
                     new File(plugin.getDataFolder(), "config.yml"));
         } catch (java.io.IOException e) {
-            plugin.getLogger().warning("保存 config.yml 失败: " + e);
+            log.warnT("log.plugin.save-config-fail", "保存 config.yml 失败: {0}", e);
         }
     }
 
@@ -223,9 +224,9 @@ public class HttpOverMcPluginProxy {
             // warn = 跳过并告警继续。
             String failAct = AutoOps.failAction(plugin.getPlatform());
             if ("warn".equalsIgnoreCase(failAct)) {
-                plugin.getLogger().warning("自动运维初始化失败（auto.ops.fail=warn，跳过继续）: " + autoOpsErr);
+                log.warnT("log.autoops.fail-warn-skip", "自动运维初始化失败（auto.ops.fail=warn，跳过继续）: {0}", autoOpsErr);
             } else {
-                plugin.getLogger().severe("自动运维初始化失败（auto.ops.fail=disable，禁用 SOYSHTTPOverMC）: " + autoOpsErr);
+                log.errorT("log.autoops.fail-disable", "自动运维初始化失败（auto.ops.fail=disable，禁用 SOYSHTTPOverMC）: {0}", autoOpsErr);
                 plugin.getServer().getPluginManager().disablePlugin(plugin);
                 return;
             }
@@ -560,7 +561,9 @@ public class HttpOverMcPluginProxy {
                 conn.setConnectTimeout(5000);
                 conn.setReadTimeout(5000);
                 conn.setRequestProperty("Content-Type", MimeTypes.forExt("json"));
-                String body = "{\"server\":\"" + address + "\"}";
+                java.util.Map<String, Object> upload = new java.util.LinkedHashMap<>();
+                upload.put("server", address);
+                String body = JsonWriter.write(upload);
                 conn.getOutputStream().write(body.getBytes(java.nio.charset.StandardCharsets.UTF_8));
                 int code = conn.getResponseCode();
                 log.infoT("log.plugin.upload-done", "数据贡献已上报: {0} -> HTTP {1}", address, code);

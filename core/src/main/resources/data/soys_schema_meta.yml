@@ -6,7 +6,7 @@
 #             （目录由 config.yml 的 storage.backends.yaml.file 指定，默认 data/）
 # · 根节点:   soys_schema_meta（= @TableName，与 SQL 表名一致）
 # · 记录键:   id = "<plugin>:<table_name>"（组合主键，dlz 单主键约束下的逻辑双主键）
-# · 列名:     实体字段驼峰转小写下划线（createdAt → created_at），与 SQL 列名一致
+# · 列名:     实体字段驼峰转小写下划线（createTime → create_time），与 SQL 列名一致
 # · 运行时:   文件不存在时后端自动创建空表；本文件仅作为初始化模板 / 格式参考，
 #             由自动运维（Auto Ops）复制到数据文件夹（已存在不覆盖）
 # ----------------------------------------------------------------------------
@@ -17,8 +17,8 @@
 #   schema_version   当前 schema 版本（已应用最高迁移版本，如 0/1/2…）
 #   state            状态（INSTALLED / UNINSTALLED，预留）
 #   executed_scripts 已执行脚本 JSON 数组（插件级行使用，如 ["init.sql","V1__demo.sql"]）
-#   created_at       创建时间（yyyy-MM-dd HH:mm:ss）
-#   updated_at       最后更新时间（yyyy-MM-dd HH:mm:ss）
+#   create_time       创建时间（yyyy-MM-dd HH:mm:ss）
+#   update_time       最后更新时间（yyyy-MM-dd HH:mm:ss）
 # ----------------------------------------------------------------------------
 # 记录示例（首次安装后由自动运维写入；本模板保持空表）:
 #   soys_schema_meta:
@@ -28,7 +28,7 @@
 #       schema_version: 1
 #       state: INSTALLED
 #       executed_scripts: '["init.sql","V1__demo.sql"]'
-#       created_at: "1720000000000"
-#       updated_at: "1720000000000"
+#       create_time: "2026-09-18 12:00:00"
+#       update_time: "2026-09-18 12:00:00"
 # ============================================================================
 soys_schema_meta:
