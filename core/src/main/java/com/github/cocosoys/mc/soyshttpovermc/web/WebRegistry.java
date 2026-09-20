@@ -1,6 +1,7 @@
 package com.github.cocosoys.mc.soyshttpovermc.web;
 
 import com.github.cocosoys.mc.soyshttpovermc.i18n.I18n;
+import com.github.cocosoys.mc.soyshttpovermc.enums.RequestMethod;
 import com.github.cocosoys.mc.soyshttpovermc.api.event.WebResourcesEvent;
 import com.github.cocosoys.mc.soyshttpovermc.web.contract.ContractInjector;
 import lombok.CustomLog;
@@ -64,7 +65,6 @@ public class WebRegistry {
     /**
      * 默认 HTTP 方法（保持向后兼容：未显式指定方法时按 GET 登记）。
      */
-    public static final String DEFAULT_METHOD = "GET";
 
     /**
      * 契约注入器（__SOYS_CONTEXT__.js 注入 / HTML 资源引用改写）。
@@ -82,7 +82,7 @@ public class WebRegistry {
      */
     private static String normalizeMethod(String method) {
         String m = method == null ? "" : method.trim().toUpperCase();
-        return m.isEmpty() ? DEFAULT_METHOD : m;
+        return m.isEmpty() ? RequestMethod.GET.code() : m;
     }
 
     /**
@@ -258,7 +258,7 @@ public class WebRegistry {
      */
     public Entry registerProxyPage(Plugin owner, String path, byte[] content, String contentType, boolean force,
                                    List<String> tags) {
-        return register(owner, path, DEFAULT_METHOD, content, contentType, true, force, null, null, null, tags);
+        return register(owner, path, RequestMethod.GET.code(), content, contentType, true, force, null, null, null, tags);
     }
 
     /**
@@ -673,7 +673,7 @@ public class WebRegistry {
      * 精确匹配与昵称路由命中时，pathVariables 为空 Map。
      */
     public ResolveResult resolveFull(String httpMethod, String cleanPath) {
-        String method = httpMethod == null ? DEFAULT_METHOD : httpMethod.toUpperCase();
+        String method = httpMethod == null ? RequestMethod.GET.code() : httpMethod.toUpperCase();
         if (cleanPath == null) return null;
         // 1) 精确匹配（含 .html 后缀智能匹配）
         Entry e = lookup(pages, method, cleanPath);
@@ -936,7 +936,7 @@ public class WebRegistry {
      * 内部：登记直接内容（显式 force；force=true 强制覆盖重复路径并打印强制登记插件）。
      */
     private Entry register(Plugin owner, String path, byte[] content, String contentType, boolean proxy, boolean force) {
-        return register(owner, path, DEFAULT_METHOD, content, contentType, proxy, force, null, null);
+        return register(owner, path, RequestMethod.GET.code(), content, contentType, proxy, force, null, null);
     }
 
     /**
@@ -944,17 +944,17 @@ public class WebRegistry {
      */
     private Entry register(Plugin owner, String path, byte[] content, String contentType, boolean proxy, boolean force,
                            String description, List<String> nicknames) {
-        return register(owner, path, DEFAULT_METHOD, content, contentType, proxy, force, description, nicknames);
+        return register(owner, path, RequestMethod.GET.code(), content, contentType, proxy, force, description, nicknames);
     }
 
     private Entry register(Plugin owner, String path, byte[] content, String contentType, boolean proxy, boolean force,
                            String description, List<String> nicknames, List<String> permissions) {
-        return register(owner, path, DEFAULT_METHOD, content, contentType, proxy, force, description, nicknames, permissions);
+        return register(owner, path, RequestMethod.GET.code(), content, contentType, proxy, force, description, nicknames, permissions);
     }
 
     private Entry register(Plugin owner, String path, byte[] content, String contentType, boolean proxy, boolean force,
                            String description, List<String> nicknames, List<String> permissions, List<String> tags) {
-        return register(owner, path, DEFAULT_METHOD, content, contentType, proxy, force, description, nicknames, permissions, tags);
+        return register(owner, path, RequestMethod.GET.code(), content, contentType, proxy, force, description, nicknames, permissions, tags);
     }
 
     /**
@@ -1002,14 +1002,14 @@ public class WebRegistry {
     }
 
     private Entry registerRes(Plugin owner, String path, ClassLoader cl, String resource, String contentType, boolean proxy) {
-        return registerRes(owner, path, DEFAULT_METHOD, cl, resource, contentType, proxy, false, null, null);
+        return registerRes(owner, path, RequestMethod.GET.code(), cl, resource, contentType, proxy, false, null, null);
     }
 
     /**
      * 内部：登记 jar 资源（显式 force；force=true 强制覆盖重复路径并打印强制登记插件）。
      */
     private Entry registerRes(Plugin owner, String path, ClassLoader cl, String resource, String contentType, boolean proxy, boolean force) {
-        return registerRes(owner, path, DEFAULT_METHOD, cl, resource, contentType, proxy, force, null, null);
+        return registerRes(owner, path, RequestMethod.GET.code(), cl, resource, contentType, proxy, force, null, null);
     }
 
     /**
@@ -1017,7 +1017,7 @@ public class WebRegistry {
      */
     private Entry registerRes(Plugin owner, String path, ClassLoader cl, String resource, String contentType, boolean proxy, boolean force,
                               String description, List<String> nicknames) {
-        return registerRes(owner, path, DEFAULT_METHOD, cl, resource, contentType, proxy, force, description, nicknames, null);
+        return registerRes(owner, path, RequestMethod.GET.code(), cl, resource, contentType, proxy, force, description, nicknames, null);
     }
 
     /**
@@ -1179,26 +1179,26 @@ public class WebRegistry {
 
         Entry(String ownerPlugin, String path, String contentType, byte[] content,
               ClassLoader resCl, String resource, String redirectTo, int redirectCode, File diskFile) {
-            this(ownerPlugin, DEFAULT_METHOD, path, contentType, content, resCl, resource, redirectTo, redirectCode, diskFile, null, null);
+            this(ownerPlugin, RequestMethod.GET.code(), path, contentType, content, resCl, resource, redirectTo, redirectCode, diskFile, null, null);
         }
 
         Entry(String ownerPlugin, String path, String contentType, byte[] content,
               ClassLoader resCl, String resource, String redirectTo, int redirectCode, File diskFile,
               String description, List<String> nicknames) {
-            this(ownerPlugin, DEFAULT_METHOD, path, contentType, content, resCl, resource, redirectTo, redirectCode, diskFile, description, nicknames, null);
+            this(ownerPlugin, RequestMethod.GET.code(), path, contentType, content, resCl, resource, redirectTo, redirectCode, diskFile, description, nicknames, null);
         }
 
         Entry(String ownerPlugin, String path, String contentType, byte[] content,
               ClassLoader resCl, String resource, String redirectTo, int redirectCode, File diskFile,
               String description, List<String> nicknames, List<String> permissions) {
-            this(ownerPlugin, DEFAULT_METHOD, path, contentType, content, resCl, resource, redirectTo, redirectCode,
+            this(ownerPlugin, RequestMethod.GET.code(), path, contentType, content, resCl, resource, redirectTo, redirectCode,
                     diskFile, description, nicknames, permissions, null);
         }
 
         Entry(String ownerPlugin, String path, String contentType, byte[] content,
               ClassLoader resCl, String resource, String redirectTo, int redirectCode, File diskFile,
               String description, List<String> nicknames, List<String> permissions, List<String> tags) {
-            this(ownerPlugin, DEFAULT_METHOD, path, contentType, content, resCl, resource, redirectTo, redirectCode,
+            this(ownerPlugin, RequestMethod.GET.code(), path, contentType, content, resCl, resource, redirectTo, redirectCode,
                     diskFile, description, nicknames, permissions, tags);
         }
 
@@ -1230,7 +1230,7 @@ public class WebRegistry {
               String description, List<String> nicknames, List<String> permissions, List<String> tags) {
             this.ownerPlugin = ownerPlugin;
             this.httpMethod = (httpMethod == null || httpMethod.trim().isEmpty())
-                    ? DEFAULT_METHOD : httpMethod.trim().toUpperCase();
+                    ? RequestMethod.GET.code() : httpMethod.trim().toUpperCase();
             this.path = path;
             this.contentType = contentType;
             this.content = content;

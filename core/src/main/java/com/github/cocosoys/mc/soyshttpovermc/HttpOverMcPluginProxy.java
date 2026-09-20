@@ -17,6 +17,7 @@ import com.github.cocosoys.mc.soyshttpovermc.event.GatewayEventListener;
 import com.github.cocosoys.mc.soyshttpovermc.i18n.I18n;
 import com.github.cocosoys.mc.soyshttpovermc.log.LogKit;
 import com.github.cocosoys.mc.soyshttpovermc.orm.AutoOps;
+import com.github.cocosoys.mc.soyshttpovermc.orm.DATA;
 import com.github.cocosoys.mc.soyshttpovermc.orm.DataSpec;
 import com.github.cocosoys.mc.soyshttpovermc.orm.YAML;
 import com.github.cocosoys.mc.soyshttpovermc.orm.executor.SqlBackendExecutor;
@@ -27,6 +28,7 @@ import com.github.cocosoys.mc.soyshttpovermc.spi.Platforms;
 import com.github.cocosoys.mc.soyshttpovermc.spring.controller.AuthController;
 import com.github.cocosoys.mc.soyshttpovermc.spring.controller.StatusController;
 import com.github.cocosoys.mc.soyshttpovermc.spring.controller.SystemController;
+import com.github.cocosoys.mc.soyshttpovermc.spring.entity.SoysApiKey;
 import com.github.cocosoys.mc.soyshttpovermc.spring.entity.SoysPermGroup;
 import com.github.cocosoys.mc.soyshttpovermc.spring.entity.SoysPermPermission;
 import com.github.cocosoys.mc.soyshttpovermc.spring.entity.SoysPermUser;
@@ -37,9 +39,7 @@ import com.github.cocosoys.mc.soyshttpovermc.spring.impl.SystemServiceImpl;
 import com.github.cocosoys.mc.soyshttpovermc.spring.service.IStatusService;
 import com.github.cocosoys.mc.soyshttpovermc.spring.service.ISystemService;
 import com.github.cocosoys.mc.soyshttpovermc.storage.RecordSyncStorage;
-import com.github.cocosoys.mc.soyshttpovermc.storage.StorageManager;
 import com.github.cocosoys.mc.soyshttpovermc.storage.SyncStorage;
-import com.github.cocosoys.mc.soyshttpovermc.storage.impl.YamlStorage;
 import com.github.cocosoys.mc.soyshttpovermc.web.*;
 import com.github.cocosoys.mc.soyshttpovermc.web.contract.ContractInjector;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.GatewayConfig;
@@ -196,8 +196,6 @@ public class HttpOverMcPluginProxy {
         // 3.6) 请求级拦截器 / CORS 声明注册中心
         plugin.setWebInterceptorRegistry(new WebInterceptorRegistry());
         plugin.setCorsRegistry(new CorsRegistry());
-        // 3.7) 跨服同步存储
-        initStorage();
         // 3.8) ORM（YAML 后端）装配
         File yamlOrmDir = resolveYamlOrmDir();
         YAML.Pojo.init(yamlOrmDir);
@@ -207,7 +205,7 @@ public class HttpOverMcPluginProxy {
         // 3.95) 自动运维：meta 版本表 + 全事务（默认文件复制 / init.sql / 迁移 / 种子；受 auto.ops.* 控制）
         DataSpec autoOpsSpec = new DataSpec();
         autoOpsSpec.setPluginName("SOYSHTTPOverMC");
-        autoOpsSpec.setSchemaVersion(2); // 主插件 schema 版本（V1 建索引 / V2 加 vip_level，SQL+YAML 双通道）
+        autoOpsSpec.setSchemaVersion(3); // 主插件 schema 版本（V1 建索引 / V2 加 vip_level / V3 权限表主键自增改造）
         autoOpsSpec.setDataRoots(new String[]{"data"});
         autoOpsSpec.setSqlRoots(new String[]{"sql"});
         autoOpsSpec.setTableClasses(new Class<?>[]{
@@ -215,10 +213,12 @@ public class HttpOverMcPluginProxy {
                 SoysPermGroup.class,
                 SoysPermPermission.class,
                 SoysPermUserGroup.class,
-                RememberCredential.class
+                RememberCredential.class,
+                SoysApiKey.class
         });
         String autoOpsErr = AutoOps.install(
                 plugin.getPlatform(), plugin.getClass().getClassLoader(), autoOpsSpec);
+        plugin.setMainDataSpec(autoOpsSpec);
         if (autoOpsErr != null) {
             // 失败策略二态（auto.ops.fail）：disable（默认）= 主插件自身失败 → 禁用 SOYS 本体；
             // warn = 跳过并告警继续。
@@ -231,6 +231,9 @@ public class HttpOverMcPluginProxy {
                 return;
             }
         }
+
+        // 3.97) 跨服同步存储（ORM 实体化：DATA 路由 SQL→YAML；须在 AutoOps 之后装配）
+        initStorage();
 
         // 4) 安全网关 + TLS 上下文
         rebuildGateway(gatewayDir);
@@ -289,13 +292,6 @@ public class HttpOverMcPluginProxy {
             } catch (Throwable ignored) {
             }
             plugin.setSyncStorage(null);
-        }
-        if (plugin.getStorageManager() != null) {
-            try {
-                plugin.getStorageManager().shutdown();
-            } catch (Throwable ignored) {
-            }
-            plugin.setStorageManager(null);
         }
         log.infoT("log.plugin.disabled", "HTTP-Over-MC 已关闭");
     }
@@ -454,11 +450,19 @@ public class HttpOverMcPluginProxy {
      */
     private File resolveYamlOrmDir() {
         String fileCfg = coreConfig().getString("storage.backends.yaml.file", "data");
-        File dir = YamlStorage.resolveDir(plugin.getPlatform(), fileCfg);
-        if (!dir.exists()) {
-            dir.mkdirs();
+        File dataFolder = plugin.getDataFolder();
+        String p = fileCfg == null ? "" : fileCfg.trim();
+        File target = p.isEmpty() ? dataFolder : new File(dataFolder, p);
+        String lower = p.toLowerCase();
+        if (lower.endsWith(".yml") || lower.endsWith(".yaml")) {
+            // 兼容旧式 file: data/records.yml（取其父目录作为文件夹）
+            File parent = target.getParentFile();
+            target = parent == null ? dataFolder : parent;
         }
-        return dir;
+        if (!target.exists()) {
+            target.mkdirs();
+        }
+        return target;
     }
 
     /**
@@ -491,31 +495,34 @@ public class HttpOverMcPluginProxy {
     }
 
     /**
-     * 装配多后端数据存储。
+     * 装配跨服同步存储（ORM 实体化：RecordSyncStorage 经 DATA 门面路由 SQL→YAML）。
+     * 心跳定时写入 {@code instance:<serverId>}；跨服开启但未启用 SQL 时告警（YAML 单机文件不跨服）。
      */
     private void initStorage() {
-        StorageManager manager = null;
+        SyncStorage storage = new RecordSyncStorage();
         try {
-            manager = new StorageManager(plugin.getPlatform());
-            manager.initialize();
+            storage.initialize();
         } catch (Throwable t) {
             log.warnT("log.plugin.storage-init-fail", "存储后端初始化失败，降级为内存模式: {0}", t.getMessage());
-            manager = null;
+            storage = null;
         }
-        plugin.setStorageManager(manager);
-        plugin.setSyncStorage(manager == null ? null : new RecordSyncStorage(manager));
-
-        if (plugin.getSyncStorage() != null) {
+        plugin.setSyncStorage(storage);
+        if (storage != null) {
+            boolean cross = coreConfig().getBoolean("storage.cross-server", false);
+            if (cross && !DATA.sqlEnabled()) {
+                log.warnT("log.storage.cross-server-not-sql",
+                        "storage.cross-server=true 但未启用 SQL 后端（YAML 单机文件不跨服同步）——请启用 mysql 并指向同一数据库");
+            }
+            final SyncStorage s = storage;
             plugin.getServer().getScheduler().runTaskTimerAsynchronously(plugin, () -> {
                 try {
-                    plugin.getSyncStorage().heartbeat(storageServerId(),
+                    s.heartbeat(storageServerId(),
                             plugin.getServerName() == null || plugin.getServerName().isEmpty() ? plugin.getName() : plugin.getServerName(),
                             getMcHost(), getMcPort());
                 } catch (Throwable ignored) {
                 }
             }, 0L, 30L * 20L);
-            log.infoT("log.plugin.sync-storage-ready", "跨服同步存储已装配: serverId={0} 主={1}", storageServerId(),
-                    manager == null ? "-" : manager.getPrimary().getType().getDisplayName());
+            log.infoT("log.plugin.sync-storage-ready", "跨服同步存储已装配: serverId={0} 后端={1}", storageServerId(), storage.describe());
         } else {
             log.infoT("log.plugin.storage-memory", "数据存储未启用（内存模式）");
         }

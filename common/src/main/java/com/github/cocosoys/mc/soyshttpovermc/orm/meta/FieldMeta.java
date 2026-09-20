@@ -1,5 +1,6 @@
 package com.github.cocosoys.mc.soyshttpovermc.orm.meta;
 
+import com.dlz.db.annotation.IdType;
 import com.dlz.db.annotation.TableField;
 import com.dlz.db.annotation.TableId;
 
@@ -16,12 +17,14 @@ public class FieldMeta {
     public final boolean primaryKey;     // @TableId
     public final boolean ignored;        // @TableField(exist=false)
     public final Class<?> type;          // 字段类型
+    public final IdType idType;          // @TableId.type（null=非主键；AUTO=自增主键）
 
-    FieldMeta(Field field, String columnName, boolean primaryKey) {
+    FieldMeta(Field field, String columnName, boolean primaryKey, IdType idType) {
         this.field = field;
         this.fieldName = field.getName();
         this.columnName = columnName;
         this.primaryKey = primaryKey;
+        this.idType = idType;
         this.type = field.getType();
         TableField tf = field.getAnnotation(TableField.class);
         this.ignored = tf != null && !tf.exist();
@@ -33,6 +36,13 @@ public class FieldMeta {
 
     public boolean isIgnored() {
         return ignored;
+    }
+
+    /**
+     * 是否为自增主键（@TableId(type = IdType.AUTO)）。
+     */
+    public boolean isAutoId() {
+        return idType == IdType.AUTO;
     }
 
     /**

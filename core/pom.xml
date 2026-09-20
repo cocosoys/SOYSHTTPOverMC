@@ -57,10 +57,14 @@
         <dependency>
             <groupId>com.zaxxer</groupId>
             <artifactId>HikariCP</artifactId>
+            <!-- 1.12.2 及以下服务端不自带 HikariCP（1.13+ 才内置），必须随 fat jar 内嵌 -->
+            <scope>compile</scope>
         </dependency>
         <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-api</artifactId>
+            <!-- HikariCP 运行依赖；1.12.2 服务端无 slf4j，一并内嵌 -->
+            <scope>compile</scope>
         </dependency>
         <dependency>
             <groupId>io.swagger</groupId>

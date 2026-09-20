@@ -2,6 +2,7 @@ package com.github.cocosoys.mc.soyshttpovermc.orm.executor;
 
 import com.github.cocosoys.mc.soyshttpovermc.enums.StorageType;
 import com.github.cocosoys.mc.soyshttpovermc.i18n.I18n;
+import com.github.cocosoys.mc.soyshttpovermc.orm.convertor.AuditFields;
 import com.github.cocosoys.mc.soyshttpovermc.orm.convertor.BeanCodec;
 import com.github.cocosoys.mc.soyshttpovermc.orm.meta.FieldMeta;
 import com.github.cocosoys.mc.soyshttpovermc.orm.meta.PojoMeta;
@@ -33,7 +34,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * </pre>
  * <ul>
  *   <li>读：全量加载 ConfigSection（内存缓存文件视图），按 {@link ConditionTree} 逐条求值（O(n)）；</li>
- *   <li>写：对象锁 + 临时文件 rename 原子替换（同本项目 YamlStorage.flush 模式）。</li>
+ *   <li>写：对象锁 + 临时文件 rename 原子替换（原子写）。</li>
  * </ul>
  */
 @CustomLog
@@ -43,6 +44,10 @@ public class YamlBackendExecutor implements IBackendExecutor {
 
     private final File dataDir;
     private final Object lock = new Object();
+    /**
+     * 自增主键表重编号检查（每表每进程一次）。
+     */
+    private final java.util.Set<String> autoIdKeysChecked = ConcurrentHashMap.newKeySet();
     /**
      * 表名 → 文件视图（惰性加载，写时更新）。
      */
@@ -242,16 +247,96 @@ public class YamlBackendExecutor implements IBackendExecutor {
 
     // ===== 写 =====
 
+    /**
+     * 自增主键旧数据自愈（与 SQL 端 ensureAutoIdTable 对称）：老版本合成键（非纯数字键）
+     * 逐条重编号为 1..n，保证 AUTO 主键下 YAML 键与 SQL id 同为数字。每表仅执行一次。
+     */
+    private void ensureAutoIdKeys(Class<?> beanClass, PojoMeta meta) {
+        FieldMeta idFm = meta.getIdField();
+        if (idFm == null || !idFm.isAutoId()) return;
+        String table = meta.getTableName();
+        if (!autoIdKeysChecked.add(table)) return;
+        ConfigSection config = getConfig(beanClass);
+        // 只遍历表名 section 下的记录键；根级只有表名一个键，绝不能把表名当“旧合成键”重编号
+        ConfigSection root = config.getSection(table);
+        if (root == null) return;
+        java.util.List<String> legacy = new java.util.ArrayList<>();
+        long max = 0;
+        for (String key : root.getKeys(false)) {
+            try {
+                long v = Long.parseLong(key);
+                if (v > max) max = v;
+            } catch (NumberFormatException e) {
+                legacy.add(key);
+            }
+        }
+        if (legacy.isEmpty()) return;
+        synchronized (lock) {
+            for (String oldKey : legacy) {
+                ConfigSection src = root.getSection(oldKey);
+                if (src == null) continue;
+                max++;
+                ConfigSection dst = root.createSection(Long.toString(max));
+                for (String k : src.getKeys(false)) {
+                    if (src.isSection(k)) {
+                        copySection(src.getSection(k), dst.createSection(k));
+                    } else {
+                        dst.set(k, src.get(k));
+                    }
+                }
+                root.set(oldKey, null);
+            }
+            flush(config, fileOf(beanClass));
+        }
+        log.infoT("log.orm.auto-id-keys-renumbered",
+                "[ORM] 自增主键旧数据已重编号（{0} 条）: {1}", legacy.size(), table);
+    }
+
+    private static void copySection(ConfigSection src, ConfigSection dst) {
+        if (src == null || dst == null) return;
+        for (String key : src.getKeys(false)) {
+            if (src.isSection(key)) {
+                copySection(src.getSection(key), dst.createSection(key));
+            } else {
+                dst.set(key, src.get(key));
+            }
+        }
+    }
+
     @Override
     public <T> boolean insert(Class<T> beanClass, Object bean) {
         if (bean == null) return false;
+        AuditFields.fill(bean);
         PojoMeta meta = PojoMeta.of(beanClass);
+        FieldMeta idFm = meta.getIdField();
         Object id = idOf(meta, bean);
-        if (id == null) {
-            throw new IllegalArgumentException(I18n.t("exception.orm.tableid-not-assigned", "实体 {0} 主键(@TableId)未赋值，无法插入", beanClass.getSimpleName()));
-        }
+        ensureAutoIdKeys(beanClass, meta);
         synchronized (lock) {
             ConfigSection config = getConfig(beanClass);
+            if (id == null && idFm != null && idFm.isAutoId()) {
+                // 自增主键：取表名 section 下当前最大数值键 + 1（旧合成键字符串忽略），并回填实体
+                long max = 0;
+                ConfigSection root = config.getSection(meta.getTableName());
+                if (root != null) {
+                    for (String key : root.getKeys(false)) {
+                        try {
+                            long v = Long.parseLong(key);
+                            if (v > max) max = v;
+                        } catch (NumberFormatException ignored) {
+                            // 旧合成键字符串：忽略
+                        }
+                    }
+                }
+                id = max + 1;
+                try {
+                    idFm.field.setAccessible(true);
+                    idFm.field.set(bean, id);
+                } catch (IllegalAccessException ignored) {
+                }
+            }
+            if (id == null) {
+                throw new IllegalArgumentException(I18n.t("exception.orm.tableid-not-assigned", "实体 {0} 主键(@TableId)未赋值，无法插入", beanClass.getSimpleName()));
+            }
             String base = meta.getTableName() + "." + encodeId(id);
             config.set(base, null);
             ConfigSection section = config.createSection(base);
@@ -278,6 +363,18 @@ public class YamlBackendExecutor implements IBackendExecutor {
             flush(config, fileOf(beanClass));
         }
         return true;
+    }
+
+    /**
+     * 清空整表（表名 section 置空并落盘；覆盖迁移"先清后写"的"清"）。
+     */
+    public void clear(Class<?> beanClass) {
+        PojoMeta meta = PojoMeta.of(beanClass);
+        synchronized (lock) {
+            ConfigSection config = getConfig(beanClass);
+            config.set(meta.getTableName(), null);
+            flush(config, fileOf(beanClass));
+        }
     }
 
     private Object idOf(PojoMeta meta, Object bean) {

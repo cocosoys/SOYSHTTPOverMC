@@ -3,6 +3,7 @@ package com.github.cocosoys.mc.soyshttpovermc.spring.entity;
 import com.dlz.db.annotation.IdType;
 import com.dlz.db.annotation.TableId;
 import com.dlz.db.annotation.TableName;
+import com.github.cocosoys.mc.soyshttpovermc.enums.SoysPermOwnerType;
 import lombok.Data;
 
 /**
@@ -17,7 +18,8 @@ import lombok.Data;
  *   <li>通配支持：全量 {@code *}、段级尾通配 {@code a.*}（匹配 {@code a.x} / {@code a.x.y}）。</li>
  * </ul>
  *
- * <p>主键为合成键 {@code ownerType|ownerId|permission}（用户输入，INPUT 类型）。</p>
+ * <p>主键为自增键（Long，{@code IdType.AUTO}；SQL 端 AUTO_INCREMENT / SQLite AUTOINCREMENT，
+ * YAML 端由 ORM 分配 max+1）。业务键 {@code ownerType|ownerId|permission} 的唯一性由逻辑层查重保证。</p>
  *
  * <p>审计字段（createTime 等）继承自 {@link BaseEntity}，落库列 {@code create_time}
  * （yyyy-MM-dd HH:mm:ss）。</p>
@@ -26,22 +28,14 @@ import lombok.Data;
 @Data
 public class SoysPermPermission extends BaseEntity {
 
-    /** 主体类型：组。 */
-    public static final String TYPE_GROUP = "GROUP";
-    /** 主体类型：用户。 */
-    public static final String TYPE_USER = "USER";
-
-    /** 主体类型：X-API-Key（本地表 soys_api_key，ownerId=主键 id）。 */
-    public static final String TYPE_APIKEY = "APIKEY";
-
     /**
-     * 合成主键 {@code ownerType|ownerId|permission}。
+     * 自增主键（Long；SQL 端 AUTO_INCREMENT / SQLite AUTOINCREMENT，YAML 端由 ORM 分配 max+1）。
      */
-    @TableId(type = IdType.INPUT)
-    private String id;
+    @TableId(type = IdType.AUTO)
+    private Long id;
 
     /**
-     * 主体类型：{@link #TYPE_GROUP} / {@link #TYPE_USER} / {@link #TYPE_APIKEY}。
+     * 主体类型：{@link SoysPermOwnerType} 的落库代码（GROUP / USER / APIKEY）。
      */
     private String ownerType;
 
@@ -66,7 +60,6 @@ public class SoysPermPermission extends BaseEntity {
     }
 
     public SoysPermPermission(String ownerType, String ownerId, String permission, boolean negative) {
-        this.id = ownerType + "|" + ownerId + "|" + permission;
         this.ownerType = ownerType;
         this.ownerId = ownerId;
         this.permission = permission;

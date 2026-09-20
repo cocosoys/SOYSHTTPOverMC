@@ -24,7 +24,7 @@ The repository uses a multi-module + version-adapter architecture. One core sour
 3. **Web page & static resource hosting**: programmatic (`WebRegistry`) and config-file (`pages.yml`) channels, with nickname routes, redirects, directory hosting, caching and permission protection;
 4. **Security gateway**: pluggable policy chain (TLS enforcement, IP allow/deny lists, token-bucket rate limiting, access limiter, unified auth), all configured via YAML under `gateway/`;
 5. **Login plugin integration**: AuthMe and others connect through an SPI; players can log in from the web and obtain session tokens (JWT), including "remember me" device auto-login;
-6. **Multi-backend storage + dual-backend ORM**: YAML / SQLite / MySQL primary-secondary mirroring; `@TableName` entity annotations with one condition-chain API on both `YAML.Pojo` and `SQL.Pojo`;
+6. **ORM dual-backend storage**: `DATA` routing (SQL when mysql/sqlite is enabled, otherwise YAML files); `@TableName` entity annotations with one condition-chain API on both `YAML.Pojo` and `SQL.Pojo`; cross-server sync data (blacklist / audit / heartbeat / JWT secret) is the `soys_records` entity with automatic legacy migration;
 7. **Local permission table**: built-in `local` permission provider (`/soyshttp perm` manages users/groups/permissions), unified online & offline checks;
 8. **Internationalization**: `language.yml` switches languages and stacks extra language sources; all plugin logs and UI text are translatable;
 9. **Multi-version compatibility**: adapter version modules cover per-version differences via reflection / SPI, exposing a fully consistent API to third-party plugins.
@@ -57,7 +57,7 @@ If you are new to plugin development, finish a "HelloWorld" plugin first and com
 | [Chapter 2 Annotation-based Web API](Chapter-2-Annotated-WebAPI-Development.md) | Annotation set, parameter binding, unified response, permissions, registration |
 | [Chapter 3 Web Pages & Static Resources](Chapter-3-Web-Pages-and-Static-Resources.md) | WebRegistry, pages.yml, caching, large files, page permissions, error pages, CORS |
 | [Chapter 4 Authentication & Security](Chapter-4-Authentication-and-Security.md) | Gateway policy chain, credential system, login plugins, auto-login, combined permissions |
-| [Chapter 5 Data Storage & ORM](Chapter-5-Data-Storage-and-ORM.md) | Primary-secondary storage, entity annotations, YAML/SQL backends, condition chain, migration |
+| [Chapter 5 Data Storage & ORM](Chapter-5-Data-Storage-and-ORM.md) | ORM dual-backend routing, entity annotations, YAML/SQL backends, condition chain, explicit migration |
 | [Chapter 6 Advanced & Best Practices](Chapter-6-Advanced-Capabilities-and-Best-Practices.md) | HTTP client, extensions, interceptors, custom policies, I18n, multi-version builds |
 | [Chapter 7 Event System](Chapter-7-Event-System.md) | All event types, listening patterns, typical uses |
 | [Appendix API Reference](Appendix-API-Reference.md) | Facade capability groups, WebRegistry, command & config index |

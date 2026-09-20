@@ -76,7 +76,7 @@ plugins/SOYSHTTPOverMC/
 │   ├── policies/         # security policies (auth / ip-allowlist / rate-limit / access-limiter / tls)
 │   └── issuers/          # credential issuers (session-token.yml)
 ├── web/                  # front-end disk root (extracted from jar /dist/ on first launch)
-├── data/                 # YAML storage & ORM data dir (records.yml + per-table .yml)
+├── data/                 # YAML storage & ORM data dir (soys_records.yml + per-table .yml)
 ├── data/records.db       # SQLite storage (when enabled)
 └── token.key             # local JWT secret (auto-generated)
 ```
@@ -108,8 +108,7 @@ Main command `/soyshttp` (short alias `/shttp`), requires `soyshttp.admin` (OP b
 | `/soyshttp lang [code]` | View / switch language (`lang sources ...` manages extra language sources) |
 | `/soyshttp perm ...` | Local permission table management (group/user CRUD + check; pairs with `offline-fallback: local`) |
 | `/soyshttp log-level <level>` | Dynamically adjust log level (OFF/ERROR/WARN/INFO/DEBUG/TRACE) |
-| `/soyshttp migrate <from> <to>` | Migrate data between storage backends |
-| `/soyshttp sync` | Full overwrite-sync from primary storage to all secondaries |
+| `/soyshttp migrate <yaml\|sql> <yaml\|sql>` | Explicitly migrate soys_records data between the two ORM backends (YAML/SQL) |
 | `/soyshttp status` / `report` / `eula` / `help` | Status / data-contribution report / EULA viewer / help |
 
 ## 1.7 Integrating Your First Third-Party Plugin

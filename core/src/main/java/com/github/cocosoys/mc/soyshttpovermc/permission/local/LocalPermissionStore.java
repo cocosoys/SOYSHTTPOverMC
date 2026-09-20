@@ -1,7 +1,8 @@
 package com.github.cocosoys.mc.soyshttpovermc.permission.local;
 
 import com.github.cocosoys.mc.soyshttpovermc.spring.entity.SoysPermGroup;
-import com.github.cocosoys.mc.soyshttpovermc.spring.entity.SoysPermPermission;
+
+import com.github.cocosoys.mc.soyshttpovermc.enums.SoysPermOwnerType;import com.github.cocosoys.mc.soyshttpovermc.spring.entity.SoysPermPermission;
 import com.github.cocosoys.mc.soyshttpovermc.spring.entity.SoysPermUser;
 import com.github.cocosoys.mc.soyshttpovermc.spring.entity.SoysPermUserGroup;
 import com.github.cocosoys.mc.soyshttpovermc.spring.service.ILocalPermStorage;
@@ -132,7 +133,7 @@ public class LocalPermissionStore {
         String gid = normalize(id).toLowerCase();
         if (gid.isEmpty()) return false;
         // 删组权限
-        for (SoysPermPermission p : listPermissions(SoysPermPermission.TYPE_GROUP, gid)) {
+        for (SoysPermPermission p : listPermissions(SoysPermOwnerType.GROUP.code(), gid)) {
             storage.delete(SoysPermPermission.class, p.getId());
         }
         // 删用户-组引用
@@ -155,6 +156,33 @@ public class LocalPermissionStore {
     }
 
     /**
+     * 保存权限（业务键 upsert）：同 {@code (ownerType, ownerId, permission)} 已存在时更新 negative，否则新增。
+     * 自增主键下业务键唯一性由本方法在逻辑层保证（SQL/YAML 双端一致）。
+     */
+    private boolean savePermissionUpsert(String ownerType, String ownerId, String node, boolean negative) {
+        for (SoysPermPermission rec : listPermissions(ownerType, ownerId)) {
+            if (rec.getPermission().equals(node)) {
+                rec.setNegative(negative);
+                rec.setUpdateTime(new java.util.Date());
+                return storage.save(rec);
+            }
+        }
+        return storage.save(new SoysPermPermission(ownerType, ownerId, node, negative));
+    }
+
+    /**
+     * 按业务键 {@code (ownerType, ownerId, permission)} 删除权限（自增主键下合成键不再是 id）。
+     */
+    private boolean deletePermissionByBusinessKey(String ownerType, String ownerId, String node) {
+        for (SoysPermPermission rec : listPermissions(ownerType, ownerId)) {
+            if (rec.getPermission().equals(node)) {
+                return storage.delete(SoysPermPermission.class, rec.getId());
+            }
+        }
+        return false;
+    }
+
+    /**
      * 组加权限（{@code -} 前缀=否定；{@code :≡.} 归一）。
      */
     public boolean addGroupPermission(String id, String nodeInput) {
@@ -162,7 +190,7 @@ public class LocalPermissionStore {
         if (gid.isEmpty()) return false;
         ParsedNode p = parseNode(nodeInput);
         if (p.node.isEmpty()) return false;
-        return storage.save(new SoysPermPermission(SoysPermPermission.TYPE_GROUP, gid, p.node, p.negative));
+        return savePermissionUpsert(SoysPermOwnerType.GROUP.code(), gid, p.node, p.negative);
     }
 
     public boolean removeGroupPermission(String id, String nodeInput) {
@@ -170,13 +198,13 @@ public class LocalPermissionStore {
         if (gid.isEmpty()) return false;
         ParsedNode p = parseNode(nodeInput);
         if (p.node.isEmpty()) return false;
-        return storage.delete(SoysPermPermission.class, SoysPermPermission.TYPE_GROUP + "|" + gid + "|" + p.node);
+        return deletePermissionByBusinessKey(SoysPermOwnerType.GROUP.code(), gid, p.node);
     }
 
     public List<SoysPermPermission> listGroupPermissions(String id) {
         String gid = normalize(id).toLowerCase();
         return gid.isEmpty() ? Collections.emptyList()
-                : listPermissions(SoysPermPermission.TYPE_GROUP, gid);
+                : listPermissions(SoysPermOwnerType.GROUP.code(), gid);
     }
 
     // ==================== 用户 ====================
@@ -222,7 +250,7 @@ public class LocalPermissionStore {
     public boolean deleteUser(String player) {
         String pk = userKey(player);
         if (pk.isEmpty()) return false;
-        for (SoysPermPermission p : listPermissions(SoysPermPermission.TYPE_USER, pk)) {
+        for (SoysPermPermission p : listPermissions(SoysPermOwnerType.USER.code(), pk)) {
             storage.delete(SoysPermPermission.class, p.getId());
         }
         for (SoysPermUserGroup ug : storage.list(SoysPermUserGroup.class, c -> c.eq(SoysPermUserGroup::getUuid, pk))) {
@@ -276,8 +304,9 @@ public class LocalPermissionStore {
         if (pk.isEmpty() || gid.isEmpty()) return false;
         if (getUser(pk) == null) createUser(pk);
         if (getGroup(gid) == null) createGroup(gid, 0, gid, "");
-        SoysPermUserGroup exist = storage.get(SoysPermUserGroup.class, pk + "|" + gid);
-        if (exist != null) return true; // 已存在
+        List<SoysPermUserGroup> exist = storage.list(SoysPermUserGroup.class,
+                c -> c.eq(SoysPermUserGroup::getUuid, pk).eq(SoysPermUserGroup::getGroup, gid));
+        if (!exist.isEmpty()) return true; // 已存在
         return storage.save(new SoysPermUserGroup(pk, gid));
     }
 
@@ -285,7 +314,11 @@ public class LocalPermissionStore {
         String pk = userKey(player);
         String gid = normalize(group).toLowerCase();
         if (pk.isEmpty() || gid.isEmpty()) return false;
-        return storage.delete(SoysPermUserGroup.class, pk + "|" + gid);
+        for (SoysPermUserGroup ug : storage.list(SoysPermUserGroup.class,
+                c -> c.eq(SoysPermUserGroup::getUuid, pk).eq(SoysPermUserGroup::getGroup, gid))) {
+            return storage.delete(SoysPermUserGroup.class, ug.getId());
+        }
+        return false;
     }
 
     /**
@@ -324,7 +357,7 @@ public class LocalPermissionStore {
     public List<SoysPermPermission> listUserPermissions(String player) {
         String pk = userKey(player);
         return pk.isEmpty() ? Collections.emptyList()
-                : listPermissions(SoysPermPermission.TYPE_USER, pk);
+                : listPermissions(SoysPermOwnerType.USER.code(), pk);
     }
 
     /**
@@ -336,7 +369,7 @@ public class LocalPermissionStore {
         if (getUser(pk) == null) createUser(pk);
         ParsedNode p = parseNode(nodeInput);
         if (p.node.isEmpty()) return false;
-        return storage.save(new SoysPermPermission(SoysPermPermission.TYPE_USER, pk, p.node, p.negative));
+        return savePermissionUpsert(SoysPermOwnerType.USER.code(), pk, p.node, p.negative);
     }
 
     public boolean removeUserPermission(String player, String nodeInput) {
@@ -344,7 +377,7 @@ public class LocalPermissionStore {
         if (pk.isEmpty()) return false;
         ParsedNode p = parseNode(nodeInput);
         if (p.node.isEmpty()) return false;
-        return storage.delete(SoysPermPermission.class, SoysPermPermission.TYPE_USER + "|" + pk + "|" + p.node);
+        return deletePermissionByBusinessKey(SoysPermOwnerType.USER.code(), pk, p.node);
     }
 
     /**
@@ -354,9 +387,9 @@ public class LocalPermissionStore {
         String pk = userKey(player);
         if (pk.isEmpty()) return Collections.emptyList();
         List<SoysPermPermission> out = new ArrayList<>();
-        out.addAll(listPermissions(SoysPermPermission.TYPE_USER, pk));
+        out.addAll(listPermissions(SoysPermOwnerType.USER.code(), pk));
         for (String g : listUserGroups(pk)) {
-            out.addAll(listPermissions(SoysPermPermission.TYPE_GROUP, g));
+            out.addAll(listPermissions(SoysPermOwnerType.GROUP.code(), g));
         }
         return out;
     }

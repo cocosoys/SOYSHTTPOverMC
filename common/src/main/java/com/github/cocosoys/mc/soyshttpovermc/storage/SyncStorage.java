@@ -14,12 +14,12 @@ import com.github.cocosoys.mc.soyshttpovermc.enums.StorageType;
  *   <li><b>实例心跳</b>（{@code instances}）：各子服注册/心跳，跨服拓扑可见性。</li>
  * </ul>
  *
- * <p>约定（参考 SOYSMyLoot 的 DataStorage）：
+ * <p>约定（参考 SOYSMyLoot 的 DATA 路由存储）：
  * <ul>
  *   <li>方法可能在异步线程被调用，实现需保证线程安全（内部串行锁）；</li>
  *   <li>失败以异常上报，由调用方/装配方降级（后端不可用 → 内存模式继续运行）；</li>
  *   <li>{@link #isTokenRevoked} 等查询应在热点路径可用（实现带缓存）；</li>
- *   <li>新增数据库只需实现本接口并在 {@link StorageManager#build} 注册。</li>
+ *   <li>实现见 {@link RecordSyncStorage}（ORM 实体 {@code soys_records}，经 {@link com.github.cocosoys.mc.soyshttpovermc.orm.DATA} 路由）。</li>
  * </ul>
  */
 public interface SyncStorage {
@@ -48,11 +48,6 @@ public interface SyncStorage {
      * 简要描述（数据库地址），供日志/状态展示。
      */
     String describe();
-
-    /**
-     * 主动保活探测（keepalive-interval 定时任务调用）。
-     */
-    void keepAlive();
 
     // ===== 令牌注销黑名单（跨服共享）=====
 

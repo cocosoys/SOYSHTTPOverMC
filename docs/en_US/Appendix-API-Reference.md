@@ -149,8 +149,7 @@ Also: `registerPage(..., List<String> permissions)` / `registerProxyPage(..., pe
 /soyshttp lang [code]            # lang sources on|off|download|update|remove|info <index>
 /soyshttp perm group|user|check|reload ...
 /soyshttp log-level <OFF|ERROR|WARN|INFO|DEBUG|TRACE>
-/soyshttp migrate <from> <to>
-/soyshttp sync
+/soyshttp migrate <yaml|sql> <yaml|sql>
 /soyshttp status | report | eula | help
 ```
 

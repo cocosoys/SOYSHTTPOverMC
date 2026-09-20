@@ -1,6 +1,7 @@
 package com.github.cocosoys.mc.soyshttpovermc.orm;
 
 import com.github.cocosoys.mc.soyshttpovermc.orm.executor.SqlBackendExecutor;
+import com.github.cocosoys.mc.soyshttpovermc.enums.SchemaState;
 
 import java.util.ArrayList;
 import java.util.Date;
@@ -26,11 +27,7 @@ public final class SchemaRegistry {
     /** 插件级记录的 tableName 约定。 */
     public static final String PLUGIN_ROW = "*";
 
-    /** 状态：已安装。 */
-    public static final String STATE_INSTALLED = "INSTALLED";
 
-    /** 状态：已卸载（数据保留；预留）。 */
-    public static final String STATE_UNINSTALLED = "UNINSTALLED";
 
     private SchemaRegistry() {
     }
@@ -90,7 +87,7 @@ public final class SchemaRegistry {
         SoysSchemaMeta row = getPlugin(plugin);
         if (row == null) {
             row = new SoysSchemaMeta(plugin, PLUGIN_ROW);
-            row.setState(STATE_INSTALLED);
+            row.setState(SchemaState.INSTALLED.code());
             row.setCreateTime(new Date());
         }
         row.setSchemaVersion(version);
@@ -106,7 +103,7 @@ public final class SchemaRegistry {
         SoysSchemaMeta row = get(plugin, tableName);
         if (row == null) {
             row = new SoysSchemaMeta(plugin, tableName);
-            row.setState(STATE_INSTALLED);
+            row.setState(SchemaState.INSTALLED.code());
             row.setSchemaVersion(0);
             row.setCreateTime(new Date());
         }

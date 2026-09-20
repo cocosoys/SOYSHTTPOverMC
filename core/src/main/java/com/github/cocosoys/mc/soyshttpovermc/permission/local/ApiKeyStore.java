@@ -1,6 +1,7 @@
 package com.github.cocosoys.mc.soyshttpovermc.permission.local;
 
 import com.github.cocosoys.mc.soyshttpovermc.spring.entity.SoysApiKey;
+import com.github.cocosoys.mc.soyshttpovermc.enums.SoysPermOwnerType;
 import com.github.cocosoys.mc.soyshttpovermc.spring.entity.SoysPermPermission;
 import com.github.cocosoys.mc.soyshttpovermc.spring.service.ILocalPermStorage;
 import com.github.cocosoys.mc.soyshttpovermc.util.UuidUtil;
@@ -23,7 +24,7 @@ import java.util.UUID;
  *
  * <p><b>安全模型</b>：库中只存 SHA-256 全量哈希与 8 位短指纹；请求头明文经
  * {@link AuthUtils#sha256Hex(String)} 后查表，不落库、不比较明文。
- * 权限节点复用 {@link SoysPermPermission}（ownerType={@link SoysPermPermission#TYPE_APIKEY}、
+ * 权限节点复用 {@link SoysPermPermission}（ownerType={@link SoysPermOwnerType#APIKEY}、
  * ownerId=key 主键），支持否定 / 通配 / 过期。</p>
  *
  * <p><b>绑定玩家</b>：{@link SoysApiKey#getUuid()} 可空；一期仅存储，判定仍按 key 自身权限链。</p>
@@ -115,7 +116,7 @@ public class ApiKeyStore {
     public boolean checkPermission(String presented, String permission) {
         SoysApiKey k = findByPresented(presented);
         if (k == null || !isUsable(k)) return false;
-        return localStore.checkPermissions(SoysPermPermission.TYPE_APIKEY, k.getId(), permission);
+        return localStore.checkPermissions(SoysPermOwnerType.APIKEY.code(), k.getId(), permission);
     }
 
     /**
@@ -217,7 +218,14 @@ public class ApiKeyStore {
         if (findById(id) == null) return false;
         LocalPermissionStore.ParsedNode p = LocalPermissionStore.parseNode(nodeInput);
         if (p.node.isEmpty()) return false;
-        return storage.save(new SoysPermPermission(SoysPermPermission.TYPE_APIKEY, id, p.node, p.negative));
+        for (SoysPermPermission rec : listPermissions(id)) {
+            if (rec.getPermission().equals(p.node)) {
+                rec.setNegative(p.negative);
+                rec.setUpdateTime(new Date());
+                return storage.save(rec);
+            }
+        }
+        return storage.save(new SoysPermPermission(SoysPermOwnerType.APIKEY.code(), id, p.node, p.negative));
     }
 
     /**
@@ -227,8 +235,12 @@ public class ApiKeyStore {
         if (findById(id) == null) return false;
         LocalPermissionStore.ParsedNode p = LocalPermissionStore.parseNode(nodeInput);
         if (p.node.isEmpty()) return false;
-        return storage.delete(SoysPermPermission.class,
-                SoysPermPermission.TYPE_APIKEY + "|" + id + "|" + p.node);
+        for (SoysPermPermission rec : listPermissions(id)) {
+            if (rec.getPermission().equals(p.node)) {
+                return storage.delete(SoysPermPermission.class, rec.getId());
+            }
+        }
+        return false;
     }
 
     /**
@@ -236,7 +248,7 @@ public class ApiKeyStore {
      */
     public List<SoysPermPermission> listPermissions(String id) {
         return storage.list(SoysPermPermission.class,
-                c -> c.eq(SoysPermPermission::getOwnerType, SoysPermPermission.TYPE_APIKEY)
+                c -> c.eq(SoysPermPermission::getOwnerType, SoysPermOwnerType.APIKEY.code())
                         .eq(SoysPermPermission::getOwnerId, id));
     }
 

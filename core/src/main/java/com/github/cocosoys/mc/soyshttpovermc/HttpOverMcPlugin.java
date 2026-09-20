@@ -12,7 +12,6 @@ import com.github.cocosoys.mc.soyshttpovermc.permission.CombinedPermissionServic
 import com.github.cocosoys.mc.soyshttpovermc.spi.Platform;
 import com.github.cocosoys.mc.soyshttpovermc.proxy.ServerRegistry;
 import com.github.cocosoys.mc.soyshttpovermc.spring.impl.AuthServiceImpl;
-import com.github.cocosoys.mc.soyshttpovermc.storage.StorageManager;
 import com.github.cocosoys.mc.soyshttpovermc.storage.SyncStorage;
 import com.github.cocosoys.mc.soyshttpovermc.web.*;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.GatewayFilter;
@@ -160,10 +159,6 @@ public class HttpOverMcPlugin extends JavaPlugin {
      */
     private SyncStorage syncStorage = null;
     /**
-     * 多后端存储协调器（YAML/SQLite/MySQL 主辅+镜像；null=内存模式）。
-     */
-    private StorageManager storageManager = null;
-    /**
      * language.yml 配置封装（current/rule/sources 读写；由 ConfigManager.initLanguageConfig 装配）。
      */
     private LanguageConfig languageConfig;
@@ -191,6 +186,10 @@ public class HttpOverMcPlugin extends JavaPlugin {
      * 版本兼容嗅探器安装句柄（由 adapter HttpSnifferInstaller 返回，仅供卸载凭据）。
      */
     private volatile Object snifferHandle;
+    /**
+     * 主插件自身数据包描述（AutoOps 装配用；供 /soyshttp sync|migrate 聚合主插件表清单）。
+     */
+    private com.github.cocosoys.mc.soyshttpovermc.orm.DataSpec mainDataSpec;
 
     @Override
     public void onEnable() {

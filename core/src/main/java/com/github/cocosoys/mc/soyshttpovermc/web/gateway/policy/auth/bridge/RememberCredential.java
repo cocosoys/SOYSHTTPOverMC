@@ -5,7 +5,9 @@ import com.dlz.db.annotation.TableName;
 import com.fasterxml.jackson.annotation.JsonFormat;
 import com.github.cocosoys.mc.soyshttpovermc.orm.convertor.BeanCodec;
 import com.github.cocosoys.mc.soyshttpovermc.orm.DATA;
+import com.github.cocosoys.mc.soyshttpovermc.spring.entity.BaseEntity;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 
 import java.util.Date;
 
@@ -20,10 +22,12 @@ import java.util.Date;
  *   <li><b>防越权</b>：验证时要求实体存在且未过期，仅凭篡改/伪造 JWT 无法通过。</li>
  * </ul>
  * 存储复用统一 ORM 门面 {@link DATA}（SQL 可用走 SQL、否则 YAML，见 {@code storage.backends.*} 配置）。
+ * 审计字段（createTime/updateTime）继承自 {@link BaseEntity}。
  */
 @TableName("soys_remember")
 @Data
-public class RememberCredential {
+@EqualsAndHashCode(callSuper = false)
+public class RememberCredential extends BaseEntity {
 
     /**
      * 对应 remember JWT 的 jti（唯一主键）。

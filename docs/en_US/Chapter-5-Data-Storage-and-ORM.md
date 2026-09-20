@@ -1,15 +1,19 @@
 # Chapter 5 Data Storage & ORM
 
-SOYSHTTPOverMC provides two layers of data capability: **KV storage** (`SyncRecord` with primary-secondary mirroring) and **ORM** (entity annotations + condition chain, one API across YAML/SQL backends).
+SOYSHTTPOverMC persistence goes through **ORM** uniformly (entity annotations + condition chain, one API across YAML/SQL backends): system-level cross-server data (blacklist / audit / heartbeat / global secret) is also an ORM entity `SoysRecord` (table `soys_records`), routed through the `DATA` facade.
 
-## 5.1 Storage Architecture (StorageManager)
+## 5.1 Storage Architecture (ORM Dual-Backend Routing)
 
-### 5.1.1 Primary-Secondary Model
+All entity data is routed through the `DATA` facade: if `storage.backends.mysql/sqlite` is enabled → SQL (mysql preferred),
+otherwise it falls back to YAML (`data/<table>.yml`). **Only one backend is active at a time** (no primary-secondary, no mirroring);
+cross-server sharing = every instance connects to the same MySQL.
 
-- Among all **enabled** backends, the highest-priority one (**MYSQL > SQLITE > YAML**) becomes the **primary storage**, which serves all reads;
-- The other enabled backends become **secondaries**, mirrored on writes (hot backup / degradation plan);
-- Writes converge on a **single-threaded executor**, keeping write order strictly serial;
-- Any backend that fails to initialize is marked unavailable and skipped (no crash); if all fail, it degrades to in-memory mode (with a log warning).
+### 5.1.1 Routing Rules
+
+- `DATA.sqlEnabled()`: `storage.backends.mysql/sqlite` assembled (mysql preferred) → all entities go to SQL;
+- Otherwise fall back to `data/<table>.yml` (YAML backend, zero-dependency);
+- If a backend is unavailable (e.g. SQL init failed) it falls back to YAML automatically; when both are unavailable the related API throws `IllegalStateException` (not triggered in normal configuration);
+- Tables are created / column-patched automatically by the ORM (SQL `CREATE TABLE IF NOT EXISTS` + tolerant `ALTER`; YAML lazily generated).
 
 ### 5.1.2 config.yml Storage Configuration
 
@@ -18,7 +22,7 @@ storage:
   backends:
     yaml:
       enabled: true
-      file: data/              # folder holding all yml tables (records.yml + per-ORM-table .yml)
+      file: data/              # folder holding all yml tables (soys_records.yml + per-ORM-table .yml)
       backup-on-save: false
     sqlite:
       enabled: false
@@ -30,26 +34,28 @@ storage:
       username: root
       password: ''
       table-prefix: ''
-      keepalive-interval: 1800
   cross-server: false      # cross-server sync: all instances point at the same MySQL, data visible across servers
-  mirror:
-    enabled: true          # mirror writes to secondaries
-    async: true
-    sync-on-startup: false
 ```
 
 - Do not change `table-prefix` unless you must (developers must read the prefixed table name accordingly);
-- Cross-server prerequisites: every instance has `mysql.enabled: true` pointing at the same database; MySQL becomes the primary automatically. Instances may keep local yaml/sqlite hot backups, but **do not run sync between multiple instances** (the sync command / sync-on-startup) or you will overwrite shared data.
+- Cross-server prerequisites: every instance sets `storage.backends.mysql.enabled: true` pointing at the same database (the SQL backend is the shared data source);
+  enabling `storage.cross-server: true` while SQL is off logs a warning at startup (multi-instance data is not shared).
 
-### 5.1.3 Data Plane (SyncRecord)
+### 5.1.3 Data Plane (SoysRecord Entity)
 
-The storage data plane is the generic `SyncRecord` (key + value + timestamp). `DataStorage` is the backend abstraction interface; implement `getType()/initialize()/shutdown()/isAvailable()/describe()` plus the read/write methods to add a backend (register one line in `StorageManager.buildStorage`).
+Cross-server sync data (token blacklist / issuance audit / instance heartbeat / global JWT secret) lives in the ORM entity
+`SoysRecord` (table `soys_records`), routed through the `DATA` facade; the semantic layer is `RecordSyncStorage` (the `SyncStorage` interface).
+Key conventions: `blacklist:<jti>` / `audit:<jti>:<nonce>` / `instance:<serverId>` / `meta:jwt_secret`.
+Audit fields `create_time / update_time` are auto-filled by the ORM write path (business time uses `updated_at`).
 
-### 5.1.4 Migration & Overwrite Sync
+Legacy data is auto-migrated at startup (idempotent):
+- YAML: old `records.yml` (root `records`) → `soys_records.yml` (root `soys_records`);
+- SQL: old tables `mc_shttp_records` / `mc_shttp_soys_records` → `soys_records` (REPLACE SELECT + DROP).
+
+### 5.1.4 Explicit Migration
 
 ```text
-/soyshttp migrate <from> <to>   # convert data between any two backends
-/soyshttp sync                   # full overwrite from primary to all secondaries
+/soyshttp migrate <yaml|sql> <yaml|sql>   # explicitly migrate all soys_records data between the two backends (bypasses auto routing)
 ```
 
 ## 5.2 ORM: Entity Annotations
@@ -166,9 +172,10 @@ YAML.Pojo.save(User.class);                      // explicit flush to disk (atom
 
 ## 5.7 Cross-Server Sync
 
-- `storage.cross-server: true` + MySQL: token blacklist / audit / heartbeat / global secret are visible across servers;
+- `storage.cross-server: true` + MySQL (all instances point at the same database): token blacklist / audit / heartbeat / global secret (entity table `soys_records`) are visible across servers;
 - The plugin reports an async heartbeat every 30 seconds (serverId + server name + host + port); serverId rule: proxy network = `proxy.server-name`, standalone = `standalone-<host>:<port>`;
-- The global JWT secret is distributed from shared storage, keeping cross-server verification consistent.
+- The global JWT secret is distributed from shared storage, keeping cross-server verification consistent;
+- Note: enabling cross-server while SQL is off logs a warning at startup (YAML is a single-machine file and cannot be shared across instances).
 
 ## 5.8 Version Notes
 

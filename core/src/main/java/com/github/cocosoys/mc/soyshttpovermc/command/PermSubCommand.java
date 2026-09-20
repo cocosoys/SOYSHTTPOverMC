@@ -2,7 +2,8 @@ package com.github.cocosoys.mc.soyshttpovermc.command;
 
 import com.github.cocosoys.mc.soyshttpovermc.HttpOverMcPlugin;
 import com.github.cocosoys.mc.soyshttpovermc.i18n.I18n;
-import com.github.cocosoys.mc.soyshttpovermc.permission.CombinedPermissionService;
+
+import com.github.cocosoys.mc.soyshttpovermc.enums.SoysPermOwnerType;import com.github.cocosoys.mc.soyshttpovermc.permission.CombinedPermissionService;
 import com.github.cocosoys.mc.soyshttpovermc.permission.local.LocalPermissionStore;
 import com.github.cocosoys.mc.soyshttpovermc.spring.entity.SoysPermGroup;
 import com.github.cocosoys.mc.soyshttpovermc.spring.entity.SoysPermPermission;
@@ -320,7 +321,7 @@ public class PermSubCommand extends SubCommand {
                     sender.sendMessage(I18n.t("command.perm.user.no-effective", "  §7（无任何生效权限）"));
                 }
                 for (SoysPermPermission p : eff) {
-                    String src = SoysPermPermission.TYPE_USER.equals(p.getOwnerType())
+                    String src = SoysPermOwnerType.USER.code().equals(p.getOwnerType())
                             ? I18n.t("command.perm.user.src-direct", "直接")
                             : I18n.t("command.perm.user.src-group", "组[{0}]", p.getOwnerId());
                     sender.sendMessage(I18n.t("command.perm.user.effective-line", "  §{0}{1} §7({2})",

@@ -22,5 +22,6 @@
 #     permission: "test:ping"
 #     negative: false
 #     create_time: "2026-09-18 12:00:00"
+#     update_time: "2026-09-18 12:00:00"
 # ============================================================================
 soys_perm_permission: {}

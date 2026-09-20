@@ -1,0 +1,26 @@
+# ============================================================================
+# SOYSHTTPOverMC · 通用记录 ORM 实体（soys_records）· YAML 后端初始化模板
+# 文件: <插件数据文件夹>/data/soys_records.yml
+#       （storage.backends.yaml.file 目录下固定文件名，勿改名）
+# ----------------------------------------------------------------------------
+# · 实体:   com.github.cocosoys.mc.soyshttpovermc.spring.entity.SoysRecord
+# · 根节点: soys_records（@TableName 表名；SQL 端对应表 soys_records，自动建表/补列）
+# · 记录:   <key>: { type: <类型>, data: <JSON>, updated_at: <yyyy-MM-dd HH:mm:ss> }
+# · 审计列: create_time / update_time 由 ORM 写路径自动填充（业务时间以 updated_at 为准）
+# · key 约定:
+#     blacklist:<jti>          —— 令牌注销黑名单（type=BLACKLIST）
+#     audit:<jti>:<nonce>      —— 令牌签发审计，append-only（type=AUDIT）
+#     instance:<serverId>      —— 实例心跳（type=INSTANCE）
+#     meta:jwt_secret          —— 全局 JWT 密钥 base64（type=META）
+# · 兼容:   旧版 records.yml（根节点 records、updated_at 可为毫秒时间戳）启动时
+#           自动迁移至此文件；SQL 旧表 mc_shttp_records / mc_shttp_soys_records
+#           启动时自动 REPLACE SELECT + DROP 迁移到 soys_records。
+# · 运行时: 文件不存在时自动创建（空表）；本文件仅作为初始化模板 / 格式参考。
+# 示例记录:
+#   soys_records:
+#     "blacklist:xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx":
+#       type: "BLACKLIST"
+#       data: "{\"server_id\":\"lobby\",\"revoked_at\":1759000000000}"
+#       updated_at: 2026-09-18 10:00:00
+# ============================================================================
+soys_records: {}

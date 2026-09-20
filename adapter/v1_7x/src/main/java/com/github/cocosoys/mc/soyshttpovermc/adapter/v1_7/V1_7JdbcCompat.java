@@ -20,7 +20,7 @@ import java.util.logging.Logger;
  *
  * <p><b>背景</b>：1.7.10 服务端自带的 sqlite（org.sqlite.Conn）与 mysql
  * （com.mysql.jdbc.ConnectionImpl）驱动均为 JDBC3 时代（class major 49），未实现
- * {@code Connection.isValid(int)}。core 的 {@code SqlStorage.connection()/keepAlive()}
+ * {@code Connection.isValid(int)}。core 的 {@code ORM SQL 后端（SqlBackendExecutor）.connection()}
  * 与 HikariCP 都会调用 {@code isValid}，底层实现类缺方法 → AbstractMethodError。</p>
  *
  * <p><b>兼容方式</b>（参考 HikariCP 的 ProxyConnection 思路）：把 DriverManager 中已注册的
@@ -28,7 +28,7 @@ import java.util.logging.Logger;
  * 其 {@code connect()} 返回的 Connection 用 {@link java.lang.reflect.Proxy} 包装一层，
  * 对 {@code isValid(timeout)} 特判为 {@code !isClosed()}，其余方法原样转发到真实连接。</p>
  *
- * <p><b>为什么能覆盖两条路径</b>：SqlStorage 与 Hikari 都经 DriverManager 拿连接；
+ * <p><b>为什么能覆盖两条路径</b>：ORM SQL 后端（SqlBackendExecutor）与 Hikari 都经 DriverManager 拿连接；
  * 包装驱动注册后，后续 {@code DriverManager.getConnection} 优先命中本包装驱动，
  * 两者拿到的都是自带 isValid 的代理连接。</p>
  *

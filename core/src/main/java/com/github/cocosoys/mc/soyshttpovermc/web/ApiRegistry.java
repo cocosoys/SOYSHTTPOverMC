@@ -75,7 +75,6 @@ import java.util.function.Function;
 @CustomLog
 public class ApiRegistry implements AnonymousProbe {
 
-    private static final String ANY_METHOD = "*";
 
     /**
      * 宿主插件（SOYSHTTPOverMC 本体）：注册时若无法归属到其它插件则归为本插件
@@ -382,11 +381,11 @@ public class ApiRegistry implements AnonymousProbe {
         String method = httpMethod == null ? "" : httpMethod.toUpperCase();
         pendingHeaders.get().clear(); // 每次请求清空待附加响应头（防跨请求残留）
         EndpointMeta meta = routes.get(method + " " + path);
-        if (meta == null) meta = routes.get(ANY_METHOD + " " + path); // @RequestMapping 不限定方法
+        if (meta == null) meta = routes.get(RequestMethod.ANY.code() + " " + path); // @RequestMapping 不限定方法
         Map<String, String> pathVariables = null;
         if (meta == null) {
             ResolvedMatch pm = matchParameterized(method, path);
-            if (pm == null) pm = matchParameterized(ANY_METHOD, path);
+            if (pm == null) pm = matchParameterized(RequestMethod.ANY.code(), path);
             if (pm != null) {
                 meta = pm.meta;
                 pathVariables = pm.vars;
@@ -679,10 +678,10 @@ public class ApiRegistry implements AnonymousProbe {
         String method = httpMethod == null ? "" : httpMethod.toUpperCase();
         String p = stripQuery(path);
         EndpointMeta meta = routes.get(method + " " + p);
-        if (meta == null) meta = routes.get(ANY_METHOD + " " + p);
+        if (meta == null) meta = routes.get(RequestMethod.ANY.code() + " " + p);
         if (meta == null) {
             ResolvedMatch pm = matchParameterized(method, p);
-            if (pm == null) pm = matchParameterized(ANY_METHOD, p);
+            if (pm == null) pm = matchParameterized(RequestMethod.ANY.code(), p);
             if (pm != null) meta = pm.meta;
         }
         return meta != null && isAnonymousEndpoint(meta);
@@ -1090,10 +1089,10 @@ public class ApiRegistry implements AnonymousProbe {
             String p = firstNonEmpty(rm.path(), rm.value());
             RequestMethod[] methods = rm.method();
             if (methods.length == 0) {
-                list.add(new String[]{ANY_METHOD, p});
+                list.add(new String[]{RequestMethod.ANY.code(), p});
             } else {
                 for (RequestMethod rmethod : methods) {
-                    list.add(new String[]{rmethod.name(), p});
+                    list.add(new String[]{rmethod.code(), p});
                 }
             }
         }

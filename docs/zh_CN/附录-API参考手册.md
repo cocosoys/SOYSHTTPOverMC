@@ -149,8 +149,7 @@ SoysHttpOverMcApi api = HttpOverMcPlugin.getInstance().getApi();
 /soyshttp lang [代码]            # lang sources on|off|download|update|remove|info <索引>
 /soyshttp perm group|user|check|reload ...
 /soyshttp log-level <OFF|ERROR|WARN|INFO|DEBUG|TRACE>
-/soyshttp migrate <来源> <目标>
-/soyshttp sync
+/soyshttp migrate <yaml|sql> <yaml|sql>
 /soyshttp status | report | eula | help
 ```
 

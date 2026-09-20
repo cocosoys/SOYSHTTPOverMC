@@ -1,15 +1,19 @@
 # 第5章 数据存储与ORM
 
-SOYSHTTPOverMC 提供两层数据能力：**KV 存储**（`SyncRecord` 主辅镜像）与 **ORM**（实体注解 + 条件链，YAML/SQL 双后端同一 API）。
+SOYSHTTPOverMC 的持久化统一走 **ORM**（实体注解 + 条件链，YAML/SQL 双后端同一 API）：系统级跨服同步数据（黑名单 / 审计 / 心跳 / 全局密钥）亦为 ORM 实体 `SoysRecord`（表 `soys_records`），经 `DATA` 门面路由读写。
 
-## 5.1 存储架构（StorageManager）
+## 5.1 存储架构（ORM 双后端路由）
 
-### 5.1.1 主辅模型
+实体数据统一经 `DATA` 门面路由：`storage.backends.mysql/sqlite` 任一启用 → 走 SQL（mysql 优先），
+否则回退 YAML（`data/` 下 `<表名>.yml`）。**同一时刻只有一个后端生效**（无主辅、无镜像）；
+跨服共享 = 所有实例连同一 MySQL。
 
-- 所有**已启用**后端中优先级最高者（**MYSQL > SQLITE > YAML**）成为**主存储**，承担全部读操作；
-- 其余启用后端作为**辅助存储**，写入时被镜像同步（热备份 / 降级方案）；
-- 写入收敛到**单线程执行器**，保证写操作严格有序；
-- 任何后端初始化失败被标记不可用跳过，不崩溃；全部不可用时降级为内存模式（日志警告）。
+### 5.1.1 路由规则
+
+- `DATA.sqlEnabled()`：`storage.backends.mysql/sqlite` 已装配（mysql 优先）→ 全部实体走 SQL；
+- 否则回退 `data/<表名>.yml`（YAML 后端，零依赖）；
+- 后端不可用（如 SQL 初始化失败）自动回退 YAML；双不可用时相关 API 抛 `IllegalStateException`（正常配置不触发）；
+- 实体表由 ORM 自动建表 / 补列（SQL `CREATE TABLE IF NOT EXISTS` + 容忍式 `ALTER`；YAML 懒生成）。
 
 ### 5.1.2 config.yml 存储配置
 
@@ -18,7 +22,7 @@ storage:
   backends:
     yaml:
       enabled: true
-      file: data/              # 存放各类 yml 表的文件夹（records.yml + 各 ORM 表 .yml）
+      file: data/              # 存放各类 yml 表的文件夹（soys_records.yml + 各 ORM 表 .yml）
       backup-on-save: false
     sqlite:
       enabled: false
@@ -30,26 +34,28 @@ storage:
       username: root
       password: ''
       table-prefix: ''
-      keepalive-interval: 1800
   cross-server: false      # 跨服同步：所有实例指向同一 MySQL，数据跨服可见
-  mirror:
-    enabled: true          # 辅助存储镜像写入
-    async: true
-    sync-on-startup: false
 ```
 
 - `table-prefix` 若无特殊要求请勿修改（开发者需按前缀获取正确表名）；
-- 跨服同步前提：所有实例 `mysql.enabled: true` 指向同一数据库，MySQL 自动成为主存储；实例各自仍可保留本地 yaml/sqlite 热备份，但**勿在多实例间互相同步**（sync 命令 / sync-on-startup）以免覆盖共享数据。
+- 跨服同步前提：所有实例 `storage.backends.mysql.enabled: true` 指向同一数据库（SQL 后端即共享数据源）；
+  开启 `storage.cross-server: true` 但 SQL 未启用时启动会告警（多实例数据不共享）。
 
-### 5.1.3 数据面（SyncRecord）
+### 5.1.3 数据面（SoysRecord 实体）
 
-存储的数据面是通用 `SyncRecord`（key + value + 时间戳）。`DataStorage` 是后端抽象接口，实现 `getType()/initialize()/shutdown()/isAvailable()/describe()` 与读写方法即可新增后端（在 `StorageManager.buildStorage` 注册一行）。
+跨服同步数据（令牌黑名单 / 签发审计 / 实例心跳 / 全局 JWT 密钥）统一落在 ORM 实体
+`SoysRecord`（表 `soys_records`），经 `DATA` 门面路由读写，语义层为 `RecordSyncStorage`（`SyncStorage` 接口）。
+key 约定：`blacklist:<jti>` / `audit:<jti>:<nonce>` / `instance:<serverId>` / `meta:jwt_secret`。
+审计字段 `create_time / update_time` 由 ORM 写路径自动填充（业务时间以 `updated_at` 为准）。
 
-### 5.1.4 互转与覆盖
+旧数据自动迁移（启动时幂等）：
+- YAML：旧 `records.yml`（根节点 records）→ `soys_records.yml`（根节点 soys_records）；
+- SQL：旧表 `mc_shttp_records` / `mc_shttp_soys_records` → `soys_records`（REPLACE SELECT + DROP）。
+
+### 5.1.4 显式互转
 
 ```text
-/soyshttp migrate <来源> <目标>   # 任意两个后端之间转换数据
-/soyshttp sync                   # 主存储全量覆盖写入所有辅助存储
+/soyshttp migrate <yaml|sql> <yaml|sql>   # 在两个后端之间显式迁移 soys_records 全量数据（绕过自动路由）
 ```
 
 ## 5.2 ORM：实体注解
@@ -160,16 +166,12 @@ Page<User> page = YAML.Pojo.searchPage(User.class, 1, 10, "steve", "name");
 
 ```java
 ConfigSection raw = YAML.Pojo.get(User.class);   // 实体对应文件的原始视图
-raw.set("extra", "value");                       // 自由读写
-YAML.Pojo.save(User.class);                      // 显式落盘（原子写）
-```
-
 ## 5.7 跨服同步
 
-- `storage.cross-server: true` + MySQL：令牌黑名单 / 审计 / 心跳 / 全局密钥跨服可见；
+- `storage.cross-server: true` + MySQL（所有实例指向同一数据库）：令牌黑名单 / 审计 / 心跳 / 全局密钥（实体表 `soys_records`）跨服可见；
 - 插件每 30 秒异步上报心跳（serverId + 服名 + host + port），serverId 规则：群组服 = `proxy.server-name`，独立服 = `standalone-<host>:<port>`；
-- JWT 全局密钥从共享存储下发，保证跨服验签一致。
-
+- JWT 全局密钥从共享存储下发，保证跨服验签一致；
+- 注意：跨服开启但 SQL 未启用时，启动会告警（YAML 为单机文件，无法跨实例共享）。
 
 ## 5.8 数据层自动化运维（Auto Ops / DataRegistrationApi）
 

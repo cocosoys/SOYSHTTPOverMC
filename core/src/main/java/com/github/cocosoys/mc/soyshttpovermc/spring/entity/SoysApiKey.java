@@ -1,6 +1,7 @@
 package com.github.cocosoys.mc.soyshttpovermc.spring.entity;
 
 import com.dlz.db.annotation.IdType;
+import com.github.cocosoys.mc.soyshttpovermc.enums.SoysPermOwnerType;
 import com.dlz.db.annotation.TableId;
 import com.dlz.db.annotation.TableName;
 import com.fasterxml.jackson.annotation.JsonFormat;
@@ -19,7 +20,7 @@ import java.util.Date;
  * 同算法，用于日志/展示脱敏）。明文仅在生成时向管理员展示一次。</p>
  *
  * <p>认证门（AuthPolicy）与权限门（CombinedPermissionService）按请求头明文 → SHA-256 → 哈希查表；
- * 权限节点复用 {@link SoysPermPermission}（ownerType={@link SoysPermPermission#TYPE_APIKEY}、
+ * 权限节点复用 {@link SoysPermPermission}（ownerType={@link SoysPermOwnerType#APIKEY}、
  * ownerId=本表 {@link #id}），支持否定/通配/过期。</p>
  *
  * <p>{@link #uuid} 为<b>绑定玩家预留</b>（可空 = 未绑定）：未来接入后，携带该 key 的请求

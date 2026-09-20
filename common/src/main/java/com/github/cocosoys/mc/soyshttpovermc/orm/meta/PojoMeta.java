@@ -76,7 +76,7 @@ public class PojoMeta {
                 } else {
                     column = ColumnNameConvertor.camelToUnderline(f.getName());
                 }
-                list.add(new FieldMeta(f, column, pk));
+                list.add(new FieldMeta(f, column, pk, tid == null ? null : tid.type()));
             }
         }
         return list;

@@ -1,6 +1,8 @@
 package com.github.cocosoys.mc.soyshttpovermc.orm.executor;
 
+import com.github.cocosoys.mc.soyshttpovermc.orm.convertor.AuditFields;
 import com.github.cocosoys.mc.soyshttpovermc.orm.convertor.BeanCodec;
+import com.dlz.db.annotation.IdType;
 import com.dlz.db.convertor.columnname.ColumnNameLower;
 import com.dlz.db.core.DlzDbProperties;
 import com.dlz.db.core.ISqlExecutor;
@@ -37,6 +39,9 @@ public class SqlBackendExecutor implements IBackendExecutor {
 
     private static volatile SqlBackendExecutor instance;
     private volatile boolean available = false;
+
+    /** 本进程已做自增主键表自愈检查的表（防重复检测）。 */
+    private final java.util.Set<String> autoIdChecked = java.util.concurrent.ConcurrentHashMap.newKeySet();
     private String dbName = "sql";
 
     private SqlBackendExecutor() {
@@ -105,7 +110,7 @@ public class SqlBackendExecutor implements IBackendExecutor {
      * （com.mysql.jdbc.Driver）。与 {@link MysqlStorage#getDriverClass()} 口径一致；
      * 1.6.4/1.7.10 服务端仅带 5.x，1.12.2 若有 cj 则用 cj。
      */
-    private static String detectMysqlDriver() {
+    static String detectMysqlDriver() {
         try {
             Class.forName("com.mysql.cj.jdbc.Driver");
             return "com.mysql.cj.jdbc.Driver";
@@ -114,7 +119,7 @@ public class SqlBackendExecutor implements IBackendExecutor {
         }
     }
 
-    private static HikariDataSource buildHikari(String url, String user, String pass, String driver) {
+    static HikariDataSource buildHikari(String url, String user, String pass, String driver) {
         HikariConfig cfg = new HikariConfig();
         cfg.setJdbcUrl(url);
         if (user != null) cfg.setUsername(user);
@@ -166,19 +171,10 @@ public class SqlBackendExecutor implements IBackendExecutor {
      */
     public void ensureTable(Class<?> beanClass) {
         PojoMeta meta = PojoMeta.of(beanClass);
-        StringBuilder ddl = new StringBuilder("CREATE TABLE IF NOT EXISTS `").append(meta.getTableName()).append("` (");
-        StringBuilder cols = new StringBuilder();
-        for (FieldMeta fm : meta.getFields()) {
-            if (fm.isIgnored()) continue;
-            if (cols.length() > 0) cols.append(", ");
-            // 主键 String 列用 VARCHAR(64)：utf8mb4 下 VARCHAR(255) 主键索引超长（1020B>1000B）
-            String type = fm.isPrimaryKey() && fm.type == String.class ? "VARCHAR(64)" : sqlType(fm.type);
-            cols.append('`').append(fm.columnName).append("` ").append(type);
-            if (fm.isPrimaryKey()) cols.append(" PRIMARY KEY");
-        }
-        ddl.append(cols).append(")");
+        ensureAutoIdTable(meta);
+        String ddl = buildCreateTableDdl(meta, isSqliteDialect());
         try {
-            ex().update(ddl.toString());
+            ex().update(ddl);
         } catch (Throwable t) {
             log.warnT("log.orm.create-table-failed",
                     "[ORM] 建表失败 {0}: {1}", meta.getTableName(), t.getMessage());
@@ -194,6 +190,128 @@ public class SqlBackendExecutor implements IBackendExecutor {
                 // 列已存在 = 预期
             }
         }
+    }
+
+    /**
+     * 生成 CREATE TABLE IF NOT EXISTS DDL（供主/辅助 SQL 后端共用，保证建表口径一致）。
+     *
+     * @param meta           实体元信息
+     * @param sqliteDialect  是否 SQLite 方言（自增主键用 INTEGER PRIMARY KEY AUTOINCREMENT，
+     *                       否则 MySQL 用 BIGINT AUTO_INCREMENT PRIMARY KEY）
+     */
+    static String buildCreateTableDdl(PojoMeta meta, boolean sqliteDialect) {
+        StringBuilder ddl = new StringBuilder("CREATE TABLE IF NOT EXISTS `").append(meta.getTableName()).append("` (");
+        StringBuilder cols = new StringBuilder();
+        for (FieldMeta fm : meta.getFields()) {
+            if (fm.isIgnored()) continue;
+            if (cols.length() > 0) cols.append(", ");
+            if (fm.isPrimaryKey() && fm.isAutoId()) {
+                // 自增主键：MySQL 用 BIGINT AUTO_INCREMENT；SQLite 用 INTEGER PRIMARY KEY AUTOINCREMENT
+                cols.append('`').append(fm.columnName).append("` ")
+                        .append(sqliteDialect ? "INTEGER PRIMARY KEY AUTOINCREMENT"
+                                : "BIGINT AUTO_INCREMENT PRIMARY KEY");
+            } else if (fm.isPrimaryKey()) {
+                // 主键 String 列用 VARCHAR(64)：utf8mb4 下 VARCHAR(255) 主键索引超长（1020B>1000B）
+                String type = fm.type == String.class ? "VARCHAR(64)" : sqlType(fm.type);
+                cols.append('`').append(fm.columnName).append("` ").append(type).append(" PRIMARY KEY");
+            } else {
+                cols.append('`').append(fm.columnName).append("` ").append(sqlType(fm.type));
+            }
+        }
+        ddl.append(cols).append(")");
+        return ddl.toString();
+    }
+
+    /**
+     * 自增主键表自愈：老表主键为 VARCHAR(64)（合成键时代）时，重建为数值自增主键并搬移数据。
+     * 仅对 {@code @TableId(type=AUTO)} 的表生效（MySQL 用 SHOW COLUMNS、SQLite 用 PRAGMA 检测；
+     * 本进程内每个表只检测一次）。
+     */
+    private void ensureAutoIdTable(PojoMeta meta) {
+        FieldMeta idFm = meta.getIdField();
+        if (idFm == null || !idFm.isAutoId()) return;
+        String table = meta.getTableName();
+        if (!autoIdChecked.add(table)) return;
+        if (!tableExists(table)) return;
+        String pkType = queryPrimaryKeyType(table, idFm.columnName);
+        if (pkType != null && pkType.toUpperCase().contains("INT")) return; // 已是整数主键
+        try {
+            rebuildAutoIdTable(meta);
+        } catch (Throwable t) {
+            log.warnT("log.orm.auto-id-rebuild-failed",
+                    "[ORM] 自增主键表重建失败 {0}: {1}", table, t.getMessage());
+        }
+    }
+
+    private String queryPrimaryKeyType(String table, String column) {
+        try {
+            if (isSqliteDialect()) {
+                for (ResultMap row : ex().getList("PRAGMA table_info(`" + table + "`)")) {
+                    Object name = row.get("name");
+                    if (name != null && column.equals(String.valueOf(name))) {
+                        Object t = row.get("type");
+                        return t == null ? null : String.valueOf(t);
+                    }
+                }
+                return null;
+            }
+            for (ResultMap row : ex().getList("SHOW COLUMNS FROM `" + table + "`")) {
+                Object field = row.get("Field");
+                if (field == null) field = row.get("field");
+                if (column.equals(String.valueOf(field))) {
+                    Object t = row.get("Type");
+                    if (t == null) t = row.get("type");
+                    return t == null ? null : String.valueOf(t);
+                }
+            }
+            return null;
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    /**
+     * 重建自增主键表：新建 tmp 表（数值自增主键）→ 搬移业务列数据 → 删旧表 → 更名。
+     * 业务键唯一性由逻辑层查重保证（见 LocalPermissionStore / ApiKeyStore）。
+     */
+    private void rebuildAutoIdTable(PojoMeta meta) {
+        String table = meta.getTableName();
+        String tmp = table + "__new";
+        // 防御：上次重建失败遗留的 tmp 表（幂等清理）
+        try {
+            ex().update("DROP TABLE IF EXISTS `" + tmp + "`");
+        } catch (Throwable ignored) {
+        }
+        List<String> dataCols = new ArrayList<>();
+        StringBuilder create = new StringBuilder("CREATE TABLE `" + tmp + "` (");
+        boolean first = true;
+        for (FieldMeta fm : meta.getFields()) {
+            if (fm.isIgnored()) continue;
+            if (!first) create.append(", ");
+            first = false;
+            if (fm.isPrimaryKey()) {
+                create.append('`').append(fm.columnName).append("` ")
+                        .append(isSqliteDialect() ? "INTEGER PRIMARY KEY AUTOINCREMENT"
+                                : "BIGINT AUTO_INCREMENT PRIMARY KEY");
+            } else {
+                create.append('`').append(fm.columnName).append("` ").append(sqlType(fm.type));
+                dataCols.add(fm.columnName);
+            }
+        }
+        create.append(')');
+        ex().update(create.toString());
+        StringBuilder ins = new StringBuilder();
+        for (int i = 0; i < dataCols.size(); i++) {
+            if (i > 0) ins.append(", ");
+            ins.append('`').append(dataCols.get(i)).append('`');
+        }
+        ex().update("INSERT INTO `" + tmp + "` (" + ins + ") SELECT " + ins + " FROM `" + table + "`");
+        ex().update("DROP TABLE `" + table + "`");
+        ex().update("ALTER TABLE `" + tmp + "` RENAME TO `" + table + "`");
+    }
+
+    private boolean isSqliteDialect() {
+        return "sqlite".equalsIgnoreCase(dbName);
     }
 
     /**
@@ -226,7 +344,7 @@ public class SqlBackendExecutor implements IBackendExecutor {
             return false;
         }
     }
-    private static String sqlType(Class<?> type) {
+    static String sqlType(Class<?> type) {
         if (type == String.class) return "VARCHAR(255)";
         if (type == Integer.class || type == int.class) return "INT";
         if (type == Long.class || type == long.class) return "BIGINT";
@@ -356,7 +474,7 @@ public class SqlBackendExecutor implements IBackendExecutor {
         return bean;
     }
 
-    private static Object convertValue(Object raw, Class<?> type) {
+    static Object convertValue(Object raw, Class<?> type) {
         if (type == String.class) return String.valueOf(raw);
         if (type == Integer.class || type == int.class)
             return raw instanceof Number ? ((Number) raw).intValue() : Integer.parseInt(String.valueOf(raw));
@@ -373,9 +491,9 @@ public class SqlBackendExecutor implements IBackendExecutor {
     }
 
     /**
-     * 实体 → 列值数组（写路径）。
+     * 实体 → 列值数组（写路径）。静态提取：主/辅助 SQL 后端共用同一编码口径。
      */
-    private Object[] beanToValues(PojoMeta meta, Object bean, boolean includeId) {
+    static Object[] beanToValues(PojoMeta meta, Object bean, boolean includeId) {
         List<Object> vals = new ArrayList<>();
         for (FieldMeta fm : meta.getFields()) {
             if (fm.isIgnored()) continue;
@@ -392,11 +510,11 @@ public class SqlBackendExecutor implements IBackendExecutor {
     }
 
     /** 条件值编码（Date → 统一日期字符串，与列存储一致）。 */
-    private static Object encodeCond(Object v) {
+    static Object encodeCond(Object v) {
         return v instanceof java.util.Date ? BeanCodec.formatDate((java.util.Date) v) : v;
     }
 
-    private static Object encodeValue(Object v) {
+    static Object encodeValue(Object v) {
         if (v instanceof java.util.Date) return BeanCodec.formatDate((java.util.Date) v);
         if (v instanceof Enum) return ((Enum<?>) v).name();
         return v;
@@ -504,9 +622,47 @@ public class SqlBackendExecutor implements IBackendExecutor {
      */
     private <T> boolean upsert(Class<T> beanClass, Object bean) {
         if (!available || bean == null) return false;
+        AuditFields.fill(bean);
         ensureTable(beanClass);
         PojoMeta meta = PojoMeta.of(beanClass);
         if (!meta.hasId()) return false;
+        FieldMeta idFm = meta.getIdField();
+        Object idVal = readId(bean, idFm);
+        if (idFm.isAutoId() && idVal == null) {
+            // 自增新增：INSERT 排除主键列，数据库自增 + 生成键回填
+            StringBuilder cols = new StringBuilder();
+            StringBuilder q = new StringBuilder();
+            List<Object> vals = new ArrayList<>();
+            for (FieldMeta fm : meta.getFields()) {
+                if (fm.isIgnored() || fm.isPrimaryKey()) continue;
+                if (cols.length() > 0) {
+                    cols.append(", ");
+                    q.append(", ");
+                }
+                cols.append('`').append(fm.columnName).append('`');
+                q.append('?');
+                try {
+                    fm.field.setAccessible(true);
+                    vals.add(encodeValue(fm.field.get(bean)));
+                } catch (IllegalAccessException ignored) {
+                    vals.add(null);
+                }
+            }
+            String sql = "INSERT INTO `" + table(beanClass) + "` (" + cols + ") VALUES (" + q + ")";
+            try {
+                Long newId = ex().updateForId(sql, vals.toArray());
+                if (newId == null) return false;
+                try {
+                    idFm.field.setAccessible(true);
+                    idFm.field.set(bean, newId);
+                } catch (IllegalAccessException ignored) {
+                }
+                return true;
+            } catch (Throwable t) {
+                log.warnT("log.orm.upsert-failed", "[ORM] upsert 失败: {0}", t.getMessage());
+                return false;
+            }
+        }
         StringBuilder cols = new StringBuilder();
         StringBuilder q = new StringBuilder();
         List<Object> vals = new ArrayList<>();
@@ -532,6 +688,15 @@ public class SqlBackendExecutor implements IBackendExecutor {
         } catch (Throwable t) {
             log.warnT("log.orm.upsert-failed", "[ORM] upsert 失败: {0}", t.getMessage());
             return false;
+        }
+    }
+
+    private static Object readId(Object bean, FieldMeta idFm) {
+        try {
+            idFm.field.setAccessible(true);
+            return idFm.field.get(bean);
+        } catch (IllegalAccessException e) {
+            return null;
         }
     }
 
