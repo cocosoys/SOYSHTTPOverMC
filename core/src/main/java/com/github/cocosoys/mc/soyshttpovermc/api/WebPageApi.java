@@ -308,4 +308,24 @@ public interface WebPageApi {
      */
     void removeIndexRule(String ownerName);
 
+    // ===== SPA 回退声明（history 模式；两层 404）=====
+
+    /**
+     * 声明/撤销某插件的 SPA 回退（history 模式）能力：声明后其命名空间
+     * {@code /web/plugins/<插件名>/<无扩展名路径>} 常规解析未命中时回退该插件根下 index.html
+     * （HTTP 200，前端 vue-router 判定路由有效性）；<b>带扩展名</b>路径（.js/.css/… 疑似静态资源）
+     * 未命中仍保持 HTTP 404、绝不回退（避免旧 chunk 残留被 HTML 吞掉）。未声明插件保持原 404 语义。
+     * <p>配合前端：前端应使用 history 模式并将 vue-router base 设为契约注入的
+     * {@code pageBase}（/web/plugins/&lt;插件名&gt;/），并配置 catch-all 404 路由承接无效路径。</p>
+     *
+     * @param ownerName 插件名（与页面 URL 前缀 /web/plugins/&lt;插件名&gt; 一致；null/空忽略）
+     * @param enabled   true=声明（无扩展名未命中回退 index.html）；false=撤销
+     */
+    void setSpaFallback(String ownerName, boolean enabled);
+
+    /**
+     * 移除某插件的 SPA 回退声明（页面反注册时调用；移除后该插件未命中一律 404）。
+     */
+    void removeSpaFallback(String ownerName);
+
 }

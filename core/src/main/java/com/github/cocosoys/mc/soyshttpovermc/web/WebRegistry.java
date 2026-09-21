@@ -65,6 +65,14 @@ public class WebRegistry {
      */
     private final Map<String, IndexRule> indexRules = new ConcurrentHashMap<>();
     /**
+     * SPA 回退（history 模式）声明表：owner 插件名集合。插件经
+     * {@link #setSpaFallback(String, boolean)} 声明后，其命名空间
+     * {@code /web/plugins/<插件名>/<无扩展名路径>} 常规解析未命中时回退该插件根下的
+     * index.html（200，交由前端 vue-router 判定）；未声明插件保持原 404 语义。
+     * {@link #resolveSpaFallback} 读取；{@link #unregisterPlugin} 一并清理。
+     */
+    private final Set<String> spaFallbacks = ConcurrentHashMap.newKeySet();
+    /**
      * 宿主插件名（SOYSHTTPOverMC 本体）：其登记不加 /plugins 前缀
      */
     private final String hostName;
@@ -776,6 +784,65 @@ public class WebRegistry {
         return null;
     }
 
+    // ===== SPA 回退（history 模式：无扩展名未命中 → 回退插件根 index.html，两层 404） =====
+
+    /**
+     * 声明/撤销某插件的 SPA 回退（history 模式）能力（SoysExpansion 页面托管时调用）。
+     * <p>声明后：该插件命名空间 {@code /web/plugins/<插件名>/<无扩展名路径>} 常规解析全部未命中时，
+     * 回退该插件根下 index.html（HTTP 200，交由前端 vue-router 判定路由有效性）；
+     * <b>带扩展名</b>路径（疑似静态资源，如旧版 chunk .js）未命中仍返回 HTTP 404、绝不回退
+     * （避免 MIME 错误与静默失败）。未声明插件保持原 404 语义。</p>
+     *
+     * @param ownerName 插件名（URL 前缀 /web/plugins/&lt;插件名&gt; 的归属方；null/空忽略）
+     * @param enabled   true=声明（无扩展名未命中回退 index.html）；false=撤销
+     */
+    public void setSpaFallback(String ownerName, boolean enabled) {
+        if (ownerName == null || ownerName.isEmpty()) return;
+        if (enabled) {
+            spaFallbacks.add(ownerName);
+        } else {
+            spaFallbacks.remove(ownerName);
+        }
+    }
+
+    /**
+     * 移除某插件的 SPA 回退声明（页面反注册时调用；移除后该插件未命中一律 404）。
+     */
+    public void removeSpaFallback(String ownerName) {
+        if (ownerName == null) return;
+        spaFallbacks.remove(ownerName);
+    }
+
+    /**
+     * 查询某插件是否已声明 SPA 回退（契约注入 {@code spaFallback} 字段取值）。
+     */
+    public boolean isSpaFallbackEnabled(String ownerName) {
+        return ownerName != null && spaFallbacks.contains(ownerName);
+    }
+
+    /**
+     * SPA 回退探测：仅当 {@code cleanPath} 为<b>无扩展名</b>路径、归属插件已声明
+     * {@link #setSpaFallback(String, boolean)} 且常规解析全部未命中时调用。
+     * 命中返回回退目标路径（{@code /web/plugins/<插件名>/index}，外层再经 resolve 智能匹配
+     * 命中 index.html 后按正常页面服务），未命中返回 null。
+     * <p>两层 404 语义：带扩展名路径（.js/.css/…）未命中一律不回退（静态资源缺失由 HTTP 404
+     * 暴露，避免旧 chunk 残留被 HTML 吞掉）；仅无扩展名的 SPA 路由形态回退 index.html，
+     * 路径有效性由前端 catch-all 404 路由判定。</p>
+     */
+    public String resolveSpaFallback(String httpMethod, String cleanPath) {
+        if (cleanPath == null || cleanPath.isEmpty() || "/".equals(cleanPath)) return null;
+        String method = httpMethod == null ? RequestMethod.GET.code() : httpMethod.toUpperCase();
+        if (!RequestMethod.GET.code().equals(method)) return null;
+        if (cleanPath.indexOf('.') >= 0) return null;   // 带扩展名：两层 404，绝不回退
+        String owner = ownerOf(cleanPath);
+        if (owner == null || !spaFallbacks.contains(owner)) return null;
+        String base = "/web/plugins/" + owner + "/";
+        String target = base + "index";
+        // 仅当该插件根下确有 index.html（经 .html 智能匹配）才回退，否则保持 404
+        if (lookup(pages, method, target) != null) return target;
+        return null;
+    }
+
     /** 目录索引兜底规则（不可变值对象）。 */
     private static final class IndexRule {
         final boolean enabled;
@@ -903,6 +970,8 @@ public class WebRegistry {
         errorPages.entrySet().removeIf(e -> pluginName.equals(e.getValue().ownerPlugin));
         // 一并清理该插件的目录索引兜底规则（页面已卸载，规则随插件移除）
         indexRules.remove(pluginName);
+        // 一并清理该插件的 SPA 回退声明（页面已卸载，声明随插件移除）
+        spaFallbacks.remove(pluginName);
     }
 
     /**

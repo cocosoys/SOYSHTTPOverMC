@@ -240,33 +240,7 @@ public class WebFrontendHandler {
         if (webRegistry != null) {
             WebRegistry.Entry page = webRegistry.resolve(m, cleanPath);
             if (page != null) {
-                // web 资源访问监听（copy 快照；监听器可跳转拦截 / 拒绝 / 替换本次响应）
-                WebResourceAccess acc = webRegistry.fireResourceAccess(m, cleanPath, query, headers,
-                        java.util.Collections.singletonList(ResourceAccess.of(page)));
-                if (acc != null) loadedResources.add(acc);
-                if (acc != null && acc.result().isHandled()) return fromResourceResult(acc.result());
-                // 网页访问权限守卫：仅对可导航（HTML 页 / 跳转）生效，资源不拦
-                if (page.isNavigable()) {
-                    FrameProto.HttpResponseFrame guard = checkPageGuard(headers, cleanPath, page.permissions);
-                    if (guard != null) return guard;
-                }
-                if (page.redirectTo != null) {
-                    return HttpFrames.redirect(page.redirectCode > 0 ? page.redirectCode : 302, page.redirectTo);
-                }
-                byte[] pageBody = loadBytes(page.path, page.getDiskFile(), page::resolveBytes);
-                if (contractInjector != null) {
-                    pageBody = contractInjector.maybeInject(page.path, page.ownerPlugin, pageBody);
-                    if (pageBody != null && isHtmlContentType(page.effectiveContentType())) {
-                        pageBody = contractInjector.maybeRewriteHtml(page.path, page.ownerPlugin, pageBody);
-                    }
-                }
-                return FrameProto.HttpResponseFrame.newBuilder()
-                        .setStatusCode(200)
-                        .putHeaders("Content-Type", page.effectiveContentType())
-                        .setBody(ByteString.copyFrom(pageBody))
-                        .setFragmentIndex(0)
-                        .setTotalFragments(1)
-                        .build();
+                return serveEntry(m, cleanPath, query, headers, page, loadedResources);
             }
             // 网络文件/网络网页页面（NetworkPage 抽象：开发者自定义传输，如加密；按需 load + 可选缓存）
             NetworkPage np = webRegistry.resolveNetworkPage(m, cleanPath);
@@ -290,6 +264,19 @@ public class WebFrontendHandler {
             String indexRedirect = webRegistry.resolveDirectoryIndex(m, cleanPath);
             if (indexRedirect != null) {
                 return HttpFrames.redirect(302, indexRedirect);
+            }
+            // SPA 回退（history 模式，两层 404）：仅<b>无扩展名</b>路径、且该插件已声明
+            // spaFallback 时，常规解析未命中回退其根下 index.html（HTTP 200，前端 vue-router
+            // 判定路由有效性）；<b>带扩展名</b>路径（.js/.css/… 疑似静态资源）未命中保持 HTTP 404
+            // 绝不回退（避免旧 chunk 残留被 HTML 吞掉 → MIME 错误/静默失败）。权限守卫与
+            // 资源访问监听仍按用户实际请求路径（SPA 路由路径）判定，pages.yml 规则语义不变；
+            // 契约注入/内容加载按回退目标（index.html）执行。
+            String spaTarget = webRegistry.resolveSpaFallback(m, cleanPath);
+            if (spaTarget != null) {
+                WebRegistry.Entry spaEntry = webRegistry.resolve(m, spaTarget);
+                if (spaEntry != null) {
+                    return serveEntry(m, cleanPath, query, headers, spaEntry, loadedResources);
+                }
             }
         }
 
@@ -323,6 +310,46 @@ public class WebFrontendHandler {
                 .putHeaders("Content-Type", hit.contentType != null
                         ? hit.contentType : MimeTypes.forPath(hit.name))
                 .setBody(ByteString.copyFrom(hitBody))
+                .setFragmentIndex(0)
+                .setTotalFragments(1)
+                .build();
+    }
+
+    /**
+     * 服务已解析的登记页（普通页面与 SPA 回退共用）：
+     * web 资源访问监听（按用户实际请求路径）→ 权限守卫（pages.yml 按请求 URL 判定）→
+     * 跳转 → 内容加载（缓存）→ 契约注入/HTML 改写（按登记项来源执行）→ 200 响应。
+     * <p>SPA 回退场景（{@code resolveSpaFallback} → resolve 命中 index.html）传入的
+     * {@code cleanPath} 仍是用户原始请求的 SPA 路由路径（事件与权限语义不变），
+     * 内容来源 {@code page} 为回退目标 index.html 的登记项。</p>
+     */
+    private FrameProto.HttpResponseFrame serveEntry(String m, String cleanPath, String query,
+                                                    Map<String, String> headers, WebRegistry.Entry page,
+                                                    List<WebResourceAccess> loadedResources) {
+        // web 资源访问监听（copy 快照；监听器可跳转拦截 / 拒绝 / 替换本次响应）
+        WebResourceAccess acc = webRegistry.fireResourceAccess(m, cleanPath, query, headers,
+                java.util.Collections.singletonList(ResourceAccess.of(page)));
+        if (acc != null) loadedResources.add(acc);
+        if (acc != null && acc.result().isHandled()) return fromResourceResult(acc.result());
+        // 网页访问权限守卫：仅对可导航（HTML 页 / 跳转）生效，资源不拦
+        if (page.isNavigable()) {
+            FrameProto.HttpResponseFrame guard = checkPageGuard(headers, cleanPath, page.permissions);
+            if (guard != null) return guard;
+        }
+        if (page.redirectTo != null) {
+            return HttpFrames.redirect(page.redirectCode > 0 ? page.redirectCode : 302, page.redirectTo);
+        }
+        byte[] pageBody = loadBytes(page.path, page.getDiskFile(), page::resolveBytes);
+        if (contractInjector != null) {
+            pageBody = contractInjector.maybeInject(page.path, page.ownerPlugin, pageBody);
+            if (pageBody != null && isHtmlContentType(page.effectiveContentType())) {
+                pageBody = contractInjector.maybeRewriteHtml(page.path, page.ownerPlugin, pageBody);
+            }
+        }
+        return FrameProto.HttpResponseFrame.newBuilder()
+                .setStatusCode(200)
+                .putHeaders("Content-Type", page.effectiveContentType())
+                .setBody(ByteString.copyFrom(pageBody))
                 .setFragmentIndex(0)
                 .setTotalFragments(1)
                 .build();

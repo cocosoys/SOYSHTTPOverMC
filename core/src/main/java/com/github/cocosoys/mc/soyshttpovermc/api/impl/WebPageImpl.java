@@ -514,4 +514,24 @@ public class WebPageImpl implements WebPageApi {
         }
     }
 
+    @Override
+    public void setSpaFallback(String ownerName, boolean enabled) {
+        try {
+            webRegistry.setSpaFallback(ownerName, enabled);
+        } catch (Exception ex) {
+            throw ExceptionBus.fire(new WebPageException("E_SPA_RULE", "exception.web.register-spa-rule",
+                    "设置 SPA 回退声明失败(plugin={0}): {1}", ex, ownerName, ex.getMessage()));
+        }
+    }
+
+    @Override
+    public void removeSpaFallback(String ownerName) {
+        try {
+            webRegistry.removeSpaFallback(ownerName);
+        } catch (Exception ex) {
+            throw ExceptionBus.fire(new WebPageException("E_SPA_RULE", "exception.web.remove-spa-rule",
+                    "移除 SPA 回退声明失败(plugin={0}): {1}", ex, ownerName, ex.getMessage()));
+        }
+    }
+
 }

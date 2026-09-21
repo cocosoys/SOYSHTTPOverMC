@@ -626,6 +626,8 @@ public class HttpOverMcPluginProxy {
 
         this.contractInjector = new ContractInjector(plugin, plugin.getApiRegistry());
         plugin.setWebRegistry(new WebRegistry(plugin.getName(), contractInjector));
+        // 契约注入器反向注入网页注册表（SPA 回退状态查询：契约 spaFallback/pageBase 取值）
+        contractInjector.setWebRegistry(plugin.getWebRegistry());
 
         plugin.setGatewayEventListener(new GatewayEventListener());
         plugin.getGatewayEventListener().setDebugEnabled(plugin.isDebugEventsEnabled());

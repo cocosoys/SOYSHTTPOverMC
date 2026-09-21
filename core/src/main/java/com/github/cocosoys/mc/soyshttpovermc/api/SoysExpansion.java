@@ -198,6 +198,18 @@ public abstract class SoysExpansion {
     }
 
     /**
+     * SPA 回退（history 模式）声明开关（默认 true=声明）：声明后本插件命名空间
+     * {@code /web/plugins/<插件名>/<无扩展名路径>} 常规解析未命中时，回退该插件根下 index.html
+     * （HTTP 200，交由前端 vue-router 判定路由有效性）；<b>带扩展名</b>路径（.js/.css/… 疑似
+     * 静态资源，如旧版 chunk）未命中保持 HTTP 404、绝不回退。仅在 {@link #resourceRoot()} 非空时生效。
+     * <p>配套前端：前端应使用 history 模式，vue-router base 取契约注入的 {@code pageBase}
+     * （= /web/plugins/&lt;插件名&gt;/），并配置 catch-all 404 路由承接无效路径（两层 404 语义）。</p>
+     */
+    protected boolean spaFallback() {
+        return true;
+    }
+
+    /**
      * CORS 声明列表：非空时 {@link #registerCors()} 逐条自动注册。返回 null = 无 CORS。
      */
     protected CorsSpec[] cors() {
@@ -538,6 +550,9 @@ public abstract class SoysExpansion {
             // 目录索引兜底规则：访问 /web/plugins/<插件名> 自动导航到 …/<indexFile>（默认 index）。
             // 仅在启用了页面托管时注册；开关/文件名可经 indexFallbackEnabled()/indexFile() 覆写。
             a.getWebPage().setIndexRule(o.getName(), indexFallbackEnabled(), indexFile());
+            // SPA 回退声明（history 模式）：无扩展名未命中回退根下 index.html（两层 404 语义）。
+            // 仅在启用了页面托管时声明；开关可经 spaFallback() 覆写（契约 spaFallback/pageBase 同步注入）。
+            a.getWebPage().setSpaFallback(o.getName(), spaFallback());
             return true;
         } catch (Exception ex) {
             log.warnT("log.expansion.pages-register-fail", "SoysExpansion 页面托管失败: {0}: {1}", getIdentifier(), ex.getMessage());
@@ -652,6 +667,10 @@ public abstract class SoysExpansion {
             Plugin o = owner;
             if (o != null) {
                 a.getWebPage().removeIndexRule(o.getName());
+            }
+            // 一并移除本扩展的 SPA 回退声明（页面已卸载，声明随模块移除）
+            if (o != null) {
+                a.getWebPage().removeSpaFallback(o.getName());
             }
         } catch (Exception ex) {
             log.warnT("log.expansion.pages-unregister-fail", "SoysExpansion 页面反注册失败: {0}: {1}", getIdentifier(), ex.getMessage());

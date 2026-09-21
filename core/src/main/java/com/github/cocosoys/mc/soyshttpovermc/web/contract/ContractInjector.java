@@ -3,6 +3,7 @@ package com.github.cocosoys.mc.soyshttpovermc.web.contract;
 import com.github.cocosoys.mc.soyshttpovermc.HttpOverMcPlugin;
 import com.github.cocosoys.mc.soyshttpovermc.util.JsonWriter;
 import com.github.cocosoys.mc.soyshttpovermc.web.ApiRegistry;
+import com.github.cocosoys.mc.soyshttpovermc.web.WebRegistry;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -43,7 +44,9 @@ import java.util.regex.Pattern;
  *   "pluginsPrefix": "/plugins/SOYSHTTPOverMC",             // 按登记插件 owner 计算；主插件 ""
  *   "apiFullPrefix": "/api/plugins/SOYSHTTPOverMC",          // apiPrefix + pluginsPrefix 归一
  *   "pageFullPrefix": "/web/plugins/SOYSHTTPOverMC",         // 页面 URL 前缀（主插件 ""）
- *   "webResourcePrefix": "/web/plugins/SOYSHTTPOverMC/page"  // 快捷注册资源默认前缀
+ *   "webResourcePrefix": "/web/plugins/SOYSHTTPOverMC/page", // 快捷注册资源默认前缀
+ *   "spaFallback": true,                                      // 是否声明 SPA 回退（history 两层 404）
+ *   "pageBase": "/web/plugins/SOYSHTTPOverMC/"                // vue-router base（主插件 "/"）
  * };
  * </pre>
  */
@@ -81,6 +84,10 @@ public class ContractInjector {
 
     private final HttpOverMcPlugin host;
     private final ApiRegistry apiRegistry;
+    /**
+     * 网页登记注册表（契约 {@code spaFallback} 状态查询；null=未注入，视为未声明）。
+     */
+    private volatile WebRegistry webRegistry;
 
     /**
      * 各插件声明的排除列表缓存（ownerName -> excludes）；null/未登记 = 默认排除 /api。
@@ -91,6 +98,14 @@ public class ContractInjector {
     public ContractInjector(HttpOverMcPlugin host, ApiRegistry apiRegistry) {
         this.host = host;
         this.apiRegistry = apiRegistry;
+    }
+
+    /**
+     * 注入网页登记注册表（SPA 回退状态查询用）。由主插件在 WebRegistry 构建后调用，
+     * 保持现有构造器签名不变（契约注入器与网页注册中心解耦）。
+     */
+    public void setWebRegistry(WebRegistry webRegistry) {
+        this.webRegistry = webRegistry;
     }
 
     /**
@@ -281,6 +296,11 @@ public class ContractInjector {
         String apiFullPrefix = joinFull(apiPrefix, pluginsPrefix);
         String pageFullPrefix = mainPlugin ? "" : "/web/plugins/" + owner;
         String webResourcePrefix = "/web/plugins/" + owner + "/page";
+        // SPA 回退声明状态（前端据此决定 history/hash 模式；未注入注册表视为未声明）
+        boolean spaFallback = webRegistry != null && webRegistry.isSpaFallbackEnabled(owner);
+        // vue-router base：非主插件 = pageFullPrefix + "/"（如 /web/plugins/MCER/）；
+        // 主插件特判（pageFullPrefix="" 时公式不成立）→ 根 "/"（资源托管于根路径）。
+        String pageBase = mainPlugin ? "/" : pageFullPrefix + "/";
 
         // 契约 JSON 统一经 JsonWriter 输出（键序由 LinkedHashMap 保持，值统一转义）
         Map<String, Object> contract = new LinkedHashMap<>();
@@ -292,6 +312,8 @@ public class ContractInjector {
         contract.put("apiFullPrefix", apiFullPrefix);
         contract.put("pageFullPrefix", pageFullPrefix);
         contract.put("webResourcePrefix", webResourcePrefix);
+        contract.put("spaFallback", spaFallback);
+        contract.put("pageBase", pageBase);
         return JsonWriter.write(contract);
     }
 
