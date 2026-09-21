@@ -246,20 +246,25 @@ permission:
 
 
 # ============================================================================
-#  数据存储（ORM 多后端：主 + 辅助）
+#  数据存储（ORM 多后端：单主 + 指定类型读写）
 # ----------------------------------------------------------------------------
-#  【主辅路由】
+#  【单主路由】
 #  实体数据经 DATA 门面路由到【主存储】= 已启用后端中 priority 最高者
-#  （MYSQL 30 > SQLITE 20 > YAML 10）；其余已启用后端为【辅助存储】。
+#  （MYSQL 30 > SQLITE 20 > YAML 10）；默认读写只落主存储（写不镜像）。
 #  mysql 与 sqlite 可同时启用（各自独立数据源），YAML 默认启用（零依赖兜底）。
 #  例: 启用 mysql（mysql.enabled: true）-> 全部实体（含 soys_records 跨服同步表）
-#      读写走 MySQL（主），sqlite 仍启用则作为辅助；
+#      默认读写走 MySQL（主），sqlite 仍启用则作为辅助；
 #      仅启用 yaml -> 主=YAML（全部实体读写走 data/*.yml）。
 #
+#  【指定类型读写】
+#  其余启用后端仍可被访问——DATA 门面所有方法提供带后端类型参数的重载
+#  （如 DATA.get(StorageType.SQLITE, User.class, id)、DATA.upsertAll(...)），
+#  显式选择后端执行读写，操作与默认读写无异常、仅多一个后端类型参数。
+#
 #  【后端迁移】
-#  /soyshttp migrate <yaml|sqlite|mysql> <yaml|sqlite|mysql>  —— 合并语义（按 key upsert，不清空）
-#  /soyshttp sync [<from> <to> [confirm]]                      —— 覆盖语义（先清后写，SQL 同事务回滚）
-#    无参 = 主存储 → 全部辅助存储全量覆盖；带参 = 定向覆盖（需 confirm 二次确认）。
+#  /soyshttp migrate <yaml|sqlite|mysql> <yaml|sqlite|mysql> [confirm]  —— 合并语义（按 key upsert，不清空）
+#  /soyshttp sync [<from> <to> [confirm]] / sync confirm                  —— 覆盖语义（先清后写，SQL 同事务回滚）
+#    无参 = 主存储 → 全部辅助存储全量覆盖（预览后追加 confirm 执行）；带参 = 定向覆盖（需 confirm 二次确认）。
 # ============================================================================
 storage:
 

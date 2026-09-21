@@ -4,8 +4,9 @@ import com.github.cocosoys.mc.soyshttpovermc.i18n.I18n;
 
 /**
  * 存储后端类型：
- * priority 决定主存储选取——所有已启用后端中 priority 最高者作为主存储（承担全部读操作），
- * 其余作为辅助存储被镜像写入（热备份）。固定优先级 MYSQL > SQLITE > YAML。
+ * priority 决定主存储选取——所有已启用后端中 priority 最高者作为主存储（默认读写只落主存储），
+ * 其余已启用后端作为"指定类型读写"目标（经 {@code DATA} 带 StorageType 参数的重载显式访问）。
+ * 固定优先级 MYSQL > SQLITE > YAML。
  */
 public enum StorageType {
 

@@ -23,7 +23,12 @@ import com.github.cocosoys.mc.soyshttpovermc.spi.ConfigSection;
 import com.github.cocosoys.mc.soyshttpovermc.spi.Platform;
 import lombok.CustomLog;
 
+import java.sql.Connection;
 import java.sql.Date;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -43,6 +48,9 @@ public class SqlBackendExecutor implements IBackendExecutor {
     /** 本进程已做自增主键表自愈检查的表（防重复检测）。 */
     private final java.util.Set<String> autoIdChecked = java.util.concurrent.ConcurrentHashMap.newKeySet();
     private String dbName = "sql";
+
+    /** 装配时的 Hikari 数据源（批量迁移 / 行数统计走裸 JDBC，与 dlz 链路共用同一数据源，避免双连接池）。 */
+    private HikariDataSource ds;
 
     private SqlBackendExecutor() {
     }
@@ -80,6 +88,7 @@ public class SqlBackendExecutor implements IBackendExecutor {
             SqlBackendExecutor e = new SqlBackendExecutor();
             e.available = true;
             e.dbName = name == null ? "sql" : name;
+            e.ds = ds;
             instance = e;
             log.infoT("log.orm.sql-assembled",
                     "[ORM] SQL 后端已装配: {0}（dlz-db-core + HikariCP）", e.dbName);
@@ -712,6 +721,132 @@ public class SqlBackendExecutor implements IBackendExecutor {
         } catch (Throwable t) {
             log.warnT("log.orm.delete-by-id-failed", "[ORM] deleteById 失败: {0}", t.getMessage());
             return false;
+        }
+    }
+
+    // ===== 批量迁移原语（裸 JDBC，与主端共用同一数据源；sync/migrate 与“指定类型读写”门面使用） =====
+
+    /** 行数统计（COUNT(*)，表不存在/不可读返回 -1）。 */
+    public long count(Class<?> beanClass) {
+        if (!available || ds == null) return -1;
+        String table = table(beanClass);
+        try (Connection conn = ds.getConnection();
+             Statement st = conn.createStatement();
+             ResultSet rs = st.executeQuery("SELECT COUNT(*) FROM `" + table + "`")) {
+            return rs.next() ? rs.getLong(1) : 0;
+        } catch (SQLException t) {
+            return -1;
+        }
+    }
+
+    /** 清空表（DELETE FROM；先清后写覆盖语义的“清”）。 */
+    public void clear(Class<?> beanClass) {
+        if (!available || ds == null) return;
+        String table = table(beanClass);
+        try (Connection conn = ds.getConnection(); Statement st = conn.createStatement()) {
+            st.executeUpdate("DELETE FROM `" + table + "`");
+        } catch (SQLException t) {
+            log.warnT("log.orm.sql-clear-failed", "[ORM] SQL 清空失败 {0}: {1}", table, t.getMessage());
+        }
+    }
+
+    /**
+     * 覆盖写入（先清后写，同一事务失败回滚）：目标表清空后逐条 REPLACE INTO。
+     *
+     * @return 实际写入条数
+     */
+    public int upsertAll(Class<?> beanClass, List<?> beans) {
+        if (beans == null || beans.isEmpty()) return 0;
+        String sql = replaceSql(beanClass);
+        if (sql == null) return 0;
+        PojoMeta meta = PojoMeta.of(beanClass);
+        int written = 0;
+        try (Connection conn = ds.getConnection()) {
+            conn.setAutoCommit(false);
+            try {
+                try (Statement st = conn.createStatement()) {
+                    st.executeUpdate("DELETE FROM `" + meta.getTableName() + "`");
+                }
+                written = replaceBatch(conn, sql, meta, beans);
+                conn.commit();
+            } catch (SQLException t) {
+                rollbackQuiet(conn);
+                log.warnT("log.orm.sql-upsert-all-failed",
+                        "[ORM] SQL 覆盖写入失败 {0}（已回滚）: {1}", meta.getTableName(), t.getMessage());
+                throw t;
+            }
+        } catch (SQLException t) {
+            return 0;
+        }
+        return written;
+    }
+
+    /**
+     * 合并写入（按 key upsert，不清空目标表）：逐条 REPLACE INTO，同一事务失败回滚。
+     *
+     * @return 实际写入条数
+     */
+    public int mergeAll(Class<?> beanClass, List<?> beans) {
+        if (beans == null || beans.isEmpty()) return 0;
+        String sql = replaceSql(beanClass);
+        if (sql == null) return 0;
+        PojoMeta meta = PojoMeta.of(beanClass);
+        int written = 0;
+        try (Connection conn = ds.getConnection()) {
+            conn.setAutoCommit(false);
+            try {
+                written = replaceBatch(conn, sql, meta, beans);
+                conn.commit();
+            } catch (SQLException t) {
+                rollbackQuiet(conn);
+                log.warnT("log.orm.sql-merge-all-failed",
+                        "[ORM] SQL 合并写入失败 {0}（已回滚）: {1}", meta.getTableName(), t.getMessage());
+                throw t;
+            }
+        } catch (SQLException t) {
+            return 0;
+        }
+        return written;
+    }
+
+    /** 拼装 REPLACE INTO 语句（含全部非忽略列）。 */
+    private String replaceSql(Class<?> beanClass) {
+        if (!available || ds == null) return null;
+        PojoMeta meta = PojoMeta.of(beanClass);
+        StringBuilder cols = new StringBuilder();
+        StringBuilder marks = new StringBuilder();
+        for (FieldMeta fm : meta.getFields()) {
+            if (fm.isIgnored()) continue;
+            if (cols.length() > 0) {
+                cols.append(", ");
+                marks.append(", ");
+            }
+            cols.append('`').append(fm.columnName).append('`');
+            marks.append('?');
+        }
+        return "REPLACE INTO `" + meta.getTableName() + "` (" + cols + ") VALUES (" + marks + ")";
+    }
+
+    private int replaceBatch(Connection conn, String sql, PojoMeta meta, List<?> beans) throws SQLException {
+        int written = 0;
+        for (Object bean : beans) {
+            AuditFields.fill(bean);
+            Object[] vals = beanToValues(meta, bean, true);
+            try (PreparedStatement ps = conn.prepareStatement(sql)) {
+                for (int i = 0; i < vals.length; i++) {
+                    ps.setObject(i + 1, vals[i]);
+                }
+                ps.executeUpdate();
+            }
+            written++;
+        }
+        return written;
+    }
+
+    private static void rollbackQuiet(Connection conn) {
+        try {
+            conn.rollback();
+        } catch (SQLException ignored) {
         }
     }
 

@@ -24,12 +24,12 @@ import java.util.List;
  * 目标<b>先清空后写入</b>；SQL 目标端包在同一事务内、失败回滚，YAML 端内存构建后一次性原子落盘；
  * 写入后做<b>行数校验</b>（源 count vs 目标 count，不一致告警）。</p>
  *
- * <p>迁移范围 = {@link MigrationTables} 统一清单。所有后端读写统一走 {@link DATA} 门面
+ * <p>迁移范围 = {@link MigrateSubCommand.MigrationTables} 统一清单。所有后端读写统一走 {@link DATA} 门面
  * （主 SQL 复用主执行器、非主 SQL 独立直连、YAML 内存批量），消除旧版双连接池与双份清单。</p>
  */
-public class SyncSub extends SubCommand {
+public class SyncSubCommand extends SubCommand {
 
-    public SyncSub(HttpOverMcPlugin plugin) {
+    public SyncSubCommand(HttpOverMcPlugin plugin) {
         super(plugin);
     }
 
@@ -135,7 +135,7 @@ public class SyncSub extends SubCommand {
      * 打印目标表当前行数 + 醒目警告（confirm 前的预览；异步执行，COUNT 不阻塞主线程）。
      */
     private void printPreview(CommandSender sender, StorageType from, List<StorageType> targets) {
-        List<Class<?>> tables = MigrationTables.collect(plugin);
+        List<Class<?>> tables = MigrateSubCommand.MigrationTables.collect(plugin);
         plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () -> {
             msgT(sender, "command.sync.preview-header",
                     "§6===== 覆盖迁移预览: {0} → {1} =====", from.getId(), joinTypes(targets));
@@ -143,7 +143,7 @@ public class SyncSub extends SubCommand {
                 for (Class<?> c : tables) {
                     long rows = DATA.count(to, c);
                     msgT(sender, "command.sync.preview-row",
-                            "  目标表 {0}（{1}）: 当前 {2} 行", MigrationTables.tableName(c), to.getId(),
+                            "  目标表 {0}（{1}）: 当前 {2} 行", MigrateSubCommand.MigrationTables.tableName(c), to.getId(),
                             rows < 0 ? "无法读取" : Long.toString(rows));
                 }
             }
@@ -154,12 +154,12 @@ public class SyncSub extends SubCommand {
 
     /**
      * 逐目标覆盖执行：源全量读 → 目标建表（容忍式）→ 目标清空 + 全量写（DATA 门面统一路由）。
-     * 写入后行数校验；整个执行持有 {@link MigrationTables} 互斥锁。
+     * 写入后行数校验；整个执行持有 {@link MigrateSubCommand.MigrationTables} 互斥锁。
      */
     private void syncAll(CommandSender sender, StorageType from, List<StorageType> targets) {
-        List<Class<?>> tables = MigrationTables.collect(plugin);
+        List<Class<?>> tables = MigrateSubCommand.MigrationTables.collect(plugin);
         plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () -> {
-            if (!MigrationTables.tryLock()) {
+            if (!MigrateSubCommand.MigrationTables.tryLock()) {
                 msgT(sender, "command.sync.busy", "§c已有其他迁移（sync/migrate）正在进行中，请稍后再试");
                 return;
             }
@@ -182,16 +182,16 @@ public class SyncSub extends SubCommand {
                             if (sourceCount >= 0 && targetCount >= 0 && sourceCount != targetCount) {
                                 msgT(sender, "command.sync.table-count-mismatch",
                                         "§e表 {0}: 写入 {1} 条，但目标行数 {2} ≠ 源行数 {3}（可能重复键被合并）",
-                                        MigrationTables.tableName(c), written, targetCount, sourceCount);
+                                        MigrateSubCommand.MigrationTables.tableName(c), written, targetCount, sourceCount);
                             }
                             msgT(sender, "command.sync.table-done",
                                     "§a表 {0}: {1} → {2} 完成（{3} 条）",
-                                    MigrationTables.tableName(c), from.getId(), to.getId(), written);
+                                    MigrateSubCommand.MigrationTables.tableName(c), from.getId(), to.getId(), written);
                         } catch (Throwable t) {
-                            fails.add(MigrationTables.tableName(c) + "(" + t.getMessage() + ")");
+                            fails.add(MigrateSubCommand.MigrationTables.tableName(c) + "(" + t.getMessage() + ")");
                             msgT(sender, "command.sync.table-fail",
                                     "§c表 {0}: {1} → {2} 失败: {3}",
-                                    MigrationTables.tableName(c), from.getId(), to.getId(), t.getMessage());
+                                    MigrateSubCommand.MigrationTables.tableName(c), from.getId(), to.getId(), t.getMessage());
                         }
                     }
                 }
@@ -205,7 +205,7 @@ public class SyncSub extends SubCommand {
                             tableOk, totalRows, fails.size(), String.join(", ", fails));
                 }
             } finally {
-                MigrationTables.unlock();
+                MigrateSubCommand.MigrationTables.unlock();
             }
         });
     }

@@ -14,8 +14,10 @@ import java.util.List;
  *
  * <p>语义（与 DATA 门面 / SqlBackendExecutor 装配口径一致）：</p>
  * <ul>
- *   <li>主存储 = 已启用后端中 priority 最高者（MYSQL 30 &gt; SQLITE 20 &gt; YAML 10）；</li>
- *   <li>辅助存储 = 其余已启用后端（如 mysql 主 + sqlite 辅、sqlite 主 + yaml 辅）；</li>
+ *   <li>主存储 = 已启用后端中 priority 最高者（MYSQL 30 &gt; SQLITE 20 &gt; YAML 10）；
+ *       <b>默认读写只落主存储</b>（单主，不镜像）；</li>
+ *   <li>辅助存储 = 其余已启用后端（如 mysql 主 + sqlite 辅、sqlite 主 + yaml 辅），
+ *       经 {@code DATA} 带 {@link StorageType} 参数的重载显式读写（"指定类型读写"）；</li>
  *   <li>YAML 未显式启用时按启用处理（data/*.yml 是插件数据兜底落点，config 默认 enabled=true）。</li>
  * </ul>
  */

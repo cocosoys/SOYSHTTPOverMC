@@ -55,8 +55,8 @@ public class SoysHttpCommand implements CommandExecutor, TabCompleter {
         registerSubCommand(new TokensSubCommand(plugin));
         registerSubCommand(new LangSubCommand(plugin));
         registerSubCommand(new LogLevelSubCommand(plugin));
-        registerSubCommand(new MigrateSub(plugin));
-        registerSubCommand(new SyncSub(plugin));
+        registerSubCommand(new MigrateSubCommand(plugin));
+        registerSubCommand(new SyncSubCommand(plugin));
         registerSubCommand(new PermSubCommand(plugin));
         registerSubCommand(new ApiKeySubCommand(plugin));
         registerSubCommand(new DataSubCommand(plugin));

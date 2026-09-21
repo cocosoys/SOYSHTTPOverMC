@@ -306,44 +306,52 @@ public class YamlBackendExecutor implements IBackendExecutor {
     @Override
     public <T> boolean insert(Class<T> beanClass, Object bean) {
         if (bean == null) return false;
-        AuditFields.fill(bean);
         PojoMeta meta = PojoMeta.of(beanClass);
-        FieldMeta idFm = meta.getIdField();
-        Object id = idOf(meta, bean);
         ensureAutoIdKeys(beanClass, meta);
         synchronized (lock) {
             ConfigSection config = getConfig(beanClass);
-            if (id == null && idFm != null && idFm.isAutoId()) {
-                // 自增主键：取表名 section 下当前最大数值键 + 1（旧合成键字符串忽略），并回填实体
-                long max = 0;
-                ConfigSection root = config.getSection(meta.getTableName());
-                if (root != null) {
-                    for (String key : root.getKeys(false)) {
-                        try {
-                            long v = Long.parseLong(key);
-                            if (v > max) max = v;
-                        } catch (NumberFormatException ignored) {
-                            // 旧合成键字符串：忽略
-                        }
-                    }
-                }
-                id = max + 1;
-                try {
-                    idFm.field.setAccessible(true);
-                    idFm.field.set(bean, id);
-                } catch (IllegalAccessException ignored) {
-                }
-            }
-            if (id == null) {
-                throw new IllegalArgumentException(I18n.t("exception.orm.tableid-not-assigned", "实体 {0} 主键(@TableId)未赋值，无法插入", beanClass.getSimpleName()));
-            }
-            String base = meta.getTableName() + "." + encodeId(id);
-            config.set(base, null);
-            ConfigSection section = config.createSection(base);
-            BeanCodec.serialize(bean, section);
+            writeRow(config, meta, bean);
             flush(config, fileOf(beanClass));
         }
         return true;
+    }
+
+    /**
+     * 单条写入（不落盘）：自增主键分配 + 按主键覆盖序列化到内存视图。
+     * 由 {@link #insert} / {@link #replaceAll} / {@link #mergeAll} 在持有对象锁时调用。
+     */
+    private void writeRow(ConfigSection config, PojoMeta meta, Object bean) {
+        AuditFields.fill(bean);
+        FieldMeta idFm = meta.getIdField();
+        Object id = idOf(meta, bean);
+        if (id == null && idFm != null && idFm.isAutoId()) {
+            // 自增主键：取表名 section 下当前最大数值键 + 1（旧合成键字符串忽略），并回填实体
+            long max = 0;
+            ConfigSection root = config.getSection(meta.getTableName());
+            if (root != null) {
+                for (String key : root.getKeys(false)) {
+                    try {
+                        long v = Long.parseLong(key);
+                        if (v > max) max = v;
+                    } catch (NumberFormatException ignored) {
+                        // 旧合成键字符串：忽略
+                    }
+                }
+            }
+            id = max + 1;
+            try {
+                idFm.field.setAccessible(true);
+                idFm.field.set(bean, id);
+            } catch (IllegalAccessException ignored) {
+            }
+        }
+        if (id == null) {
+            throw new IllegalArgumentException(I18n.t("exception.orm.tableid-not-assigned", "实体 {0} 主键(@TableId)未赋值，无法插入", bean.getClass().getSimpleName()));
+        }
+        String base = meta.getTableName() + "." + encodeId(id);
+        config.set(base, null);
+        ConfigSection section = config.createSection(base);
+        BeanCodec.serialize(bean, section);
     }
 
     @Override
@@ -375,6 +383,58 @@ public class YamlBackendExecutor implements IBackendExecutor {
             config.set(meta.getTableName(), null);
             flush(config, fileOf(beanClass));
         }
+    }
+
+    /**
+     * 覆盖写入（先清后写）：内存中清空整表并逐条写入，最后一次性原子落盘。
+     * 中途失败不会产生“半清空”文件（目标文件保持旧内容），且远快于逐条 flush。
+     *
+     * @return 实际写入条数
+     */
+    public <T> int replaceAll(Class<T> beanClass, List<T> beans) {
+        PojoMeta meta = PojoMeta.of(beanClass);
+        ensureAutoIdKeys(beanClass, meta);
+        synchronized (lock) {
+            ConfigSection config = getConfig(beanClass);
+            config.set(meta.getTableName(), null);
+            config.createSection(meta.getTableName());
+            int n = 0;
+            for (T bean : beans) {
+                if (bean == null) continue;
+                writeRow(config, meta, bean);
+                n++;
+            }
+            flush(config, fileOf(beanClass));
+            return n;
+        }
+    }
+
+    /**
+     * 合并写入（按主键 upsert，不清空目标表）：内存中逐条覆盖，最后一次性原子落盘。
+     *
+     * @return 实际写入条数
+     */
+    public <T> int mergeAll(Class<T> beanClass, List<T> beans) {
+        PojoMeta meta = PojoMeta.of(beanClass);
+        ensureAutoIdKeys(beanClass, meta);
+        synchronized (lock) {
+            ConfigSection config = getConfig(beanClass);
+            int n = 0;
+            for (T bean : beans) {
+                if (bean == null) continue;
+                writeRow(config, meta, bean);
+                n++;
+            }
+            flush(config, fileOf(beanClass));
+            return n;
+        }
+    }
+
+    /** 表内记录数（内存视图键数，与 SQL COUNT 同构）。 */
+    public long count(Class<?> beanClass) {
+        PojoMeta meta = PojoMeta.of(beanClass);
+        ConfigSection root = getConfig(beanClass).getSection(meta.getTableName());
+        return root == null ? 0 : root.getKeys(false).size();
     }
 
     private Object idOf(PojoMeta meta, Object bean) {

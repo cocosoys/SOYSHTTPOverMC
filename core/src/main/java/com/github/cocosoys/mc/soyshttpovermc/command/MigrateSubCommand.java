@@ -1,30 +1,40 @@
 package com.github.cocosoys.mc.soyshttpovermc.command;
 
 import com.github.cocosoys.mc.soyshttpovermc.HttpOverMcPlugin;
+import com.github.cocosoys.mc.soyshttpovermc.api.DataRegistrationApi;
+import com.github.cocosoys.mc.soyshttpovermc.api.SoysHttpOverMcApi;
 import com.github.cocosoys.mc.soyshttpovermc.enums.StorageType;
 import com.github.cocosoys.mc.soyshttpovermc.i18n.I18n;
 import com.github.cocosoys.mc.soyshttpovermc.orm.Backends;
 import com.github.cocosoys.mc.soyshttpovermc.orm.DATA;
+import com.github.cocosoys.mc.soyshttpovermc.orm.DataSpec;
+import com.github.cocosoys.mc.soyshttpovermc.orm.SoysSchemaMeta;
+import com.github.cocosoys.mc.soyshttpovermc.orm.meta.PojoMeta;
+import com.github.cocosoys.mc.soyshttpovermc.spring.entity.SoysRecord;
+import com.github.cocosoys.mc.soyshttpovermc.web.DataHandle;
 import org.bukkit.command.CommandSender;
 
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * /soyshttp migrate &lt;yaml|sqlite|mysql&gt; &lt;yaml|sqlite|mysql&gt; —— 在 ORM 后端之间显式迁移
  * 全部已登记表数据（绕过 DATA 自动路由，直接读写指定后端）。
  *
  * <p><b>合并语义</b>：源全量读取 → 目标逐条 upsert（按主键覆盖，<b>不清空</b>目标）；SQL 目标端
- * 同一事务失败回滚，YAML 端内存构建后一次性原子落盘。与 {@link SyncSub}（覆盖语义：先清后写）相对。</p>
+ * 同一事务失败回滚，YAML 端内存构建后一次性原子落盘。与 {@link SyncSubCommand}（覆盖语义：先清后写）相对。</p>
  *
  * <p>执行前先<b>异步预览</b>并追加 {@code confirm} 才执行；逐表失败明细（表名 + 原因）；
  * 写入后<b>行数校验</b>；整个执行持有 {@link MigrationTables} 互斥锁。</p>
  *
  * <p>迁移范围 = {@link MigrationTables} 统一清单；所有后端读写统一走 {@link DATA} 门面。</p>
  */
-public class MigrateSub extends SubCommand {
+public class MigrateSubCommand extends SubCommand {
 
-    public MigrateSub(HttpOverMcPlugin plugin) {
+    public MigrateSubCommand(HttpOverMcPlugin plugin) {
         super(plugin);
     }
 
@@ -179,5 +189,72 @@ public class MigrateSub extends SubCommand {
             out.add("confirm");
         }
         return out;
+    }
+
+    /**
+     * 迁移表清单与互斥锁（sync / migrate 的<b>唯一</b>表清单来源）：
+     * 主插件自身表（mainDataSpec + soys_schema_meta + soys_records）+ 全部已登记附属插件归属表，
+     * 去重并保持声明顺序。
+     *
+     * <p>指令执行前须先 {@link #tryLock()}：任何 sync / migrate 同时只允许一个在执行，
+     * 避免并发覆盖同一批表；执行完毕（含异常）须 {@link #unlock()}。</p>
+     */
+    public static final class MigrationTables {
+
+        private static final ReentrantLock LOCK = new ReentrantLock();
+
+        private MigrationTables() {
+        }
+
+        /**
+         * 尝试获取迁移互斥锁（已被其他 sync/migrate 占用时返回 false）。
+         */
+        public static boolean tryLock() {
+            return LOCK.tryLock();
+        }
+
+        /**
+         * 释放迁移互斥锁（仅当当前线程持有）。
+         */
+        public static void unlock() {
+            if (LOCK.isHeldByCurrentThread()) {
+                LOCK.unlock();
+            }
+        }
+
+        /**
+         * 聚合全部待迁移表实体类（统一表清单，sync / migrate 共用）。
+         */
+        public static List<Class<?>> collect(HttpOverMcPlugin plugin) {
+            Set<Class<?>> out = new LinkedHashSet<>();
+            // 主插件自身表
+            DataSpec main = plugin.getMainDataSpec();
+            if (main != null) {
+                out.addAll(main.mergedTableClasses());
+            }
+            out.add(SoysSchemaMeta.class); // soys_schema_meta 保持迁移
+            out.add(SoysRecord.class);     // soys_records（RecordSyncStorage 直接建表，未登记 SchemaRegistry）
+            // 附属插件
+            SoysHttpOverMcApi api = plugin.getApi();
+            if (api != null) {
+                DataRegistrationApi reg = api.getDataRegistration();
+                if (reg != null) {
+                    for (String name : reg.registeredNames()) {
+                        DataHandle h = reg.handleOf(name);
+                        if (h != null && h.getSpec() != null) {
+                            out.addAll(h.getSpec().mergedTableClasses());
+                        }
+                    }
+                }
+            }
+            return new ArrayList<>(out);
+        }
+
+        /**
+         * 表名（PojoMeta，与 SQL / YAML 布局一致）。
+         */
+        public static String tableName(Class<?> c) {
+            return PojoMeta.of(c).getTableName();
+        }
     }
 }
