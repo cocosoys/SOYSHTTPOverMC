@@ -57,6 +57,13 @@ public class WebRegistry {
      * 昵称路由索引：key = 昵称路径（规范化后），value = 登记项。注册时构建，O(1) 匹配，避免遍历全部页面。
      */
     private Map<String, Entry> nicknameIndex = new ConcurrentHashMap<>();
+
+    /**
+     * 目录索引兜底规则（owner 插件名 → 开关/兜底文件名）：供 SoysExpansion 等登记方注册。
+     * 未命中规则或路径不属于 /web/plugins/&lt;插件名&gt; 时按全局默认兜底（启用，indexFile="index"）。
+     * {@link #resolveDirectoryIndex} 读取；{@link #unregisterPlugin} 一并清理。
+     */
+    private final Map<String, IndexRule> indexRules = new ConcurrentHashMap<>();
     /**
      * 宿主插件名（SOYSHTTPOverMC 本体）：其登记不加 /plugins 前缀
      */
@@ -710,6 +717,76 @@ public class WebRegistry {
         return null;
     }
 
+    // ===== 目录索引兜底（静态站惯例：目录请求 → 该目录 index） =====
+
+    /**
+     * 注册某插件的目录索引兜底规则（SoysExpansion 页面托管时调用；重复注册以最后一次为准）。
+     *
+     * @param ownerName 插件名（URL 前缀 /web/plugins/&lt;插件名&gt; 的归属方）
+     * @param enabled   false=该插件的目录请求不做兜底（默认 true）
+     * @param indexFile 兜底目标文件名（不含扩展名与斜杠；默认 "index"，即访问
+     *                  {@code /web/plugins/&lt;插件名&gt;} 自动导航到 {@code …/index}，经 .html 智能匹配命中 index.html）
+     */
+    public void setIndexRule(String ownerName, boolean enabled, String indexFile) {
+        if (ownerName == null || ownerName.isEmpty()) return;
+        indexRules.put(ownerName, new IndexRule(enabled,
+                (indexFile == null || indexFile.trim().isEmpty()) ? "index" : indexFile.trim()));
+    }
+
+    /**
+     * 移除某插件的目录索引兜底规则（页面反注册时调用；移除后该插件目录请求回落全局默认兜底）。
+     */
+    public void removeIndexRule(String ownerName) {
+        if (ownerName == null) return;
+        indexRules.remove(ownerName);
+    }
+
+    /**
+     * 目录索引兜底探测：仅当 {@code cleanPath} 为<b>无扩展名</b>路径且常规解析全部未命中时调用。
+     * 命中返回 302 导航目标（如 {@code /web/plugins/Foo/index}），未命中返回 null。
+     * <p>语义：目录请求自动导航到该目录下的 index（默认文件名 "index"，经 .html 智能匹配命中
+     * {@code index.html}）；规则按插件可配（{@link #setIndexRule}），未注册规则/非 /web/plugins
+     * 前缀路径按全局默认（index）兜底。仅查精确登记表（pages），不改变任何已登记键。</p>
+     */
+    public String resolveDirectoryIndex(String httpMethod, String cleanPath) {
+        // 仅 GET 语义（目录导航是浏览器行为）；根路径/空路径归静态首页解析（web.home/index.html），不参与兜底
+        if (cleanPath == null || cleanPath.isEmpty() || "/".equals(cleanPath)) return null;
+        String method = httpMethod == null ? RequestMethod.GET.code() : httpMethod.toUpperCase();
+        if (!RequestMethod.GET.code().equals(method)) return null;
+        if (cleanPath.indexOf('.') >= 0) return null;
+        String owner = ownerOf(cleanPath);
+        IndexRule rule = owner == null ? null : indexRules.get(owner);
+        if (rule != null && !rule.enabled) return null;
+        String indexFile = rule != null ? rule.indexFile : "index";
+        if (indexFile.isEmpty()) return null;
+        String base = cleanPath.endsWith("/") ? cleanPath : cleanPath + "/";
+        String target = base + indexFile;
+        if (lookup(pages, method, target) != null) return target;
+        return null;
+    }
+
+    /** 从请求路径提取归属插件名（/web/plugins/&lt;插件名&gt;/...）；非该前缀返回 null。 */
+    private static String ownerOf(String cleanPath) {
+        String p = cleanPath.startsWith("/") ? cleanPath.substring(1) : cleanPath;
+        if (p.endsWith("/")) p = p.substring(0, p.length() - 1);
+        String[] seg = p.split("/", -1);
+        if (seg.length >= 3 && "web".equals(seg[0]) && "plugins".equals(seg[1]) && !seg[2].isEmpty()) {
+            return seg[2];
+        }
+        return null;
+    }
+
+    /** 目录索引兜底规则（不可变值对象）。 */
+    private static final class IndexRule {
+        final boolean enabled;
+        final String indexFile;
+
+        IndexRule(boolean enabled, String indexFile) {
+            this.enabled = enabled;
+            this.indexFile = indexFile;
+        }
+    }
+
     /**
      * 在参数化路由表中按段匹配：模板段为 {name} 时匹配任意非空段并提取 path variable；
      * 普通段必须严格相等。模板与路径段数必须相同（不支持 {var} 之外的通配）。
@@ -824,6 +901,8 @@ public class WebRegistry {
         }
         // 一并清理该插件的自定义错误页
         errorPages.entrySet().removeIf(e -> pluginName.equals(e.getValue().ownerPlugin));
+        // 一并清理该插件的目录索引兜底规则（页面已卸载，规则随插件移除）
+        indexRules.remove(pluginName);
     }
 
     /**

@@ -494,4 +494,24 @@ public class WebPageImpl implements WebPageApi {
         return corsRegistry.register(owner == null ? null : owner.getName(), pathPrefix, origin, methods, headers, credentials);
     }
 
+    @Override
+    public void setIndexRule(String ownerName, boolean enabled, String indexFile) {
+        try {
+            webRegistry.setIndexRule(ownerName, enabled, indexFile);
+        } catch (Exception ex) {
+            throw ExceptionBus.fire(new WebPageException("E_INDEX_RULE", "exception.web.register-index-rule",
+                    "设置目录索引兜底规则失败(plugin={0}): {1}", ex, ownerName, ex.getMessage()));
+        }
+    }
+
+    @Override
+    public void removeIndexRule(String ownerName) {
+        try {
+            webRegistry.removeIndexRule(ownerName);
+        } catch (Exception ex) {
+            throw ExceptionBus.fire(new WebPageException("E_INDEX_RULE", "exception.web.remove-index-rule",
+                    "移除目录索引兜底规则失败(plugin={0}): {1}", ex, ownerName, ex.getMessage()));
+        }
+    }
+
 }

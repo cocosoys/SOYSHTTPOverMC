@@ -241,6 +241,7 @@ exception.toolkit.mime-register-fail: "Failed to register Content-Type (ext={0})
 exception.toolkit.to-json-fail: "Failed to serialize object to JSON: {0}"
 exception.web.register-dir: "Failed to batch-register directory (path={0}): {1}"
 exception.web.register-error-page: "Failed to register error page (status={0}): {1}"
+exception.web.register-index-rule: "Failed to set directory index fallback rule (plugin={0}): {1}"
 exception.web.register-net-page: "Failed to register network page (name={0}): {1}"
 exception.web.register-page: "Failed to register web page (path={0}): {1}"
 exception.web.register-proxy-page: "Failed to register proxy web page (path={0}): {1}"

@@ -180,6 +180,24 @@ public abstract class SoysExpansion {
     }
 
     /**
+     * 目录索引兜底开关（默认 true=启用）：启用后访问 {@code /web/plugins/<插件名>}
+     * （或带尾部斜杠）且常规解析未命中时，302 自动导航到 {@code …/<indexFile>}；
+     * 返回 false 则该插件的目录请求不做兜底（404）。仅在 {@link #resourceRoot()} 非空时生效。
+     */
+    protected boolean indexFallbackEnabled() {
+        return true;
+    }
+
+    /**
+     * 目录索引兜底目标文件名（不含扩展名与斜杠；默认 "index"）：
+     * 导航目标 = {@code /web/plugins/<插件名>/<indexFile>}，经 .html 智能匹配命中 index.html。
+     * 返回 null/空串回退默认 "index"。
+     */
+    protected String indexFile() {
+        return "index";
+    }
+
+    /**
      * CORS 声明列表：非空时 {@link #registerCors()} 逐条自动注册。返回 null = 无 CORS。
      */
     protected CorsSpec[] cors() {
@@ -517,6 +535,9 @@ public abstract class SoysExpansion {
                 }
             }
             this.pages = reg;
+            // 目录索引兜底规则：访问 /web/plugins/<插件名> 自动导航到 …/<indexFile>（默认 index）。
+            // 仅在启用了页面托管时注册；开关/文件名可经 indexFallbackEnabled()/indexFile() 覆写。
+            a.getWebPage().setIndexRule(o.getName(), indexFallbackEnabled(), indexFile());
             return true;
         } catch (Exception ex) {
             log.warnT("log.expansion.pages-register-fail", "SoysExpansion 页面托管失败: {0}: {1}", getIdentifier(), ex.getMessage());
@@ -627,6 +648,11 @@ public abstract class SoysExpansion {
         }
         try {
             a.getWebPage().unregisterByTag(tag);
+            // 一并移除本扩展的目录索引兜底规则（页面已卸载，规则随模块移除）
+            Plugin o = owner;
+            if (o != null) {
+                a.getWebPage().removeIndexRule(o.getName());
+            }
         } catch (Exception ex) {
             log.warnT("log.expansion.pages-unregister-fail", "SoysExpansion 页面反注册失败: {0}: {1}", getIdentifier(), ex.getMessage());
         }

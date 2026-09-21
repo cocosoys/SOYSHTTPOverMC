@@ -289,4 +289,23 @@ public interface WebPageApi {
     CorsRegistry.CorsEntry registerCors(Plugin owner, String pathPrefix, String origin, String methods,
                          String headers, boolean credentials);
 
+    // ===== 目录索引兜底规则（静态站惯例：目录请求自动导航到该目录 index）=====
+
+    /**
+     * 设置某插件的目录索引兜底规则：访问 {@code /web/plugins/<插件名>}（或带尾部斜杠）
+     * 且常规解析未命中时，302 自动导航到 {@code …/<indexFile>}（默认 "index"，经 .html 智能匹配
+     * 命中 index.html）。默认全局启用（enabled=true, indexFile="index"）；规则按插件注册，
+     * 重复注册以最后一次为准。
+     *
+     * @param ownerName 插件名（与页面 URL 前缀 /web/plugins/&lt;插件名&gt; 一致；null/空忽略）
+     * @param enabled   false=该插件的目录请求不做兜底（404），true=启用
+     * @param indexFile 兜底目标文件名（不含扩展名与斜杠；null/空回退默认 "index"）
+     */
+    void setIndexRule(String ownerName, boolean enabled, String indexFile);
+
+    /**
+     * 移除某插件的目录索引兜底规则（页面反注册时调用；移除后该插件目录请求回落全局默认兜底）。
+     */
+    void removeIndexRule(String ownerName);
+
 }

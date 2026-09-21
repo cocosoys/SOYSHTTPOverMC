@@ -284,6 +284,13 @@ public class WebFrontendHandler {
                 }
                 return serveNetworkPage(np);
             }
+            // 目录索引兜底（静态站惯例）：目录请求自动导航到该目录下的 index
+            // （默认 /web/plugins/<插件名> → /web/plugins/<插件名>/index → .html 智能匹配命中 index.html；
+            //  规则按插件可配，SoysExpansion 提供 indexFallbackEnabled/indexFile 覆写；不影响任何已登记键）
+            String indexRedirect = webRegistry.resolveDirectoryIndex(m, cleanPath);
+            if (indexRedirect != null) {
+                return HttpFrames.redirect(302, indexRedirect);
+            }
         }
 
         // 静态资源
