@@ -23,7 +23,7 @@ public class StatusController {
     }
 
     @ApiName("隧道状态")
-    @ApiPermission("soyshttp:api:status")
+    @ApiPermission("soyshttpovermc:api:status")
     @GetMapping("/status")
     public AjaxResult status() {
         return AjaxResult.success(statusService.getStatus());
