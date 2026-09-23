@@ -43,7 +43,7 @@ public class Credential {
     }
 
     /**
-     * 凭证来源：api-key / bearer / basic / issuer:<name>。
+     * 凭证来源：api-key / bearer / basic / issuer:&lt;name&gt;。
      */
     public String getSource() {
         return source;

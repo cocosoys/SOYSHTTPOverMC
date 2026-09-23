@@ -8,7 +8,7 @@ import com.github.cocosoys.mc.soyshttpovermc.web.ApiRequestContext;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.issuer.CredentialPresentation;
 
 /**
- * 登录窗口认证 API（控制器层，仿 Spring MVC / MyBatis-Plus）：
+ * 登录窗口认证 API（控制器层：
  * <b>只做接口声明与抽象调用</b>——声明映射注解与端点，调用 {@link IAuthService}。
  *
  * <p>两个登录通道：

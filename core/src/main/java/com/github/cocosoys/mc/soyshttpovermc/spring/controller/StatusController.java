@@ -7,7 +7,7 @@ import com.github.cocosoys.mc.soyshttpovermc.spring.service.IStatusService;
 import com.github.cocosoys.mc.soyshttpovermc.util.AjaxResult;
 
 /**
- * 隧道状态 API（控制器层，仿 Spring MVC / MyBatis-Plus）：
+ * 隧道状态 API：
  * <b>只做接口声明与抽象调用</b>——声明映射注解与端点，调用 {@link IStatusService} 获取实体；
  * 业务拼装逻辑全部在 service 实现类，控制器不持有任何数据来源依赖。
  *

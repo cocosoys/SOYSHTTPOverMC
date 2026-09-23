@@ -10,7 +10,7 @@ import com.github.cocosoys.mc.soyshttpovermc.web.ApiRequestContext;
 
 
 /**
- * 内置系统 API（控制器层，仿 Spring MVC / MyBatis-Plus）：
+ * 内置系统 API：
  * <b>只做接口声明与抽象调用</b>——声明映射注解与端点，调用 {@link ISystemService}。
  * 也是网关的存活检测端点（/api/ping，auth.yml 的 exempt 已豁免鉴权）。
  */

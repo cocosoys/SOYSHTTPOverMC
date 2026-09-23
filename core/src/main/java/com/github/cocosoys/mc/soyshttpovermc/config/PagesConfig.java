@@ -164,7 +164,7 @@ public final class PagesConfig {
         }
 
         /**
-         * 解析 pages.yml 的网页访问权限（pages.page.<路径>.permissions 单页内联 + pages.permissions
+         * 解析 pages.yml 的网页访问权限（pages.page.&lt;路径&gt;.permissions 单页内联 + pages.permissions
          * 全局路径规则）为 {@link PagePermissionChecker}。无配置/文件缺失返回空检查器（全部放行）。
          */
         public static PagePermissionChecker buildPermissionChecker(JavaPlugin plugin) {

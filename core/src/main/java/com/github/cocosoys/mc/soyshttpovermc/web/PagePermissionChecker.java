@@ -22,7 +22,7 @@ import java.util.Map;
  */
 public class PagePermissionChecker {
 
-    /** 单页内联权限：精确路径 → 权限列表（pages.page.<路径>.permissions，含 /admin ↔ /admin.html 等价）。 */
+    /** 单页内联权限：精确路径 → 权限列表（pages.page.&lt;路径&gt;.permissions，含 /admin ↔ /admin.html 等价）。 */
     private final Map<String, List<String>> inline;
     /** 全局路径规则：按声明顺序匹配，首个命中生效（pages.permissions）。 */
     private final List<Rule> global;

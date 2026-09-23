@@ -40,17 +40,17 @@ import java.util.jar.JarFile;
 public class WebRegistry {
 
     /**
-     * 路由表：key = "<METHOD> <路径>"（如 "GET /api/users"），value = 登记项
+     * 路由表：key = "&lt;METHOD&gt; &lt;路径&gt;"（如 "GET /api/users"），value = 登记项
      */
     private Map<String, Entry> pages = new ConcurrentHashMap<>();
     /**
-     * 参数化路由表：key = "<METHOD> <模板>"（如 "GET /api/users/{id}"），value = 登记项。
+     * 参数化路由表：key = "&lt;METHOD&gt; &lt;模板&gt;"（如 "GET /api/users/{id}"），value = 登记项。
      * 模板路径含 {name} 占位符段；匹配时按段比对并提取 path variables。
      * 仅在精确匹配未命中时启用，避免影响默认 GET 路由性能。
      */
     private Map<String, Entry> parameterizedPages = new ConcurrentHashMap<>();
     /**
-     * 网络文件/网络网页页面：key = "<METHOD> <路径>"（NetworkPage 抽象，按需 load）
+     * 网络文件/网络网页页面：key = "&lt;METHOD&gt; &lt;路径&gt;"（NetworkPage 抽象，按需 load）
      */
     private Map<String, RegisteredNetworkPage> networkPages = new ConcurrentHashMap<>();
     /**
@@ -308,7 +308,7 @@ public class WebRegistry {
     // ===== 跳转登记（A 网址 → B 网址，302/301） =====
 
     /**
-     * 登记跳转（默认 302，路径自动补 /web/plugins/<插件名> 前缀）。访问 A 时浏览器自动跳转到 B。
+     * 登记跳转（默认 302，路径自动补 /web/plugins/&lt;插件名&gt; 前缀）。访问 A 时浏览器自动跳转到 B。
      */
     public Entry registerRedirect(Plugin owner, String fromPath, String toPath) {
         return registerRedirect(owner, fromPath, toPath, false, 302);
@@ -322,7 +322,7 @@ public class WebRegistry {
     }
 
     /**
-     * 强制代理跳转（无 /web/plugins/<插件名> 前缀；默认 302）。
+     * 强制代理跳转（无 /web/plugins/&lt;插件名&gt; 前缀；默认 302）。
      */
     public Entry registerProxyRedirect(Plugin owner, String fromPath, String toPath) {
         return registerRedirect(owner, fromPath, toPath, true, 302);
@@ -1009,7 +1009,7 @@ public class WebRegistry {
     // ===== 自定义错误页（registerErrorPage） =====
 
     /**
-     * 自定义错误页：status -> Entry（path 为虚拟的 /error/<status>，仅作返回值标识，不参与 URL 路由）。
+     * 自定义错误页：status -> Entry（path 为虚拟的 /error/&lt;status&gt;，仅作返回值标识，不参与 URL 路由）。
      */
     private final Map<Integer, Entry> errorPages = new ConcurrentHashMap<>();
 
@@ -1211,7 +1211,7 @@ public class WebRegistry {
     }
 
     /**
-     * 计算最终路径：非主插件且非代理 → 前置 /web/plugins/<插件名>
+     * 计算最终路径：非主插件且非代理 → 前置 /web/plugins/&lt;插件名&gt;
      */
     private String resolvePath(String ownerName, String path, boolean proxy) {
         String p = path.startsWith("/") ? path : "/" + path;

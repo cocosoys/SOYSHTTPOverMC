@@ -811,7 +811,7 @@ public class HttpOverMcPluginProxy {
     }
 
     /**
-     * 根据模式创建对应的 HTTP 后端处理器。配置结构：http-backend.<mode>.<key>（向后兼容旧的扁平结构）。
+     * 根据模式创建对应的 HTTP 后端处理器。配置结构：http-backend.&lt;mode&gt;.&lt;key&gt;（向后兼容旧的扁平结构）。
      */
     private HttpRequestHandler createHttpBackend(HttpBackendMode mode) {
         switch (mode) {
@@ -832,8 +832,8 @@ public class HttpOverMcPluginProxy {
     }
 
     /**
-     * 读取 HTTP 后端配置，优先使用分层结构 http-backend.<mode>.<key>，
-     * 回退到旧的扁平结构 http-backend.<legacyKey>，最后使用默认值。
+     * 读取 HTTP 后端配置，优先使用分层结构 http-backend.&lt;mode&gt;.&lt;key&gt;，
+     * 回退到旧的扁平结构 http-backend.&lt;legacyKey&gt;，最后使用默认值。
      */
     private int getBackendInt(String mode, String key, String legacyKey, int def) {
         String layered = "http-backend." + mode + "." + key;

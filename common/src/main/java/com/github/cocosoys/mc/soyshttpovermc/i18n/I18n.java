@@ -357,7 +357,7 @@ public final class I18n {
     // ==================== 网络源本地化管理 ====================
 
     /**
-     * 网络翻译本地缓存根目录：<dataFolder>/lang/network/。
+     * 网络翻译本地缓存根目录：&lt;dataFolder&gt;/lang/network/。
      */
     private static File networkRoot() {
         if (languageDir == null || languageDir.getParentFile() == null) return null;
@@ -365,7 +365,7 @@ public final class I18n {
     }
 
     /**
-     * 指定网络源的本地缓存目录：<dataFolder>/lang/network/<safeName>/。
+     * 指定网络源的本地缓存目录：&lt;dataFolder&gt;/lang/network/&lt;safeName&gt;/。
      */
     private static File networkSourceDir(String name) {
         String safe = (name == null || name.isEmpty()) ? "unnamed" : name.replaceAll("[^\\w.-]", "_");
@@ -373,7 +373,7 @@ public final class I18n {
     }
 
     /**
-     * 指定网络源指定语言的本地翻译文件：<dir>/lang/<code>.yml。
+     * 指定网络源指定语言的本地翻译文件：&lt;dir&gt;/lang/&lt;code&gt;.yml。
      */
     private static File networkLangFile(String name, String code) {
         File root = networkSourceDir(name);

@@ -37,7 +37,7 @@ import java.util.function.Supplier;
  * 同端口嗅探器：在 Spigot 自身监听的 socket 上做 Geyser 式流量分流。
  * <p>
  * 原理（深度挂接 Spigot 的 Netty pipeline，访问端口 == Spigot 的 server-port）：
- * - Spigot 的 {@code ServerConnection} 把每个监听端口存在字段 {@code g}(List<ChannelFuture>)，
+ * - Spigot 的 {@code ServerConnection} 把每个监听端口存在字段 {@code g}(List&lt;ChannelFuture&gt;)，
  * 其 channel 是父(Server)Channel；每接受一个子连接，父 Channel 的 pipeline 会以
  * {@code channelRead(childChannel)} 的形式把子 Channel 透传给内部的 ServerBootstrapAcceptor。
  * - 我们在父 Channel pipeline 最前插入 ParentInjectorHandler：拿到每个子 Channel 后，

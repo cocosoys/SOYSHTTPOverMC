@@ -50,7 +50,7 @@ public final class ProxyDetector {
     }
 
     /**
-     * 解析 <server>/<fileName> 的绝对路径；定位失败返回 null（仅打一次告警）。
+     * 解析 &lt;server&gt;/&lt;fileName&gt; 的绝对路径；定位失败返回 null（仅打一次告警）。
      */
     private static File resolveFile(Platform platform, String fileName) {
         File root = serverRoot(platform);
@@ -73,7 +73,7 @@ public final class ProxyDetector {
     }
 
     /**
-     * 插件数据目录上溯两级定位服务器根目录（<server>/plugins/<plugin> → <server>）。
+     * 插件数据目录上溯两级定位服务器根目录（&lt;server&gt;/plugins/&lt;plugin&gt; → &lt;server&gt;）。
      */
     private static File serverRoot(Platform platform) {
         File dir = platform.getDataFolder();

@@ -19,8 +19,8 @@ import java.util.List;
  *     public static MinecraftServer getServer()
  *     public net.minecraft.server.network.ServerConnection getServerConnection()
  *   net.minecraft.server.network.ServerConnection:
- *     private final List<ChannelFuture> listeningChannels
- *     private final List<NetworkManager> channels
+ *     private final List&lt;ChannelFuture&gt; listeningChannels
+ *     private final List&lt;NetworkManager&gt; channels
  * </pre>
  *
  * <p>本实现采用「方法名 + 字段类型」双通道回退解析，不硬编码字段名。

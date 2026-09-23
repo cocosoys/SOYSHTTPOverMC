@@ -19,8 +19,8 @@ import java.util.List;
  *     public static MinecraftServer getServer()
  *     public ServerConnection getServerConnection()   ← 1.12.2 同名方法，1.16 仍保留
  *   ServerConnection:
- *     private final List<ChannelFuture> listeningChannels  ← 待注册监听 ChannelFuture 列表
- *     private final List<NetworkManager> channels           ← 已激活连接列表
+ *     private final List&lt;ChannelFuture&gt; listeningChannels  ← 待注册监听 ChannelFuture 列表
+ *     private final List&lt;NetworkManager&gt; channels           ← 已激活连接列表
  * </pre>
  *
  * <p>本实现采用「方法名 + 字段类型」双通道回退解析（与 v1_7x 同策略），
