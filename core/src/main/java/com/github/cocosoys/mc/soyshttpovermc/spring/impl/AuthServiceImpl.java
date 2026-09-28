@@ -79,6 +79,14 @@ public class AuthServiceImpl implements IAuthService {
         if (clientIp != null && !clientIp.equals("0.0.0.0")) {
             bridge.recordWebLogin(player, clientIp);
         }
+        // 设备指纹（可选）：登录请求携带 X-Device-Fingerprint（前端 SoysAuth 自动采集）且 fp 启用时
+        // 立即登记设备绑定（登录即绑定，避免下次自动登录走“无绑定放行一次”的迁移路径）
+        if (bridge.isFpEnabled()) {
+            String fp = fingerprintOf(ctx);
+            if (fp != null && !fp.isEmpty()) {
+                bridge.registerDevice(player, fp, clientIp, form.get("device"));
+            }
+        }
         // 登录模式（与 bridge.login 内部同一策略）：玩家在线→online；不在线→offline（离线专属 cookie）
         LoginMode mode = bridge.getLoginModePolicy().decideLogin(player);
         LoginResultEntityVO data = new LoginResultEntityVO();
@@ -207,6 +215,39 @@ public class AuthServiceImpl implements IAuthService {
             if (rememberToken != null && !rememberToken.isEmpty()) {
                 String rememberedPlayer = bridge.resolveRemember(rememberToken);
                 if (rememberedPlayer != null) {
+                    // —— 设备指纹双因子（auth.yml auto.login.fp.*，默认关闭）——
+                    // strict（默认）：指纹缺失 / 与绑定表不一致 → 拒绝自动登录（fpMismatch=true）；
+                    // 无绑定记录（存量迁移）：本次放行一次并要求前端立即补绑（fpBindRequired=true，
+                    // 同时顺手登记本次指纹，补绑动作本身由前端调 /api/auth/device/register 完成）；
+                    // 宽松模式（fp.strict=false）：缺失/不一致均放行（仅打标签，不拒绝）。
+                    String fp = fingerprintOf(ctx);
+                    boolean fpOk = true;
+                    boolean fpBindRequired = false;
+                    if (bridge.isFpEnabled()) {
+                        if (fp == null || fp.isEmpty()) {
+                            fpOk = bridge.isFpStrict() ? false : true;
+                        } else if (bridge.isDeviceBound(rememberedPlayer)) {
+                            fpOk = bridge.deviceMatches(rememberedPlayer, fp);
+                            if (!fpOk) {
+                                fpOk = !bridge.isFpStrict(); // strict=拒绝；宽松=放行
+                            }
+                        } else {
+                            fpOk = true; // 存量迁移：无绑定记录 → 本次放行一次
+                            fpBindRequired = true;
+                            bridge.registerDevice(rememberedPlayer, fp, clientIp, null);
+                        }
+                    }
+                    if (!fpOk) {
+                        AuthStatusEntityVO data = new AuthStatusEntityVO();
+                        data.setAuthenticated(false);
+                        data.setPlayer(rememberedPlayer);
+                        data.setFpEnabled(true);
+                        data.setFpMismatch(true);
+                        data.setIp(clientIp);
+                        return ApiResponse.status(200,
+                                AjaxResult.successDataT(data, "ajax.auth.fp-mismatch", "设备指纹不匹配，请重新登录并完成设备绑定"),
+                                null);
+                    }
                     String token = bridge.issueForRemember(rememberedPlayer);
                     if (token != null) {
                         String cookie = bridge.getCookieName() + "=" + token
@@ -221,6 +262,8 @@ public class AuthServiceImpl implements IAuthService {
                         data.setOnline(Bukkit.getPlayerExact(rememberedPlayer) != null);
                         data.setMode(mode == null ? null : mode.name().toLowerCase());
                         data.setRememberAutoLogin(true);
+                        data.setFpEnabled(bridge.isFpEnabled());
+                        data.setFpBindRequired(fpBindRequired);
                         data.setToken(token);
                         data.setCookieName(bridge.getCookieName());
                         data.setTtlSeconds(bridge.getTtlSeconds());
@@ -288,6 +331,84 @@ public class AuthServiceImpl implements IAuthService {
         data.setTtlSeconds(bridge.getTtlSeconds());
         data.setIp(clientIp);
         return ApiResponse.status(200, AjaxResult.successDataT(data, "ajax.auth.auto-login-success", "IP 匹配，已自动登录"), extra);
+    }
+
+    @Override
+    public AjaxResult registerDevice(CredentialPresentation credential, ApiRequestContext ctx, String body) {
+        if (bridge == null) {
+            return AjaxResult.errorT(503, "ajax.auth.issuer-not-enabled-short", "会话令牌颁发器未启用");
+        }
+        String player = bridge.subjectOf(credential);
+        if (player == null) {
+            return AjaxResult.unauthorizedT("ajax.auth.not-logged-in", "未登录或凭证无效");
+        }
+        Map<String, String> form = parseBody(body);
+        String fp = form.get("fingerprint");
+        if (fp == null || fp.isEmpty()) {
+            return AjaxResult.errorT(400, "ajax.auth.fp-missing", "缺少必填参数: fingerprint");
+        }
+        String clientIp = ctx == null ? null : ctx.getIp();
+        boolean ok = bridge.registerDevice(player, fp, clientIp, form.get("device"));
+        if (!ok) {
+            return AjaxResult.errorT(500, "ajax.auth.fp-bind-fail", "设备登记失败，请稍后重试");
+        }
+        return AjaxResult.successT("ajax.auth.device-bound", "设备已登记（本设备免登录）");
+    }
+
+    @Override
+    public ApiResponse bindDevice(String body) {
+        if (bridge == null) {
+            return ApiResponse.jsonErrorT(503, "ajax.auth.issuer-not-enabled", "会话令牌颁发器未启用（请在 gateway/issuers/session-token.yml 设 enabled: true）");
+        }
+        Map<String, String> form = parseBody(body);
+        String ticket = form.get("ticket");
+        String fp = form.get("fingerprint");
+        if (ticket == null || ticket.isEmpty() || fp == null || fp.isEmpty()) {
+            return ApiResponse.jsonErrorT(400, "ajax.auth.fp-bind-missing", "缺少必填参数: ticket / fingerprint");
+        }
+        // 消费一次性票据（与 /api/auth/issue 共用票据池：任一成功即失效，防重放）
+        String player = bridge.consumeTicket(ticket);
+        if (player == null) {
+            return ApiResponse.jsonErrorT(400, "ajax.auth.login-ticket-used", "登录票据无效或已使用，请重新登录游戏以获取新的网页登录链接");
+        }
+        if (!bridge.registerDevice(player, fp, null, form.get("device"))) {
+            return ApiResponse.jsonErrorT(500, "ajax.auth.fp-bind-fail", "设备绑定失败，请稍后重试");
+        }
+        // 绑定成功 → 签发“记住我”设备凭证（启用时）：浏览器下次访问 /api/auth/status 即自动登录
+        // （新绑定的指纹与后续请求一致，双因子校验通过）。不直接下发会话 Cookie——自动登录链
+        // 完整走一遍 checkStatus ② 分支，保证双因子判定与正常路径一致。
+        Map<String, String> extra = null;
+        LoginResultEntityVO data = new LoginResultEntityVO();
+        data.setPlayer(player);
+        data.setAuthenticated(true);
+        if (bridge.isRememberEnabled()) {
+            String rememberToken = bridge.issueRemember(player);
+            if (rememberToken != null) {
+                extra = new HashMap<>();
+                extra.put("Set-Cookie", bridge.getRememberCookieName() + "=" + rememberToken
+                        + "; Path=/; Max-Age=" + bridge.getRememberTtlSeconds()
+                        + "; HttpOnly; SameSite=Lax");
+                data.setRemember(true);
+                data.setRememberCookieName(bridge.getRememberCookieName());
+                data.setRememberTtlSeconds(bridge.getRememberTtlSeconds());
+            }
+        }
+        return ApiResponse.status(200,
+                AjaxResult.successDataT(data, "ajax.auth.device-bind-success", "设备绑定成功，已自动登录"), extra);
+    }
+
+    /**
+     * 从请求头提取设备指纹（X-Device-Fingerprint，大小写不敏感）；缺失返回 null。
+     */
+    private static String fingerprintOf(ApiRequestContext ctx) {
+        if (ctx == null || ctx.getHeaders() == null) return null;
+        for (Map.Entry<String, String> e : ctx.getHeaders().entrySet()) {
+            if (e.getKey() != null && AuthLoginBridge.FP_HEADER.equalsIgnoreCase(e.getKey())) {
+                String v = e.getValue();
+                return (v == null || v.trim().isEmpty()) ? null : v.trim();
+            }
+        }
+        return null;
     }
 
     /**

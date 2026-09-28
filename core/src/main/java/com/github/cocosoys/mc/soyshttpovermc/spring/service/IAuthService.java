@@ -54,11 +54,30 @@ public interface IAuthService {
      * 登录状态检查：{@code GET /api/auth/status}。
      * <ul>
      *   <li>当前请求已登录 → 返回已登录状态（player, authenticated, online, mode）；</li>
-     *   <li>未登录但携带 {@code player} 参数 → 检查该玩家是否在游戏端已登录且 IP 匹配，
-     *       匹配则自动签发令牌并返回 Set-Cookie（游戏→网页自动登录）；</li>
-     *   <li>未登录且无 player 参数或不匹配 → 返回未登录状态。</li>
+     *   <li>未登录但携带“记住我”设备凭证（soys_remember）→ 设备指纹双因子校验（auto.login.fp.*，
+     *       默认关闭）：strict 模式指纹不一致/未携带 → 拒绝（fpMismatch）；无绑定记录 → 本次放行并
+     *       要求补绑（fpBindRequired）→ 自动登录并签发新会话 Cookie；</li>
+     *   <li>未登录但携带 {@code player} 参数 → 检查该玩家是否在游戏端已登录且 IP 匹配（旧
+     *       auto.login.ip 路径，默认关闭），匹配则自动签发令牌并返回 Set-Cookie；</li>
+     *   <li>未登录且无凭证/无 player 参数 → 返回未登录状态。</li>
      * </ul>
-     * 用于网页端首次打开时自动检测游戏端登录状态，实现 IP 匹配免密登录。
+     * 用于网页端首次打开时自动检测登录状态。
      */
     ApiResponse checkStatus(ApiRequestContext ctx, String player);
+
+    /**
+     * 登记设备指纹（登录后补绑，{@code POST /api/auth/device/register}）：
+     * 以当前会话凭证解析玩家，body 为 JSON/表单 {@code {fingerprint, device?}}，
+     * 登记/刷新该玩家在 {@code soys_device_binding} 的设备绑定（前端在自动登录返回
+     * {@code fpBindRequired} 或登录成功后主动调用）。
+     */
+    AjaxResult registerDevice(CredentialPresentation credential, ApiRequestContext ctx, String body);
+
+    /**
+     * 票据绑定设备（{@code POST /api/auth/device/bind}，匿名）：body 为 JSON/表单
+     * {@code {ticket, fingerprint, device?}}。消费一次性票据（TTL 60s，与 /api/auth/issue 共用票据池，
+     * 任一成功即失效）→ 校验票据对应玩家 → 登记设备绑定 → 签发“记住我”设备凭证
+     * （auto.login.ttl.enable 启用时）→ 返回成功（前端随后调 /api/auth/status 自动登录）。
+     */
+    ApiResponse bindDevice(String body);
 }

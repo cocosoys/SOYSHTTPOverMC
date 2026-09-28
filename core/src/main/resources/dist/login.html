@@ -67,6 +67,7 @@
   .hint code { color: var(--warn); }
 </style>
 <script src="/__SOYS_CONTEXT__.js"></script>
+<script src="/soys-auth.js"></script>
 </head>
 <body>
 
@@ -90,6 +91,11 @@
       <label id="passLabel" hidden>登录密码</label>
       <input type="password" name="password" id="inPass" autocomplete="current-password"
              placeholder="AuthMe 密码" hidden>
+      <label id="bindLabel" class="soys-bind"
+             style="display:none;align-items:center;gap:6px;margin-top:12px;font-size:12px;color:#9ab;cursor:pointer;">
+        <input type="checkbox" id="inBind" checked style="width:auto;flex:none;">
+        记住此设备（免登录，绑定后 Cookie 自动登录）
+      </label>
       <div class="err" id="err"></div>
       <button type="submit" id="btnSubmit" class="btn-primary" hidden>登录</button>
     </form>
@@ -106,6 +112,10 @@
   var $ = function (id) { return document.getElementById(id); };
   var ticket = new URLSearchParams(location.search).get('ticket');
   var form = $('loginForm'), errEl = $('err');
+  // 设备指纹（soys-auth.js 提供；契约 fpEnabled=true 时本页展示“记住此设备”绑定选项）
+  var fpOn = (window.SoysAuth && window.SoysAuth.fpEnabled) ? window.SoysAuth.fpEnabled()
+      : !!(window.SOYS_CONTEXT && window.SOYS_CONTEXT.fpEnabled);
+  var fp = (window.SoysAuth && window.SoysAuth.fingerprint) ? window.SoysAuth.fingerprint() : '';
 
   function setTitle(t, sub) { $('cardTitle').textContent = t; $('cardSub').textContent = sub || ''; }
   function showErr(msg) { errEl.className = 'err'; errEl.textContent = msg; }
@@ -122,10 +132,16 @@
     (usernameOnly ? $('inUser') : $('inPass')).focus();
   }
 
-  // 有票据 → 票据+密码二次验证模式
+  // 有票据 → 票据+密码二次验证模式（设备指纹启用时额外提供“绑定此设备免登录”）
   if (ticket) {
     $('inTicket').value = ticket;
-    setTitle('账号密码验证', '该链接由游戏内生成。请输入对应账号的登录密码完成二次验证，验证通过后令牌将写入浏览器 Cookie。');
+    if (fpOn && fp) {
+      $('bindLabel').style.display = 'flex';
+      setTitle('账号验证 / 设备绑定', '该链接由游戏内生成。勾选“记住此设备”可免密码绑定本机（后续自动登录）；' +
+          '不勾选则输入对应账号的登录密码完成二次验证，验证通过后令牌将写入浏览器 Cookie。');
+    } else {
+      setTitle('账号密码验证', '该链接由游戏内生成。请输入对应账号的登录密码完成二次验证，验证通过后令牌将写入浏览器 Cookie。');
+    }
     switchTo(false);
   } else {
     // 无票据 → 询问服务端登录模式（/api/auth/mode 已豁免鉴权）
@@ -152,14 +168,22 @@
     btn.disabled = true; btn.textContent = '登录中…'; showErr('');
 
     var body = new URLSearchParams();
-    if (ticket) {
+    // 设备绑定优先：勾选“记住此设备”且指纹可用 → 一次性票据 + 设备指纹 → /auth/device/bind
+    // （消费同一票据池，绑定成功签发记住我 Cookie，免输密码；未勾选 → 走原票据+密码二次验证）
+    var bindNow = ticket && fpOn && fp && $('inBind') && !$('inBind').hidden && $('inBind').checked;
+    if (bindNow) {
+      body.set('ticket', ticket);
+      body.set('fingerprint', fp);
+      var ua = (navigator.userAgent || '').replace(/[;&=]/g, ' ').slice(0, 120);
+      if (ua) body.set('device', ua);
+    } else if (ticket) {
       body.set('ticket', ticket);
       body.set('password', $('inPass').value);
     } else {
       body.set('username', $('inUser').value.trim());
     }
 
-    fetch(API + '/auth/issue', {
+    fetch(bindNow ? (API + '/auth/device/bind') : (API + '/auth/issue'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: body.toString()
@@ -169,7 +193,11 @@
         if (r.ok) {
           // Set-Cookie 已由浏览器自动存储
           var who = j && j.data ? j.data : '';
-          setTitle('✓ 登录成功', '玩家 ' + who + ' 的会话令牌已写入浏览器 Cookie。');
+          if (bindNow) {
+            setTitle('✓ 设备已绑定', (who ? '玩家 ' + who + ' ' : '') + '本设备免登录已开启，即将返回首页…');
+          } else {
+            setTitle('✓ 登录成功', '玩家 ' + who + ' 的会话令牌已写入浏览器 Cookie。');
+          }
           showOk('即将返回首页…');
           form.hidden = true; $('hint').hidden = true;
           setTimeout(function () { location.href = '/'; }, 1200);

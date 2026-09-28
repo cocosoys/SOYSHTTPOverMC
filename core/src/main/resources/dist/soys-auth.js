@@ -16,6 +16,48 @@
   // API 前缀：SOYS 契约注入（api-prefix 可被服务器管理员配置，禁止写死 /api）
   var API = (global.SOYS_CONTEXT && global.SOYS_CONTEXT.apiPrefix) || '/api';
 
+  // ===== 设备指纹（X-Device-Fingerprint 弱一致性校验）=====
+  // 指纹非秘密凭据：仅作“记住我”自动登录的设备一致性弱校验（配合 soys_device_binding 表）。
+  // 由 UA / 语言 / 平台 / 屏幕 / 时区 + localStorage 随机种子 经 FNV-1a 双重散列生成，
+  // 不采集可识别个人信息；浏览器升级 / 清缓存导致指纹漂移时走“重新登录 / 票据绑定”恢复。
+  // 仅当 SOYS 契约 fpEnabled=true 时才自动携带（服务端 auth.yml auto.login.fp.enable）。
+  var FP_KEY = 'soys_fp';
+  function fpHashParts(parts) {
+    var s = parts.join('|');
+    var h1 = 0x811c9dc5, h2 = 0x01000193;
+    for (var i = 0; i < s.length; i++) {
+      var c = s.charCodeAt(i);
+      h1 = ((h1 ^ c) * 16777619) >>> 0;
+      h2 = ((h2 ^ c) * 16777619) >>> 0;
+    }
+    return 'fp_' + h1.toString(16) + '_' + h2.toString(16);
+  }
+  function fpSeed() {
+    try {
+      var s = localStorage.getItem(FP_KEY);
+      if (!s) { s = Math.random().toString(36).slice(2); localStorage.setItem(FP_KEY, s); }
+      return s;
+    } catch (e) { return ''; }
+  }
+  function buildFingerprint() {
+    try {
+      var lang = navigator.language || (navigator.languages ? navigator.languages.join(',') : '');
+      return fpHashParts([
+        navigator.userAgent || '', lang, navigator.platform || '',
+        String(screen.width) + 'x' + String(screen.height),
+        String(new Date().getTimezoneOffset()), fpSeed()
+      ]);
+    } catch (e) { return ''; }
+  }
+  var cachedFp = null;
+  function fingerprint() {
+    if (cachedFp === null) cachedFp = buildFingerprint();
+    return cachedFp;
+  }
+  function fpEnabled() {
+    return !!(global.SOYS_CONTEXT && global.SOYS_CONTEXT.fpEnabled);
+  }
+
   var TOKEN_KEY = 'soys_token';
   var COOKIE_KEY = 'soys_session';
   var mask = null;           // 登录弹窗 DOM（懒创建）
@@ -93,13 +135,15 @@
   }
 
   // ===== 请求 =====
-  /** 统一请求：自动带 Bearer 令牌；返回 {status, code, msg, data}。 */
+  /** 统一请求：自动带 Bearer 令牌 + 设备指纹头；返回 {status, code, msg, data}。 */
   function request(path, opts) {
     opts = opts || {};
     var headers = opts.headers || {};
     var token = getToken();
     if (token) headers['Authorization'] = 'Bearer ' + token;
     if (opts.json) headers['Content-Type'] = 'application/json';
+    var fp = fpEnabled() ? fingerprint() : '';
+    if (fp) headers['X-Device-Fingerprint'] = fp;
     return fetch(path, { method: opts.method || 'GET', headers: headers, body: opts.body || undefined })
       .then(function (resp) {
         return resp.text().then(function (text) {
@@ -195,6 +239,8 @@
       var headers = new Headers((init && init.headers) || {});
       var token = getToken();
       if (token) headers.set('Authorization', 'Bearer ' + token);
+      var fp = fpEnabled() ? fingerprint() : '';
+      if (fp && !headers.has('X-Device-Fingerprint')) headers.set('X-Device-Fingerprint', fp);
       var retryOpts = {
         method: (init && init.method) || 'GET',
         headers: headers,
@@ -214,7 +260,25 @@
     }
 
     global.fetch = function (input, init) {
-      return orig.call(global, input, init).then(function (resp) {
+      // 全局拦截：统一注入设备指纹头（fpEnabled 时），不覆盖调用方已显式携带的头
+      var fp = fpEnabled() ? fingerprint() : '';
+      var fpInit = init || {};
+      if (fp) {
+        var fpHeaders = new Headers((init && init.headers) || {});
+        if (!fpHeaders.has('X-Device-Fingerprint')) fpHeaders.set('X-Device-Fingerprint', fp);
+        fpInit = {
+          method: (init && init.method) || 'GET',
+          headers: fpHeaders,
+          body: init && init.body,
+          credentials: init && init.credentials,
+          cache: init && init.cache,
+          mode: init && init.mode,
+          redirect: init && init.redirect,
+          referrer: init && init.referrer,
+          signal: init && init.signal
+        };
+      }
+      return orig.call(global, input, fpInit).then(function (resp) {
         if (retryActive) return resp; // 重试中的响应不再处理（防循环）
         return resp.text().then(function (text) {
           var body = null;
@@ -261,6 +325,29 @@
     };
   }
 
+  // ===== 自动登录探测：页面启动时调 /api/auth/status（匿名）尝试记住我/IP 自动登录 =====
+  // 返回 {loggedIn, mode, rememberAutoLogin, fpMismatch, fpBindRequired}；
+  // 成功时已同步 token（Set-Cookie 由浏览器存储，localStorage 供 Bearer 使用）。
+  function autoLogin() {
+    var token = getToken();
+    if (token) {
+      return Promise.resolve({ loggedIn: true, mode: null, rememberAutoLogin: false, fpMismatch: false, fpBindRequired: false });
+    }
+    return request(API + '/auth/status', { cache: 'no-store' }).then(function (r) {
+      var d = r.data;
+      if (r.code === 200 && d && d.authenticated && d.token) {
+        setToken(d.token);
+        return { loggedIn: true, mode: d.mode || null, rememberAutoLogin: !!d.rememberAutoLogin, fpMismatch: false, fpBindRequired: !!d.fpBindRequired };
+      }
+      if (d && d.fpMismatch) {
+        return { loggedIn: false, mode: null, rememberAutoLogin: false, fpMismatch: true, fpBindRequired: false };
+      }
+      return { loggedIn: false, mode: null, rememberAutoLogin: false, fpMismatch: false, fpBindRequired: false };
+    }).catch(function () {
+      return { loggedIn: false, mode: null, rememberAutoLogin: false, fpMismatch: false, fpBindRequired: false };
+    });
+  }
+
   global.SoysAuth = {
     getToken: getToken,
     setToken: setToken,
@@ -271,6 +358,9 @@
     submitLogin: submitLogin,
     patchFetch: patchFetch,
     isLoginOpen: isLoginOpen,
+    autoLogin: autoLogin,
+    fingerprint: fingerprint,
+    fpEnabled: fpEnabled,
     onLoginSuccess: null, // 页面可挂载: function(player, mode){}
     _resolve: null
   };

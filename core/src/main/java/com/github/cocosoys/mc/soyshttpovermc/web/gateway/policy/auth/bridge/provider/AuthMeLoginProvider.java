@@ -1,6 +1,7 @@
 package com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.bridge.provider;
 
 import com.github.cocosoys.mc.soyshttpovermc.i18n.I18n;
+import com.github.cocosoys.mc.soyshttpovermc.util.LinkMessageUtil;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.bridge.AuthLoginBridge;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.bridge.spi.LoginProvider;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.bridge.spi.LoginProviderContext;
@@ -176,10 +177,19 @@ public class AuthMeLoginProvider implements LoginProvider, Listener {
         // 再签发在线令牌并生成一次性登录票据
         int upgraded = bridge.upgradePlayerToOnline(name);
         String token = bridge.issueToken(name);
-//        String ticket = bridge.mintTicket(name);
-//        String url = LinkMessageUtil.resolveUrl("/api/auth/login?ticket=" + ticket,
-//                context.getMcHost(), context.getMcPort());
-//        LinkMessageUtil.send(player, url, "&a[HTTP-Over-MC] 点击此处完成网页登录验证，获取访问令牌");
+        // 游戏端→网页端绑定票据（auto.login.ticket.in-game-link，默认 true）：发送可点击的网页登录链接。
+        // 票据 TTL=auto.login.ticket.ttl（默认 60s）、一次性（使用即销毁，防重放）；该链接同时是
+        // 设备绑定通道（前端可凭 ticket 提交设备指纹完成绑定，实现 Cookie+指纹双因子免登录）。
+        if (bridge.isTicketLinkEnabled()) {
+            try {
+                String ticket = bridge.mintTicket(name);
+                String url = LinkMessageUtil.resolveUrl("/api/auth/login?ticket=" + ticket,
+                        context.getMcHost(), context.getMcPort());
+                LinkMessageUtil.send(player, url, "&a[HTTP-Over-MC] 点击此处完成网页登录验证，获取访问令牌");
+            } catch (Throwable t) {
+                log.warnT("log.authme.ticket-send-fail", "发送网页登录链接失败: {0}", t);
+            }
+        }
         if (upgraded > 0) {
             log.infoT("log.authme.login-upgraded", "玩家 {0} 进游戏登录：已将 {1} 个离线令牌升级为在线模式", name, upgraded);
         }

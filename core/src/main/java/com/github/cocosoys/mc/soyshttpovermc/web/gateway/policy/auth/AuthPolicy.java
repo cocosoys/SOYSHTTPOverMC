@@ -47,6 +47,25 @@ public class AuthPolicy extends SecurityPolicy {
     private int rememberTtlDays = 7;          // auto.login.ttl.activetime（默认 7 天）
     private boolean ipEnabled = false;        // auto.login.ip.enabled（默认 false）
     /**
+     * 设备指纹双因子开关（auth.yml auto.login.fp.enable，默认 false）：
+     * true=开启：自动登录（记住我）时校验请求 X-Device-Fingerprint 与绑定表一致；
+     * false=仅凭 Cookie 凭证（现状，行为不变）。
+     */
+    private boolean fpEnabled = false;
+    /**
+     * 指纹严格模式（auth.yml auto.login.fp.strict，默认 true）：
+     * true=指纹不一致/未携带 → 拒绝自动登录；false=不一致仅告警放行（宽松）。
+     */
+    private boolean fpStrict = true;
+    /**
+     * 游戏端→网页端绑定票据有效期（秒，auth.yml auto.login.ticket.ttl，默认 60）。
+     */
+    private int ticketTtlSeconds = 60;
+    /**
+     * 游戏内登录后是否发送可点击票据链接（auth.yml auto.login.ticket.in-game-link，默认 true）。
+     */
+    private boolean ticketLinkEnabled = true;
+    /**
      * X-API-Key 本地权限降级开关（auth.yml api-key.local-fallback-all，默认 false）：
      * true=本地权限表（local）不可用时 X-API-Key 退化为拥有所有权限（fail-open）；
      * false=不可用时按无权限拒绝（安全优先，默认）。
@@ -96,7 +115,7 @@ public class AuthPolicy extends SecurityPolicy {
         acceptBearer = acc == null || acc.getBoolean("bearer", true);
         acceptBasic = acc == null || acc.getBoolean("basic", true);
         acceptCookie = acc == null || acc.getBoolean("cookie", true);
-        // 自动登录（记住我 / IP 匹配）：auto.login.*（缺省保持默认）
+        // 自动登录（记住我 / IP 匹配 / 设备指纹双因子）：auto.login.*（缺省保持默认）
         ConfigurationSection autoLogin = cfg.getConfigurationSection("auto.login");
         if (autoLogin != null) {
             ConfigurationSection ttl = autoLogin.getConfigurationSection("ttl");
@@ -104,6 +123,16 @@ public class AuthPolicy extends SecurityPolicy {
             rememberTtlDays = ttl == null ? 7 : Math.max(1, ttl.getInt("activetime", 7));
             ConfigurationSection ip = autoLogin.getConfigurationSection("ip");
             ipEnabled = ip != null && ip.getBoolean("enabled", false);
+            ConfigurationSection fp = autoLogin.getConfigurationSection("fp");
+            if (fp != null) {
+                fpEnabled = fp.getBoolean("enable", false);
+                fpStrict = fp.getBoolean("strict", true);
+            }
+            ConfigurationSection ticket = autoLogin.getConfigurationSection("ticket");
+            if (ticket != null) {
+                ticketTtlSeconds = Math.max(10, ticket.getInt("ttl", 60));
+                ticketLinkEnabled = ticket.getBoolean("in-game-link", true);
+            }
         }
         // X-API-Key 本地权限降级开关（api-key.local-fallback-all，默认 false）
         ConfigurationSection apiKeyCfg = cfg.getConfigurationSection("api-key");
@@ -136,6 +165,34 @@ public class AuthPolicy extends SecurityPolicy {
      */
     public boolean isIpEnabled() {
         return ipEnabled;
+    }
+
+    /**
+     * 自动登录配置：设备指纹双因子开关（auto.login.fp.enable，默认 false）。
+     */
+    public boolean isFpEnabled() {
+        return fpEnabled;
+    }
+
+    /**
+     * 自动登录配置：指纹严格模式（auto.login.fp.strict，默认 true）。
+     */
+    public boolean isFpStrict() {
+        return fpStrict;
+    }
+
+    /**
+     * 自动登录配置：游戏端→网页端绑定票据有效期（秒，auto.login.ticket.ttl，默认 60）。
+     */
+    public int getTicketTtlSeconds() {
+        return ticketTtlSeconds;
+    }
+
+    /**
+     * 自动登录配置：游戏内登录后是否发送可点击票据链接（auto.login.ticket.in-game-link，默认 true）。
+     */
+    public boolean isTicketLinkEnabled() {
+        return ticketLinkEnabled;
     }
 
     /**

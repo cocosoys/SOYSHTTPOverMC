@@ -15,6 +15,8 @@ import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 
 import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -57,6 +59,10 @@ public class AuthLoginBridge {
      */
     private final Map<String, String> loginTickets = new ConcurrentHashMap<>();
     /**
+     * 一次性登录票据 → 过期毫秒（mintTicket 记录；消费/查看时校验，防重放 + 防无限增长）。
+     */
+    private final Map<String, Long> ticketExpiry = new ConcurrentHashMap<>();
+    /**
      * 玩家名 → 已签发的会话令牌（LoginEvent 时登记）。
      */
     private final Map<String, String> playerTokens = new ConcurrentHashMap<>();
@@ -85,9 +91,35 @@ public class AuthLoginBridge {
      */
     private volatile boolean ipEnabled = false;
     /**
+     * 设备指纹双因子开关（auth.yml auto.login.fp.enable，默认 false）：
+     * true=自动登录（记住我）时校验请求 X-Device-Fingerprint 与绑定表一致。
+     */
+    private volatile boolean fpEnabled = false;
+    /**
+     * 指纹严格模式（auth.yml auto.login.fp.strict，默认 true）：
+     * true=指纹不一致/未携带 → 拒绝自动登录；false=不一致仅告警放行（宽松）。
+     */
+    private volatile boolean fpStrict = true;
+    /**
+     * 游戏端→网页端绑定票据有效期（毫秒，auth.yml auto.login.ticket.ttl 秒，默认 60s）。
+     */
+    private volatile long ticketTtlMillis = 60_000L;
+    /**
+     * 游戏内登录后是否发送可点击票据链接（auth.yml auto.login.ticket.in-game-link，默认 true）。
+     */
+    private volatile boolean ticketLinkEnabled = true;
+    /**
      * 记住我 Cookie 名称（HttpOnly；与 session Cookie 独立）。
      */
     private static final String REMEMBER_COOKIE = "soys_remember";
+    /**
+     * 设备指纹请求头名称（前端采集后随请求携带）。
+     */
+    public static final String FP_HEADER = "X-Device-Fingerprint";
+    /**
+     * 指纹哈希服务端盐（指纹非秘密凭据，仅一致性弱校验；固定盐避免引入额外配置）。
+     */
+    private static final String FP_SALT = "soys-device-fp-v1";
 
     public AuthLoginBridge(SessionTokenIssuer issuer) {
         this.issuer = issuer;
@@ -122,12 +154,50 @@ public class AuthLoginBridge {
     }
 
     /**
-     * 生成一次性登录票据（返回给玩家点开的链接）。
+     * 生成一次性登录票据（返回给玩家点开的链接）：登记玩家 + 记录过期时刻（TTL=auto.login.ticket.ttl，
+     * 默认 60s），消费/查看时校验，超时自动失效。顺带惰性清理过期票据（防 map 无限增长）。
      */
     public String mintTicket(String player) {
         String ticket = AuthUtils.generateToken("tk_", 16);
+        long now = System.currentTimeMillis();
         loginTickets.put(ticket, player);
+        ticketExpiry.put(ticket, now + ticketTtlMillis);
+        // 惰性清理：票据池超过阈值时剔除过期项（任一消费即失效，这里只清已过期，不影响未过期一次性语义）
+        if (ticketExpiry.size() > 512) {
+            loginTickets.keySet().removeIf(t -> isExpiredTicket(t, now));
+            ticketExpiry.entrySet().removeIf(e -> e.getValue() <= now);
+        }
         return ticket;
+    }
+
+    /**
+     * 查看票据对应玩家（不消费；校验存在且未过期）。无效/已过期 → null。
+     * 供 {@link #serveLoginPage} 二次验证页判定票据有效性（登录页打开不销毁，保留一次性语义）。
+     */
+    public String peekTicket(String ticket) {
+        if (ticket == null) return null;
+        long now = System.currentTimeMillis();
+        if (isExpiredTicket(ticket, now)) return null;
+        return loginTickets.get(ticket);
+    }
+
+    /**
+     * 消费一次性票据（使用即删除；校验存在且未过期，防重放）。无效/已过期 → null。
+     * 供 {@link #issue}（票据+密码）与设备绑定（ticket+fingerprint）共用同一票据池——任一成功即失效。
+     */
+    public String consumeTicket(String ticket) {
+        if (ticket == null) return null;
+        String player = peekTicket(ticket);
+        if (player == null) return null;
+        loginTickets.remove(ticket);
+        ticketExpiry.remove(ticket);
+        return player;
+    }
+
+    private boolean isExpiredTicket(String ticket, long now) {
+        Long exp = ticketExpiry.get(ticket);
+        if (exp == null) return true;          // 无过期记录（未走 mintTicket）视为无效
+        return exp <= now;
     }
 
     /**
@@ -197,16 +267,54 @@ public class AuthLoginBridge {
     // ===== 记住我（设备免登录）：签发 / 验证 / 撤销 =====
 
     /**
-     * 注入自动登录配置（记住我 / IP 匹配开关）。
+     * 注入自动登录配置（记住我 / IP 匹配 / 设备指纹双因子 / 票据）。
      *
-     * @param rememberEnabled   记住我总开关
-     * @param rememberTtlMillis 记住我凭证有效期（毫秒）
-     * @param ipEnabled         旧 IP 匹配免登录开关
+     * @param rememberEnabled     记住我总开关
+     * @param rememberTtlMillis   记住我凭证有效期（毫秒）
+     * @param ipEnabled           旧 IP 匹配免登录开关
+     * @param fpEnabled           设备指纹双因子开关
+     * @param fpStrict            指纹严格模式
+     * @param ticketTtlSeconds    游戏端→网页端绑定票据有效期（秒）
+     * @param ticketLinkEnabled   游戏内登录后是否发送可点击票据链接
      */
-    public void setAutoLoginConfig(boolean rememberEnabled, long rememberTtlMillis, boolean ipEnabled) {
+    public void setAutoLoginConfig(boolean rememberEnabled, long rememberTtlMillis, boolean ipEnabled,
+                                   boolean fpEnabled, boolean fpStrict, int ticketTtlSeconds,
+                                   boolean ticketLinkEnabled) {
         this.rememberEnabled = rememberEnabled;
         this.rememberTtlMillis = Math.max(1000L, rememberTtlMillis);
         this.ipEnabled = ipEnabled;
+        this.fpEnabled = fpEnabled;
+        this.fpStrict = fpStrict;
+        this.ticketTtlMillis = Math.max(1000L, ticketTtlSeconds * 1000L);
+        this.ticketLinkEnabled = ticketLinkEnabled;
+    }
+
+    /**
+     * 设备指纹双因子开关是否启用。
+     */
+    public boolean isFpEnabled() {
+        return fpEnabled;
+    }
+
+    /**
+     * 指纹严格模式（true=不一致拒绝；false=宽松告警放行）。
+     */
+    public boolean isFpStrict() {
+        return fpStrict;
+    }
+
+    /**
+     * 游戏端→网页端绑定票据有效期（毫秒）。
+     */
+    public long getTicketTtlMillis() {
+        return ticketTtlMillis;
+    }
+
+    /**
+     * 游戏内登录后是否发送可点击票据链接。
+     */
+    public boolean isTicketLinkEnabled() {
+        return ticketLinkEnabled;
     }
 
     /**
@@ -348,6 +456,143 @@ public class AuthLoginBridge {
         if (jti == null) return;
         try {
             DATA.deleteById(RememberCredential.class, jti);
+        } catch (Throwable ignored) {
+        }
+    }
+
+    // ===== 设备指纹双因子（soys_device_binding）：登记 / 校验 / 撤销 =====
+
+    /**
+     * 计算设备指纹哈希：SHA-256(玩家名 + "|" + 原始指纹 + 服务端盐)，16 进制小写。
+     * 指纹原始串不落库、不落日志（指纹非秘密凭据，仅一致性弱校验；原始串采集见前端
+     * {@code dist/soys-auth.js} 的 collectFingerprint，包含 UA/屏幕/时区/语言/canvas/webgl/并发核数）。
+     */
+    public static String fingerprintHash(String player, String rawFingerprint) {
+        if (player == null || rawFingerprint == null || rawFingerprint.isEmpty()) return null;
+        try {
+            MessageDigest md = MessageDigest.getInstance("SHA-256");
+            byte[] h = md.digest((player + "|" + rawFingerprint + "|" + FP_SALT).getBytes(StandardCharsets.UTF_8));
+            StringBuilder sb = new StringBuilder(h.length * 2);
+            for (byte b : h) {
+                sb.append(Character.forDigit((b >> 4) & 0xF, 16)).append(Character.forDigit(b & 0xF, 16));
+            }
+            return sb.toString();
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    /**
+     * 登记/刷新设备绑定（登录成功或票据绑定成功后调用）：
+     * 同 (player, fingerprintHash) 已有记录 → 更新 lastIp/lastBindAt/deviceLabel/revoked=0/回填 UUID；
+     * 无记录 → 新增（YAML/SQL 双端经 ORM）。返回是否成功。
+     */
+    public boolean registerDevice(String player, String rawFingerprint, String ip, String label) {
+        if (player == null || rawFingerprint == null || rawFingerprint.isEmpty()) return false;
+        String hash = fingerprintHash(player, rawFingerprint);
+        if (hash == null) return false;
+        try {
+            List<SoysDeviceBinding> existing = DATA.select(SoysDeviceBinding.class,
+                    q -> q.eq(SoysDeviceBinding::getPlayer, player)
+                            .eq(SoysDeviceBinding::getFingerprintHash, hash));
+            SoysDeviceBinding b;
+            if (existing != null && !existing.isEmpty()) {
+                b = existing.get(0);
+                b.setDeviceLabel(label);
+                if (ip != null) b.setLastIp(ip);
+                b.setLastBindAt(new java.util.Date());
+                b.setRevoked(0);
+                fillUuid(b, player);
+                return DATA.updateById(b);
+            }
+            b = new SoysDeviceBinding();
+            b.setPlayer(player);
+            b.setFingerprintHash(hash);
+            b.setDeviceLabel(label);
+            b.setLastIp(ip);
+            b.setLastBindAt(new java.util.Date());
+            b.setRevoked(0);
+            fillUuid(b, player);
+            return DATA.insert(b);
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+
+    /**
+     * 该玩家是否已存在任一有效绑定（迁移策略判定：无绑定记录 → 本次自动登录放行并要求前端立即补绑）。
+     */
+    public boolean isDeviceBound(String player) {
+        if (player == null) return false;
+        try {
+            List<SoysDeviceBinding> list = DATA.select(SoysDeviceBinding.class,
+                    q -> q.eq(SoysDeviceBinding::getPlayer, player));
+            if (list == null) return false;
+            for (SoysDeviceBinding b : list) {
+                if (b.getRevoked() == null || b.getRevoked() == 0) return true;
+            }
+            return false;
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+
+    /**
+     * 请求指纹与该玩家任一有效绑定是否一致（自动登录双因子校验；命中且未弃用 → true）。
+     */
+    public boolean deviceMatches(String player, String rawFingerprint) {
+        if (player == null || rawFingerprint == null || rawFingerprint.isEmpty()) return false;
+        String hash = fingerprintHash(player, rawFingerprint);
+        if (hash == null) return false;
+        try {
+            List<SoysDeviceBinding> list = DATA.select(SoysDeviceBinding.class,
+                    q -> q.eq(SoysDeviceBinding::getPlayer, player)
+                            .eq(SoysDeviceBinding::getFingerprintHash, hash));
+            if (list == null || list.isEmpty()) return false;
+            for (SoysDeviceBinding b : list) {
+                if (b.getRevoked() == null || b.getRevoked() == 0) return true;
+            }
+            return false;
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+
+    /**
+     * 撤销指定设备绑定（revoked=1，不再参与判定）。找不到对应绑定 → 返回 false。
+     */
+    public boolean revokeDevice(String player, String rawFingerprint) {
+        if (player == null || rawFingerprint == null || rawFingerprint.isEmpty()) return false;
+        String hash = fingerprintHash(player, rawFingerprint);
+        if (hash == null) return false;
+        try {
+            List<SoysDeviceBinding> list = DATA.select(SoysDeviceBinding.class,
+                    q -> q.eq(SoysDeviceBinding::getPlayer, player)
+                            .eq(SoysDeviceBinding::getFingerprintHash, hash));
+            if (list == null || list.isEmpty()) return false;
+            for (SoysDeviceBinding b : list) {
+                b.setRevoked(1);
+                DATA.updateById(b);
+            }
+            return true;
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+
+    /**
+     * 回填绑定记录的玩家 UUID（Bukkit 在线时取在线实体；不在线时按离线 UUID 算法，与
+     * UuidUtil 语义一致——见 {@link com.github.cocosoys.mc.soyshttpovermc.util.UuidUtil}）。
+     */
+    private static void fillUuid(SoysDeviceBinding b, String player) {
+        if (b == null || b.getUuid() != null) return;
+        try {
+            Player online = Bukkit.getPlayerExact(player);
+            if (online != null) {
+                b.setUuid(online.getUniqueId().toString());
+            } else {
+                b.setUuid(com.github.cocosoys.mc.soyshttpovermc.util.UuidUtil.uuidOf(player).toString());
+            }
         } catch (Throwable ignored) {
         }
     }
@@ -556,7 +801,7 @@ public class AuthLoginBridge {
      */
     public ApiResponse serveLoginPage(String ticket) {
         if (loginProvider != null) {
-            String player = (ticket == null) ? null : loginTickets.get(ticket);
+            String player = peekTicket(ticket);
             if (player == null) {
                 return ApiResponse.jsonErrorT(400, "ajax.auth.login-ticket-invalid", "登录票据无效或已失效，请重新登录游戏以获取新的网页登录链接");
             }
@@ -580,7 +825,7 @@ public class AuthLoginBridge {
      * POST /api/auth/issue：校验 AuthMe 密码，验证通过下发会话 Cookie（JSON 成功体 + Set-Cookie）。
      */
     public ApiResponse issue(String ticket, String password) {
-        String player = (ticket == null) ? null : loginTickets.remove(ticket);
+        String player = consumeTicket(ticket);
         if (player == null) {
             return ApiResponse.jsonErrorT(400, "ajax.auth.login-ticket-used", "登录票据无效或已使用，请重新登录游戏以获取新的网页登录链接");
         }

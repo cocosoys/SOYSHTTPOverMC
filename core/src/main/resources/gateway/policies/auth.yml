@@ -18,7 +18,7 @@ accept:
   basic: true            # 接受 Authorization: Basic（用户名=key）
   cookie: true           # 接受 Cookie（值由启用的颁发器校验）
 
-# 自动登录（记住我 / IP 匹配）：
+# 自动登录（记住我 / IP 匹配 / 设备指纹双因子）：
 #   auto.login.ttl.enable      — 记住我（设备免登录）总开关：true=启用（默认），登录时按前端“记住我”
 #                                 勾选签发长期设备凭证 Cookie（soys_remember，HttpOnly），后续访问
 #                                 /api/auth/status 自动登录，无需重新输密码；false=关闭（不签发、不验证）。
@@ -26,6 +26,16 @@ accept:
 #   auto.login.ip.enabled      — 旧“IP 匹配免登录”开关：false=关闭（默认，不再按“游戏在线+网页IP==游戏IP”
 #                                 自动登录，IP 无法精准到个人设备，同 NAT 下会误伤他人）；true=保留旧行为
 #                                 （仅建议局域网/单机环境开启）。
+#   auto.login.fp.enable       — 设备指纹双因子开关：false=关闭（默认，仅凭记住我 Cookie，行为不变）；
+#                                 true=开启：自动登录时除校验 soys_remember 凭证外，还校验请求携带的
+#                                 X-Device-Fingerprint 与设备绑定表（soys_device_binding）一致，
+#                                 防“记住我 Cookie 被搬到其他设备”。指纹仅存哈希、非秘密凭据。
+#   auto.login.fp.strict       — 指纹严格模式：true=严格（默认，指纹不一致/未携带 → 拒绝自动登录，
+#                                 前端引导“重新登录 / 游戏内票据绑定”）；false=宽松（不一致仅告警放行）。
+#                                 存量用户迁移：开启后无绑定记录的设备自动登录时会放行一次并要求前端立即补绑。
+#   auto.login.ticket.ttl      — 游戏端→网页端绑定票据有效期（秒，默认 60）：玩家游戏内登录后聊天栏
+#                                 出现一次性链接，浏览器打开后提交“票据+设备指纹”完成设备绑定并签发记住我凭证。
+#   auto.login.ticket.in-game-link — 游戏内登录后是否发送可点击票据链接（默认 true=发送）。
 auto:
   login:
     ttl:
@@ -33,6 +43,12 @@ auto:
       activetime: 7
     ip:
       enabled: false
+    fp:
+      enable: false
+      strict: true
+    ticket:
+      ttl: 60
+      in-game-link: true
 
 # X-API-Key 权限降级开关：
 #   api-key.local-fallback-all — false=关闭（默认，安全优先）：本地权限表（local）不可用时，

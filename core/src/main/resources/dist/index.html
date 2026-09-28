@@ -272,12 +272,11 @@ $('copyIp').onclick = async ()=>{
 
 // ===== 右上角登录按钮（登录弹窗由 /soys-auth.js 公共组件提供）=====
 const navLogin = $('navLogin');
-function refreshLoginBtn(){
-  if(!SoysAuth.getToken()){
-    navLogin.textContent = '登录';
-    navLogin.className = 'btn-mini ghost';
-    return;
-  }
+function renderLoggedOut(){
+  navLogin.textContent = '登录';
+  navLogin.className = 'btn-mini ghost';
+}
+function renderLoggedIn(){
   SoysAuth.request(API + '/auth/me').then(r=>{
     if(r.code === 200 && r.data && r.data.player){
       const tag = r.data.mode === 'offline' ? '（离线）' : '';
@@ -285,13 +284,27 @@ function refreshLoginBtn(){
       navLogin.className = 'btn-mini off';
     }else{
       SoysAuth.setToken(null);
-      navLogin.textContent = '登录';
-      navLogin.className = 'btn-mini ghost';
+      renderLoggedOut();
     }
-  }).catch(()=>{
-    navLogin.textContent = '登录';
-    navLogin.className = 'btn-mini ghost';
-  });
+  }).catch(()=>{ renderLoggedOut(); });
+}
+function refreshLoginBtn(){
+  if(SoysAuth.getToken()){
+    renderLoggedIn();
+    return;
+  }
+  // 未登录：先探测“记住我 / IP 自动登录”（GET /api/auth/status 匿名，指纹头自动携带）
+  SoysAuth.autoLogin().then(res=>{
+    if(res && res.loggedIn){
+      toast(res.rememberAutoLogin ? '设备凭证，已自动登录' : '已自动登录');
+      renderLoggedIn();
+    } else if(res && res.fpMismatch){
+      toast('设备指纹不匹配，请重新登录');
+      renderLoggedOut();
+    } else {
+      renderLoggedOut();
+    }
+  }).catch(()=>{ renderLoggedOut(); });
 }
 navLogin.onclick = ()=>{
   if(SoysAuth.getToken()){

@@ -672,12 +672,17 @@ public class HttpOverMcPluginProxy {
         issuer.setSyncStorage(plugin.getSyncStorage());
         issuer.setServerId(storageServerId());
         plugin.setAuthLoginBridge(new AuthLoginBridge(issuer));
-        // 注入自动登录配置（记住我 / IP 匹配开关，gateway/policies/auth.yml auto.login.*）
+        // 注入自动登录配置（记住我 / IP 匹配 / 设备指纹双因子 / 票据，gateway/policies/auth.yml auto.login.*）
         AuthPolicy authPolicy = plugin.getGateway() == null ? null : plugin.getGateway().getAuthPolicy();
         boolean ttlEnable = authPolicy == null ? true : authPolicy.isRememberEnabled();
         long ttlDays = Math.max(1, authPolicy == null ? 7 : authPolicy.getRememberTtlDays());
         boolean ipEnabled = authPolicy != null && authPolicy.isIpEnabled();
-        plugin.getAuthLoginBridge().setAutoLoginConfig(ttlEnable, ttlDays * 86400_000L, ipEnabled);
+        boolean fpEnabled = authPolicy != null && authPolicy.isFpEnabled();
+        boolean fpStrict = authPolicy == null || authPolicy.isFpStrict();
+        int ticketTtl = authPolicy == null ? 60 : authPolicy.getTicketTtlSeconds();
+        boolean ticketLink = authPolicy == null || authPolicy.isTicketLinkEnabled();
+        plugin.getAuthLoginBridge().setAutoLoginConfig(ttlEnable, ttlDays * 86400_000L, ipEnabled,
+                fpEnabled, fpStrict, ticketTtl, ticketLink);
         if (plugin.getApiRegistry() != null) {
             plugin.getApiRegistry().setTokenUpgrader(plugin.getAuthLoginBridge()::upgradeHeadersIfOnline);
         }

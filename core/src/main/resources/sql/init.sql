@@ -116,3 +116,22 @@ CREATE TABLE IF NOT EXISTS `soys_api_key` (
   UNIQUE KEY `uk_api_key_hash` (`api_key`),
   UNIQUE KEY `uk_api_key_fp` (`fingerprint`)
 );
+
+-- ---------- 设备绑定表（记住我 Cookie + 设备指纹双因子） ----------
+-- 自增主键 id（SQL 端 AUTO_INCREMENT / SQLite AUTOINCREMENT；YAML 端由 ORM 分配 max+1）
+-- fingerprint_hash: SHA-256(玩家名|原始指纹|服务端盐)，仅存哈希（指纹非秘密，仅一致性弱校验）
+-- revoked: 1 = 设备已弃用（不参与判定）
+-- 联合唯一键 (player, fingerprint_hash)：一个玩家可绑定多台设备、一台设备一个绑定
+CREATE TABLE IF NOT EXISTS `soys_device_binding` (
+  `id`               BIGINT       PRIMARY KEY AUTO_INCREMENT COMMENT '自增主键',
+  `player`           VARCHAR(255)          COMMENT '玩家名（联合唯一索引之一）',
+  `uuid`             VARCHAR(64)           COMMENT '玩家 UUID（可空，绑定/登录时回填）',
+  `fingerprint_hash` VARCHAR(64)           COMMENT '设备指纹哈希（SHA-256+盐，仅存哈希）',
+  `device_label`     VARCHAR(255)          COMMENT '设备描述（UA 摘要，仅展示）',
+  `last_ip`          VARCHAR(64)           COMMENT '最后成功绑定/登录 IP（弱校验参考）',
+  `last_bind_at`     VARCHAR(255)          COMMENT '最后绑定时刻（yyyy-MM-dd HH:mm:ss）',
+  `revoked`          TINYINT               COMMENT '弃用标记: 1 = 已弃用',
+  `create_time`      VARCHAR(255)          COMMENT '创建时间（yyyy-MM-dd HH:mm:ss）',
+  `update_time`      VARCHAR(255)          COMMENT '最后更新时间（yyyy-MM-dd HH:mm:ss）',
+  UNIQUE KEY `uk_device_player_fp` (`player`, `fingerprint_hash`)
+);

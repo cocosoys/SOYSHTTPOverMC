@@ -55,6 +55,15 @@ public class AuthStatusEntityVO extends BaseEntity {
     /** 网页 IP 与游戏端 IP 是否匹配（仅旧 IP 匹配分支填充） */
     private boolean ipMatched;
 
+    /** 设备指纹双因子是否启用（auth.yml auto.login.fp.enable，true=本次判定经过了指纹校验） */
+    private boolean fpEnabled;
+
+    /** 指纹校验未通过（strict 模式：不一致/未携带 → 拒绝自动登录，前端引导重新登录/票据绑定） */
+    private boolean fpMismatch;
+
+    /** 需要立即补绑设备（存量迁移：无绑定记录时本次放行，前端应调 /api/auth/device/register 完成绑定） */
+    private boolean fpBindRequired;
+
     public AuthStatusEntityVO() {
     }
 }

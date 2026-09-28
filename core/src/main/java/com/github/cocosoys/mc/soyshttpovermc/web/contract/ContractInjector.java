@@ -4,6 +4,7 @@ import com.github.cocosoys.mc.soyshttpovermc.HttpOverMcPlugin;
 import com.github.cocosoys.mc.soyshttpovermc.util.JsonWriter;
 import com.github.cocosoys.mc.soyshttpovermc.web.ApiRegistry;
 import com.github.cocosoys.mc.soyshttpovermc.web.WebRegistry;
+import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.bridge.AuthLoginBridge;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -301,6 +302,15 @@ public class ContractInjector {
         // vue-router base：非主插件 = pageFullPrefix + "/"（如 /web/plugins/MCER/）；
         // 主插件特判（pageFullPrefix="" 时公式不成立）→ 根 "/"（资源托管于根路径）。
         String pageBase = mainPlugin ? "/" : pageFullPrefix + "/";
+        // 设备指纹双因子开关（auth.yml auto.login.fp.*；前端据此决定是否采集指纹并自动携带
+        // X-Device-Fingerprint 头 / 展示绑定引导；bridge 未启用（无 session-token 颁发器）→ 默认关）
+        boolean fpEnabled = false;
+        boolean fpStrict = true;
+        AuthLoginBridge bridge = host.getAuthLoginBridge();
+        if (bridge != null) {
+            fpEnabled = bridge.isFpEnabled();
+            fpStrict = bridge.isFpStrict();
+        }
 
         // 契约 JSON 统一经 JsonWriter 输出（键序由 LinkedHashMap 保持，值统一转义）
         Map<String, Object> contract = new LinkedHashMap<>();
@@ -314,6 +324,8 @@ public class ContractInjector {
         contract.put("webResourcePrefix", webResourcePrefix);
         contract.put("spaFallback", spaFallback);
         contract.put("pageBase", pageBase);
+        contract.put("fpEnabled", fpEnabled);
+        contract.put("fpStrict", fpStrict);
         return JsonWriter.write(contract);
     }
 

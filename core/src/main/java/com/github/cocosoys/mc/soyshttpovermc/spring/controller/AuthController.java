@@ -84,4 +84,18 @@ public class AuthController {
     public ApiResponse status(ApiRequestContext ctx, @RequestParam(name = "player", required = false) String player) {
         return authService.checkStatus(ctx, player);
     }
+
+    @ApiName("登记设备指纹")
+    @ApiPublic
+    @PostMapping("/device/register")
+    public AjaxResult registerDevice(CredentialPresentation credential, ApiRequestContext ctx, @RequestBody String body) {
+        return authService.registerDevice(credential, ctx, body);
+    }
+
+    @ApiName("票据绑定设备")
+    @Anonymous
+    @PostMapping("/device/bind")
+    public ApiResponse bindDevice(@RequestBody String body) {
+        return authService.bindDevice(body);
+    }
 }
