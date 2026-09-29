@@ -1,6 +1,7 @@
 package com.github.cocosoys.mc.soyshttpovermc.web;
 
 import lombok.Getter;
+import com.github.cocosoys.mc.soyshttpovermc.annotations.Deprecated;
 
 import java.io.Serializable;
 
@@ -58,7 +59,7 @@ public class ApiInfo implements Serializable {
      */
     public ApiInfo(String httpMethod, String path, String apiName,
                    String permission, String handlerClass, String ownerPlugin,
-                   boolean hidden, com.github.cocosoys.mc.soyshttpovermc.annotations.Deprecated deprecated) {
+                   boolean hidden, Deprecated deprecated) {
         this.httpMethod = httpMethod == null ? "" : httpMethod;
         this.path = path == null ? "/" : path;
         this.apiName = apiName == null ? "" : apiName;

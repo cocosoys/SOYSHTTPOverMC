@@ -75,7 +75,7 @@ public interface ApiToolkitApi {
      * API 完整前缀（插件实例重载）：等价 {@link #apiFullPrefix(String)} 传 {@code plugin.getName()}。
      * 开发者直接传入自身插件主类实例即可，无需再写插件名字符串。
      */
-    String apiFullPrefix(Plugin plugin);
+    String apiFullPrefix(Plugin plugin);
     /**
      * 页面完整前缀 = "/web" + pluginsPrefix(pluginName)。
      * 例：插件 MCER → {@code "/web/plugins/MCER"}；主插件 → {@code ""}（页面在根路径）。
@@ -124,4 +124,51 @@ public interface ApiToolkitApi {
      * 用于拼写群组服下插件自身 API / 网页的完整访问地址。
      */
     String fullPathPrefix(String pluginName);
+
+    /**
+     * 传输协议（http / https）：TLS（HTTPS）启用返回 {@code "https"}，否则 {@code "http"}。
+     * 与契约文件 {@code __SOYS_CONTEXT__.js} 的 {@code scheme} 同源。
+     */
+    String scheme();
+
+    /**
+     * 服务器对外地址（host，不含端口）：
+     * config.yml 的 {@code mc.public-host} → {@code mc.host} → server.properties 的 server-ip → {@code "localhost"}。
+     */
+    String host();
+
+    /**
+     * 服务器对外端口：config.yml 的 {@code mc.public-port} → {@code mc.port} →
+     * server.properties 的 server-port → 运行期端口；无效值回退 {@code 25565}。
+     */
+    int port();
+
+    /**
+     * SPA 回退声明状态：插件是否在网页登记时声明了 spaFallback（前端据此决定 history/hash 模式）。
+     * 未声明 / 网页注册表不可用 → {@code false}。
+     *
+     * @param pluginName 插件名；null / 空 → 视为主插件
+     */
+    boolean spaFallback(String pluginName);
+
+    /**
+     * vue-router base：主插件 = {@code "/"}（资源托管于根路径）；
+     * 附属插件 = {@code pageFullPrefix(pluginName) + "/"}（如 {@code "/web/plugins/MCER/"}）。
+     * 与契约文件 {@code __SOYS_CONTEXT__.js} 的 {@code pageBase} 同源。
+     *
+     * @param pluginName 插件名；null / 空 → 视为主插件
+     */
+    String pageBase(String pluginName);
+
+    /**
+     * 设备指纹双因子开关（gateway/policies/auth.yml {@code auto.login.fp.enabled}）；
+     * 未接入登录桥（无 session-token 颁发器）→ {@code false}。
+     */
+    boolean fpEnabled();
+
+    /**
+     * 设备指纹严格模式（auth.yml {@code auto.login.fp.strict}）；
+     * 未接入登录桥 → 默认严格 {@code true}。
+     */
+    boolean fpStrict();
 }

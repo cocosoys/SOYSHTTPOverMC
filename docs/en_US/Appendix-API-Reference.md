@@ -93,6 +93,13 @@ Also: `registerPage(..., List<String> permissions)` / `registerProxyPage(..., pe
 | `String webResourcePrefix(Plugin plugin)` | same, with the plugin main class instance |
 | `String serverPrefix()` | proxy-server prefix (e.g. `/server/lobby`); empty on standalone |
 | `String fullPathPrefix(String pluginName)` | full 3-segment = `serverPrefix() + apiFullPrefix()` (e.g. `/server/lobby/api/plugins/Foo`) |
+| `String scheme()` | transport scheme (`https` when TLS enabled, else `http`; same source as the `__SOYS_CONTEXT__.js` contract's scheme) |
+| `String host()` | server public address (`mc.public-host` → `mc.host` → server-ip → `localhost` fallback) |
+| `int port()` | server public port (`mc.public-port` → `mc.port` → server-port → `25565` fallback) |
+| `boolean spaFallback(String pluginName)` | whether the plugin declared SPA fallback (drives history/hash mode; false when unset/registry unavailable) |
+| `String pageBase(String pluginName)` | vue-router base: `/` for the main plugin; `pageFullPrefix + "/"` for add-ons (same source as contract pageBase) |
+| `boolean fpEnabled()` | device-fingerprint two-factor switch (auth.yml `auto.login.fp.enabled`; false without a login bridge) |
+| `boolean fpStrict()` | device-fingerprint strict mode (auth.yml `auto.login.fp.strict`; default true without a login bridge) |
 
 ## A.6 Group 5: HttpClientApi
 
@@ -118,7 +125,19 @@ Also: `registerPage(..., List<String> permissions)` / `registerProxyPage(..., pe
 
 ## A.8 Event API (see Chapter 7)
 
-`SoysReadyEvent` (`getApi()`), `HttpConfigReloadEvent`, `GatewayRequestEvent`, `GatewayRequestServedEvent` (`getStatusCode()`/`getDurationMs()`), `GatewayAccessDeniedEvent` (`getStatusCode()`/`getPolicyName()`), `GatewayCredentialIssuedEvent`, `ApiRegisteredEvent`/`ApiUnregisteredEvent` (`getApiInfo()`), `ApiAccessEvent` and its subclasses (`ApiGetEvent` etc., `getPlayerName()`/`getPlayer()`), `ApiAccessDeniedEvent`. All live in `com.github.cocosoys.mc.soyshttpovermc.api.event`; `GatewayEvent` is the abstract base.
+All live in `com.github.cocosoys.mc.soyshttpovermc.api.event`; events are **nested classes under abstract bases**:
+
+- `SoysReadyEvent` (`getApi()`), `HttpConfigReloadEvent` — top-level classes;
+- Under `ApiEvent`: `ApiRegisteredEvent` / `ApiUnregisteredEvent` (`getApis()` → `List<ApiInfo>`),
+  `ApiAccessEvent` (`getPlayerName()`/`getPlayer()`/`getAsyncPlayer()`/`getRequestParams()`/`getBody()`; subclasses
+  `ApiGetEvent`/`ApiPostEvent`/`ApiPutEvent`/`ApiDeleteEvent`/`ApiPatchEvent`/`ApiOtherEvent`),
+  `ApiAccessCompletedEvent` (adds `getResponseBody()`/`getStatusCode()`/`getReason()`/`getHeaders()`; subclasses
+  `ApiGetCompletedEvent` etc.) — registration/unregistration are synchronous; access/completed are dispatched back to the main thread by the gateway;
+- Under `GatewayEvent`: `GatewayRequestEvent` / `GatewayRequestServedEvent` (`getStatusCode()`/`getLatencyMs()`),
+  `GatewayAccessDeniedEvent` (`getStatusCode()`/`getPolicyName()`), `GatewayCredentialIssuedEvent`,
+  `GatewayLoginResultEvent` (`getPlayer()`/`isSuccess()`/`getReason()`/`getIp()`);
+- Under `WebResourcesEvent`: `WebResourcesAccessEvent` (`getPath()`/`isHtml()`/`isJs()`/`getResult()`, can redirect/block/replace),
+  `WebResourcesLoadedEvent` (`getResources()` → `List<WebResourceAccess>`).
 
 ## A.9 Configuration Index (real paths)
 
@@ -140,17 +159,19 @@ Also: `registerPage(..., List<String> permissions)` / `registerProxyPage(..., pe
 ## A.10 Command Quick Reference
 
 ```
-/soyshttp reload
+/soyshttp eula | status | report | reload | help [subcommand|page]
 /soyshttp key <subject>
 /soyshttp send <url|/page> [display text] [player]
-/soyshttp pages [all]
-/soyshttp api
+/soyshttp pages [all] [page]
+/soyshttp api [pluginName]
 /soyshttp tokens
 /soyshttp lang [code]            # lang sources on|off|download|update|remove|info <index>
+/soyshttp log [level]            # OFF|ERROR|WARN|INFO|DEBUG|TRACE
 /soyshttp perm group|user|check|reload ...
-/soyshttp log-level <OFF|ERROR|WARN|INFO|DEBUG|TRACE>
-/soyshttp migrate <yaml|sql> <yaml|sql>
-/soyshttp status | report | eula | help
+/soyshttp apikey                 # X-API-Key local table management (generate/enable-disable/expire/bind/permissions)
+/soyshttp migrate <backend> <backend> [confirm]   # ORM backend migration (merge semantics)
+/soyshttp sync [<from> <to> [confirm]]            # backend overwrite sync (no-arg = primary → all secondary)
+/soyshttp data <plugin> status|update [version]|reinstall|uninstall   # data-layer auto ops
 ```
 
 Short alias `/shttp`; master permission `soyshttp.admin` (OP by default).

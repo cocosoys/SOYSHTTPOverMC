@@ -102,13 +102,16 @@ Main command `/soyshttp` (short alias `/shttp`), requires `soyshttp.admin` (OP b
 | `/soyshttp reload` | Hot reload: log level, language, pages.yml, storage, gateway policies & TLS, login bridge, page registration |
 | `/soyshttp key <subject>` | Issue a highest-privilege credential for a subject (static key, carries the `adm` marker) |
 | `/soyshttp send <url\|/page> [display text] [player]` | Send a clickable link to a player |
-| `/soyshttp pages [all]` | List registered pages (default: only .html pages and redirects) |
-| `/soyshttp api` | List registered annotation-based API endpoints (method/path/owner/permission) |
+| `/soyshttp pages [all] [page]` | List registered pages (default: UI pages & redirects only; all includes every resource/script) |
+| `/soyshttp api [plugin]` | List registered annotation-based API endpoints (method/path/owner/permission) |
 | `/soyshttp tokens` | List all issued session tokens |
 | `/soyshttp lang [code]` | View / switch language (`lang sources ...` manages extra language sources) |
 | `/soyshttp perm ...` | Local permission table management (group/user CRUD + check; pairs with `offline-fallback: local`) |
-| `/soyshttp log-level <level>` | Dynamically adjust log level (OFF/ERROR/WARN/INFO/DEBUG/TRACE) |
-| `/soyshttp migrate <yaml\|sql> <yaml\|sql>` | Explicitly migrate soys_records data between the two ORM backends (YAML/SQL) |
+| `/soyshttp log [level]` | View / set the log level (OFF/ERROR/WARN/INFO/DEBUG/TRACE) |
+| `/soyshttp migrate <backend> <backend> [confirm]` | Migrate all registered tables between backends (merge semantics) |
+| `/soyshttp sync [<from> <to> [confirm]]` | Backend overwrite migration (no-arg = primary → all secondary; targeted with args; both need confirm) |
+| `/soyshttp apikey ...` | X-API-Key local-table management (generate/disable/expire/bind/permissions) |
+| `/soyshttp data <plugin> status\|update [version]\|reinstall\|uninstall` | Data-layer auto ops |
 | `/soyshttp status` / `report` / `eula` / `help` | Status / data-contribution report / EULA viewer / help |
 
 ## 1.7 Integrating Your First Third-Party Plugin

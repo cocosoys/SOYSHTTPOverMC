@@ -79,7 +79,7 @@ Interceptors run in registration order; you may rewrite `ctx`'s path / request h
 ## 6.4 Logging Control
 
 - `config.yml log.level`: OFF / ERROR / WARN / INFO (default) / DEBUG / TRACE;
-- `/soyshttp log-level <level>` or `/soyshttp reload` adjusts dynamically;
+- `/soyshttp log [level]` or `/soyshttp reload` adjusts dynamically;
 - All plugin logs go through the LogKit facade for unified filtering; `@CustomLog` generates the `log` object.
 
 ## 6.5 Hot Reload (/soyshttp reload)

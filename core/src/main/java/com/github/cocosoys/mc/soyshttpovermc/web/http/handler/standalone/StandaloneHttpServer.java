@@ -1,6 +1,5 @@
 package com.github.cocosoys.mc.soyshttpovermc.web.http.handler.standalone;
 
-import com.github.cocosoys.mc.soyshttpovermc.util.JsonWriter;
 import com.github.cocosoys.mc.soyshttpovermc.i18n.I18n;
 import com.github.cocosoys.mc.soyshttpovermc.web.RequestStats;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.Credential;
@@ -53,6 +52,12 @@ public class StandaloneHttpServer {
     private final String host;
     private final Supplier<SSLEngine> tlsEngineSupplier;
     private final int maxBodyBytes;
+
+    /**
+     * 500 内部错误响应体（预编译常量；键序与 JsonWriter 输出一致：msg, code）。
+     */
+    private static final byte[] INTERNAL_ERROR_BODY =
+            "{\"msg\":\"Internal Server Error\",\"code\":500}".getBytes(CharsetUtil.UTF_8);
 
     private EventLoopGroup bossGroup;
     private EventLoopGroup workerGroup;
@@ -200,10 +205,7 @@ public class StandaloneHttpServer {
                 }
             } catch (Throwable t) {
                 log.warnT("log.server.standalone-request-error", "独立服务器处理请求异常: {0}", t);
-                java.util.Map<String, Object> err = new java.util.LinkedHashMap<>();
-                err.put("msg", "Internal Server Error");
-                err.put("code", 500);
-                writeResponse(ctx, 500, JsonWriter.write(err).getBytes(CharsetUtil.UTF_8),
+                writeResponse(ctx, 500, INTERNAL_ERROR_BODY,
                         "application/json; charset=utf-8", false);
             } finally {
                 ReferenceCountUtil.release(req);

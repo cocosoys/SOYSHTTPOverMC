@@ -93,6 +93,13 @@ SoysHttpOverMcApi api = HttpOverMcPlugin.getInstance().getApi();
 | `String webResourcePrefix(Plugin plugin)` | 同上，传插件主类实例 |
 | `String serverPrefix()` | 群组服跨服前缀（如 `/server/lobby`）；独立服返回空串 |
 | `String fullPathPrefix(String pluginName)` | 完整三段 = `serverPrefix() + apiFullPrefix()`（如 `/server/lobby/api/plugins/Foo`） |
+| `String scheme()` | 传输协议（TLS 启用 → `https`，否则 `http`；与契约文件 `__SOYS_CONTEXT__.js` 的 scheme 同源） |
+| `String host()` | 服务器对外地址（`mc.public-host` → `mc.host` → server-ip → `localhost` 回退） |
+| `int port()` | 服务器对外端口（`mc.public-port` → `mc.port` → server-port → `25565` 回退） |
+| `boolean spaFallback(String pluginName)` | 插件是否声明 SPA 回退（前端据此决定 history/hash 模式；未声明/注册表不可用 → false） |
+| `String pageBase(String pluginName)` | vue-router base：主插件 `/`；附属插件 = `pageFullPrefix + "/"`（与契约 pageBase 同源） |
+| `boolean fpEnabled()` | 设备指纹双因子开关（auth.yml `auto.login.fp.enabled`；未接入登录桥 → false） |
+| `boolean fpStrict()` | 设备指纹严格模式（auth.yml `auto.login.fp.strict`；未接入登录桥 → 默认 true） |
 
 ## A.6 能力组 5：HttpClientApi
 
@@ -118,7 +125,19 @@ SoysHttpOverMcApi api = HttpOverMcPlugin.getInstance().getApi();
 
 ## A.8 事件 API（详见第 7 章）
 
-`SoysReadyEvent`（`getApi()`）、`HttpConfigReloadEvent`、`GatewayRequestEvent`、`GatewayRequestServedEvent`（`getStatusCode()`/`getDurationMs()`）、`GatewayAccessDeniedEvent`（`getStatusCode()`/`getPolicyName()`）、`GatewayCredentialIssuedEvent`、`ApiRegisteredEvent`/`ApiUnregisteredEvent`（`getApiInfo()`）、`ApiAccessEvent` 及其子类（`ApiGetEvent` 等，`getPlayerName()`/`getPlayer()`）、`ApiAccessDeniedEvent`。全部位于 `com.github.cocosoys.mc.soyshttpovermc.api.event`（主插件 `api/event` 包），`GatewayEvent` 为抽象基类。
+全部位于 `com.github.cocosoys.mc.soyshttpovermc.api.event`（主插件 `api/event` 包），均为**抽象基类下嵌套类**：
+
+- `SoysReadyEvent`（`getApi()`）、`HttpConfigReloadEvent` —— 顶层类；
+- `ApiEvent` 下：`ApiRegisteredEvent` / `ApiUnregisteredEvent`（`getApis()` → `List<ApiInfo>`）、
+  `ApiAccessEvent`（`getPlayerName()`/`getPlayer()`/`getAsyncPlayer()`/`getRequestParams()`/`getBody()`，子类
+  `ApiGetEvent`/`ApiPostEvent`/`ApiPutEvent`/`ApiDeleteEvent`/`ApiPatchEvent`/`ApiOtherEvent`）、
+  `ApiAccessCompletedEvent`（追加 `getResponseBody()`/`getStatusCode()`/`getReason()`/`getHeaders()`，子类
+  `ApiGetCompletedEvent` 等）—— 注册/卸载为同步，访问/完成经网关切回主线程发射；
+- `GatewayEvent` 下：`GatewayRequestEvent` / `GatewayRequestServedEvent`（`getStatusCode()`/`getLatencyMs()`）、
+  `GatewayAccessDeniedEvent`（`getStatusCode()`/`getPolicyName()`）、`GatewayCredentialIssuedEvent`、
+  `GatewayLoginResultEvent`（`getPlayer()`/`isSuccess()`/`getReason()`/`getIp()`）；
+- `WebResourcesEvent` 下：`WebResourcesAccessEvent`（`getPath()`/`isHtml()`/`isJs()`/`getResult()`，可跳转拦截/替换）、
+  `WebResourcesLoadedEvent`（`getResources()` → `List<WebResourceAccess>`）。
 
 ## A.9 配置索引（全部真实路径）
 
@@ -140,17 +159,19 @@ SoysHttpOverMcApi api = HttpOverMcPlugin.getInstance().getApi();
 ## A.10 命令速查
 
 ```
-/soyshttp reload
+/soyshttp eula | status | report | reload | help [子指令|页码]
 /soyshttp key <主体>
 /soyshttp send <url|/page> [显示文字] [玩家]
-/soyshttp pages [all]
-/soyshttp api
+/soyshttp pages [all] [页码]
+/soyshttp api [插件名]
 /soyshttp tokens
 /soyshttp lang [代码]            # lang sources on|off|download|update|remove|info <索引>
+/soyshttp log [级别]             # OFF|ERROR|WARN|INFO|DEBUG|TRACE
 /soyshttp perm group|user|check|reload ...
-/soyshttp log-level <OFF|ERROR|WARN|INFO|DEBUG|TRACE>
-/soyshttp migrate <yaml|sql> <yaml|sql>
-/soyshttp status | report | eula | help
+/soyshttp apikey                 # X-API-Key 本地表管理（生成/启停/过期/绑定/权限）
+/soyshttp migrate <后端> <后端> [confirm]     # ORM 后端迁移（合并语义）
+/soyshttp sync [<from> <to> [confirm]]        # 后端覆盖迁移（无参=主→全部辅助）
+/soyshttp data <插件> status|update [版本]|reinstall|uninstall   # 数据层自动化运维
 ```
 
 简写 `/shttp`；主权限 `soyshttp.admin`（默认 OP）。

@@ -212,7 +212,7 @@ These endpoints are exempted from auth by default in `gateway/policies/auth.yml`
 ## 2.9 Request Lifecycle & Debugging
 
 - `debug-events: true` in `gateway/config.yml` prints gateway events to the console (request entered / denied / served / credential issued / API registered / unregistered);
-- Listen to events: `ApiAccessEvent` (after permission passes, before the handler runs), `ApiAccessDeniedEvent` (403), `ApiRegisteredEvent` / `ApiUnregisteredEvent` — see Chapter 7;
+- Listen to events: `ApiEvent.ApiAccessEvent` (after permission passes, before the handler runs), `ApiEvent.ApiAccessCompletedEvent` (request finished, denials included), `ApiEvent.ApiRegisteredEvent` / `ApiEvent.ApiUnregisteredEvent` — see Chapter 7;
 - Unmatched routes return a 404 JSON; insufficient permission returns 403; gateway rejections return the corresponding status code (401/426/429 etc.).
 
 ## 2.10 Version Notes

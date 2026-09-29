@@ -1,17 +1,15 @@
 package com.github.cocosoys.mc.soyshttpovermc.web.contract;
 
 import com.github.cocosoys.mc.soyshttpovermc.HttpOverMcPlugin;
+import com.github.cocosoys.mc.soyshttpovermc.api.ApiToolkitApi;
+import com.github.cocosoys.mc.soyshttpovermc.api.SoysHttpOverMcApi;
+import com.github.cocosoys.mc.soyshttpovermc.spring.entity.vo.SoysContextContractVO;
 import com.github.cocosoys.mc.soyshttpovermc.util.JsonWriter;
-import com.github.cocosoys.mc.soyshttpovermc.web.ApiRegistry;
-import com.github.cocosoys.mc.soyshttpovermc.web.WebRegistry;
-import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.bridge.AuthLoginBridge;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -84,11 +82,6 @@ public class ContractInjector {
     private static final List<Pattern> TAG_PATTERNS = buildTagPatterns();
 
     private final HttpOverMcPlugin host;
-    private final ApiRegistry apiRegistry;
-    /**
-     * 网页登记注册表（契约 {@code spaFallback} 状态查询；null=未注入，视为未声明）。
-     */
-    private volatile WebRegistry webRegistry;
 
     /**
      * 各插件声明的排除列表缓存（ownerName -> excludes）；null/未登记 = 默认排除 /api。
@@ -96,17 +89,8 @@ public class ContractInjector {
      */
     private final ConcurrentHashMap<String, List<String>> excludesByOwner = new ConcurrentHashMap<>();
 
-    public ContractInjector(HttpOverMcPlugin host, ApiRegistry apiRegistry) {
+    public ContractInjector(HttpOverMcPlugin host) {
         this.host = host;
-        this.apiRegistry = apiRegistry;
-    }
-
-    /**
-     * 注入网页登记注册表（SPA 回退状态查询用）。由主插件在 WebRegistry 构建后调用，
-     * 保持现有构造器签名不变（契约注入器与网页注册中心解耦）。
-     */
-    public void setWebRegistry(WebRegistry webRegistry) {
-        this.webRegistry = webRegistry;
     }
 
     /**
@@ -281,74 +265,36 @@ public class ContractInjector {
     }
 
     private String buildContextJson(String owner) {
-        String scheme = (host.getTlsFactory() != null && host.getTlsFactory().getSSLContext() != null)
-                ? "https" : "http";
-        String hostVal = host.getMcHost();
-        if (hostVal == null || hostVal.isEmpty()) {
-            hostVal = "localhost";
-        }
-        int port = host.getMcPort();
-        if (port <= 0) {
-            port = 25565;
-        }
-        String apiPrefix = normalizeApiPrefix();
-        boolean mainPlugin = owner.equals(host.getName());
-        String pluginsPrefix = mainPlugin ? "" : "/plugins/" + owner;
-        String apiFullPrefix = joinFull(apiPrefix, pluginsPrefix);
-        String pageFullPrefix = mainPlugin ? "" : "/web/plugins/" + owner;
-        String webResourcePrefix = "/web/plugins/" + owner + "/page";
-        // SPA 回退声明状态（前端据此决定 history/hash 模式；未注入注册表视为未声明）
-        boolean spaFallback = webRegistry != null && webRegistry.isSpaFallbackEnabled(owner);
-        // vue-router base：非主插件 = pageFullPrefix + "/"（如 /web/plugins/MCER/）；
-        // 主插件特判（pageFullPrefix="" 时公式不成立）→ 根 "/"（资源托管于根路径）。
-        String pageBase = mainPlugin ? "/" : pageFullPrefix + "/";
-        // 设备指纹双因子开关（auth.yml auto.login.fp.*；前端据此决定是否采集指纹并自动携带
-        // X-Device-Fingerprint 头 / 展示绑定引导；bridge 未启用（无 session-token 颁发器）→ 默认关）
-        boolean fpEnabled = false;
-        boolean fpStrict = true;
-        AuthLoginBridge bridge = host.getAuthLoginBridge();
-        if (bridge != null) {
-            fpEnabled = bridge.isFpEnabled();
-            fpStrict = bridge.isFpStrict();
-        }
+        // 契约原语统一经 ApiToolkitApi 获取（与对外 API 家族同源，避免内部重复推导）；
+        // 契约注入发生在 onEnable 完成后（响应时调用），getApi()/getToolkit() 必然就绪
+        ApiToolkitApi tk = host.getApi().getToolkit();
+        String scheme = tk.scheme();
+        String hostVal = tk.host();
+        int port = tk.port();
+        String apiPrefix = tk.apiPrefix();
+        String pluginsPrefix = tk.pluginsPrefix(owner);
+        String apiFullPrefix = tk.apiFullPrefix(owner);
+        String pageFullPrefix = tk.pageFullPrefix(owner);
+        String webResourcePrefix = tk.webResourcePrefix(owner);
+        boolean spaFallback = tk.spaFallback(owner);
+        String pageBase = tk.pageBase(owner);
+        boolean fpEnabled = tk.fpEnabled();
+        boolean fpStrict = tk.fpStrict();
 
-        // 契约 JSON 统一经 JsonWriter 输出（键序由 LinkedHashMap 保持，值统一转义）
-        Map<String, Object> contract = new LinkedHashMap<>();
-        contract.put("scheme", scheme);
-        contract.put("host", hostVal);
-        contract.put("port", port);
-        contract.put("apiPrefix", apiPrefix);
-        contract.put("pluginsPrefix", pluginsPrefix);
-        contract.put("apiFullPrefix", apiFullPrefix);
-        contract.put("pageFullPrefix", pageFullPrefix);
-        contract.put("webResourcePrefix", webResourcePrefix);
-        contract.put("spaFallback", spaFallback);
-        contract.put("pageBase", pageBase);
-        contract.put("fpEnabled", fpEnabled);
-        contract.put("fpStrict", fpStrict);
+        // 契约 JSON 统一经 SoysContextContractVO 实体化输出（字段名即契约键名，值统一转义）
+        SoysContextContractVO contract = new SoysContextContractVO();
+        contract.setScheme(scheme);
+        contract.setHost(hostVal);
+        contract.setPort(port);
+        contract.setApiPrefix(apiPrefix);
+        contract.setPluginsPrefix(pluginsPrefix);
+        contract.setApiFullPrefix(apiFullPrefix);
+        contract.setPageFullPrefix(pageFullPrefix);
+        contract.setWebResourcePrefix(webResourcePrefix);
+        contract.setSpaFallback(spaFallback);
+        contract.setPageBase(pageBase);
+        contract.setFpEnabled(fpEnabled);
+        contract.setFpStrict(fpStrict);
         return JsonWriter.write(contract);
-    }
-
-    private String normalizeApiPrefix() {
-        if (apiRegistry == null) {
-            return "/api";
-        }
-        String p = apiRegistry.getPathPrefix();
-        return (p == null || p.trim().isEmpty()) ? "/api" : p.trim();
-    }
-
-    /**
-     * 与 ApiToolkitImpl.apiFullPrefix 同语义：apiPrefix + pluginsPrefix 归一拼接。
-     */
-    private static String joinFull(String apiPrefix, String pluginsPrefix) {
-        if (pluginsPrefix.isEmpty()) {
-            return apiPrefix;
-        }
-        if (apiPrefix.isEmpty() || apiPrefix.equals("/")) {
-            return pluginsPrefix;
-        }
-        String b = apiPrefix.endsWith("/") ? apiPrefix.substring(0, apiPrefix.length() - 1) : apiPrefix;
-        String p = pluginsPrefix.startsWith("/") ? pluginsPrefix : "/" + pluginsPrefix;
-        return b + p;
     }
 }

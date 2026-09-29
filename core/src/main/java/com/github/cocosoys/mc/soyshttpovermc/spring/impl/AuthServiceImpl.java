@@ -1,5 +1,6 @@
 package com.github.cocosoys.mc.soyshttpovermc.spring.impl;
 
+import com.github.cocosoys.mc.soyshttpovermc.api.event.GatewayEvent;
 import com.github.cocosoys.mc.soyshttpovermc.enums.LoginMode;
 import com.github.cocosoys.mc.soyshttpovermc.spring.entity.vo.AuthStatusEntityVO;
 import com.github.cocosoys.mc.soyshttpovermc.spring.entity.vo.LoginModeEntityVO;
@@ -53,29 +54,33 @@ public class AuthServiceImpl implements IAuthService {
         Map<String, String> form = parseBody(body);
         String username = form.get("username");
         String password = form.get("password");
+        String clientIp = ctx == null ? null : ctx.getIp();
         // 无登录插件 → 免密码登录（仅凭用户名直登）；有登录插件 → 用户名 + 密码校验
         String token;
         if (!bridge.loginRequiresPassword()) {
             if (username == null || username.isEmpty()) {
+                fireLogin("", false, "缺少必填参数: username", clientIp);
                 return ApiResponse.jsonErrorT(400, "ajax.auth.missing-username", "缺少必填参数: username");
             }
             token = bridge.loginByUsername(username.trim());
             if (token == null) {
+                fireLogin(username.trim(), false, "用户名不合法（仅字母/数字/下划线，≤16 字符）或离线登录被策略禁止", clientIp);
                 return ApiResponse.jsonErrorT(400, "ajax.auth.username-invalid", "用户名不合法（仅字母/数字/下划线，≤16 字符）或离线登录被策略禁止");
             }
         } else {
             if (username == null || username.isEmpty() || password == null || password.isEmpty()) {
+                fireLogin(username == null ? "" : username.trim(), false, "缺少必填参数: username / password", clientIp);
                 return ApiResponse.jsonErrorT(400, "ajax.auth.missing-username-password", "缺少必填参数: username / password");
             }
             token = bridge.login(username.trim(), password);
             if (token == null) {
+                fireLogin(username.trim(), false, "账号或密码错误（AuthMe 校验失败，或服务器未安装 AuthMe，或禁止离线登录）", clientIp);
                 return ApiResponse.jsonErrorT(401, "ajax.auth.bad-credentials", "账号或密码错误（AuthMe 校验失败，或服务器未安装 AuthMe，或禁止离线登录）");
             }
         }
         String player = username.trim();
         boolean remember = isTruthy(form.get("remember"));
         // 记录网页端登录 IP（用于后续游戏端 IP 匹配免登录，开关见 config.yml auto.login.ip.enabled）
-        String clientIp = ctx == null ? null : ctx.getIp();
         if (clientIp != null && !clientIp.equals("0.0.0.0")) {
             bridge.recordWebLogin(player, clientIp);
         }
@@ -111,6 +116,7 @@ public class AuthServiceImpl implements IAuthService {
                 data.setRememberTtlSeconds(bridge.getRememberTtlSeconds());
             }
         }
+        fireLogin(player, true, "登录成功", clientIp);
         return ApiResponse.status(200, AjaxResult.successDataT(data, "ajax.auth.login-success", "登录成功"), extra);
     }
 
@@ -268,6 +274,7 @@ public class AuthServiceImpl implements IAuthService {
                         data.setCookieName(bridge.getCookieName());
                         data.setTtlSeconds(bridge.getTtlSeconds());
                         data.setIp(clientIp);
+                        fireLogin(rememberedPlayer, true, "设备凭证，已自动登录", clientIp);
                         return ApiResponse.status(200,
                                 AjaxResult.successDataT(data, "ajax.auth.remember-login-success", "设备凭证，已自动登录"),
                                 extra);
@@ -330,6 +337,7 @@ public class AuthServiceImpl implements IAuthService {
         data.setCookieName(bridge.getCookieName());
         data.setTtlSeconds(bridge.getTtlSeconds());
         data.setIp(clientIp);
+        fireLogin(player, true, "IP 匹配，已自动登录", clientIp);
         return ApiResponse.status(200, AjaxResult.successDataT(data, "ajax.auth.auto-login-success", "IP 匹配，已自动登录"), extra);
     }
 
@@ -395,6 +403,18 @@ public class AuthServiceImpl implements IAuthService {
         }
         return ApiResponse.status(200,
                 AjaxResult.successDataT(data, "ajax.auth.device-bind-success", "设备绑定成功，已自动登录"), extra);
+    }
+
+    /**
+     * 触发登录结果事件（异步事件：登录流程在 HTTP 处理线程池）。
+     * 附属插件（如 MCERP 登录日志）可监听 {@link GatewayEvent.GatewayLoginResultEvent} 记录成败。
+     */
+    private static void fireLogin(String player, boolean success, String reason, String ip) {
+        try {
+            Bukkit.getPluginManager().callEvent(
+                    new GatewayEvent.GatewayLoginResultEvent(player, success, reason, ip));
+        } catch (Throwable ignored) {
+        }
     }
 
     /**

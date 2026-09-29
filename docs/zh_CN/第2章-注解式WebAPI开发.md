@@ -210,7 +210,7 @@ core 启动时自动注册以下控制器（`spring/controller`）：
 ## 2.9 请求生命周期与调试
 
 - 网关 `gateway/config.yml` 的 `debug-events: true` 会在控制台打印网关事件（请求进入 / 拒绝 / 完成 / 凭证下发 / API 注册 / 卸载）；
-- 监听事件：`ApiAccessEvent`（请求通过权限判定后、处理器调用前）、`ApiAccessDeniedEvent`（权限不足 403）、`ApiRegisteredEvent` / `ApiUnregisteredEvent`（注册 / 卸载）——详见第 7 章；
+- 监听事件：`ApiEvent.ApiAccessEvent`（请求通过权限判定后、处理器调用前）、`ApiEvent.ApiAccessCompletedEvent`（请求处理完成，含被拒）、`ApiEvent.ApiRegisteredEvent` / `ApiEvent.ApiUnregisteredEvent`（注册 / 卸载）——详见第 7 章；
 - 未命中路由返回 404 JSON；权限不足返回 403；网关拒绝返回对应状态码（401/426/429 等）。
 
 ## 2.10 版本注意

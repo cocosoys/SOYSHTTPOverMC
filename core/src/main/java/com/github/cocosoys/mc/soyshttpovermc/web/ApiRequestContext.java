@@ -54,6 +54,28 @@ public final class ApiRequestContext {
      */
     public static final String HEADER_REMOTE_IP = "X-Soys-Remote-Ip";
 
+    /**
+     * 当前请求上下文（ThreadLocal）：{@code ApiRegistry.dispatch} 每次派发请求时 bind 到当前 worker 线程，
+     * 供同线程内的 handler/service 在<b>不修改方法签名</b>的情况下取到请求原信息（方法/路径/IP/凭证等），
+     * 典型场景：附属插件写操作日志（请求方法、请求地址、客户端 IP）。同线程下一次请求派发会覆盖旧值，
+     * 请求处理完成后由后续派发自然覆盖（本线程不会跨请求存活于 handler 之外）。非请求线程读取返回 null。
+     */
+    private static final ThreadLocal<ApiRequestContext> CURRENT = new ThreadLocal<>();
+
+    /**
+     * 绑定当前请求上下文到本线程（{@code ApiRegistry.dispatch} 内部调用；同名线程后续请求自动覆盖）。
+     */
+    public static void bind(ApiRequestContext ctx) {
+        CURRENT.set(ctx);
+    }
+
+    /**
+     * 读取当前线程绑定的请求上下文；非请求处理线程返回 null。
+     */
+    public static ApiRequestContext current() {
+        return CURRENT.get();
+    }
+
     private final String httpMethod;
     private final String path;
     private final String ip;

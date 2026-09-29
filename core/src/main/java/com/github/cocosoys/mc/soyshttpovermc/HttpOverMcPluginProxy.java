@@ -552,9 +552,7 @@ public class HttpOverMcPluginProxy {
                 conn.setConnectTimeout(5000);
                 conn.setReadTimeout(5000);
                 conn.setRequestProperty("Content-Type", MimeTypes.forExt("json"));
-                java.util.Map<String, Object> upload = new java.util.LinkedHashMap<>();
-                upload.put("server", address);
-                String body = JsonWriter.write(upload);
+                String body = JsonWriter.write(new UploadContributionBody(address));
                 conn.getOutputStream().write(body.getBytes(java.nio.charset.StandardCharsets.UTF_8));
                 int code = conn.getResponseCode();
                 log.infoT("log.plugin.upload-done", "数据贡献已上报: {0} -> HTTP {1}", address, code);
@@ -564,6 +562,25 @@ public class HttpOverMcPluginProxy {
                 if (conn != null) conn.disconnect();
             }
         });
+    }
+
+    /**
+     * 数据贡献上报体（当前单字段 {@code server}；后续扩展统计字段时在此追加并补注释）。
+     */
+    private static final class UploadContributionBody {
+
+        /**
+         * 服务器公网地址（IP:端口，如 127.0.0.1:25564），仅用于匿名统计。
+         */
+        private final String server;
+
+        private UploadContributionBody(String server) {
+            this.server = server;
+        }
+
+        public String getServer() {
+            return server;
+        }
     }
 
     /**
@@ -608,10 +625,9 @@ public class HttpOverMcPluginProxy {
             plugin.getApiRegistry().setTokenUpgrader(plugin.getAuthLoginBridge()::upgradeHeadersIfOnline);
         }
 
-        this.contractInjector = new ContractInjector(plugin, plugin.getApiRegistry());
+        this.contractInjector = new ContractInjector(plugin);
         plugin.setWebRegistry(new WebRegistry(plugin.getName(), contractInjector));
-        // 契约注入器反向注入网页注册表（SPA 回退状态查询：契约 spaFallback/pageBase 取值）
-        contractInjector.setWebRegistry(plugin.getWebRegistry());
+        // 契约注入器不再需要反向注入注册表：契约原语（spaFallback 等）统一经 ApiToolkitApi 获取
 
         plugin.setGatewayEventListener(new GatewayEventListener());
         plugin.getGatewayEventListener().setDebugEnabled(plugin.isDebugEventsEnabled());

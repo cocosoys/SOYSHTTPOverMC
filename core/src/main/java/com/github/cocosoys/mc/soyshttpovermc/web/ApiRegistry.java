@@ -407,6 +407,10 @@ public class ApiRegistry implements AnonymousProbe {
         String traceId = headers == null ? null : headers.get("X-Soys-Trace-Id");
         ApiRequestContext requestContext = new ApiRequestContext(hostPlugin, method, meta.path, clientIp,
                 headers, credential, playerName, player, authenticated, sourceServer, traceId);
+        // 绑定当前请求上下文到本线程：同线程 handler/service（如附属插件的操作日志）经
+        // ApiRequestContext.current() 免签名改动读取请求原信息（方法/路径/IP）；同线程下一请求派发自然覆盖。
+        ApiRequestContext.bind(requestContext);
+
         // 请求参数（query 解析：@RequestParam 来源；访问/完成事件共用）
         Map<String, String> query = parseQuery(rawPath);
 

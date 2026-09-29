@@ -3,15 +3,17 @@ package com.github.cocosoys.mc.soyshttpovermc.storage;
 import com.github.cocosoys.mc.soyshttpovermc.enums.StorageType;
 import com.github.cocosoys.mc.soyshttpovermc.enums.SoysRecordType;
 import com.github.cocosoys.mc.soyshttpovermc.orm.DATA;
-import com.github.cocosoys.mc.soyshttpovermc.orm.SqlPojo;
 import com.github.cocosoys.mc.soyshttpovermc.orm.YAML;
-import com.github.cocosoys.mc.soyshttpovermc.orm.YamlPojo;
 import com.github.cocosoys.mc.soyshttpovermc.orm.executor.SqlBackendExecutor;
+import com.github.cocosoys.mc.soyshttpovermc.spring.entity.vo.AuditRecordVO;
+import com.github.cocosoys.mc.soyshttpovermc.spring.entity.vo.BlacklistRecordVO;
+import com.github.cocosoys.mc.soyshttpovermc.spring.entity.vo.InstanceHeartbeatVO;
 import com.github.cocosoys.mc.soyshttpovermc.spring.entity.SoysRecord;
 import com.github.cocosoys.mc.soyshttpovermc.util.JsonWriter;
 import lombok.CustomLog;
 
 import java.util.Base64;
+import java.util.Date;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -91,10 +93,10 @@ public class RecordSyncStorage implements SyncStorage {
         if (jti == null || jti.isEmpty()) {
             return;
         }
-        java.util.LinkedHashMap<String, Object> m = new java.util.LinkedHashMap<>();
-        m.put("server_id", serverId == null ? "" : serverId);
-        m.put("revoked_at", System.currentTimeMillis());
-        String data = JsonWriter.write(m);
+        BlacklistRecordVO vo = new BlacklistRecordVO();
+        vo.setServerId(serverId);
+        vo.setRevokedAt(new Date());
+        String data = JsonWriter.write(vo);
         upsert(new SoysRecord("blacklist:" + jti, SoysRecordType.BLACKLIST.code(), data));
         revokedCache.put(jti, System.currentTimeMillis() + CACHE_TTL_MS);
     }
@@ -104,15 +106,15 @@ public class RecordSyncStorage implements SyncStorage {
     @Override
     public void recordIssued(String serverId, String subject, String mode, boolean admin,
                              String jti, long issuedAt, long expiresAt) {
-        java.util.LinkedHashMap<String, Object> m = new java.util.LinkedHashMap<>();
-        m.put("server_id", serverId == null ? "" : serverId);
-        m.put("subject", subject == null ? "" : subject);
-        m.put("mode", mode == null ? "" : mode);
-        m.put("admin", admin ? Integer.valueOf(1) : Integer.valueOf(0));
-        m.put("jti", jti == null ? "" : jti);
-        m.put("issued_at", issuedAt);
-        m.put("expires_at", expiresAt);
-        String data = JsonWriter.write(m);
+        AuditRecordVO vo = new AuditRecordVO();
+        vo.setServerId(serverId);
+        vo.setSubject(subject);
+        vo.setMode(mode);
+        vo.setAdmin(admin);
+        vo.setJti(jti);
+        vo.setIssuedAt(new Date(issuedAt));
+        vo.setExpiresAt(new Date(expiresAt));
+        String data = JsonWriter.write(vo);
         // append-only：nonce 保证 key 唯一（同 jti 多次签发/升级不互相覆盖）
         String key = "audit:" + jti + ":" + Long.toHexString(System.nanoTime());
         DATA.insert(new SoysRecord(key, SoysRecordType.AUDIT.code(), data));
@@ -122,12 +124,12 @@ public class RecordSyncStorage implements SyncStorage {
 
     @Override
     public void heartbeat(String serverId, String name, String host, int port) {
-        java.util.LinkedHashMap<String, Object> m = new java.util.LinkedHashMap<>();
-        m.put("name", name == null ? "" : name);
-        m.put("host", host == null ? "" : host);
-        m.put("port", Integer.valueOf(port));
-        m.put("last_heartbeat", System.currentTimeMillis());
-        String data = JsonWriter.write(m);
+        InstanceHeartbeatVO vo = new InstanceHeartbeatVO();
+        vo.setName(name);
+        vo.setHost(host);
+        vo.setPort(port);
+        vo.setLastHeartbeat(new Date());
+        String data = JsonWriter.write(vo);
         upsert(new SoysRecord("instance:" + serverId, SoysRecordType.INSTANCE.code(), data));
     }
 

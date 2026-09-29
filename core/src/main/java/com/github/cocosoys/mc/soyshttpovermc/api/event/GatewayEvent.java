@@ -126,6 +126,42 @@ public abstract class GatewayEvent extends Event {
     }
 
     /**
+     * 网关登录结果事件：登录链路（POST /auth/login、/auth/issue、记住我自动登录等）判定成功后触发，
+     * 携带玩家名、成败、原因与客户端 IP。
+     * <b>异步事件</b>（登录流程在 HTTP 处理线程池触发）；供附属插件做登录日志/审计联动。
+     */
+    @Getter
+    public static class GatewayLoginResultEvent extends GatewayEvent {
+
+        private static final HandlerList HANDLERS = new HandlerList();
+
+        /** 登录主体（玩家名；失败且无法解析时可为空串） */
+        private final String player;
+        /** 是否登录成功 */
+        private final boolean success;
+        /** 结果说明（成功为“登录成功”，失败为具体原因） */
+        private final String reason;
+        /** 客户端 IP */
+        private final String ip;
+
+        public GatewayLoginResultEvent(String player, boolean success, String reason, String ip) {
+            this.player = player == null ? "" : player;
+            this.success = success;
+            this.reason = reason == null ? "" : reason;
+            this.ip = ip == null ? "" : ip;
+        }
+
+        public static HandlerList getHandlerList() {
+            return HANDLERS;
+        }
+
+        @Override
+        public HandlerList getHandlers() {
+            return HANDLERS;
+        }
+    }
+
+    /**
      * 网关请求进入事件：一条 HTTP(S) 请求进入网关（安全策略判定之前）触发。
      * 可用来做访问审计、统计、自定义拦截提示等。
      */

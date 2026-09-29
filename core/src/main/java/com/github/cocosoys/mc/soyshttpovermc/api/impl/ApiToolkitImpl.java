@@ -9,6 +9,8 @@ import com.github.cocosoys.mc.soyshttpovermc.util.JsonWriter;
 import com.github.cocosoys.mc.soyshttpovermc.web.ApiRegistry;
 import com.github.cocosoys.mc.soyshttpovermc.util.LinkMessageUtil;
 import com.github.cocosoys.mc.soyshttpovermc.web.MimeTypes;
+import com.github.cocosoys.mc.soyshttpovermc.web.WebRegistry;
+import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.bridge.AuthLoginBridge;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.Plugin;
@@ -119,7 +121,7 @@ public class ApiToolkitImpl implements ApiToolkitApi {
 
     @Override
     public String apiFullPrefix(Plugin plugin) {
-        return apiFullPrefix(plugin == null ? null : plugin.getName());
+        return apiFullPrefix(plugin == null ? null : plugin.getName());
     }
     @Override
     public String pageFullPrefix(String pluginName) {
@@ -156,5 +158,53 @@ public class ApiToolkitImpl implements ApiToolkitApi {
         String fp = apiFullPrefix(pluginName);
         if (fp == null || fp.isEmpty()) return sp;
         return sp + (fp.startsWith("/") ? fp : "/" + fp);
+    }
+
+    @Override
+    public String scheme() {
+        return (plugin.getTlsFactory() != null && plugin.getTlsFactory().getSSLContext() != null)
+                ? "https" : "http";
+    }
+
+    @Override
+    public String host() {
+        String h = plugin.getMcHost();
+        return (h == null || h.isEmpty()) ? "localhost" : h;
+    }
+
+    @Override
+    public int port() {
+        int p = plugin.getMcPort();
+        return p <= 0 ? 25565 : p;
+    }
+
+    @Override
+    public boolean spaFallback(String pluginName) {
+        WebRegistry wr = plugin.getWebRegistry();
+        if (wr == null) {
+            return false;
+        }
+        String owner = (pluginName == null || pluginName.isEmpty()) ? plugin.getName() : pluginName;
+        return wr.isSpaFallbackEnabled(owner);
+    }
+
+    @Override
+    public String pageBase(String pluginName) {
+        if (pluginName == null || pluginName.isEmpty() || pluginName.equals(plugin.getName())) {
+            return "/";
+        }
+        return pageFullPrefix(pluginName) + "/";
+    }
+
+    @Override
+    public boolean fpEnabled() {
+        AuthLoginBridge bridge = plugin.getAuthLoginBridge();
+        return bridge != null && bridge.isFpEnabled();
+    }
+
+    @Override
+    public boolean fpStrict() {
+        AuthLoginBridge bridge = plugin.getAuthLoginBridge();
+        return bridge == null || bridge.isFpStrict();
     }
 }

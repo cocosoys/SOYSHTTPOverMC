@@ -2,18 +2,20 @@
 
 SOYSHTTPOverMC 的持久化统一走 **ORM**（实体注解 + 条件链，YAML/SQL 双后端同一 API）：系统级跨服同步数据（黑名单 / 审计 / 心跳 / 全局密钥）亦为 ORM 实体 `SoysRecord`（表 `soys_records`），经 `DATA` 门面路由读写。
 
-## 5.1 存储架构（ORM 双后端路由）
+## 5.1 存储架构（ORM 多后端路由）
 
-实体数据统一经 `DATA` 门面路由：`storage.backends.mysql/sqlite` 任一启用 → 走 SQL（mysql 优先），
-否则回退 YAML（`data/` 下 `<表名>.yml`）。**同一时刻只有一个后端生效**（无主辅、无镜像）；
-跨服共享 = 所有实例连同一 MySQL。
+实体数据统一经 `DATA` 门面路由：`storage.backends.mysql/sqlite/yaml` **可同时启用**，
+按 `MYSQL > SQLITE > YAML` 优先级唯一主存储承担默认读写；其余启用后端仍可被访问——
+`DATA` 门面所有方法提供带后端类型参数的重载（如 `DATA.get(StorageType.SQLITE, User.class, id)`），
+显式选择后端执行读写，操作与默认读写无差异、仅多一个后端类型参数。
 
 ### 5.1.1 路由规则
 
-- `DATA.sqlEnabled()`：`storage.backends.mysql/sqlite` 已装配（mysql 优先）→ 全部实体走 SQL；
-- 否则回退 `data/<表名>.yml`（YAML 后端，零依赖）；
+- `DATA.sqlEnabled()`：`storage.backends.mysql/sqlite` 已装配（mysql 优先）→ 默认读写走 SQL；
+- 否则默认读写回退 `data/<表名>.yml`（YAML 后端，零依赖）；
 - 后端不可用（如 SQL 初始化失败）自动回退 YAML；双不可用时相关 API 抛 `IllegalStateException`（正常配置不触发）；
-- 实体表由 ORM 自动建表 / 补列（SQL `CREATE TABLE IF NOT EXISTS` + 容忍式 `ALTER`；YAML 懒生成）。
+- 实体表由 ORM 自动建表 / 补列（SQL `CREATE TABLE IF NOT EXISTS` + 容忍式 `ALTER`；YAML 懒生成）；
+- 多后端同时启用时，非主后端不参与默认读写，仅经带 `StorageType` 参数的重载显式访问。
 
 ### 5.1.2 config.yml 存储配置
 
@@ -45,11 +47,16 @@ storage:
 key 约定：`blacklist:<jti>` / `audit:<jti>:<nonce>` / `instance:<serverId>` / `meta:jwt_secret`。
 审计字段 `create_time / update_time` 由 ORM 写路径自动填充（业务时间以 `updated_at` 为准）。
 
-### 5.1.4 显式互转
+### 5.1.4 后端迁移 / 覆盖同步
 
 ```text
-/soyshttp migrate <yaml|sql> <yaml|sql>   # 在两个后端之间显式迁移 soys_records 全量数据（绕过自动路由）
+/soyshttp migrate <后端> <后端> [confirm]     # 在两个后端之间迁移全部已登记表数据（合并语义：按 key upsert，不清空）
+/soyshttp sync [<from> <to> [confirm]]        # 覆盖语义（先清后写，SQL 端同事务回滚）
+                                              #   无参 = 主存储 → 全部辅助后端全量覆盖（预览后追加 confirm 执行）
+                                              #   带参 = 定向覆盖（需 confirm 二次确认）
 ```
+
+> 写仅落于一个 DATA 后端（默认主存储）；`migrate`/`sync` 为显式运维通道，不参与自动路由。
 
 ## 5.2 ORM：实体注解
 
@@ -77,28 +84,27 @@ public class User {
 
 ## 5.3 双后端门面：YAML.Pojo / SQL.Pojo
 
-两套门面**同一 API 表面**，按后端自动路由：
+业务层**优先使用统一门面 `DATA`**（自动路由默认主存储，无需关心后端）；需要固定后端时用带
+`StorageType` 参数的重载（如 `DATA.select(StorageType.SQLITE, User.class)`）；`YAML.Pojo` / `SQL.Pojo`
+为同构底层门面，仅高级场景直接使用。两套底层门面**同一 API 表面**：
 
 ```java
+import com.github.cocosoys.mc.soyshttpovermc.orm.DATA;
 import com.github.cocosoys.mc.soyshttpovermc.orm.YAML;
 import com.github.cocosoys.mc.soyshttpovermc.orm.SQL;
 
-// —— 查询 ——
-List<User> all = YAML.Pojo.select(User.class);                    // 全部
-List<User> admins = YAML.Pojo.select(User.class,
-        q -> q.eq(User::getRole, "admin"));                       // 条件
-User u = YAML.Pojo.get(User.class, 1L);                           // 按主键
-Page<User> page = YAML.Pojo.selectPage(User.class, 1, 10);        // 分页
+// —— 统一门面（自动路由默认主存储）——
+List<User> all = DATA.select(User.class);
+List<User> admins = DATA.select(User.class, q -> q.eq(User::getRole, "admin"));
+User u = DATA.get(User.class, 1L);
+DATA.insert(user);
+DATA.updateById(user);                       // 按主键更新（YAML 端=upsert）
+DATA.deleteById(User.class, 1L);
+// 指定后端类型读写：DATA.get(StorageType.SQLITE, User.class, 1L) / DATA.select(StorageType.MYSQL, ...)
 
-// —— 写 ——
-YAML.Pojo.insert(user);                                           // 插入（主键必须已赋值）
-YAML.Pojo.updateById(user);                                       // 按主键更新（YAML 端=upsert）
-YAML.Pojo.deleteById(User.class, 1L);
-
-// —— SQL 端（后端可用时）——
-if (SQL.Pojo.isAvailable()) {
-    List<User> sqlAdmins = SQL.Pojo.select(User.class, q -> q.eq(User::getRole, "admin"));
-}
+// —— 底层门面（固定后端）——
+List<User> yamlAll = YAML.Pojo.select(User.class);
+List<User> sqlAdmins = SQL.Pojo.select(User.class, q -> q.eq(User::getRole, "admin"));
 ```
 
 - `YAML.Pojo.init(dataDir)` 由 core 装配（`config.yml storage.backends.yaml.file`）；
@@ -180,7 +186,8 @@ auto:
     enabled: true    # 总开关（false = 全部跳过）
     init: true       # 自动初始化（默认文件复制 + init.sql + 种子 + 首次安装的迁移）
     update: true     # 自动更新（已有安装的版本化迁移）
-    fail: block      # block=失败阻止启动（SOYS disable）/ warn=跳过并告警
+    fail: disable    # disable（默认）= 仅禁用失败的对应插件（主插件失败→禁 SOYS；附属失败→只禁该附属）
+                     # warn = 跳过并告警，继续运行（相关功能可能缺失）
 ```
 
 ### 5.8.2 meta 版本表（soys_schema_meta）
@@ -194,7 +201,9 @@ auto:
 ### 5.8.3 迁移脚本约定（schemaVersion + V{n}）
 
 - 插件声明 `schemaVersion()`（Expansion 钩子，默认 0 = 仅 init.sql + 种子，无迁移）；
-- 脚本位置：jar 内 `sql/migrations/V<n>__<描述>.sql`（n 从 1 起递增）；
+- 脚本位置（按后端分目录，禁止混放）：jar 内 `sql/migrations/V<n>/<表名>.sql`（MySQL 方言）与
+  `data/migrations/V<n>/<表名>.yml`（YAML 后端，声明式补字段）；`V<n>` 从 1 起递增；
+  注意 YAML 迁移与 SQL 迁移**共享同一版本号**（同一 `V<n>` 可同时存在两个通道的文件）；
 - 执行规则：**全新安装不执行迁移**——data/*.yml 与 init.sql 即最新版本完整结构，
   初始化后 meta 直接标记为最高版本；**已安装（老用户）按 meta 增量执行 V(meta+1)..V(schemaVersion)**；
   无 meta 但检测到旧数据时同样按升级路径执行；**每脚本执行成功后立即落 meta**（中途失败不重跑已成功项）；
@@ -202,10 +211,10 @@ auto:
   **YAML 后端**执行 `data/migrations/V<n>/<表名>.yml`（声明式补字段，见下方格式）；
   版本号 = 子目录名 `V<n>`，文件名 = 表名（禁止旧 `V{n}__描述` 扁平命名）；SQLite 跳过迁移
   （运行时自动建表 + 容忍式补列已覆盖）；
-- 升级路径：提高 schemaVersion（如 1→2）并新增 `V2__xxx.sql`，重启或
-  `/soyshttp data <插件> update` 自动增量执行。
+- 升级路径：提高 schemaVersion（如 1→2）并新增 `V2` 目录脚本（`sql/migrations/V2/...` 与
+  `data/migrations/V2/...`），重启或 `/soyshttp data <插件> update` 自动增量执行。
 
-YAML 迁移脚本格式（`V{n}__*.yml`）：
+YAML 迁移脚本格式（`data/migrations/V<n>/<表名>.yml`）：
 
 ```yaml
 # data/migrations/V2/soys_perm_user.yml —— 为既有记录补充缺失字段默认值
@@ -231,7 +240,7 @@ protected List<Object> seedData() {                               // 种子实�
 }
 
 @Override
-protected int schemaVersion() { return 1; }                       // 当前 schema 版本（配套 V1__*.sql）
+protected int schemaVersion() { return 1; }                       // 当前 schema 版本（配套 V1 目录脚本）
 ```
 
 - 注册时自动完成：默认文件复制（不覆盖）→ 建表 → init.sql（仅 MySQL）→ 迁移 → 种子 → meta 记录；

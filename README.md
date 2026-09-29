@@ -33,7 +33,7 @@
 - **群组服支持**：BungeeCord/Waterfall/Velocity 后端自动探测，Bot 携带转发握手数据，跨服请求 `/server/<子服名>/...`，并带可选代理模块（在代理监听端口上反向代理 HTTP/HTTPS）；
 - **登录插件接入**：`LoginProvider` SPI —— 已有 AuthMe 实现（网页登录、密码校验、免登录 Bot），可扩展其他登录插件；
 - **开发者开放面**：统一门面 `SoysHttpOverMcApi`（注解控制器 / 网页登记 / 目录批量托管 / 门户导航项 / 自定义 MIME / 凭证 / 跨服 HTTP / 日志 / Bot 管理），插件 onEnable 即用；
-- **双后端 ORM 存储**：内置 `YAML.Pojo` / `SQL.Pojo` 双后端 ORM 与多后端主辅镜像协调器（`StorageManager`），同一套 `@TableName` / `@TableId` 注解实体既落本地 YAML 又落 SQLite/MySQL（详见 [存储与 ORM](#存储与-orm可选) 与 [开发文档](#开发文档)）；
+- **ORM 多后端存储**：统一 `DATA` 门面路由（SQL 可用走 SQL，否则回退 YAML），`YAML.Pojo` / `SQL.Pojo` 同构 API；多后端可同时启用，按优先级唯一主存储承担默认读写，其余后端可经带后端类型参数的重载显式读写；`/soyshttp migrate|sync|data` 提供迁移 / 覆盖同步 / 数据自动化运维（详见 [存储与 ORM](#存储与-orm可选) 与 [开发文档](#开发文档)）；
 - **性能**：gzip 压缩、ETag/304 缓存、HTTP/1.1 keep-alive、真实访客 IP 透传（`X-Forwarded-For`）。
 
 ---
@@ -75,7 +75,7 @@
 
 ### 单服模式
 
-1. 下载 `SOYSHTTPOverMC.jar`（本仓库 Release）放入 `plugins/`，重启服务器；
+1. 下载 `SOYSHTTPOverMC-1_12-<版本>.jar`（本仓库 Release）放入 `plugins/`，重启服务器；
 2. `server.properties`：`online-mode=false`，`server-port=<你想要的端口>`；
 3. 确认日志出现 `HTTP-Over-MC 已启动（同端口嗅探...）`，且 Bot `__http_proxy__` 成功登录；
 4. 浏览器访问 `https://<地址>:<端口>/` 打开门户首页（自签证书请手动信任或加 `-k`）。
@@ -102,13 +102,14 @@
 
 ```
 plugins/SOYSHTTPOverMC/
-├── config.yml                 # 核心：bot.username / channel / mc.host/port / public-host / trust-proxy / server-name / proxy-address
+├── config.yml                 # 核心：bot.username / channel / mc.host/port / public-host / trust-proxy / server-name / proxy-address / storage / auto.ops
 ├── gateway/
 │   ├── config.yml             # 网关总开关 + api-prefix
 │   ├── https.yml              # HTTPS：enabled / keystore(PKCS12) > cert+key(PEM) > 自签
 │   ├── policies/              # 每个安全策略一个文件：tls.yml / ip-allowlist.yml / auth.yml / rate-limit.yml
+│   │                         #   auth.yml 另含记住我（auto.login.ttl / ip / fp / ticket）与 X-API-Key 权限降级开关
 │   └── issuers/               # 凭证颁发器：session-token.yml（JWT 会话令牌）
-└── data/                      # web 前端解压目录（磁盘热替换）；token-secret.key（JWT 密钥，勿外泄）
+└── data/                      # web 前端解压目录（磁盘热替换）；ORM 数据文件（<表名>.yml）；token-secret.key（JWT 密钥，勿外泄）
 ```
 
 修改配置后 `/soyshttp reload` 热重载（命令类与注解控制器除外，需重启生效）。
@@ -117,13 +118,17 @@ plugins/SOYSHTTPOverMC/
 
 ## 存储与 ORM（可选）
 
-插件内置一套**双后端 ORM**（`YAML.Pojo` / `SQL.Pojo`）与**多后端存储协调器**（`StorageManager`），
-可让第三方插件用同一套注解实体在本地 YAML、SQLite 或 MySQL 之间读写，无需引入外部数据库框架。
+插件内置一套**ORM 多后端存储**：实体用 `@TableName` / `@TableId` / `@TableField` 标注，
+经统一门面 `DATA` 路由读写（SQL 可用走 SQL，否则回退 YAML），也可显式指定后端类型（如 `DATA.get(StorageType.SQLITE, ...)`）。
 
-- **双后端 ORM**：实体用 `@TableName` / `@TableId` / `@TableField` 标注，一行 `YAML.Pojo.select(User.class)` 即返回 `List<User>`；
-  同一份代码既可读 YAML（`data/<表名>.yml`），也可读 SQL（自动建表）。详细用法与最佳实践见 [开发文档](#开发文档)。
-- **主辅镜像存储**：在 `config.yml` 的 `storage.backends` 同时开启多个后端，优先级 `MYSQL > SQLITE > YAML`，
-  最高者为主存储（承担读），其余作为辅助存储镜像写入（热备 / 降级）。`/soyshttp migrate|sync` 可迁移 / 全量同步。
+- **统一门面 `DATA`**：业务层只需写一套 `DATA.select/get/insert/updateById/deleteById`，无需关心后端；
+  `YAML.Pojo` / `SQL.Pojo` 为同构底层门面，供需要固定后端的场景直接使用；
+- **多后端主辅**：`storage.backends` 可同时启用 YAML / SQLite / MySQL，按 `MYSQL > SQLITE > YAML` 优先级
+  唯一主存储承担默认读写；其余启用后端仍可经带 `StorageType` 参数的重载显式读写（操作与默认读写无差异）；
+- **数据运维**：`/soyshttp migrate <from> <to>` 合并语义迁移；`/soyshttp sync [<from> <to>]` 覆盖语义同步
+  （无参 = 主存储 → 全部辅助后端）；`/soyshttp data <插件> status|update|reinstall|uninstall` 数据层自动化运维；
+- **跨服共享**：所有实例的 `storage.backends.mysql.enabled: true` 指向同一数据库，`storage.cross-server: true`
+  开启跨服数据共享（令牌黑名单 / 审计 / 心跳 / 全局密钥，实体表 `soys_records`）。
 
 开启存储后端示例（`config.yml`）：
 
@@ -132,21 +137,16 @@ storage:
   backends:
     yaml:
       enabled: true
+      file: data/              # 存放各类 yml 表的文件夹（soys_records.yml + 各 ORM 表 .yml）
     sqlite:
-      enabled: true
-      file: "data/soyshttp.db"
+      enabled: false
+      file: data/records.db
     mysql:
       enabled: false
-      host: "127.0.0.1"
-      port: 3306
-      database: "soyshttp"
-      username: "root"
-      password: "****"
-  cross-server: false        # 跨服共享需主存储为 MySQL 且各子服指向同一库
-  mirror:
-    enabled: true
-    async: true
-    sync-on-startup: false
+      url: 'jdbc:mysql://localhost:3306/minecraft?useUnicode=true&characterEncoding=utf8&autoReconnect=true&useSSL=false&serverTimezone=Asia/Shanghai'
+      username: root
+      password: ''
+  cross-server: false          # 跨服共享需主存储为 MySQL 且各子服指向同一库
 ```
 
 > 旧 `config.yml` 若没有 `storage` 段，插件按内存模式运行（不启用任何后端）；各服加上该段即启用对应后端。
@@ -156,14 +156,23 @@ storage:
 ## 命令参考（`/soyshttp` 或简写 `/shttp`，默认 op）
 
 ```
-/soyshttp help [子指令]    查看总览或某子指令的详细用法（参数/示例/注意）
-/soyshttp reload           热重载日志级别 + 网关策略与 TLS 配置
-/soyshttp key <subject>    为指定主体签发最高权限 key（ak_ 前缀，免权限访问全部 API，请谨慎）
-/soyshttp reconnect        主 Bot 重新连接（恢复隧道）
-/soyshttp send <url|/page> [显示文字] [玩家]   向玩家发送可点击链接（%url%、&→§、@a/@p/@r/@e/@s）
-/soyshttp pages [all]      查看已登记界面（默认仅 .html 页 + 跳转；all 含全部资源/脚本）
-/soyshttp api [插件名]     查看已注册的注解式 API 端点
-/soyshttp tokens           查询所有已颁发的会话令牌
+/soyshttp help [子指令|页码]            显示帮助页面（或某子指令详细用法）
+/soyshttp eula                       显示 EULA 协议内容
+/soyshttp status                     查看 HTTP 服务运行状态
+/soyshttp report                     手动上报插件使用记录
+/soyshttp reload                     热重载配置与网关
+/soyshttp key <subject>              为指定主体签发最高权限 key（ak_ 前缀，免权限访问全部 API，请谨慎）
+/soyshttp send <url|/page> [显示文字] [玩家]   向玩家发送可点击链接
+/soyshttp pages [all] [页码]          查看已登记界面（默认仅 UI 页；all 含全部资源/脚本）
+/soyshttp api [插件名]               查看已注册的注解式 API 端点
+/soyshttp tokens                    查询所有已颁发的令牌
+/soyshttp lang [语言代码]            查看/切换语言
+/soyshttp log [级别]                 查看/修改日志打印等级（OFF/ERROR/WARN/INFO/DEBUG/TRACE）
+/soyshttp migrate <后端> <后端> [confirm]   在 ORM 后端间迁移全部已登记表数据（合并语义）
+/soyshttp sync [<from> <to> [confirm]]       后端覆盖迁移（无参=主→全部辅助；带参=定向，均需 confirm）
+/soyshttp perm                       本地内置权限表（组/用户 CRUD + 查询），配套 permission.offline-fallback: local
+/soyshttp apikey                     X-API-Key 本地表管理（生成/启停/过期/绑定/权限）
+/soyshttp data <插件> status|update [版本]|reinstall|uninstall   数据层自动化运维
 ```
 
 ---
@@ -190,19 +199,25 @@ api.getToolkit().registerMimeType("vue", "text/html; charset=utf-8");
 api.getAuthCredential().issueCredential("someone");
 api.getHttpClient().sendGet("https://example.com/api");
 
-// 5) 双后端 ORM（同一套注解实体，YAML/SQL 通读）
-YAML.Pojo.init(getDataFolder());                       // 装配 YAML 后端（建议插件 onEnable 调用）
-List<User> users = YAML.Pojo.select(User.class, q -> q.eq(User::getRole, "admin"));
-User u = YAML.Pojo.get(User.class, "id-1");
-YAML.Pojo.insert(user);                                // 写（主存储 + 镜像辅助存储）
+// 5) ORM 多后端存储（统一 DATA 门面路由，无需关心后端）
+List<User> users = DATA.select(User.class, q -> q.eq(User::getRole, "admin"));
+User u = DATA.get(User.class, "id-1");
+DATA.insert(user);
+DATA.updateById(user);                                   // 按主键更新（YAML 端=upsert）
+// 指定后端类型读写：DATA.get(StorageType.SQLITE, User.class, id) / DATA.select(StorageType.MYSQL, ...)
 ```
 
 能力组一览：`ApiRegistration`（注解控制器）、`WebPage`（网页/目录/导航）、`AuthCredential`、
-`Toolkit`（JSON / Content-Type）、`Logger`、`BotManagement`、`HttpClient`、`Extension`
+`Toolkit`（JSON / Content-Type / 前缀家族 `apiPrefix` `pluginsPrefix` `apiFullPrefix` `pageFullPrefix`
+`webResourcePrefix` `serverPrefix` `fullPathPrefix` `scheme` `host` `port` `spaFallback` `pageBase`
+`fpEnabled` `fpStrict`）、`Logger`、`BotManagement`、`HttpClient`、`Extension`
 （`LoginProvider` 登录插件 SPI + 自定义 `/soyshttp` 子指令）、`CrossServer`（跨服 HTTP 调用）。
 
-监听事件：`ApiAccessEvent` 系列（GET/POST/...）、`GatewayRequestEvent` / `GatewayRequestServedEvent` /
-`GatewayAccessDeniedEvent`、`ApiRegisteredEvent` / `ApiUnregisteredEvent` 等（Bukkit 事件，直接监听即可）。
+监听事件（均嵌套于抽象基类下，Bukkit 标准 `registerEvents` 监听即可）：
+`ApiEvent`（`ApiRegisteredEvent` / `ApiUnregisteredEvent` / `ApiAccessEvent` 及其 GET/POST/... 子类 /
+`ApiAccessCompletedEvent` 及其子类）、`GatewayEvent`（`GatewayRequestEvent` / `GatewayRequestServedEvent` /
+`GatewayAccessDeniedEvent` / `GatewayCredentialIssuedEvent` / `GatewayLoginResultEvent`）、
+`WebResourcesEvent`（`WebResourcesAccessEvent` / `WebResourcesLoadedEvent`）、`SoysReadyEvent`、`HttpConfigReloadEvent`。
 
 插件禁用时，其名下 API / 网页 / 导航项自动卸载。
 
@@ -211,15 +226,20 @@ YAML.Pojo.insert(user);                                // 写（主存储 + 镜�
 ## 构建
 
 ```powershell
-# 本地（PowerShell，需 JDK 8 与 Maven 3.9+）
+# 本地（PowerShell，默认目标 1.12.2；需 JDK 8 与 Maven 3.9+）
 $env:JAVA_HOME = "D:\WorkTools\JDK\8"
-& "D:\WorkTools\Maven\apache-maven-3.9.9\bin\mvn.cmd" clean package
-# 产物：target/SOYSHTTPOverMC.jar（后端）、proxy/target/SOYSHTTPOverMC-Proxy.jar（代理，单独构建）
+& "D:\WorkTools\Maven\apache-maven-3.9.9\bin\mvn.cmd" clean package "-Drevision=1.4.0"
+# 产物（输出到各模块 target/ 与根 output/）：
+#   core/target/SOYSHTTPOverMC-1_12-1.4.0.jar       主插件（1.12.2）
+#   adapter/v1_6x/target/SOYSHTTPOverMC-1_6-1.4.0.jar   低版本兼容（1.6.x）
+#   adapter/v1_7x/target/SOYSHTTPOverMC-1_7-1.4.0.jar   低版本兼容（1.7.x）
+# 版本范围切换：-P1_8 / -P1_16 / -P1_17 / -P1_20_5（切换 spigot-api 与产物后缀，见根 pom.xml）
+# 代理模块：SOYSHTTPOverMC-Proxy 为独立 Maven 工程，单独构建（不参与本 reactor）
 ```
 
 > ⚠️ 本项目依赖若干**本地魔改的第三方库**（MCProtocolLib / packetlib / opennbt / bungeecord-api），
 > 已 vendored 到 `lib/` 并在 GitHub Actions 中 `mvn install:install-file` 后构建（见 `.github/workflows/release.yml`）。
-> 打 tag（如 `v1.0.1`）即自动打包两个 jar 并上传到 Release；也可在 Actions 页手动触发（仅出构建产物）。
+> 打 tag（如 `v1.4.0`）即自动打包并上传到 Release；也可在 Actions 页手动触发（仅出构建产物）。
 
 ---
 
