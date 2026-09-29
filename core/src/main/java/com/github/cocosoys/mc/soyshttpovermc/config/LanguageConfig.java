@@ -48,10 +48,10 @@ public final class LanguageConfig {
     }
 
     /**
-     * 当前语言代码（优先 current，兼容旧键 language；缺省 zh_cn）。
+     * 当前语言代码（缺省 zh_cn）。
      */
     public String current() {
-        return cfg.getString("language.current", cfg.getString("language", "zh_cn"));
+        return cfg.getString("language.current", "zh_cn");
     }
 
     /**

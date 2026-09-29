@@ -45,10 +45,6 @@ storage:
 key 约定：`blacklist:<jti>` / `audit:<jti>:<nonce>` / `instance:<serverId>` / `meta:jwt_secret`。
 审计字段 `create_time / update_time` 由 ORM 写路径自动填充（业务时间以 `updated_at` 为准）。
 
-旧数据自动迁移（启动时幂等）：
-- YAML：旧 `records.yml`（根节点 records）→ `soys_records.yml`（根节点 soys_records）；
-- SQL：旧表 `mc_shttp_records` / `mc_shttp_soys_records` → `soys_records`（REPLACE SELECT + DROP）。
-
 ### 5.1.4 显式互转
 
 ```text

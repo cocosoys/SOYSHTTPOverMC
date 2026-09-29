@@ -453,12 +453,6 @@ public class HttpOverMcPluginProxy {
         File dataFolder = plugin.getDataFolder();
         String p = fileCfg == null ? "" : fileCfg.trim();
         File target = p.isEmpty() ? dataFolder : new File(dataFolder, p);
-        String lower = p.toLowerCase();
-        if (lower.endsWith(".yml") || lower.endsWith(".yaml")) {
-            // 兼容旧式 file: data/records.yml（取其父目录作为文件夹）
-            File parent = target.getParentFile();
-            target = parent == null ? dataFolder : parent;
-        }
         if (!target.exists()) {
             target.mkdirs();
         }
@@ -500,32 +494,22 @@ public class HttpOverMcPluginProxy {
      */
     private void initStorage() {
         SyncStorage storage = new RecordSyncStorage();
-        try {
-            storage.initialize();
-        } catch (Throwable t) {
-            log.warnT("log.plugin.storage-init-fail", "存储后端初始化失败，降级为内存模式: {0}", t.getMessage());
-            storage = null;
-        }
         plugin.setSyncStorage(storage);
-        if (storage != null) {
-            boolean cross = coreConfig().getBoolean("storage.cross-server", false);
-            if (cross && !DATA.sqlEnabled()) {
-                log.warnT("log.storage.cross-server-not-sql",
-                        "storage.cross-server=true 但未启用 SQL 后端（YAML 单机文件不跨服同步）——请启用 mysql 并指向同一数据库");
-            }
-            final SyncStorage s = storage;
-            plugin.getServer().getScheduler().runTaskTimerAsynchronously(plugin, () -> {
-                try {
-                    s.heartbeat(storageServerId(),
-                            plugin.getServerName() == null || plugin.getServerName().isEmpty() ? plugin.getName() : plugin.getServerName(),
-                            getMcHost(), getMcPort());
-                } catch (Throwable ignored) {
-                }
-            }, 0L, 30L * 20L);
-            log.infoT("log.plugin.sync-storage-ready", "跨服同步存储已装配: serverId={0} 后端={1}", storageServerId(), storage.describe());
-        } else {
-            log.infoT("log.plugin.storage-memory", "数据存储未启用（内存模式）");
+        boolean cross = coreConfig().getBoolean("storage.cross-server", false);
+        if (cross && !DATA.sqlEnabled()) {
+            log.warnT("log.storage.cross-server-not-sql",
+                    "storage.cross-server=true 但未启用 SQL 后端（YAML 单机文件不跨服同步）——请启用 mysql 并指向同一数据库");
         }
+        final SyncStorage s = storage;
+        plugin.getServer().getScheduler().runTaskTimerAsynchronously(plugin, () -> {
+            try {
+                s.heartbeat(storageServerId(),
+                        plugin.getServerName() == null || plugin.getServerName().isEmpty() ? plugin.getName() : plugin.getServerName(),
+                        getMcHost(), getMcPort());
+            } catch (Throwable ignored) {
+            }
+        }, 0L, 30L * 20L);
+        log.infoT("log.plugin.sync-storage-ready", "跨服同步存储已装配: serverId={0} 后端={1}", storageServerId(), storage.describe());
     }
 
     /**
@@ -800,8 +784,8 @@ public class HttpOverMcPluginProxy {
      * 启动独立 HTTP 服务器（standalone-server 模式）。
      */
     private void initStandaloneServer(HttpRequestHandler handler, RequestStats stats) {
-        String host = getBackendString("standalone-server", "host", "standalone-host", "0.0.0.0");
-        int port = getBackendInt("standalone-server", "port", "standalone-port", 25565);
+        String host = getBackendString("standalone-server", "host", "0.0.0.0");
+        int port = getBackendInt("standalone-server", "port", 25565);
         int maxBody = Math.max(1024, plugin.getMaxBody());
 
         StandaloneHttpServer server = new StandaloneHttpServer(
@@ -816,17 +800,17 @@ public class HttpOverMcPluginProxy {
     }
 
     /**
-     * 根据模式创建对应的 HTTP 后端处理器。配置结构：http-backend.&lt;mode&gt;.&lt;key&gt;（向后兼容旧的扁平结构）。
+     * 根据模式创建对应的 HTTP 后端处理器。配置结构：http-backend.&lt;mode&gt;.&lt;key&gt;。
      */
     private HttpRequestHandler createHttpBackend(HttpBackendMode mode) {
         switch (mode) {
             case NETTY_EVENTLOOP: {
-                int threads = getBackendInt("netty-eventloop", "threads", "netty-threads", 2);
+                int threads = getBackendInt("netty-eventloop", "threads", 2);
                 return new NettyEventLoopRequestHandler(plugin.getWebFrontend(), threads);
             }
             case MEMORY_QUEUE: {
-                int capacity = getBackendInt("memory-queue", "capacity", "queue-capacity", 1024);
-                int workers = getBackendInt("memory-queue", "workers", "queue-workers", 4);
+                int capacity = getBackendInt("memory-queue", "capacity", 1024);
+                int workers = getBackendInt("memory-queue", "workers", 4);
                 return new MemoryQueueRequestHandler(plugin.getWebFrontend(), capacity, workers);
             }
             case STANDALONE_SERVER:
@@ -837,28 +821,17 @@ public class HttpOverMcPluginProxy {
     }
 
     /**
-     * 读取 HTTP 后端配置，优先使用分层结构 http-backend.&lt;mode&gt;.&lt;key&gt;，
-     * 回退到旧的扁平结构 http-backend.&lt;legacyKey&gt;，最后使用默认值。
+     * 读取 HTTP 后端配置：http-backend.&lt;mode&gt;.&lt;key&gt;，缺省用默认值。
      */
-    private int getBackendInt(String mode, String key, String legacyKey, int def) {
-        String layered = "http-backend." + mode + "." + key;
-        if (coreConfig().contains(layered)) {
-            return coreConfig().getInt(layered, def);
-        }
-        String legacy = "http-backend." + legacyKey;
-        return coreConfig().getInt(legacy, def);
+    private int getBackendInt(String mode, String key, int def) {
+        return coreConfig().getInt("http-backend." + mode + "." + key, def);
     }
 
     /**
-     * 读取 HTTP 后端字符串配置（分层结构优先，回退旧结构）。
+     * 读取 HTTP 后端字符串配置：http-backend.&lt;mode&gt;.&lt;key&gt;，缺省用默认值。
      */
-    private String getBackendString(String mode, String key, String legacyKey, String def) {
-        String layered = "http-backend." + mode + "." + key;
-        if (coreConfig().contains(layered)) {
-            return coreConfig().getString(layered, def);
-        }
-        String legacy = "http-backend." + legacyKey;
-        return coreConfig().getString(legacy, def);
+    private String getBackendString(String mode, String key, String def) {
+        return coreConfig().getString("http-backend." + mode + "." + key, def);
     }
 
     /**

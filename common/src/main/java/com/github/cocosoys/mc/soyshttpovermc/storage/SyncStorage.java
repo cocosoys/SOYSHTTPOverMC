@@ -30,11 +30,6 @@ public interface SyncStorage {
     StorageType getType();
 
     /**
-     * 初始化连接 / 建表。失败抛异常，调用方标记不可用并降级。
-     */
-    void initialize() throws Exception;
-
-    /**
      * 释放资源（关服/重载时调用）。
      */
     void shutdown();

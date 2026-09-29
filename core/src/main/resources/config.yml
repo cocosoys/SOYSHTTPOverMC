@@ -157,7 +157,6 @@ sniffer:
 #                       需配置下方 standalone-server.host / port。
 #
 # 配置结构：每种模式的参数放在 http-backend.<mode> 下（如 http-backend.netty-eventloop.threads）。
-# 旧的扁平配置（如 http-backend.netty-threads）仍向后兼容，但推荐使用新的分层结构。
 #
 #  ⚠ 版本限制：
 #    - 1.12.2        ：四种模式均可用（netty-eventloop / standalone-server 依赖
@@ -275,8 +274,6 @@ storage:
       enabled: true
       # file 指定【存放各类 yml 表的文件夹】（不是单个文件）：
       #   ORM 各实体（含 soys_records 跨服同步表）写入 <file>/<表名>.yml。
-      #   兼容旧式写法 file: data/records.yml（取其父目录 data/ 作为文件夹）；
-      #   旧版 KV 记录文件 records.yml 启动时自动迁移为 soys_records.yml（根节点 soys_records）。
       file: data/
       backup-on-save: false
 

@@ -45,10 +45,6 @@ Cross-server sync data (token blacklist / issuance audit / instance heartbeat / 
 Key conventions: `blacklist:<jti>` / `audit:<jti>:<nonce>` / `instance:<serverId>` / `meta:jwt_secret`.
 Audit fields `create_time / update_time` are auto-filled by the ORM write path (business time uses `updated_at`).
 
-Legacy data is auto-migrated at startup (idempotent):
-- YAML: old `records.yml` (root `records`) → `soys_records.yml` (root `soys_records`);
-- SQL: old tables `mc_shttp_records` / `mc_shttp_soys_records` → `soys_records` (REPLACE SELECT + DROP).
-
 ### 5.1.4 Explicit Migration
 
 ```text

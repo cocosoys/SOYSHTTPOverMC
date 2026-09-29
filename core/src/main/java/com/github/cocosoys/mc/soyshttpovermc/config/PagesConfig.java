@@ -142,9 +142,6 @@ public final class PagesConfig {
             ConfigurationSection autoSec = pages.getConfigurationSection("auto");
             if (autoSec != null) {
                 total += applyAutoMap(plugin, reg, autoSec);
-            } else if (!pages.contains("page")) {
-                // 旧版兼容：pages 下平铺键值（无 page/auto 段）仍按 auto 处理
-                total += applyAutoMap(plugin, reg, pages);
             }
 
             ConfigurationSection pageSec = pages.getConfigurationSection("page");
