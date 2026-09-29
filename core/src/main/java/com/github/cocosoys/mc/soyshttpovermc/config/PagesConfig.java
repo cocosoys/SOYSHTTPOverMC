@@ -20,7 +20,7 @@ import java.util.Map;
  * pages.yml 配置文件（web.* 前端资源段 + pages.page/auto 手动登记）操作封装。
  *
  * <p>职责：装载 pages.yml（缺失时落内置默认）、读取 {@code web.*} 配置、写入 {@code web.home} 并持久化。
- * pages.page/auto 的手动登记由 {@link Manual#register} 负责；本类仅承载「读/写」原语，
+ * pages.page/auto 的手动登记与 pages.alias 别名由 {@link Manual#register} 负责；本类仅承载「读/写」原语，
  * <b>初始化</b>由 {@link ConfigManager#initPagesConfig} 统一书写，最终在 {@link HttpOverMcPlugin} 装配调用。</p>
  */
 @CustomLog
@@ -103,6 +103,8 @@ public final class PagesConfig {
      *   auto:            # 平价自动：键=URL，值=来源（单文件 / 目录 / jar 资源 / 反引号网络跳转）
      *     "/":        "web/"
      *     "/link/x":  "`https://www.mcmod.cn/`"
+     *   alias:           # 别名路由：键=别名路径，值=真实目标路径（给任意已存在链接新增别名）
+     *     "/网址/插件/ERP": "/web/plugins/MCERP"
      * </pre>
      * <ul>
      *   <li><b>page 段</b>：多用于需附带 nickname/description 的单个页面；
@@ -157,10 +159,49 @@ public final class PagesConfig {
                 }
             }
 
+            // 别名路由（pages.alias）：键=别名路径，值=真实目标路径；
+            // 全量替换语义（reload 时删段/删键即清除旧别名，不残留内存）；别名不参与 total（非页面条目）
+            applyAliases(reg, pages);
+
             if (total > 0) {
                 log.infoT("log.pages.registered", "pages.yml 已登记 {0} 个网页", total);
             }
             return total;
+        }
+
+        /**
+         * pages.alias 段：给任意已存在链接（含第三方插件页面/API）新增内部映射别名。
+         * <p>配置形态（键 = 别名路径，值 = 真实目标路径，一张平铺表；支持多别名指向同一真实路径）：</p>
+         * <pre>
+         * pages:
+         *   alias:
+         *     "/网址/插件/ERP": "/web/plugins/MCERP"   # 中文别名
+         *     "/erp-admin":     "/web/plugins/MCERP"   # 同一真实链接的第二个别名
+         * </pre>
+         * 解析语义见 {@link WebRegistry#setAliases}：别名命中后 URL 不变、按真实路径走完整解析，
+         * 继承请求 method（非 GET 的 /api 等同样适用）；精确单路径、不前缀映射、仅跳转一层。
+         *
+         * @return 别名条数（0=未配置）
+         */
+        private static int applyAliases(WebRegistry reg, ConfigurationSection pages) {
+            Map<String, String> aliasMap = new LinkedHashMap<>();
+            ConfigurationSection aliasSec = pages.getConfigurationSection("alias");
+            if (aliasSec != null) {
+                for (String key : aliasSec.getKeys(false)) {
+                    String real = aliasSec.getString(key);
+                    if (real == null || real.trim().isEmpty()) {
+                        log.warnT("log.pages.alias-empty-target", "pages.yml 别名缺少目标路径，已跳过: {0}", key);
+                        continue;
+                    }
+                    aliasMap.put(normalizeUrl(key), real.trim());
+                }
+            }
+            // 无条件全量替换：alias 段缺失/为空时同样清除旧别名（幂等，reload 安全）
+            reg.setAliases(NAME, aliasMap);
+            if (!aliasMap.isEmpty()) {
+                log.infoT("log.pages.alias-registered", "pages.yml 已登记 {0} 个别名路由", aliasMap.size());
+            }
+            return aliasMap.size();
         }
 
         /**

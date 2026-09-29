@@ -73,6 +73,15 @@ public class WebRegistry {
      */
     private final Set<String> spaFallbacks = ConcurrentHashMap.newKeySet();
     /**
+     * 别名路由（pages.alias 等）：key = 别名路径（规范化），value = 真实目标路径。
+     * 按 owner 分桶（{@link #ownerAliases}），全局合并视图 {@link #aliasRoutes} 供解析 O(1) 查询。
+     * 解析语义（已与产品确认）：内部映射——别名命中后 URL 不变，按真实路径走完整解析
+     * （精确/.html 智能/参数化/昵称/index 兜底均生效）；精确单路径，不前缀映射；继承请求 method；
+     * 仅跳转一层（真实路径不再查别名，防成环）。{@link #unregisterPlugin} 一并清理。
+     */
+    private final Map<String, Map<String, String>> ownerAliases = new ConcurrentHashMap<>();
+    private final Map<String, String> aliasRoutes = new ConcurrentHashMap<>();
+    /**
      * 宿主插件名（SOYSHTTPOverMC 本体）：其登记不加 /plugins 前缀
      */
     private final String hostName;
@@ -686,10 +695,24 @@ public class WebRegistry {
      * 按方法 + 路径解析已登记网页，<b>带 path variables</b>；未命中返回 null。
      * 参数化路由命中时，pathVariables 含 {name} → 实际值 映射（如 {@code {id=123}}）。
      * 精确匹配与昵称路由命中时，pathVariables 为空 Map。
+     * <p>解析顺序：<b>别名路由（pages.alias，仅一层跳转）</b> → 精确匹配 → 参数化路由 → 昵称路由。</p>
      */
     public ResolveResult resolveFull(String httpMethod, String cleanPath) {
         String method = httpMethod == null ? RequestMethod.GET.code() : httpMethod.toUpperCase();
         if (cleanPath == null) return null;
+        // 0) 别名路由：精确单路径匹配（不前缀映射、不做 .html 智能）；命中后按真实路径走完整解析
+        //    （继承原请求 method；仅跳转一层，真实路径不再查别名——防成环）
+        String real = aliasRoutes.get(cleanPath);
+        if (real != null && !real.equals(cleanPath)) {
+            return resolveFullInternal(method, real, true);
+        }
+        return resolveFullInternal(method, cleanPath, false);
+    }
+
+    /**
+     * 别名跳转内部实现：{@code skipAlias=true} 时不再查别名表（防别名链/成环）。
+     */
+    private ResolveResult resolveFullInternal(String method, String cleanPath, boolean skipAlias) {
         // 1) 精确匹配（含 .html 后缀智能匹配）
         Entry e = lookup(pages, method, cleanPath);
         if (e != null) return new ResolveResult(e, java.util.Collections.emptyMap());
@@ -843,6 +866,98 @@ public class WebRegistry {
         return null;
     }
 
+    // ===== 别名路由（pages.alias：给任意已存在链接新增别名，内部映射，URL 不变） =====
+
+    /**
+     * 全量替换某来源（owner，如 "pages.yml"）的别名路由表。
+     * <p>幂等语义：reload 时重新调用即可覆盖旧值（即使别名段被删空也会清除旧别名，不会残留内存）；
+     * 解析时继承请求 method，真实目标走完整解析（精确/.html 智能/参数化/昵称/index 兜底均生效）。</p>
+     *
+     * @param owner  来源标记（如 "pages.yml"；null/空忽略）
+     * @param aliases 别名路径 → 真实目标路径（键/值均自动规范化：补前导斜杠、\ → /）
+     */
+    public void setAliases(String owner, Map<String, String> aliases) {
+        if (owner == null || owner.isEmpty()) return;
+        Map<String, String> old = ownerAliases.get(owner);
+        if (old != null) {
+            for (String k : old.keySet()) aliasRoutes.remove(k);
+        }
+        Map<String, String> fresh = new LinkedHashMap<>();
+        if (aliases != null) {
+            for (Map.Entry<String, String> kv : aliases.entrySet()) {
+                String alias = normalizeAliasPath(kv.getKey());
+                String real = normalizeAliasPath(kv.getValue());
+                if (alias == null || real == null || alias.isEmpty() || real.isEmpty()) continue;
+                fresh.put(alias, real);
+                aliasRoutes.put(alias, real);
+            }
+        }
+        if (fresh.isEmpty()) {
+            ownerAliases.remove(owner);
+        } else {
+            ownerAliases.put(owner, fresh);
+        }
+    }
+
+    /**
+     * 移除某来源（owner）的全部别名路由（如 reload 前清理）。
+     */
+    public void removeAliases(String owner) {
+        if (owner == null || owner.isEmpty()) return;
+        Map<String, String> old = ownerAliases.remove(owner);
+        if (old != null) {
+            for (String k : old.keySet()) aliasRoutes.remove(k);
+        }
+    }
+
+    /**
+     * 列出全部已登记别名路由（按别名路径排序）；供 /soyshttp pages 展示。
+     */
+    public List<AliasEntry> listAliases() {
+        List<AliasEntry> out = new ArrayList<>();
+        for (Map.Entry<String, String> kv : aliasRoutes.entrySet()) {
+            out.add(new AliasEntry(kv.getKey(), kv.getValue()));
+        }
+        out.sort((a, b) -> a.alias.compareTo(b.alias));
+        return out;
+    }
+
+    /**
+     * 别名目标可解析性探测（/soyshttp pages 的 [✓]/[⚠] 标注）：
+     * 任一常见 HTTP 方法能按真实路径解析命中（精确/.html 智能/参数化/昵称），
+     * 或能命中目录索引兜底（如 /web/plugins/&lt;插件名&gt; → index）与 SPA 回退。
+     */
+    public boolean isResolvable(String realPath) {
+        if (realPath == null || realPath.isEmpty()) return false;
+        String[] methods = {RequestMethod.GET.code(), "POST", "PUT", "DELETE", "PATCH"};
+        for (String m : methods) {
+            if (resolveFullInternal(m, realPath, true) != null) return true;
+        }
+        return resolveDirectoryIndex(RequestMethod.GET.code(), realPath) != null
+                || resolveSpaFallback(RequestMethod.GET.code(), realPath) != null;
+    }
+
+    /**
+     * 规范化别名/真实路径：trim、补前导斜杠、\ → /；空返回 null。
+     */
+    private static String normalizeAliasPath(String path) {
+        if (path == null) return null;
+        String p = path.trim().replace('\\', '/');
+        if (p.isEmpty()) return null;
+        return p.startsWith("/") ? p : "/" + p;
+    }
+
+    /** 别名路由条目（不可变值对象，供 /soyshttp pages 展示）。 */
+    public static final class AliasEntry {
+        public final String alias;
+        public final String real;
+
+        AliasEntry(String alias, String real) {
+            this.alias = alias;
+            this.real = real;
+        }
+    }
+
     /** 目录索引兜底规则（不可变值对象）。 */
     private static final class IndexRule {
         final boolean enabled;
@@ -972,6 +1087,8 @@ public class WebRegistry {
         indexRules.remove(pluginName);
         // 一并清理该插件的 SPA 回退声明（页面已卸载，声明随插件移除）
         spaFallbacks.remove(pluginName);
+        // 一并清理该插件的别名路由（owner 分桶；防插件禁用后别名残留）
+        removeAliases(pluginName);
     }
 
     /**

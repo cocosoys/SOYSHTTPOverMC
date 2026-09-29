@@ -15,7 +15,7 @@ import java.util.List;
  * /soyshttp pages [all] [页码] —— 查看已登记的网页（分页展示，默认每页 {@link StringListUtil#DEFAULT_PAGE_SIZE} 条）。
  *
  * <ul>
- *   <li>无参数 {@code /shttp pages}：仅展示<b>可打开界面</b>（.html 页 + 跳转入口），
+ *   <li>无参数 {@code /soyshttp pages}：仅展示<b>可打开界面</b>（.html 页 + 跳转入口），
  *       不罗列 .js / .css / .vue / 图片等纯静态资源，避免刷屏；
  *       （核心内置页 /login、/status、/news 在启动时已纳入注册通道，故与第三方插件登记项一同列出，非命令硬编码）</li>
  *   <li>带 {@code all}（亦可 {@code resources} / {@code *}）：展示<b>全部登记项</b>（页 + 资源 + 跳转）。</li>
@@ -59,7 +59,8 @@ public class PagesSubCommand extends SubCommand {
                         + "  all          列出全部登记项（含资源/脚本），并标注种类 [页]/[资源]/[跳转→目标]。\n"
                         + "  页码         翻页查看（每页 10 条，如 /soyshttp pages 2）。\n"
                         + "登记项含说明时自动追加 “ —— ”+说明；昵称路由以 (昵称: ...) 标注。\n"
-                        + "别名：resources、* 与 all 等价。");
+                        + "别名：resources、* 与 all 等价。\n"
+                        + "页面列表末尾固定展示 pages.alias 别名分区：[✓]=目标可解析 / [⚠ 目标未登记]。");
     }
 
     @Override
@@ -117,7 +118,24 @@ public class PagesSubCommand extends SubCommand {
         for (String line : StringListUtil.page(header, content, footer, cur, size).lines) {
             sender.sendMessage(line);
         }
+        printAliases(sender, reg);
         printHome(sender, reg);
+    }
+
+    /**
+     * 别名路由独立分区（默认展示，与页面列表分离）：pages.alias 的键=别名、值=真实路径；
+     * 目标可解析标注 [✓]，未命中标注 [⚠ 目标未登记]（真实访问会 404，便于运维当场发现配置错误）。
+     */
+    private void printAliases(CommandSender sender, WebRegistry reg) {
+        List<WebRegistry.AliasEntry> aliases = reg.listAliases();
+        if (aliases == null || aliases.isEmpty()) return;
+        sender.sendMessage(I18n.t("command.pages.alias-title", "§a别名路由（pages.alias，内部映射）:"));
+        for (WebRegistry.AliasEntry a : aliases) {
+            String mark = reg.isResolvable(a.real)
+                    ? "§7[✓]"
+                    : "§7[⚠ " + I18n.t("command.pages.alias-miss", "目标未登记") + "]";
+            sender.sendMessage("  §e" + a.alias + " §7→ §f" + a.real + " " + mark);
+        }
     }
 
     /**
