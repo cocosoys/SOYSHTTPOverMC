@@ -27,17 +27,14 @@ storage:
     sqlite:
       enabled: false
       file: data/records.db
-      table-prefix: ''
     mysql:
       enabled: false
       url: 'jdbc:mysql://localhost:3306/minecraft?useUnicode=true&characterEncoding=utf8&autoReconnect=true&useSSL=false&serverTimezone=Asia/Shanghai'
       username: root
       password: ''
-      table-prefix: ''
   cross-server: false      # 跨服同步：所有实例指向同一 MySQL，数据跨服可见
 ```
 
-- `table-prefix` 若无特殊要求请勿修改（开发者需按前缀获取正确表名）；
 - 跨服同步前提：所有实例 `storage.backends.mysql.enabled: true` 指向同一数据库（SQL 后端即共享数据源）；
   开启 `storage.cross-server: true` 但 SQL 未启用时启动会告警（多实例数据不共享）。
 

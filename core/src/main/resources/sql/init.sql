@@ -13,8 +13,6 @@
 -- 3) 类型映射: String → VARCHAR(255)；主键 String → VARCHAR(64)
 --    （utf8mb4 下 VARCHAR(255) 主键索引超长 1020B > 1000B）；
 --    int → INT；boolean → TINYINT；Date/long → BIGINT；嵌套 → TEXT(JSON)。
--- 4) 表名前缀: 若配置了 storage.backends.mysql.table-prefix（默认空），
---    请将下方所有表名统一加上该前缀（如 soys_perm_user → <前缀>soys_perm_user）。
 -- 5) SQLite 兼容: SQLite 不支持 COMMENT 子句与 TINYINT（但类型宽松，TINYINT 可接受），
 --    如需在 SQLite 手工执行，请删除各列的 COMMENT 子句；插件运行时会自动建表，
 --    不依赖本脚本。

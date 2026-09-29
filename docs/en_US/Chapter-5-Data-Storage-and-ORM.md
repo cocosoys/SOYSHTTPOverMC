@@ -27,17 +27,14 @@ storage:
     sqlite:
       enabled: false
       file: data/records.db
-      table-prefix: ''
     mysql:
       enabled: false
       url: 'jdbc:mysql://localhost:3306/minecraft?useUnicode=true&characterEncoding=utf8&autoReconnect=true&useSSL=false&serverTimezone=Asia/Shanghai'
       username: root
       password: ''
-      table-prefix: ''
   cross-server: false      # cross-server sync: all instances point at the same MySQL, data visible across servers
 ```
 
-- Do not change `table-prefix` unless you must (developers must read the prefixed table name accordingly);
 - Cross-server prerequisites: every instance sets `storage.backends.mysql.enabled: true` pointing at the same database (the SQL backend is the shared data source);
   enabling `storage.cross-server: true` while SQL is off logs a warning at startup (multi-instance data is not shared).
 
