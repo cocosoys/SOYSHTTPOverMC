@@ -23,6 +23,7 @@ import com.github.cocosoys.mc.soyshttpovermc.orm.YAML;
 import com.github.cocosoys.mc.soyshttpovermc.orm.executor.SqlBackendExecutor;
 import com.github.cocosoys.mc.soyshttpovermc.platform.PlatformBukkitImpl;
 import com.github.cocosoys.mc.soyshttpovermc.permission.CombinedPermissionService;
+import com.github.cocosoys.mc.soyshttpovermc.permission.local.ApiKeyStore;
 import com.github.cocosoys.mc.soyshttpovermc.proxy.ProxyDetector;
 import com.github.cocosoys.mc.soyshttpovermc.spi.Platforms;
 import com.github.cocosoys.mc.soyshttpovermc.spring.controller.AuthController;
@@ -42,12 +43,15 @@ import com.github.cocosoys.mc.soyshttpovermc.storage.RecordSyncStorage;
 import com.github.cocosoys.mc.soyshttpovermc.storage.SyncStorage;
 import com.github.cocosoys.mc.soyshttpovermc.web.*;
 import com.github.cocosoys.mc.soyshttpovermc.web.contract.ContractInjector;
+import com.github.cocosoys.mc.soyshttpovermc.web.swagger.SwaggerApiDocsPage;
+import com.github.cocosoys.mc.soyshttpovermc.web.swagger.SwaggerGuardInterceptor;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.GatewayConfig;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.GatewayFilter;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.AuthPolicy;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.bridge.AuthLoginBridge;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.bridge.RememberCredential;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.bridge.provider.AuthMeLoginProvider;
+import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.bridge.provider.NLoginLoginProvider;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.bridge.spi.LoginProviderContext;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.bridge.spi.LoginProviderFactory;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.issuer.CredentialIssuer;
@@ -70,6 +74,7 @@ import org.bukkit.configuration.file.YamlConfiguration;
 import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLContext;
 import java.io.File;
+import java.util.Date;
 import java.util.function.Supplier;
 
 /**
@@ -89,6 +94,10 @@ public class HttpOverMcPluginProxy {
      * 供 WebRegistry（exclude 声明登记）与 WebFrontendHandler（响应时处理）共享同一实例。
      */
     private ContractInjector contractInjector;
+    /**
+     * Swagger 自文档访问守卫（/swagger 命名空间：开关 / 登录 / OP 三态；reload 时经 rebuildGateway 同步开关）。
+     */
+    private volatile SwaggerGuardInterceptor swaggerGuard;
 
     public HttpOverMcPluginProxy(HttpOverMcPlugin plugin) {
         this.plugin = plugin;
@@ -186,6 +195,10 @@ public class HttpOverMcPluginProxy {
         LoginProviderFactory.configure(new LoginProviderContext(plugin));
         if (plugin.getServer().getPluginManager().getPlugin("AuthMe") != null) {
             LoginProviderFactory.register(new AuthMeLoginProvider());
+        }
+        if (plugin.getServer().getPluginManager().getPlugin("OpeNLogin") != null
+                || plugin.getServer().getPluginManager().getPlugin("nLogin") != null) {
+            LoginProviderFactory.register(new NLoginLoginProvider());
         }
         // 3) 日志门面 + 级别过滤
         LogKit.init(plugin.getLogger(), coreConfig().getString("log.level", "INFO"));
@@ -645,6 +658,32 @@ public class HttpOverMcPluginProxy {
         if (plugin.getGateway() != null) {
             plugin.getGateway().setAnonymousProbe(plugin.getApiRegistry());
         }
+
+        // Swagger 自文档访问守卫（/swagger 命名空间；开关随 gateway/config.yml swagger.enabled，reload 时同步）
+        // 调试端点（切换玩家 / 粘贴 X-API-Key）：调试凭证只进 Swagger 页面 JS 作用域、不写浏览器 cookie；
+        // apiKeyHeader 取 auth.yml header 配置（reload 修改 header 后需重启插件生效，该配置极少变更）。
+        AuthPolicy swaggerAuthPolicy = plugin.getGateway() == null ? null : plugin.getGateway().getAuthPolicy();
+        swaggerGuard = new SwaggerGuardInterceptor(
+                plugin.getApiRegistry().getPlayerResolver(),
+                gwCfg == null || gwCfg.getBoolean("swagger.enabled", true),
+                plugin.getAuthLoginBridge() == null ? null : plugin.getAuthLoginBridge()::issueToken,
+                presented -> verifySwaggerApiKey(swaggerAuthPolicy, presented),
+                swaggerAuthPolicy == null ? "X-API-Key" : swaggerAuthPolicy.getHeader());
+        plugin.getWebInterceptorRegistry().register(swaggerGuard);
+    }
+
+    /**
+     * Swagger 调试栏"粘贴 X-API-Key"校验：存在 && 启用 && 未过期 → 返回指纹与绑定玩家；无效返回 null。
+     * 绑定玩家名仅作展示（soys_api_key.uuid 可空；一期仅存储，判定仍按 key 自身权限链）。
+     */
+    private static SwaggerGuardInterceptor.ApiKeyInfo verifySwaggerApiKey(AuthPolicy authPolicy, String presented) {
+        if (authPolicy == null || presented == null || presented.isEmpty()) return null;
+        ApiKeyStore store = authPolicy.getApiKeyStore();
+        SoysApiKey k = store.findByPresented(presented);
+        if (k == null || !k.isEnabled()) return null;
+        Date expiry = k.getExpiry();
+        if (expiry != null && expiry.before(new Date())) return null;
+        return new SwaggerGuardInterceptor.ApiKeyInfo(k.getFingerprint(), k.getPlayer());
     }
 
     /**
@@ -735,6 +774,16 @@ public class HttpOverMcPluginProxy {
                 () -> plugin.getCombinedPermissionService(),
                 contractInjector);
         plugin.setWebFrontend(web);
+
+        // Swagger 自文档登记：UI 静态资源（jar /swagger-ui → /swagger/ui/**）+ OpenAPI JSON（动态）+ 根跳转
+        // 访问门径由 SwaggerGuardInterceptor 统一裁决（仅已登录 OP；swagger.enabled=false 时 404）
+        plugin.getWebRegistry().registerResourceDirectory(
+                plugin, "/swagger/ui", plugin.getClass().getClassLoader(), "swagger-ui");
+        plugin.getWebRegistry().registerNetworkPage(plugin.getName(),
+                new SwaggerApiDocsPage(plugin.getApiRegistry(),
+                        plugin.getDescription() == null ? null : plugin.getDescription().getVersion()),
+                true);
+        plugin.getWebRegistry().registerRedirect(plugin, "/swagger", "/swagger/ui/index.html");
 
         return stats;
     }
@@ -920,6 +969,9 @@ public class HttpOverMcPluginProxy {
         plugin.setTlsFactory(null);
         ConfigurationSection gwCfg = GatewayConfig.loadYml(new File(gatewayDir, "config.yml"));
         plugin.setDebugEventsEnabled(gwCfg != null && gwCfg.getBoolean("debug-events", false));
+        if (swaggerGuard != null) {
+            swaggerGuard.setEnabled(gwCfg == null || gwCfg.getBoolean("swagger.enabled", true));
+        }
         if (plugin.getGatewayEventListener() != null) {
             plugin.getGatewayEventListener().setDebugEnabled(plugin.isDebugEventsEnabled());
         }

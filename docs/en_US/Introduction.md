@@ -10,8 +10,8 @@ The repository uses a multi-module + version-adapter architecture. One core sour
 
 | Artifact | Target Server | Same-Port Sniffing | Java Requirement |
 | --- | --- | --- | --- |
-| `SOYSHTTPOverMC-1_6-<version>.jar` | 1.6.4 | Connection-level interception (ServerSocket first-byte dispatch) | JDK 7/8 |
-| `SOYSHTTPOverMC-1_7-<version>.jar` | 1.7.10 | Relocated-netty reflection bridge (hooking the server's embedded netty) | JDK 7/8 |
+| `SOYSHTTPOverMC-1_6-<version>.jar` | 1.6.4 | Connection-level interception (ServerSocket first-byte dispatch) | JDK 8 |
+| `SOYSHTTPOverMC-1_7-<version>.jar` | 1.7.10 | Relocated-netty reflection bridge (hooking the server's embedded netty) | JDK 8 |
 | `SOYSHTTPOverMC-1_12-<version>.jar` | 1.12.2 | Netty pipeline injection (standard netty, full feature set) | JDK 8 |
 | `adapter/v1_16x`, `v1_20x`, `v1_21x`, `v1_26x` | 1.16.x / 1.20.x / 1.21.x / 1.26.x | Version-specific reflection adapter modules | Per-version JDK |
 
@@ -60,6 +60,7 @@ If you are new to plugin development, finish a "HelloWorld" plugin first and com
 | [Chapter 5 Data Storage & ORM](Chapter-5-Data-Storage-and-ORM.md) | Multi-backend primary/secondary storage, entity annotations, `DATA` facade, YAML/SQL backends, condition chain, migration & data auto ops |
 | [Chapter 6 Advanced & Best Practices](Chapter-6-Advanced-Capabilities-and-Best-Practices.md) | HTTP client, extensions, interceptors, custom policies, I18n, multi-version builds |
 | [Chapter 7 Event System](Chapter-7-Event-System.md) | All event types, listening patterns, typical uses |
+| [Chapter 8 Plugin Extension: SoysExpansion](Chapter-8-SoysExpansion-Extension.md) | One-stop registration entry for third-party plugins: declarative hooks, endpoints / pages / CORS / data, registration order & unregister |
 | [Appendix API Reference](Appendix-API-Reference.md) | Facade capability groups (1–7), WebRegistry, command & config index |
 
 ## Reading Conventions

@@ -147,6 +147,13 @@ public class AuthPolicy extends SecurityPolicy {
     }
 
     /**
+     * X-API-Key 请求头名（auth.yml header，默认 X-API-Key）。
+     */
+    public String getHeader() {
+        return header == null || header.isEmpty() ? "X-API-Key" : header;
+    }
+
+    /**
      * 自动登录配置：记住我（设备免登录）总开关（auto.login.ttl.enable，默认 true）。
      */
     public boolean isRememberEnabled() {

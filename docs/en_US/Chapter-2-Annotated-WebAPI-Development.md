@@ -20,6 +20,7 @@ Key facts (verified against source):
 | `@ApiName("name")` | class / method | Display name of the endpoint (events / `/soyshttp api`) |
 | `@ApiPermission("permission")` | class / method | Required permission node (method-level wins; checked via the permission service) |
 | `@ApiPublic` | class / method | Public endpoint: skips permission checks (exempt from auth) |
+| `@Anonymous` | class / method | Fully anonymous: both the auth gate (401) and the permission gate (403) allow access without any credential; includes `@ApiPublic`'s permission-exempt effect, and overrides `@ApiPermission` when both are present |
 | `@RequestParam(name, required, defaultValue)` | parameter | Query parameter binding |
 | `@RequestBody` | parameter | Request body binding (String / JSON-deserialized object) |
 

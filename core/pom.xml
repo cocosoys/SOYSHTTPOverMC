@@ -41,6 +41,26 @@
             <artifactId>authme</artifactId>
         </dependency>
         <dependency>
+            <groupId>com.github.NickUC.OpeNLogin</groupId>
+            <artifactId>openlogin-common</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.github.NickUC.OpeNLogin</groupId>
+            <artifactId>openlogin-bukkit</artifactId>
+            <!-- 其 POM 声明了 FoliaLib/bstats-bukkit 两个 runtime 传递依赖（仅 OpeNLogin 自身运行时需要）；
+                 provided 编译期用不到，且 FoliaLib 所在仓库当前不可达，直接排除避免依赖收集失败 -->
+            <exclusions>
+                <exclusion>
+                    <groupId>com.tcoded</groupId>
+                    <artifactId>FoliaLib</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>org.bstats</groupId>
+                    <artifactId>bstats-bukkit</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        <dependency>
             <groupId>mysql</groupId>
             <artifactId>mysql-connector-java</artifactId>
             <exclusions>

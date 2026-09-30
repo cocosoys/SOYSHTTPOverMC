@@ -20,6 +20,7 @@ SOYSHTTPOverMC 提供一套类似 Spring MVC 的**注解式 API 框架**：你�
 | `@ApiName("名称")` | 类 / 方法 | 端点显示名（事件 / /soyshttp api 展示） |
 | `@ApiPermission("权限")` | 类 / 方法 | 所需权限节点（方法级优先；判定走权限服务） |
 | `@ApiPublic` | 类 / 方法 | 公开端点：跳过权限判定（豁免鉴权） |
+| `@Anonymous` | 类 / 方法 | 完全匿名：认证门（401）与授权门（403）均放行，无需任何凭证；含 `@ApiPublic` 免权限效果，与 `@ApiPermission` 共存时优先放行 |
 | `@RequestParam(name, required, defaultValue)` | 参数 | 查询参数绑定 |
 | `@RequestBody` | 参数 | 请求体绑定（String / 对象 JSON） |
 

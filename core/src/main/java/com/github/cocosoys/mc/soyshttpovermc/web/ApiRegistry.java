@@ -818,28 +818,28 @@ public class ApiRegistry implements AnonymousProbe {
     }
 
     public static final class ParamBinding {
-        final String name;
-        final boolean required;
-        final String defaultValue;
+        public final String name;
+        public final boolean required;
+        public final String defaultValue;
         /**
          * true=注解显式指定了默认值（@RequestParam(defaultValue=...)）；false=未指定，
          * 参数缺失时绑定 null（引用类型）或类型默认值（基本类型），避免空串类型转换 400。
          */
-        final boolean defaultSet;
-        final Class<?> type;
-        final boolean requestBody;
+        public final boolean defaultSet;
+        public final Class<?> type;
+        public final boolean requestBody;
         /**
          * true=参数由网关注入当前请求解析出的凭证（参数类型为 CredentialPresentation）
          */
-        final boolean injectCredential;
+        public final boolean injectCredential;
         /**
          * true=参数由网关注入当前请求上下文（参数类型为 ApiRequestContext：IP/玩家/凭证等）
          */
-        final boolean injectContext;
+        public final boolean injectContext;
         /**
          * true=参数从路径模板 {name} 段提取（@PathVariable 绑定）
          */
-        final boolean pathVariable;
+        public final boolean pathVariable;
 
         ParamBinding(String name, boolean required, String defaultValue, Class<?> type,
                      boolean requestBody, boolean injectCredential, boolean injectContext, boolean pathVariable,
