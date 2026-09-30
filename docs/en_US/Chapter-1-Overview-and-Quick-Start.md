@@ -65,9 +65,9 @@ Browse to `http://<server-ip>:<port>/` — the default homepage (`web/` or the j
 
 ```
 plugins/SOYSHTTPOverMC/
-├── config.yml            # main config (mc/sniffer/http-backend/log/permission/storage)
+├── config.yml            # main config (upload/mc/proxy/sniffer/http-backend/log/permission/storage/auto.ops)
 ├── EULA.yml              # usage agreement (eula: true to accept)
-├── pages.yml             # front-end web.* config + manual page registration + page permissions
+├── pages.yml             # front-end web.* config + manual page registration + alias routes + page permissions
 ├── language.yml          # i18n (current/rule/sources)
 ├── language/             # language packs (zh_cn.yml / en_us.yml)
 ├── gateway/
@@ -76,9 +76,9 @@ plugins/SOYSHTTPOverMC/
 │   ├── policies/         # security policies (auth / ip-allowlist / rate-limit / access-limiter / tls)
 │   └── issuers/          # credential issuers (session-token.yml)
 ├── web/                  # front-end disk root (extracted from jar /dist/ on first launch)
-├── data/                 # YAML storage & ORM data dir (soys_records.yml + per-table .yml)
+├── data/                 # YAML storage & ORM data dir (soys_records.yml + per-table .yml + migrations)
 ├── data/records.db       # SQLite storage (when enabled)
-└── token.key             # local JWT secret (auto-generated)
+└── token-secret.key      # local JWT secret (auto-generated, keep private)
 ```
 
 ## 1.5 Per-Version Implementation Differences (Important)
@@ -170,4 +170,4 @@ Equivalently, listen for `HttpConfigReloadEvent` (see Chapter 7).
 
 ## 1.8 Multi-Version Packaging (Build Side)
 
-The repository builds multiple jars from one source via Maven multi-module + version profiles: `core` and `common` stay Java-8 bytecode, and each `adapter` version module picks its spigot-api dependency and compile JDK (see Chapter 6, 6.8). For your third-party plugin, depend on `soyshttpovermc-common` (no Bukkit dependency; compilable on any JDK) to use annotations and ORM; depend on `soyshttpovermc-core` or just integrate at runtime via `softdepend` when you need the facade API.
+The repository builds multiple jars from one source via Maven multi-module + version profiles: `core` and `common` stay Java-8 bytecode, and each `adapter` version module picks its spigot-api dependency and compile JDK (see Chapter 6, 6.8). For your third-party plugin, **do not depend on `soyshttpovermc-core`** (that jar is the plugin itself; its classes are shaded into the runtime classpath automatically when SOYSHTTPOverMC is installed) — declare `softdepend: [SOYSHTTPOverMC]` and integrate at runtime through the facade. If you only need the annotations / ORM classes at compile time, add `soyshttpovermc-common` (no Bukkit dependency; compilable on any JDK) as a `provided`-scope dependency.

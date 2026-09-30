@@ -16,23 +16,23 @@ SoysHttpOverMcApi api = HttpOverMcPlugin.getInstance().getApi();
 | 1 API registration | `getApiRegistration()` | register/unregister annotation controllers, permission service |
 | 2 Web hosting | `getWebPage()` | register pages/resources/directories/network pages/error pages/CORS |
 | 3 Auth credentials | `getAuthCredential()` | register issuers, issue credentials |
-| 4 Toolkit | `getToolkit()` | JSON, Content-Type, link messages |
+| 4 Toolkit | `getToolkit()` | JSON, Content-Type, link messages, prefix family, contract primitives |
 | 5 HTTP client | `getHttpClient()` | outbound requests, local loopback, environment adaptation |
 | 6 Extensions | `getExtension()` | login providers, subcommands, interceptors, custom policies |
+| 7 Data ops | `getDataRegistration()` | data-layer automation (install/update/reinstall/cleanup transactions, see Chapter 5) |
 
-Other facade capabilities: `registerReloadHook(Runnable)`, `serverPrefix()`, `apiPrefix()`, `getConfigSection(...)` etc.
+Also: `registerReloadHook(ReloadHttpConfigHandler)` registers a reload hook (refreshes your config on `/soyshttp reload`; equivalent to implementing `ReloadHttpConfigHandler`). Prefix/contract primitives (`serverPrefix()` / `apiPrefix()` / `scheme()` etc.) are **not** on the facade — they live in capability group 4 `ApiToolkitApi`.
 
 ## A.2 Group 1: ApiRegistrationApi
 
 | Method | Description |
 | --- | --- |
-| `void registerController(Object controller)` | register a controller (non-main plugins automatically get `/plugins/<pluginName>`) |
-| `void registerController(Object controller, Plugin owner)` | explicitly specify the owning plugin |
-| `void registerController(Object controller, boolean force)` | force=true overwrites duplicate routes |
-| `void registerProxyController(Object controller)` | register as proxy under the main plugin's name (no plugin prefix) |
-| `void unregisterController(Object controller)` | unregister all endpoints of that controller |
-| `void unregisterPluginControllers(String pluginName)` | unregister all endpoints of a plugin |
+| `void registerController(Object controller)` | register a controller (non-main plugins automatically get `/plugins/<pluginName>`; overloads: `(Object, Plugin)` / `(Object, boolean force)` / `(Object, Plugin, boolean)`) |
+| `void registerProxyController(Object controller)` | register as proxy under the main plugin's name (no plugin prefix; same overloads) |
+| `List<ApiInfo> unregisterController(Object controller)` | unregister all endpoints of that controller; returns the unregistered snapshot |
+| `List<ApiInfo> unregisterPluginControllers(String pluginName)` | unregister all endpoints of a plugin; returns the snapshot |
 | `void setPermissionService(PermissionService service)` | plug in a custom permission-checking service |
+| `PermissionService getPermissionService()` | the current permission service |
 | `List<ApiInfo> getRegisteredApis()` | snapshot of all endpoints |
 | `String getApiPrefix()` | the global prefix (/api) |
 
@@ -40,26 +40,39 @@ Other facade capabilities: `registerReloadHook(Runnable)`, `serverPrefix()`, `ap
 
 ## A.3 Group 2: WebPageApi
 
+> Return types: **every registration method returns `WebRegistry.Entry`** (`null` on failure); bulk directory registrations return `Set<Entry>`. A minimal-convenience section sits at the top of the interface (one/two args, owner auto-detected).
+
+**Minimal convenience section**:
+
 | Method | Description |
 | --- | --- |
-| `registerPage(Plugin, String path, byte[] content)` | web page (Content-Type inferred from extension) |
-| `registerPage(Plugin, String path, byte[] content, String contentType)` | web page (explicit Content-Type) |
-| `registerPage(Plugin, String path, byte[] content, String contentType, boolean force)` | force overwrite |
-| `registerPage(Plugin, String path, HttpMethod method, byte[] content, String contentType, boolean force, String desc, List<String> nicknames)` | non-GET static response + nicknames |
-| `registerResource(Plugin, String path, ClassLoader, String resourcePath)` | jar resource (read on demand) |
-| `registerResource(..., String contentType)` / `(..., boolean force)` | resource overloads |
-| `registerProxyPage(...)` / `registerProxyResource(...)` | without the plugin-name prefix |
-| `registerDirectory(Plugin, String basePath, File dir)` / `(..., boolean proxy)` | bulk disk directory |
-| `registerResourceDirectory(Plugin, String basePath, ClassLoader, String resourceRoot)` / `(..., boolean proxy)` | bulk jar resource directory |
-| `registerNetworkPage(Plugin, NetworkPage page)` | network page (custom loading/encrypted transport) |
-| `registerLargeFileLoader(LargeFileLoader)` | custom large-file loader |
-| `setDefaultLargeFileLoader(String name)` | switch the default large-file loader |
-| `setLargeFileLoader(String pathPrefix, String name)` | per-path-prefix loader |
-| `registerErrorPage(Plugin, int status, byte[] content)` | custom error page |
-| `registerCors(Plugin, String pathPrefix, String origin, String methods, String headers, boolean credentials)` | CORS declaration |
-| `unregisterPluginPages(String pluginName)` | unregister all pages of a plugin |
+| `Entry registerPage(byte[] content)` | path auto = `web/plugins/<plugin>/page/page-<seq>`; Content-Type `text/html; charset=utf-8` |
+| `Entry registerPage(String resourcePath)` | jar resource; path = `web/plugins/<plugin>/page/<file name without extension>` |
+| `Entry registerPage(String path, byte[] content)` | explicit path + content (auto-prepends `/web/plugins/<pluginName>`) |
+| `Entry registerResource(String resourcePath)` / `(String path, String resourcePath)` | jar resource (lazy read) |
+| `Entry registerProxyPage(String path, byte[] content)` / `registerProxyResource(String path, String resourcePath)` | without the plugin-name prefix |
+| `Entry registerErrorPage(byte[] content)` / `(String html)` | default 404 error page |
+| `Set<Entry> registerDirectory(File dir)` | basePath auto = `web/plugins/<plugin>/<dir name>`; bulk disk directory |
 
-Also: `registerPage(..., List<String> permissions)` / `registerProxyPage(..., permissions)` accept AND-semantic permissions (see Chapter 3, 3.5).
+**Full registration** (explicit owner):
+
+| Method | Description |
+| --- | --- |
+| `Entry registerPage(Plugin, String path, byte[] content [, String contentType] [, boolean force])` | web page (Content-Type inferred from extension or explicit) |
+| `Entry registerResource(Plugin, String path, ClassLoader, String resourcePath [, String contentType] [, boolean force])` | jar resource (read on demand) |
+| `Entry registerProxyPage(Plugin, String path, byte[] content [, String contentType])` / `registerProxyResource(Plugin, String path, ClassLoader, String resourcePath [, String contentType])` | without the plugin-name prefix |
+| `Set<Entry> registerDirectory(Plugin, String basePath, File dir [, boolean proxy])` | bulk disk directory (recursive, lazy read, hot-replaceable) |
+| `Set<Entry> registerResourceDirectory(Plugin, String basePath, ClassLoader, String resourceRoot [, boolean proxy])` | bulk jar resource directory |
+| `Entry registerErrorPage(Plugin, int status, byte[] content)` / `(Plugin, int status, String html)` | custom error page |
+| `Entry registerNetworkPage(Plugin, NetworkPage page)` | network page (custom loading/encrypted transport) |
+| `NetworkTransport registerNetworkTransport(NetworkTransport)` | register a network transport provider (stored + warned only; not yet wired into the load chain) |
+| `LargeFileLoader registerLargeFileLoader(LargeFileLoader)` | register a custom large-file loader (returns the instance) |
+| `LargeFileLoader setDefaultLargeFileLoader(String name)` / `setLargeFileLoader(String pathPrefix, String name)` | switch the default / per-path-prefix loader |
+| `void unregisterPluginPages(String pluginName)` / `int unregisterByTag(String tag)` / `void unregisterCors(String pluginName)` | unregister by plugin / source tag / CORS |
+| `void setIndexRule(String ownerName, boolean enabled, String indexFile)` / `removeIndexRule(String ownerName)` | directory-index fallback rule (globally enabled by default, target `index`) |
+| `void setSpaFallback(String ownerName, boolean enabled)` / `removeSpaFallback(String ownerName)` | SPA fallback declaration (extension-less → index.html; extension-bearing → still 404) |
+
+> Full overloads carrying non-GET methods, nickname + description + **permissions**, CORS and redirects live in **`WebRegistry`** (e.g. `registerPage(owner, path, httpMethod, content, contentType, force, desc, nicknames, permissions)` / `registerCors(...)` / `registerRedirect(...)` / `registerProxyRedirect(...)`); the facade `WebPageApi` does not forward every overload — reach into `WebRegistry` for those (see Chapter 3, 3.2 / 3.5).
 
 ## A.4 Group 3: AuthCredentialApi
 
@@ -143,15 +156,15 @@ All live in `com.github.cocosoys.mc.soyshttpovermc.api.event`; events are **nest
 
 | File | Key nodes |
 | --- | --- |
-| `config.yml` | `upload` / `mc.public-host` / `mc.public-port` / `mc.trust-proxy` / `proxy.server-name` / `proxy.proxy-address` / `sniffer` / `http-backend.mode` / `log.level` / `permission.providers` / `permission.offline-fallback` / `storage.*` |
-| `pages.yml` | `web.root` / `web.home` / `web.cache.*` / `web.large-file-*` / `pages.page` / `pages.auto` / `permissions` |
+| `config.yml` | `upload` / `mc.public-host` / `mc.public-port` / `mc.trust-proxy` / `proxy.server-name` / `proxy.proxy-address` / `sniffer` / `http-backend.mode` / `log.level` / `permission.providers` / `permission.offline-fallback` / `storage.*` / `auto.ops.*` |
+| `pages.yml` | `web.root` / `web.home` / `web.cache.*` / `web.large-file-*` / `pages.page` / `pages.auto` / `pages.alias` / `permissions` |
 | `language.yml` | `current` / `rule` / `sources` |
 | `EULA.yml` | `eula` (true to accept) |
 | `gateway/config.yml` | `enabled` / `api-prefix` / `debug-events` |
 | `gateway/https.yml` | `enabled` / `keystore` / `cert` / `key` / `enabled-protocols` / `min-tls` |
 | `gateway/policies/tls.yml` | `enabled` / `host` |
 | `gateway/policies/ip-allowlist.yml` | `default` / `list` / `trust-proxy` |
-| `gateway/policies/auth.yml` | `enabled` / `header` / `login-provider` / `keys` / `paths` / `exempt` / `accept.*` / `auto.login.*` |
+| `gateway/policies/auth.yml` | `enabled` / `header` / `login-provider` / `api-key.local-fallback-all` / `paths` / `exempt` / `accept.*` / `auto.login.ttl.*` / `auto.login.ip.enabled` / `auto.login.fp.*` / `auto.login.ticket.*` (legacy `keys` removed; use the local `soys_api_key` table) |
 | `gateway/policies/rate-limit.yml` | `scope` / `rpm` / `burst` |
 | `gateway/policies/access-limiter.yml` | `path-patterns` (name/scope/limit/window-seconds) |
 | `gateway/issuers/session-token.yml` | `enabled` / `cookie-name` / `ttl-seconds` / `clock-skew-seconds` |

@@ -67,9 +67,11 @@ Passive refresh: no background task; the window is checked only when a request a
 
 ```yaml
 enabled: true
-header: X-API-Key            # static key request header name
+header: X-API-Key            # API key request header name
 login-provider: ""           # login plugin provider name (e.g. authme; empty = auto-pick the first available)
-keys: []                     # static credentials (matched via X-API-Key header or Authorization: Bearer)
+api-key:
+  local-fallback-all: false  # when the local soys_api_key table is unavailable:
+                             #   true = downgrade to "all permissions" mode (warn); false (default) = deny
 paths: [/api/*]              # empty = protect all paths; * = everything; /api/* = prefix match
 exempt: [/ping, /whoami, /auth/login, /auth/issue, /auth/mode, /auth/status, /homepage/config, /homepage/live]
 accept:
@@ -79,7 +81,7 @@ accept:
   cookie: true               # accept Cookie (values validated by enabled issuers)
 ```
 
-Credential matching: matching any static `keys` or any enabled issuer passes; none match → 401.
+> The legacy `keys: []` static source is **removed**: credentials now live in the local table `soys_api_key` (hashed, managed via `/soyshttp apikey`, see 4.6.3). Credential matching: any record in the local table or any enabled issuer passes; none match → 401. When both a valid X-API-Key and a player Bearer are present, a failed key check continues down the player chain (OR logic).
 
 ### 4.2.6 https.yml (TLS)
 
@@ -101,8 +103,8 @@ Certificate source priority: `keystore(PKCS12) > cert+key(PEM, private key must 
 
 ### 4.3.1 Credential Sources (three)
 
-1. **X-API-Key header** (default name `X-API-Key`): matches static keys;
-2. **Authorization**: `Bearer <key>` (matches static keys) or `Basic` (username = key);
+1. **X-API-Key header** (default name `X-API-Key`): matches the local API key table `soys_api_key` (hashed; `/soyshttp apikey` manages it, see 4.6.3);
+2. **Authorization**: `Bearer <key>` (matches the local table) or `Basic` (username = key);
 3. **Cookie**: request cookies are validated by enabled issuers under `gateway/issuers/` (e.g. `soys_session`).
 
 ### 4.3.2 session-token.yml (session token issuer)
@@ -117,7 +119,7 @@ clock-skew-seconds: 30    # cross-server clock tolerance (validates exp/iat)
 - When enabled, `/soyshttp key <subject>` issues session tokens; the same token works as X-API-Key / Bearer / Cookie;
 - Tokens are **in-memory**: all invalidated on server restart;
 - Session tokens carrying the `adm` marker (manually issued by the admin) are treated as highest privilege, bypassing permission checks for all APIs;
-- JWT secret: read from shared storage (MySQL, unified across servers) when available, otherwise falls back to the local `token.key` file (cross-server verification may differ — see the config.yml log).
+- JWT secret: read from shared storage (MySQL, unified across servers) when available, otherwise falls back to the local `token-secret.key` file in the plugin data folder (auto-generated; cross-server verification may differ — see the config.yml log).
 
 ## 4.4 Web Login & Login Plugin Integration
 
@@ -138,10 +140,18 @@ auto:
       activetime: 7     # remember-me credential validity (days), default 7
     ip:
       enabled: false    # legacy "IP-match auto-login" switch, default off
+    fp:
+      enable: true      # device-fingerprint two-factor (default on): records the browser fingerprint into soys_device_binding on login
+      strict: true      # strict=true: a fingerprint mismatch (different browser/environment) also denies an already-logged-in session
+    ticket:
+      ttl: 180          # in-game → web binding ticket validity (seconds)
+      in-game-link: true  # when on, /soyshttp link in-game issues a one-time ticket; entering it on the web completes the device binding
 ```
 
 - **Remember me**: on login, when the front-end "remember me" is checked, a long-lived device credential cookie (`soys_remember`, HttpOnly) is issued; subsequent `/api/auth/status` calls auto-login;
-- **IP-match auto-login** (default off): legacy behavior auto-logs in when "player online + web IP == game IP"; IPs cannot be pinned to a single device and cause collateral damage behind NAT, so it defaults to off.
+- **Device-fingerprint two-factor (default on)**: after a successful login the browser fingerprint (UA + Canvas + WebGL digest) is written to the `soys_device_binding` table (bound to the uuid); later access from a **different-fingerprint** device is denied when `fp.strict=true`, or only warned when `fp.strict=false`. This solves the "IP cannot be pinned to a single device" problem — fingerprints distinguish devices behind the same NAT;
+- **Ticket binding (in-game-link)**: `/soyshttp link` in-game issues a one-time ticket (a `soys_remember` Ticket-type credential); entering it on the web binds that browser to the player's device without a password;
+- **IP-match auto-login** (default off): legacy behavior auto-logs in when "player online + web IP == game IP"; IPs cannot be pinned to a single device and cause collateral damage behind NAT, so it defaults to off (only recommended for LAN / single-machine setups).
 
 ### 4.4.3 Login Window Endpoints (/api/auth/*)
 
@@ -195,7 +205,7 @@ Pairs with `offline-fallback: local` (or `providers: ["local"]`); the plugin mai
 /soyshttp perm user <player> group add|remove <group>    # join/leave group
 /soyshttp perm user <player> add|remove <permission>     # direct user permission
 /soyshttp perm user <player> list                        # view effective permissions (incl. group inheritance)
-/soyshttp perm user <player> expiry <epoch|clear>        # user-level expiry
+/soyshttp perm user <player> expiry <yyyy-MM-dd HH:mm:ss|clear>  # user-level expiry
 /soyshttp perm check <player> <permission>               # debug: check result
 /soyshttp perm reload                                    # reload the provider chain
 ```
@@ -208,6 +218,22 @@ Rules (real implementation):
 - **Storage**: `data/soys_perm_group.yml` + `data/soys_perm_user.yml` (or SQL tables when an SQL backend is enabled);
 - **User primary key**: `uuid` (auto-recorded on first permission check while online; after renames, uuid matching takes priority, name matching only when uuid is absent);
 - **Caching**: each check queries ORM directly (no extra cache layer).
+
+### 4.6.3 API Key Table (/soyshttp apikey)
+
+Local API keys live in the `soys_api_key` table (YAML / SQL dual backend, hashed — never plaintext), letting programmatic callers reach the gateway via the `X-API-Key` header (replacing the legacy static `keys` in auth.yml):
+
+```
+/soyshttp apikey generate <note>              # generate a key (platform-random; shown only once)
+/soyshttp apikey list                         # list (masked; full keys never displayed)
+/soyshttp apikey enable|disable <id>          # enable/disable
+/soyshttp apikey expire <id> <yyyy-MM-dd HH:mm:ss|clear>
+/soyshttp apikey bind <id> <uuid|player>      # bind a player (future checks run against the bound subject)
+/soyshttp apikey remove <id>
+```
+
+- Permission checks on a matched key use the `soys_api_key` permission nodes (unified string matching, `:` ≡ `.`, `-` negation and `*` wildcards supported — reusing `soys_perm_permission` semantics);
+- When the local table is unavailable, auth.yml `api-key.local-fallback-all` decides between downgrading to "all permissions" (warn) and denying (default); the same rule applies when the `local` backend itself is unavailable.
 
 ## 4.7 Custom Security Policies (ExtensionApi)
 

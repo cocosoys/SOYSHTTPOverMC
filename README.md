@@ -25,14 +25,13 @@
 ## 特性
 
 - **同端口三协议共存**：在 Spigot 监听 socket 上嗅探首包分流 —— MC 握手原样放行给玩家，HTTP/TLS 就地处理，互不干扰；
-- **无头 Bot 隧道**：内置无头 Bot 回环登录本服，经 PluginMessage 通道搬运 HTTP 请求/响应，玩家进服与 Web 服务互不影响；
 - **HTTPS 就地升级**：TLS 在嗅探器内动态挂载（无需独立 443），支持 PKCS12 / PEM / 自动自签证书；
 - **注解式 REST API**：仿 Spring 的 `@GetMapping` / `@PostMapping` / `@ApiName` / `@ApiPermission` + `AjaxResult`，一行注册端点；
 - **安全网关**：TLS 强制（426 升级）、IP 白名单（CIDR）、鉴权（X-API-Key / Bearer / Cookie 会话令牌）、令牌桶限流，策略可插拔；
 - **会话令牌**：无状态 JWT（HS256）+ 退出黑名单；离线 cookie 进游戏后自动升级为在线令牌；`/soyshttp key` 可签发服主最高权限 key；
-- **群组服支持**：BungeeCord/Waterfall/Velocity 后端自动探测，Bot 携带转发握手数据，跨服请求 `/server/<子服名>/...`，并带可选代理模块（在代理监听端口上反向代理 HTTP/HTTPS）；
-- **登录插件接入**：`LoginProvider` SPI —— 已有 AuthMe 实现（网页登录、密码校验、免登录 Bot），可扩展其他登录插件；
-- **开发者开放面**：统一门面 `SoysHttpOverMcApi`（注解控制器 / 网页登记 / 目录批量托管 / 门户导航项 / 自定义 MIME / 凭证 / 跨服 HTTP / 日志 / Bot 管理），插件 onEnable 即用；
+- **群组服支持**：BungeeCord/Waterfall/Velocity 后端自动探测，跨服请求 `/server/<子服名>/...`，并带可选代理模块（在代理监听端口上反向代理 HTTP/HTTPS）；
+- **登录插件接入**：`LoginProvider` SPI —— 已有 AuthMe 实现（网页登录、密码校验、免登录），可扩展其他登录插件；
+- **开发者开放面**：统一门面 `SoysHttpOverMcApi`（注解控制器 / 网页登记 / 目录批量托管 / 门户导航项 / 自定义 MIME / 凭证 / 跨服 HTTP / 数据运维），插件 onEnable 即用；
 - **ORM 多后端存储**：统一 `DATA` 门面路由（SQL 可用走 SQL，否则回退 YAML），`YAML.Pojo` / `SQL.Pojo` 同构 API；多后端可同时启用，按优先级唯一主存储承担默认读写，其余后端可经带后端类型参数的重载显式读写；`/soyshttp migrate|sync|data` 提供迁移 / 覆盖同步 / 数据自动化运维（详见 [存储与 ORM](#存储与-orm可选) 与 [开发文档](#开发文档)）；
 - **性能**：gzip 压缩、ETag/304 缓存、HTTP/1.1 keep-alive、真实访客 IP 透传（`X-Forwarded-For`）。
 
@@ -48,11 +47,10 @@
                        └─ TLS(0x16 0x03) ────► 就地 SslHandler 解密 → 网关策略链
                                                 → WebFrontendHandler 路由：
                                                    登录 / 注解式 API / 插件登记网页 / 静态资源
-                                                → 无头 Bot 回环 + PluginMessage 隧道
-                                                   把响应经 MC 协议发回浏览器
+                                                   响应直接经同一连接写回浏览器
 ```
 
-群组服模式：每个子服各装一份本插件（各持一个 Bot）；可选 `SOYSHTTPOverMC-Proxy.jar` 装在 BungeeCord，
+群组服模式：每个子服各装一份本插件；可选 `SOYSHTTPOverMC-Proxy.jar` 装在 BungeeCord，
 在代理监听端口上做首包分类与反向代理（home-server=self 由代理自身托管静态页，或路由到指定子服）。
 
 ---
@@ -63,7 +61,6 @@
 | -------- | ---------------------------------------------------------------------------- |
 | 服务端   | Spigot / Paper**1.12.2**（后端）；BungeeCord / Waterfall（群组服代理） |
 | Java     | **8**（编译与运行目标）                                                |
-| 正版验证 | **`online-mode=false`（离线服必需）** —— Bot 以离线身份回环登录    |
 | 可选     | AuthMe（网页登录接入）；BungeeCord 代理模块（群组服出网）                    |
 
 > ⚠️ 端口约定：**访问端口 == `server.properties` 的 `server-port`**，无需新增端口、无需改防火墙（浏览器访问该端口即可）。
@@ -76,8 +73,8 @@
 ### 单服模式
 
 1. 下载 `SOYSHTTPOverMC-1_12-<版本>.jar`（本仓库 Release）放入 `plugins/`，重启服务器；
-2. `server.properties`：`online-mode=false`，`server-port=<你想要的端口>`；
-3. 确认日志出现 `HTTP-Over-MC 已启动（同端口嗅探...）`，且 Bot `__http_proxy__` 成功登录；
+2. `server.properties`：`server-port=<你想要的端口>`；
+3. 确认日志出现 `HTTP-Over-MC 已启动（同端口嗅探...）`；
 4. 浏览器访问 `https://<地址>:<端口>/` 打开门户首页（自签证书请手动信任或加 `-k`）。
 
 ### 群组服模式（BungeeCord）
@@ -88,7 +85,7 @@
      public-host: "代理公网IP或域名"   # 对外展示用（可选）
      public-port: 25577                # 客户端实际可连的端口
    server-name: 子服名                  # 必须与 BungeeCord config.yml 的 servers.<name> 一致
-   proxy-address: "127.0.0.1:25577"    # Bot 经代理连接的地址
+   proxy-address: "127.0.0.1:25577"    # 跨服转发目的地址（BungeeCord 监听地址）
    ```
 2. 各子服 `spigot.yml` 设 `bungeecord: true`（与代理 `ip_forward: true` 对齐）；防火墙放行代理与回环访问子服端口；
 3. （可选）代理装 `SOYSHTTPOverMC-Proxy.jar`，`plugins/SOYSHTTPOverMC-Proxy/proxy.yml` 设 `enabled: true`、
@@ -102,7 +99,7 @@
 
 ```
 plugins/SOYSHTTPOverMC/
-├── config.yml                 # 核心：bot.username / channel / mc.host/port / public-host / trust-proxy / server-name / proxy-address / storage / auto.ops
+├── config.yml                 # 核心：mc.host/port / public-host / trust-proxy / server-name / proxy-address / storage / auto.ops
 ├── gateway/
 │   ├── config.yml             # 网关总开关 + api-prefix
 │   ├── https.yml              # HTTPS：enabled / keystore(PKCS12) > cert+key(PEM) > 自签
@@ -195,7 +192,7 @@ api.getWebPage().registerNavItem(this, "我的面板", "/plugins/MyPlugin/demo",
 // 3) 自定义扩展名 Content-Type（.vue / .ts 等）
 api.getToolkit().registerMimeType("vue", "text/html; charset=utf-8");
 
-// 4) 凭证 / 工具 / 日志 / 跨服 HTTP / Bot
+// 4) 凭证 / 工具 / HTTP 客户端 / 扩展（登录 SPI、子指令、拦截器）
 api.getAuthCredential().issueCredential("someone");
 api.getHttpClient().sendGet("https://example.com/api");
 
@@ -205,13 +202,15 @@ User u = DATA.get(User.class, "id-1");
 DATA.insert(user);
 DATA.updateById(user);                                   // 按主键更新（YAML 端=upsert）
 // 指定后端类型读写：DATA.get(StorageType.SQLITE, User.class, id) / DATA.select(StorageType.MYSQL, ...)
+// 6) 数据层自动化运维（默认文件复制 / init.sql / 迁移 / 种子，见 DataRegistrationApi）
 ```
 
-能力组一览：`ApiRegistration`（注解控制器）、`WebPage`（网页/目录/导航）、`AuthCredential`、
-`Toolkit`（JSON / Content-Type / 前缀家族 `apiPrefix` `pluginsPrefix` `apiFullPrefix` `pageFullPrefix`
-`webResourcePrefix` `serverPrefix` `fullPathPrefix` `scheme` `host` `port` `spaFallback` `pageBase`
-`fpEnabled` `fpStrict`）、`Logger`、`BotManagement`、`HttpClient`、`Extension`
-（`LoginProvider` 登录插件 SPI + 自定义 `/soyshttp` 子指令）、`CrossServer`（跨服 HTTP 调用）。
+能力组一览（`SoysHttpOverMcApi` 7 个能力组）：`ApiRegistration`（注解控制器）、`WebPage`（网页/目录/导航）、
+`AuthCredential`（凭证）、`Toolkit`（JSON / Content-Type / 前缀家族 `apiPrefix` `pluginsPrefix` `apiFullPrefix`
+`pageFullPrefix` `webResourcePrefix` `serverPrefix` `fullPathPrefix` `scheme` `host` `port` `spaFallback`
+`pageBase` `fpEnabled` `fpStrict`）、`HttpClient`（对外 HTTP / 回环 / 跨服）、`Extension`
+（`LoginProvider` 登录插件 SPI + 自定义 `/soyshttp` 子指令 + 请求拦截器 + 自定义策略）、
+`DataRegistration`（数据层自动化运维）。
 
 监听事件（均嵌套于抽象基类下，Bukkit 标准 `registerEvents` 监听即可）：
 `ApiEvent`（`ApiRegisteredEvent` / `ApiUnregisteredEvent` / `ApiAccessEvent` 及其 GET/POST/... 子类 /
@@ -237,15 +236,14 @@ $env:JAVA_HOME = "D:\WorkTools\JDK\8"
 # 代理模块：SOYSHTTPOverMC-Proxy 为独立 Maven 工程，单独构建（不参与本 reactor）
 ```
 
-> ⚠️ 本项目依赖若干**本地魔改的第三方库**（MCProtocolLib / packetlib / opennbt / bungeecord-api），
-> 已 vendored 到 `lib/` 并在 GitHub Actions 中 `mvn install:install-file` 后构建（见 `.github/workflows/release.yml`）。
 > 打 tag（如 `v1.4.0`）即自动打包并上传到 Release；也可在 Actions 页手动触发（仅出构建产物）。
+> 所有第三方依赖均从 Maven 中央仓库/官方仓库拉取（netty-all / HikariCP / protobuf-java / jackson-annotations /
+> sqlite-jdbc / mysql-connector-java 等），无需本地手工 install。
 
 ---
 
 ## 安全说明
 
-- 必须在**离线服**（`online-mode=false`）运行；正版服请自行评估 Bot 离线登录的风险；
 - 网关策略默认 `tls.yml` 强制 HTTPS（明文 426）；如需开放明文，在 `gateway/policies/tls.yml` 关闭；
 - `mc.trust-proxy: true` 时后端信任前置代理注入的 `X-Forwarded-For`；若后端可被客户端直连，建议设 `false` 防伪造 IP；
 - 自签证书不获浏览器信任（可自行配置 PKCS12/PEM 正式证书，见 `gateway/https.yml`）；
@@ -255,14 +253,13 @@ $env:JAVA_HOME = "D:\WorkTools\JDK\8"
 
 ## 开源注意事项
 
-- 本项目**尚未附带 LICENSE 文件**，开源发布前请先选定许可证（如 MIT / GPL-3.0 / LGPL-3.0 需视依赖兼容性）；
-- **第三方依赖许可**：`MCProtocolLib`（LGPL-3.0）、`packetlib`、`opennbt`（GeyserMC，MIT）、`BungeeCord API`（BSD-3）、
-  `AuthMe`（GPL-3.0，仅编译期可选）等，分发前请核对各自许可条款；LGPL 类库的修改版如对外分发需遵循其
-  源码可获取性要求（本仓库的修改记录与材料见 `mcpl-patch/`、`packetlib-patch/`，当前未纳入 git）；
-- `lib/` 内的魔改 jar 是 CI 构建所必需，**请勿删除**；其来源与改动说明见 `lib/README.md`；
-- 仓库 `.gitignore` 已排除 `server*/`（测试环境）、`target/`、日志、脚本与补丁目录——**请勿提交任何
+- 本项目**尚未附带 LICENSE 文件**，开源发布前请先选定许可证（如 MIT / GPL-3.0 需视依赖兼容性）；
+- **第三方依赖许可**：`netty-all`（Apache-2.0）、`HikariCP`（Apache-2.0）、`protobuf-java`（BSD-3）、
+  `jackson-annotations`（Apache-2.0）、`sqlite-jdbc`（Apache-2.0）、`mysql-connector-java`（GPL-2.0 with FOSS exception）、
+  `AuthMe`（GPL-3.0，仅编译期可选）、`BungeeCord API` / `Velocity API`（编译期可选）等，分发前请核对各自许可条款；
+- 仓库 `.gitignore` 已排除 `server*/`（测试环境）、`target/`、日志与脚本目录——**请勿提交任何
   `token-secret.key`、`*.pem`/`*.p12` 私钥、rcon 密码、服务器内网信息**等敏感内容；
-- 欢迎 Issue / PR；涉及协议库修改的 PR 请同时说明补丁来源。
+- 欢迎 Issue / PR。
 
 ---
 
@@ -281,8 +278,6 @@ $env:JAVA_HOME = "D:\WorkTools\JDK\8"
 | 第6章 进阶能力与最佳实践 | [docs/zh_CN/第6章-进阶能力与最佳实践.md](docs/zh_CN/第6章-进阶能力与最佳实践.md) | [docs/en_US/Chapter-6-Advanced-Capabilities-and-Best-Practices.md](docs/en_US/Chapter-6-Advanced-Capabilities-and-Best-Practices.md) |
 | 第7章 事件系统 | [docs/zh_CN/第7章-事件系统（使用与注册）.md](docs/zh_CN/第7章-事件系统（使用与注册）.md) | [docs/en_US/Chapter-7-Event-System.md](docs/en_US/Chapter-7-Event-System.md) |
 | 附录 API参考手册 | [docs/zh_CN/附录-API参考手册.md](docs/zh_CN/附录-API参考手册.md) | [docs/en_US/Appendix-API-Reference.md](docs/en_US/Appendix-API-Reference.md) |
-
-顶层设计 / 设计稿见 `docs/`（API 请求处理链路、实体存储统一抽象、ORM 双后端改造等）。
 
 ---
 

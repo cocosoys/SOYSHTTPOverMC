@@ -12,8 +12,10 @@
 | `callLocalApi(method, path, headers, body)` | in-process loopback: call the plugin's own registered APIs directly (bypasses the network; equivalent to local dispatch) |
 | `sendApi(method, logicalPath, headers, body)` | generic send: prefixes via `resolveUrl`, then **local dispatch** (annotation-level `@ApiPublic/@ApiPermission` still apply); returns null on no route |
 | `resolveUrl(logicalPath)` | resolve the full locally accessible HTTP path (auto-adds three prefixes, below) |
-| `serverPrefix()` / `apiPrefix()` | proxy-server prefix (e.g. `/server/lobby`) / API prefix (`/api`) |
+| `getApiPrefix()` | annotation API global prefix (`/api`) |
 | `isAuthEnabled()` | whether gateway auth is enabled |
+
+> The prefix family (`serverPrefix()` / `apiPrefix()` / `pluginsPrefix()` / `apiFullPrefix()` / `pageFullPrefix()` / `webResourcePrefix()` / `fullPathPrefix()` / `scheme()` / `host()` / `port()` / `pageBase()` / `spaFallback()` / `fpEnabled()` / `fpStrict()`) lives on **capability group 4 ApiToolkitApi** (`api.getToolkit()`); full signatures are in Appendix A.5.
 
 ### 6.1.1 resolveUrl's Three Prefixes
 

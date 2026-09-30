@@ -38,7 +38,7 @@ After reading it you will be able to:
 3. Protect your endpoints with the **security gateway** (TLS, IP allowlist, rate limiting, API keys, session tokens);
 4. Read and write **YAML files and SQL databases** through one uniform set of ORM annotations;
 5. Correctly configure **cross-server routing** in a proxy (BungeeCord / Velocity) setup;
-6. Understand the **capability facade API** (6 capability groups) and the event system for plugin interop.
+6. Understand the **capability facade API** (7 capability groups) and the event system for plugin interop.
 
 ## Target Audience
 
@@ -60,7 +60,7 @@ If you are new to plugin development, finish a "HelloWorld" plugin first and com
 | [Chapter 5 Data Storage & ORM](Chapter-5-Data-Storage-and-ORM.md) | Multi-backend primary/secondary storage, entity annotations, `DATA` facade, YAML/SQL backends, condition chain, migration & data auto ops |
 | [Chapter 6 Advanced & Best Practices](Chapter-6-Advanced-Capabilities-and-Best-Practices.md) | HTTP client, extensions, interceptors, custom policies, I18n, multi-version builds |
 | [Chapter 7 Event System](Chapter-7-Event-System.md) | All event types, listening patterns, typical uses |
-| [Appendix API Reference](Appendix-API-Reference.md) | Facade capability groups, WebRegistry, command & config index |
+| [Appendix API Reference](Appendix-API-Reference.md) | Facade capability groups (1–7), WebRegistry, command & config index |
 
 ## Reading Conventions
 

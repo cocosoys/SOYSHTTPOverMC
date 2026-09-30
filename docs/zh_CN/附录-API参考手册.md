@@ -16,23 +16,23 @@ SoysHttpOverMcApi api = HttpOverMcPlugin.getInstance().getApi();
 | 1 API 注册 | `getApiRegistration()` | 注册/卸载注解式控制器、权限服务 |
 | 2 网页托管 | `getWebPage()` | 注册网页/资源/目录/网络页/错误页/CORS |
 | 3 鉴权凭证 | `getAuthCredential()` | 注册颁发器、签发凭证 |
-| 4 工具 | `getToolkit()` | JSON、Content-Type、链接消息 |
+| 4 工具 | `getToolkit()` | JSON、Content-Type、链接消息、前缀家族、契约原语 |
 | 5 HTTP 客户端 | `getHttpClient()` | 对外请求、本地回环、环境自适配 |
 | 6 扩展接入 | `getExtension()` | 登录提供者、子指令、拦截器、自定义策略 |
+| 7 数据运维 | `getDataRegistration()` | 数据层自动化运维（安装/更新/重装/清理事务，见第 5 章） |
 
-其它门面能力：`registerReloadHook(Runnable)`、`serverPrefix()`、`apiPrefix()`、`getConfigSection(...)` 等。
+另：`registerReloadHook(ReloadHttpConfigHandler)` 注册热重载钩子（/soyshttp reload 时随本插件刷新自身配置，等价实现 `ReloadHttpConfigHandler` 接口）。前缀/契约原语（`serverPrefix()` / `apiPrefix()` / `scheme()` 等）不在总门面，统一在能力组 4 `ApiToolkitApi`。
 
 ## A.2 能力组 1：ApiRegistrationApi
 
 | 方法 | 说明 |
 | --- | --- |
-| `void registerController(Object controller)` | 注册控制器（非主插件自动加 `/plugins/<插件名>` 前缀） |
-| `void registerController(Object controller, Plugin owner)` | 显式指定所属插件 |
-| `void registerController(Object controller, boolean force)` | force=true 强制覆盖重复路由 |
-| `void registerProxyController(Object controller)` | 以主插件名义代理注册（无插件名前缀） |
-| `void unregisterController(Object controller)` | 卸载该控制器全部端点 |
-| `void unregisterPluginControllers(String pluginName)` | 卸载指定插件名的全部端点 |
+| `void registerController(Object controller)` | 注册控制器（非主插件自动加 `/plugins/<插件名>` 前缀；另有 `(Object, Plugin owner)` / `(Object, boolean force)` / `(Object, Plugin, boolean)` 重载） |
+| `void registerProxyController(Object controller)` | 以主插件名义代理注册（无插件名前缀；同样有 owner/force 重载） |
+| `List<ApiInfo> unregisterController(Object controller)` | 卸载该控制器全部端点，返回被卸载的端点快照 |
+| `List<ApiInfo> unregisterPluginControllers(String pluginName)` | 卸载指定插件名的全部端点，返回快照 |
 | `void setPermissionService(PermissionService service)` | 接入自定义权限判定服务 |
+| `PermissionService getPermissionService()` | 当前权限服务 |
 | `List<ApiInfo> getRegisteredApis()` | 全部端点快照 |
 | `String getApiPrefix()` | 全局前缀（/api） |
 
@@ -40,26 +40,39 @@ SoysHttpOverMcApi api = HttpOverMcPlugin.getInstance().getApi();
 
 ## A.3 能力组 2：WebPageApi
 
+> 返回类型：**所有登记方法返回 `WebRegistry.Entry`**（失败返回 `null`），批量目录登记返回 `Set<Entry>`；另含极简便捷登记区（单/双参数，owner 沿调用栈自动识别）。
+
+**极简登记区**（接口最上方）：
+
 | 方法 | 说明 |
 | --- | --- |
-| `registerPage(Plugin, String path, byte[] content)` | 网页（Content-Type 按扩展名推断） |
-| `registerPage(Plugin, String path, byte[] content, String contentType)` | 网页（显式 Content-Type） |
-| `registerPage(Plugin, String path, byte[] content, String contentType, boolean force)` | force 覆盖 |
-| `registerPage(Plugin, String path, HttpMethod method, byte[] content, String contentType, boolean force, String desc, List<String> nicknames)` | 非 GET 静态响应 + 昵称 |
-| `registerResource(Plugin, String path, ClassLoader, String resourcePath)` | jar 内资源（按需读取） |
-| `registerResource(..., String contentType)` / `(..., boolean force)` | 资源重载 |
-| `registerProxyPage(...)` / `registerProxyResource(...)` | 无插件名前缀版本 |
-| `registerDirectory(Plugin, String basePath, File dir)` / `(..., boolean proxy)` | 磁盘目录批量 |
-| `registerResourceDirectory(Plugin, String basePath, ClassLoader, String resourceRoot)` / `(..., boolean proxy)` | jar 资源目录批量 |
-| `registerNetworkPage(Plugin, NetworkPage page)` | 网络页（自定义加载/加密传输） |
-| `registerLargeFileLoader(LargeFileLoader)` | 自定义大文件加载器 |
-| `setDefaultLargeFileLoader(String name)` | 切换默认大文件加载器 |
-| `setLargeFileLoader(String pathPrefix, String name)` | 按路径前缀指定 |
-| `registerErrorPage(Plugin, int status, byte[] content)` | 自定义错误页 |
-| `registerCors(Plugin, String pathPrefix, String origin, String methods, String headers, boolean credentials)` | CORS 声明 |
-| `unregisterPluginPages(String pluginName)` | 卸载某插件名下全部网页 |
+| `Entry registerPage(byte[] content)` | path 自动 = `web/plugins/<插件>/page/page-<序号>`，Content-Type 默认 `text/html; charset=utf-8` |
+| `Entry registerPage(String resourcePath)` | jar 内资源，path = `web/plugins/<插件>/page/<文件名不含后缀>` |
+| `Entry registerPage(String path, byte[] content)` | 显式路径 + 内容（自动补 `/web/plugins/<插件名>` 前缀） |
+| `Entry registerResource(String resourcePath)` / `(String path, String resourcePath)` | jar 内资源（惰性读取） |
+| `Entry registerProxyPage(String path, byte[] content)` / `registerProxyResource(String path, String resourcePath)` | 无 `/web/plugins/<插件名>` 前缀 |
+| `Entry registerErrorPage(byte[] content)` / `(String html)` | 默认 404 错误页 |
+| `Set<Entry> registerDirectory(File dir)` | basePath 自动 = `web/plugins/<插件>/<目录名>`，批量磁盘目录 |
 
-另：`registerPage(..., List<String> permissions)` / `registerProxyPage(..., permissions)` 可带 AND 语义权限（见第 3 章 3.5）。
+**完整版登记**（显式 owner）：
+
+| 方法 | 说明 |
+| --- | --- |
+| `Entry registerPage(Plugin, String path, byte[] content [, String contentType] [, boolean force])` | 网页（Content-Type 按扩展名推断或显式指定） |
+| `Entry registerResource(Plugin, String path, ClassLoader, String resourcePath [, String contentType] [, boolean force])` | jar 内资源（按需读取） |
+| `Entry registerProxyPage(Plugin, String path, byte[] content [, String contentType])` / `registerProxyResource(Plugin, String path, ClassLoader, String resourcePath [, String contentType])` | 无插件名前缀版本 |
+| `Set<Entry> registerDirectory(Plugin, String basePath, File dir [, boolean proxy])` | 磁盘目录批量（递归，惰性读盘，支持热替换） |
+| `Set<Entry> registerResourceDirectory(Plugin, String basePath, ClassLoader, String resourceRoot [, boolean proxy])` | jar 资源目录批量 |
+| `Entry registerErrorPage(Plugin, int status, byte[] content)` / `(Plugin, int status, String html)` | 自定义错误页 |
+| `Entry registerNetworkPage(Plugin, NetworkPage page)` | 网络页（自定义加载/加密传输） |
+| `NetworkTransport registerNetworkTransport(NetworkTransport)` | 登记网络传输提供者（当前仅占位存储 + 告警，未接入加载链路） |
+| `LargeFileLoader registerLargeFileLoader(LargeFileLoader)` | 注册自定义大文件加载器（返回实例） |
+| `LargeFileLoader setDefaultLargeFileLoader(String name)` / `setLargeFileLoader(String pathPrefix, String name)` | 切换默认 / 按路径前缀指定 |
+| `void unregisterPluginPages(String pluginName)` / `int unregisterByTag(String tag)` / `void unregisterCors(String pluginName)` | 按插件名 / 来源 tag / CORS 卸载 |
+| `void setIndexRule(String ownerName, boolean enabled, String indexFile)` / `removeIndexRule(String ownerName)` | 目录索引兜底规则（默认全局启用，目标 `index`） |
+| `void setSpaFallback(String ownerName, boolean enabled)` / `removeSpaFallback(String ownerName)` | SPA 回退声明（无扩展名路径回退 index.html，带扩展名仍 404） |
+
+> 非 GET 静态响应、昵称+描述+**权限**等全参重载在 `WebRegistry` 层提供（如 `registerPage(owner, path, httpMethod, content, contentType, force, desc, nicknames, permissions)` / `registerCors(...)` / `registerRedirect(...)` / `registerProxyRedirect(...)`），门面 `WebPageApi` 未逐位转发——需要这些能力时直接操作 `WebRegistry`（详见第 3 章 3.2 / 3.5）。
 
 ## A.4 能力组 3：AuthCredentialApi
 
@@ -143,15 +156,15 @@ SoysHttpOverMcApi api = HttpOverMcPlugin.getInstance().getApi();
 
 | 文件 | 关键节点 |
 | --- | --- |
-| `config.yml` | `upload` / `mc.public-host` / `mc.public-port` / `mc.trust-proxy` / `proxy.server-name` / `proxy.proxy-address` / `sniffer` / `http-backend.mode` / `log.level` / `permission.providers` / `permission.offline-fallback` / `storage.*` |
-| `pages.yml` | `web.root` / `web.home` / `web.cache.*` / `web.large-file-*` / `pages.page` / `pages.auto` / `permissions` |
+| `config.yml` | `upload` / `mc.public-host` / `mc.public-port` / `mc.trust-proxy` / `proxy.server-name` / `proxy.proxy-address` / `sniffer` / `http-backend.mode` / `log.level` / `permission.providers` / `permission.offline-fallback` / `storage.*` / `auto.ops.*` |
+| `pages.yml` | `web.root` / `web.home` / `web.cache.*` / `web.large-file-*` / `pages.page` / `pages.auto` / `pages.alias` / `permissions` |
 | `language.yml` | `current` / `rule` / `sources` |
 | `EULA.yml` | `eula`（true 同意） |
 | `gateway/config.yml` | `enabled` / `api-prefix` / `debug-events` |
 | `gateway/https.yml` | `enabled` / `keystore` / `cert` / `key` / `enabled-protocols` / `min-tls` |
 | `gateway/policies/tls.yml` | `enabled` / `host` |
 | `gateway/policies/ip-allowlist.yml` | `default` / `list` / `trust-proxy` |
-| `gateway/policies/auth.yml` | `enabled` / `header` / `login-provider` / `keys` / `paths` / `exempt` / `accept.*` / `auto.login.*` |
+| `gateway/policies/auth.yml` | `enabled` / `header` / `login-provider` / `api-key.local-fallback-all` / `paths` / `exempt` / `accept.*` / `auto.login.ttl.*` / `auto.login.ip.enabled` / `auto.login.fp.*` / `auto.login.ticket.*`（静态 `keys` 已移除，走本地表 `soys_api_key`） |
 | `gateway/policies/rate-limit.yml` | `scope` / `rpm` / `burst` |
 | `gateway/policies/access-limiter.yml` | `path-patterns`（name/scope/limit/window-seconds） |
 | `gateway/issuers/session-token.yml` | `enabled` / `cookie-name` / `ttl-seconds` / `clock-skew-seconds` |
