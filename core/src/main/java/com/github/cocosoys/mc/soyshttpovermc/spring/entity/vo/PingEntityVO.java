@@ -26,6 +26,9 @@ public class PingEntityVO extends BaseEntity {
     /** 明文 HTTP 端口 */
     private int port;
 
+    /** 服务器真实 MC 版本（Bukkit#getBukkitVersion，如 1.12.2-R0.1-SNAPSHOT） */
+    private String mcVersion;
+
     /** 恒为 true */
     private boolean online;
 

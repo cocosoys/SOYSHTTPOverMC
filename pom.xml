@@ -21,7 +21,11 @@
     <properties>
         <java.version>1.8</java.version>
         <revision>1.4.0</revision>
-        <protobuf.version>3.25.3</protobuf.version>
+        <!-- protobuf 生成基线固定 3.21.x：FrameProto 按 protoc 3.21.12 生成（旧式 MapField 签名），
+             与 1.20.4 服务器自带 protobuf-java 3.21.9 及 1.21+/26+ 自带 4.x 运行时双向兼容；
+             3.25+ 生成代码在 3.21 运行时会 VerifyError（MapFieldReflectionAccessor 接口缺失）。
+             内嵌档（1.6~1.16 服务器不自带）随 jar 内嵌；1.20+ 档由服务器 bundler 提供（不内嵌）。 -->
+        <protobuf.version>3.21.12</protobuf.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <!-- 默认目标：1.12.2（当前服务器），可用 -P1_8/-P1_16/-P1_17/-P1_20_5 覆盖 -->
         <spigot.api.version>1.12.2-R0.1-SNAPSHOT</spigot.api.version>

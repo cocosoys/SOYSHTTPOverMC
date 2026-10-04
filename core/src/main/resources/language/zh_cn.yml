@@ -764,3 +764,29 @@ log.expansion.data-register-no-ready: "SoysExpansion 数据登记失败: owner/a
 log.expansion.data-register-fail: "SoysExpansion 数据登记失败: {0}"
 log.expansion.data-register-error: "SoysExpansion 数据登记异常: {0}: {1}"
 log.expansion.data-unregister-error: "SoysExpansion 数据登记摘除异常: {0}: {1}"
+
+# ============ 高版本适配器（v1.16x / v1.20x / v1.21x / v1.26x）============
+# 版本特化嗅探器待实现，当前回退内置 SocketSniffer
+log.adapter.v116.conn-found: "[adapter/v1_16] 定位 ServerConnection 成功: {0} (方法/字段双通道)"
+log.adapter.v116.conn-failed: "[adapter/v1_16] 定位 ServerConnection 失败({0})"
+log.adapter.v116.channelfuture-failed: "[adapter/v1_16] 提取监听 ChannelFuture 列表失败"
+log.adapter.v116.installer-skip: "[adapter/v1_16] 使用内置 SocketSniffer（版本特化嗅探器待实现）"
+log.adapter.v120.conn-found: "[adapter/v1_20] 定位 ServerConnection 成功 (方法/字段双通道)"
+log.adapter.v120.conn-failed: "[adapter/v1_20] 定位 ServerConnection 失败"
+log.adapter.v120.nms-not-found: "[adapter/v1_20] 未找到 NMS MinecraftServer 类（1.20.5+ 结构变更需单独模块）"
+log.adapter.v120.channelfuture-failed: "[adapter/v1_20] 提取监听 ChannelFuture 列表失败"
+log.adapter.v120.installer-skip: "[adapter/v1_20] 使用内置 SocketSniffer（版本特化嗅探器待实现）"
+log.adapter.v121.conn-found: "[adapter/v1_21] 定位 ServerConnection/Listener 成功: {0}"
+log.adapter.v121.conn-failed: "[adapter/v1_21] 定位 ServerConnection 失败"
+log.adapter.v121.nms-not-found: "[adapter/v1_21] 未找到 NMS MinecraftServer 类"
+log.adapter.v121.channelfuture-failed: "[adapter/v1_21] 提取监听 ChannelFuture 列表失败"
+log.adapter.v121.installer-skip: "[adapter/v1_21] 使用内置 SocketSniffer（版本特化嗅探器待实现）"
+log.adapter.v126.conn-found: "[adapter/v1_26] 定位 ServerConnection/Listener 成功: {0}"
+log.adapter.v126.conn-failed: "[adapter/v1_26] 定位 ServerConnection 失败"
+log.adapter.v126.nms-not-found: "[adapter/v1_26] 未找到 NMS MinecraftServer 类"
+log.adapter.v126.channelfuture-failed: "[adapter/v1_26] 提取监听 ChannelFuture 列表失败"
+log.adapter.v126.installer-skip: "[adapter/v1_26] 使用内置 SocketSniffer（版本特化嗅探器待实现）"
+
+# ============ ORM 自增主键迁移 ============
+log.orm.auto-id-keys-renumbered: "[ORM] 自增主键旧数据已重编号（{0} 条）: {1}"
+log.orm.auto-id-rebuild-failed: "[ORM] 自增主键表重建失败 {0}: {1}"

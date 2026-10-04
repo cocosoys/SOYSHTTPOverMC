@@ -4,10 +4,10 @@ import com.github.cocosoys.mc.soyshttpovermc.HttpOverMcPlugin;
 import com.github.cocosoys.mc.soyshttpovermc.api.WebPageApi;
 import com.github.cocosoys.mc.soyshttpovermc.exception.ExceptionBus;
 import com.github.cocosoys.mc.soyshttpovermc.exception.WebPageException;
+import com.github.cocosoys.mc.soyshttpovermc.spi.Platforms;
 import com.github.cocosoys.mc.soyshttpovermc.web.*;
 import lombok.CustomLog;
 import org.bukkit.plugin.Plugin;
-import org.bukkit.plugin.java.JavaPlugin;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -371,7 +371,8 @@ public class WebPageImpl implements WebPageApi {
 
     /**
      * 沿调用栈识别调用插件：跳过本插件自身帧，找第一个由插件 ClassLoader 加载的类，
-     * 用 {@link JavaPlugin#getProvidingPlugin(Class)} 反查所属插件；识别失败回退主插件。
+     * 经 {@code Platform#getProvidingPlugin(Class)} 反查所属插件（1.6.x 由版本适配器兼容实现）；
+     * 识别失败回退主插件。
      */
     private Plugin resolveOwner() {
         StackTraceElement[] stack = Thread.currentThread().getStackTrace();
@@ -380,7 +381,7 @@ public class WebPageImpl implements WebPageApi {
             if (cn == null || cn.startsWith("com.github.cocosoys.mc.soyshttpovermc.")) continue;
             try {
                 Class<?> c = Class.forName(cn);
-                return JavaPlugin.getProvidingPlugin(c);
+                return Platforms.get().getProvidingPlugin(c);
             } catch (Throwable ignored) {
                 // 非插件加载的类（JDK / 库），继续向上找
             }

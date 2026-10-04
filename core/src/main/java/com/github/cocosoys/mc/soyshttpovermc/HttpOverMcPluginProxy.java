@@ -56,6 +56,7 @@ import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.bridge.spi.
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.bridge.spi.LoginProviderFactory;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.issuer.CredentialIssuer;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.issuer.SessionTokenIssuer;
+import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.util.AuthUtils;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.tls.TlsContextFactory;
 import com.github.cocosoys.mc.soyshttpovermc.web.http.HttpBackendMode;
 import com.github.cocosoys.mc.soyshttpovermc.web.http.HttpRequestHandler;
@@ -670,6 +671,9 @@ public class HttpOverMcPluginProxy {
                 presented -> verifySwaggerApiKey(swaggerAuthPolicy, presented),
                 swaggerAuthPolicy == null ? "X-API-Key" : swaggerAuthPolicy.getHeader());
         plugin.getWebInterceptorRegistry().register(swaggerGuard);
+        // 注入游客调试 nonce 校验器：仅经 switch-guest 服务端签发且未过期的 nonce 才能触发身份剥离，
+        // 客户端无法自行声明游客身份（无全局鉴权后门）。reload 仅 setEnabled、守卫实例不变，无需重设。
+        AuthUtils.setDebugGuestVerifier(swaggerGuard::isValidDebugGuest);
     }
 
     /**

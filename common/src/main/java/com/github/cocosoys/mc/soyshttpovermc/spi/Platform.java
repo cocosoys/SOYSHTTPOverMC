@@ -1,12 +1,14 @@
 package com.github.cocosoys.mc.soyshttpovermc.spi;
 
+import org.bukkit.plugin.Plugin;
+
 import java.io.File;
 import java.io.IOException;
 import java.util.logging.Logger;
 
 /**
- * 平台抽象（替代对 Bukkit JavaPlugin 的直接依赖），覆盖插件所需的 5 类宿主能力：
- * 配置 / 数据目录 / 日志 / 异步调度 / 资源。
+ * 平台抽象（替代对 Bukkit JavaPlugin 的直接依赖），覆盖插件所需的 6 类宿主能力：
+ * 配置 / 数据目录 / 日志 / 异步调度 / 资源 / 扩展归属识别。
  *
  * <p>{@code core} 提供默认实现 {@code PlatformBukkitImpl} 作为兜底；其他版本模块可继承并覆写个别方法，
  * 通过 ServiceLoader（META-INF/services）注册以在运行时优先生效。</p>
@@ -75,6 +77,20 @@ public interface Platform {
      * 取消已调度的任务。
      */
     void cancelTask(ScheduledTask task);
+
+    /**
+     * 返回加载了指定类的插件实例（等价 {@code JavaPlugin#getProvidingPlugin(Class)}）。
+     *
+     * <p>用于扩展归属自动识别（{@code SoysExpansion} / 页面极简登记）：调用方传入其扩展类的
+     * {@code Class}，由平台反查该扩展所属的插件实例。默认实现（core）直接透传
+     * {@code JavaPlugin.getProvidingPlugin(Class)}；1.6.x 服务器缺少该 Bukkit API
+     * （1.7.10+ 才有），由 {@code v1_6x} 版本适配器覆写为 ClassLoader 匹配的兼容实现，
+     * 识别失败回退主插件（与文档化语义一致）。</p>
+     *
+     * @param clazz 待归属识别的类（通常为扩展实现类）
+     * @return 加载了 {@code clazz} 的插件实例；识别失败时为 null（由调用方决定回退）
+     */
+    Plugin getProvidingPlugin(Class<?> clazz);
 
     /**
      * 调度句柄（不透明；供 cancelTask 使用）。

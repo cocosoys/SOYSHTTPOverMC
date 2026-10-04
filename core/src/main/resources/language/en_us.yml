@@ -765,3 +765,29 @@ log.expansion.data-register-no-ready: "SoysExpansion data registration failed: o
 log.expansion.data-register-fail: "SoysExpansion data registration failed: {0}"
 log.expansion.data-register-error: "SoysExpansion data registration threw: {0}: {1}"
 log.expansion.data-unregister-error: "SoysExpansion data registration detach threw: {0}: {1}"
+
+# ============ High-version adapters (v1.16x / v1.20x / v1.21x / v1.26x) ============
+# Version-specific sniffers pending; currently falling back to the built-in SocketSniffer
+log.adapter.v116.conn-found: "[adapter/v1_16] ServerConnection located: {0} (method/field dual-channel)"
+log.adapter.v116.conn-failed: "[adapter/v1_16] Failed to locate ServerConnection({0})"
+log.adapter.v116.channelfuture-failed: "[adapter/v1_16] Failed to extract listener ChannelFuture list"
+log.adapter.v116.installer-skip: "[adapter/v1_16] Using built-in SocketSniffer (version-specific sniffer pending)"
+log.adapter.v120.conn-found: "[adapter/v1_20] ServerConnection located (method/field dual-channel)"
+log.adapter.v120.conn-failed: "[adapter/v1_20] Failed to locate ServerConnection"
+log.adapter.v120.nms-not-found: "[adapter/v1_20] NMS MinecraftServer class not found (1.20.5+ structural change needs a separate module)"
+log.adapter.v120.channelfuture-failed: "[adapter/v1_20] Failed to extract listener ChannelFuture list"
+log.adapter.v120.installer-skip: "[adapter/v1_20] Using built-in SocketSniffer (version-specific sniffer pending)"
+log.adapter.v121.conn-found: "[adapter/v1_21] ServerConnection/Listener located: {0}"
+log.adapter.v121.conn-failed: "[adapter/v1_21] Failed to locate ServerConnection"
+log.adapter.v121.nms-not-found: "[adapter/v1_21] NMS MinecraftServer class not found"
+log.adapter.v121.channelfuture-failed: "[adapter/v1_21] Failed to extract listener ChannelFuture list"
+log.adapter.v121.installer-skip: "[adapter/v1_21] Using built-in SocketSniffer (version-specific sniffer pending)"
+log.adapter.v126.conn-found: "[adapter/v1_26] ServerConnection/Listener located: {0}"
+log.adapter.v126.conn-failed: "[adapter/v1_26] Failed to locate ServerConnection"
+log.adapter.v126.nms-not-found: "[adapter/v1_26] NMS MinecraftServer class not found"
+log.adapter.v126.channelfuture-failed: "[adapter/v1_26] Failed to extract listener ChannelFuture list"
+log.adapter.v126.installer-skip: "[adapter/v1_26] Using built-in SocketSniffer (version-specific sniffer pending)"
+
+# ============ ORM auto-id migration ============
+log.orm.auto-id-keys-renumbered: "[ORM] Legacy auto-id keys renumbered ({0} rows): {1}"
+log.orm.auto-id-rebuild-failed: "[ORM] Auto-id table rebuild failed {0}: {1}"

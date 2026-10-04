@@ -133,3 +133,19 @@ CREATE TABLE IF NOT EXISTS `soys_device_binding` (
   `update_time`      VARCHAR(255)          COMMENT '最后更新时间（yyyy-MM-dd HH:mm:ss）',
   UNIQUE KEY `uk_device_player_fp` (`player`, `fingerprint_hash`)
 );
+
+-- ---------- 通用记录表（soys_records：令牌黑名单 / 签发审计 / 实例心跳 / 全局密钥） ----------
+-- 四类 KV 记录统一存储（RecordSyncStorage），key 约定：
+--   blacklist:<jti>      type=BLACKLIST  data=JSON{server_id, revoked_at}
+--   audit:<jti>:<nonce>  type=AUDIT      data=JSON（append-only，nonce 保证唯一）
+--   instance:<serverId>  type=INSTANCE   data=JSON（跨服心跳）
+--   meta:jwt_secret      type=META       data=base64（全局 JWT 密钥）
+-- 业务时间以 updated_at 为准；create_time/update_time 为审计字段（ORM 自动填充）。
+CREATE TABLE IF NOT EXISTS `soys_records` (
+  `key`         VARCHAR(64)  PRIMARY KEY COMMENT '记录键（blacklist:<jti> / audit:<jti>:<nonce> / instance:<serverId> / meta:jwt_secret）',
+  `type`        VARCHAR(255)          COMMENT '记录类型（BLACKLIST / AUDIT / INSTANCE / META）',
+  `data`        TEXT                  COMMENT '负载（JSON 字符串，结构见 RecordSyncStorage）',
+  `updated_at`  VARCHAR(255)          COMMENT '业务时间（yyyy-MM-dd HH:mm:ss；黑名单注销/审计签发/心跳/密钥更新）',
+  `create_time` VARCHAR(255)          COMMENT '创建时间（yyyy-MM-dd HH:mm:ss）',
+  `update_time` VARCHAR(255)          COMMENT '最后更新时间（yyyy-MM-dd HH:mm:ss）'
+);

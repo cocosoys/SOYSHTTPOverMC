@@ -1,5 +1,6 @@
 package com.github.cocosoys.mc.soyshttpovermc.api;
 
+import com.github.cocosoys.mc.soyshttpovermc.spi.Platforms;
 import com.github.cocosoys.mc.soyshttpovermc.web.DataHandle;
 import com.github.cocosoys.mc.soyshttpovermc.web.WebRegistry;
 import lombok.CustomLog;
@@ -56,7 +57,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * 覆写对应钩子即可（骨架会自动按序调用并做失败回滚），不影响其它类型。</p>
  *
  * <p><b>注册自动处理项</b>：① 端点注解扫描（方法级映射/权限/限流等照常生效）；
- * ② owner 自动识别（{@link JavaPlugin#getProvidingPlugin(Class)}）；
+ * ② owner 自动识别（经 {@code Platform#getProvidingPlugin(Class)}；1.6.x 由版本适配器兼容实现）；
  * ③ 正常登记自动补 /plugins/&lt;插件名&gt; 前缀，{@link #buildProxyControllers()} 代理登记无前缀；
  * 托管 jar 内资源目录（页面打 {@code expansion:identifier} tag，可精确卸载）；
  * ④ {@link #dataRoots()} / {@link #sqlRoots()} / {@link #seedData()} 非空时自动执行数据层初始化
@@ -295,7 +296,8 @@ public abstract class SoysExpansion {
         }
 
         // 实例状态就绪（钩子可经 getOwner()/api() 访问）
-        this.owner = JavaPlugin.getProvidingPlugin(getClass());
+        // owner 自动识别经平台门面（1.6.x 由版本适配器提供兼容实现，识别失败回退主插件）
+        this.owner = Platforms.get().getProvidingPlugin(getClass());
         this.tag = tagOf(id);
 
         // 依次执行单类注册钩子；任一失败回滚已成功部分（不触发 onUnregister）
@@ -373,7 +375,8 @@ public abstract class SoysExpansion {
     }
 
     /**
-     * 本扩展归属的插件（register() 时经 getProvidingPlugin 自动识别；注册前为 null）。
+     * 本扩展归属的插件（register() 时经 {@code Platform#getProvidingPlugin(Class)} 自动识别；
+     * 注册前为 null）。
      */
     public final Plugin getOwner() {
         return owner;

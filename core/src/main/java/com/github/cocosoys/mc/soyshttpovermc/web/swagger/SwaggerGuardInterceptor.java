@@ -7,6 +7,9 @@ import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.issuer.Cred
 import org.bukkit.Bukkit;
 
 import java.nio.charset.StandardCharsets;
+import java.security.SecureRandom;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 
 /**
@@ -32,13 +35,29 @@ import java.util.function.Function;
  *   <li>{@code POST /swagger/debug/switch-player} → body {@code {player}} → 经
  *       {@code debugTokenIssuer} 签发 st_ Bearer（登录认证签发，模拟目标玩家调试）→ {@code {token, player}}；</li>
  *   <li>{@code POST /swagger/debug/verify-key} → body {@code {key}} → 经 {@code apiKeyVerifier}
- *       校验本地 API Key 表（有效 + 启用 + 未过期），无效 400 拒绝 → {@code {fingerprint, boundPlayer}}。</li>
+ *       校验本地 API Key 表（有效 + 启用 + 未过期），无效 400 拒绝 → {@code {fingerprint, boundPlayer}}；</li>
+ *   <li>{@code POST /swagger/debug/switch-guest} → 签发一次性游客调试 nonce（TTL 5 分钟，仅本页 JS
+ *       内存持有）→ {@code {nonce, ttlSeconds}}：前端将 nonce 作为 {@code X-Soys-Debug-Guest} 头附加到
+ *       被调试请求，经 {@link AuthUtils#setDebugGuestVerifier(Function)} 注入的校验器核验通过后，
+ *       凭证解析层强制剥离 X-API-Key / Bearer / Basic / Cookie（真正「未登录游客」）。
+ *       nonce 由服务端随机签发、短期有效且仅已登录 OP 可获取——客户端无法自行声明游客身份，
+ *       不存在全局鉴权后门。</li>
  * </ul>
  */
 public final class SwaggerGuardInterceptor implements WebInterceptor {
 
     /** 命名空间前缀（独立于 api-prefix，与页面登记一致）。 */
     private static final String PREFIX = "/swagger";
+
+    /** 游客调试 nonce 有效期（毫秒，5 分钟）。 */
+    private static final long DEBUG_GUEST_TTL_MILLIS = 5L * 60L * 1000L;
+
+    private static final SecureRandom RANDOM = new SecureRandom();
+
+    /**
+     * 游客调试 nonce 表（nonce → 过期毫秒时间戳；仅经 switch-guest 签发的有效，并发安全）。
+     */
+    private final Map<String, Long> debugGuestNonces = new ConcurrentHashMap<>();
 
     private final Function<CredentialPresentation, String> playerResolver;
     /**
@@ -168,8 +187,55 @@ public final class SwaggerGuardInterceptor implements WebInterceptor {
             ok.put("boundPlayer", info.getBoundPlayer());
             return Outcome.stopJson(200, ok);
         }
+        if (path.equals(PREFIX + "/debug/switch-guest")) {
+            if (!"POST".equalsIgnoreCase(ctx.method())) {
+                return Outcome.stopJson(405, "仅支持 POST");
+            }
+            String nonce = issueDebugGuestNonce();
+            AjaxResult ok = AjaxResult.success();
+            ok.put("nonce", nonce);
+            ok.put("ttlSeconds", (int) (DEBUG_GUEST_TTL_MILLIS / 1000L));
+            return Outcome.stopJson(200, ok);
+        }
         // /swagger/debug 下未识别的路径：放行（由后续路由正常处理/404）
         return Outcome.pass();
+    }
+
+    /**
+     * 签发一次性游客调试 nonce（仅已登录 OP 可调用；TTL 5 分钟，前端仅存于页面 JS 内存）。
+     */
+    private String issueDebugGuestNonce() {
+        byte[] b = new byte[16];
+        RANDOM.nextBytes(b);
+        StringBuilder sb = new StringBuilder();
+        for (byte x : b) {
+            sb.append(String.format("%02x", x & 0xFF));
+        }
+        String nonce = sb.toString();
+        long now = System.currentTimeMillis();
+        debugGuestNonces.put(nonce, now + DEBUG_GUEST_TTL_MILLIS);
+        // 顺带清理过期条目（轻量；并发安全由 ConcurrentHashMap 保证）
+        for (Map.Entry<String, Long> e : debugGuestNonces.entrySet()) {
+            if (e.getValue() != null && e.getValue() <= now) {
+                debugGuestNonces.remove(e.getKey());
+            }
+        }
+        return nonce;
+    }
+
+    /**
+     * AuthUtils 注入的游客 nonce 校验器：nonce 存在且未过期 → true（该请求按「未登录游客」处理）。
+     * 校验失败（未签发 / 已过期 / 伪造）→ false → AuthUtils 忽略该头、按正常凭证解析，不产生降权行为。
+     */
+    public boolean isValidDebugGuest(String nonce) {
+        if (nonce == null || nonce.isEmpty()) return false;
+        Long expiry = debugGuestNonces.get(nonce);
+        if (expiry == null) return false;
+        if (expiry <= System.currentTimeMillis()) {
+            debugGuestNonces.remove(nonce);
+            return false;
+        }
+        return true;
     }
 
     private static String bodyString(WebInterceptContext ctx) {

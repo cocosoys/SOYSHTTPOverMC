@@ -7,6 +7,7 @@ import com.github.cocosoys.mc.soyshttpovermc.spi.ConfigSection;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
+import org.bukkit.plugin.Plugin;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.io.File;
@@ -62,5 +63,23 @@ public class V1_6PlatformAdapter extends PlatformBukkitImpl {
             throw new IOException(I18n.t("exception.platform.not-file-config",
                     "底层配置非 FileConfiguration，无法保存: {0}", d.getClass().getName()));
         }
+    }
+
+    /**
+     * 1.6.4 服务器缺失 {@code JavaPlugin#getProvidingPlugin(Class)}（1.7.10+ 才有）：
+     * 降级实现——用待识别类所属 ClassLoader 匹配已加载插件（等价官方实现的归属反查逻辑），
+     * 匹配失败回退主插件（{@code currentPlugin}），与文档"识别失败回退主插件"语义一致。
+     */
+    @Override
+    public Plugin getProvidingPlugin(Class<?> clazz) {
+        ClassLoader loader = clazz == null ? null : clazz.getClassLoader();
+        if (loader != null) {
+            for (Plugin p : plugin.getServer().getPluginManager().getPlugins()) {
+                if (p.getClass().getClassLoader() == loader) {
+                    return p;
+                }
+            }
+        }
+        return currentPlugin != null ? currentPlugin : plugin;
     }
 }

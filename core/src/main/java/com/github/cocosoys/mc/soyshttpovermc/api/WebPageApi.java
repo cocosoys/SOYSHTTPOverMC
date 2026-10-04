@@ -26,7 +26,8 @@ public interface WebPageApi {
     /**
      * 极简登记网页：仅传内容即可完成登记，其余信息自动补充。
      * <ul>
-     *   <li><b>owner</b>：沿调用栈自动识别调用插件（{@code JavaPlugin.getProvidingPlugin}），识别失败回退主插件；</li>
+     *   <li><b>owner</b>：沿调用栈自动识别调用插件（经 {@code Platform#getProvidingPlugin(Class)}，
+     *       1.6.x 由版本适配器兼容实现），识别失败回退主插件；</li>
      *   <li><b>path</b>：自动 = {@code web/plugins/<插件>/page/page-<序号>}（每插件独立自增序号，从 1 开始）；</li>
      *   <li><b>Content-Type</b>：默认 {@code text/html; charset=utf-8}。</li>
      * </ul>

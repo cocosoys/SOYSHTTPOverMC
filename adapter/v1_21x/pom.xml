@@ -81,15 +81,26 @@
             <artifactId>netty-all</artifactId>
             <scope>provided</scope>
         </dependency>
+        <!-- 1.21.x 服务端 bundler 自带 protobuf-java 4.x（系统 classpath 先于插件 jar），
+             显式 provided 覆盖 core 传递的 compile 作用域 → 不内嵌进 fat jar，运行时用服务器的；
+             生成基线 3.21.12（旧式 MapField 签名）与 4.x 运行时兼容（见根 pom protobuf.version 注释） -->
+        <dependency>
+            <groupId>com.google.protobuf</groupId>
+            <artifactId>protobuf-java</artifactId>
+            <scope>provided</scope>
+        </dependency>
         <dependency>
             <groupId>com.zaxxer</groupId>
             <artifactId>HikariCP</artifactId>
             <scope>runtime</scope>
         </dependency>
+        <!-- 1.21.x 不内嵌 slf4j-api：服务器 bundler 自带 2.0.x（log4j-slf4j2-impl 绑定），
+             插件内嵌 1.7.12 的 StaticLoggerBinder 绑定机制与 2.x（ServiceLoader）不互通，
+             会吞掉插件侧日志；2.x API 对 1.7 编译调用向后兼容，provided 后运行时用服务器的 -->
         <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-api</artifactId>
-            <scope>runtime</scope>
+            <scope>provided</scope>
         </dependency>
     </dependencies>
 
@@ -150,6 +161,12 @@
                         <configuration>
                             <finalName>SOYSHTTPOverMC-1_21-${project.version}</finalName>
                             <createDependencyReducedPom>false</createDependencyReducedPom>
+                            <!-- 双保险：1.21.x 不内嵌 protobuf（依赖已 provided），即使其它路径引入也整体排除 -->
+                            <artifactSet>
+                                <excludes>
+                                    <exclude>com.google.protobuf:protobuf-java</exclude>
+                                </excludes>
+                            </artifactSet>
                             <transformers>
                                 <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
                             </transformers>
@@ -160,6 +177,15 @@
                                         <exclude>META-INF/*.SF</exclude>
                                         <exclude>META-INF/*.DSA</exclude>
                                         <exclude>META-INF/*.RSA</exclude>
+                                    </excludes>
+                                </filter>
+                                <!-- 1.21.x 不内嵌 protobuf/slf4j：core 为 fat jar（内部已含这些类），
+                                     artifactSet 无法剔除 core 内嵌类，须按类路径整体排除 -->
+                                <filter>
+                                    <artifact>com.github.cocosoys.mc:soyshttpovermc-core</artifact>
+                                    <excludes>
+                                        <exclude>com/google/protobuf/**</exclude>
+                                        <exclude>org/slf4j/**</exclude>
                                     </excludes>
                                 </filter>
                             </filters>

@@ -1,0 +1,30 @@
+// HTTP Over MC 帧协议（wire 格式）。
+// 由 FrameProto.java（web/proto）反推重建；无 package 声明（descriptor 名无包前缀）。
+// 重新生成：protoc-3.21.12 --java_out=core/src/main/java core/src/main/proto/FrameProto.proto
+// 注意：生成基线固定 3.21.x（旧式 MapField 签名），保证与 1.20.4 服务器自带
+// protobuf-java 3.21.9 及 1.21+/26+ 自带 4.x 运行时双向兼容（3.25+ 生成代码在 3.21 运行时会 VerifyError）。
+syntax = "proto3";
+
+option java_package = "com.github.cocosoys.mc.soyshttpovermc.web.proto";
+option java_outer_classname = "FrameProto";
+
+// 请求帧：网关 → 后端
+message HttpRequestFrame {
+  int64 request_id = 1;
+  string method = 2;
+  string path = 3;
+  map<string, string> headers = 4;
+  bytes body = 5;
+  int32 fragment_index = 6;
+  int32 total_fragments = 7;
+}
+
+// 响应帧：后端 → 网关
+message HttpResponseFrame {
+  int64 request_id = 1;
+  int32 status_code = 2;
+  map<string, string> headers = 3;
+  bytes body = 4;
+  int32 fragment_index = 5;
+  int32 total_fragments = 6;
+}

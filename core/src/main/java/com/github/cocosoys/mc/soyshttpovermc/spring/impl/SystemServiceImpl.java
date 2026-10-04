@@ -25,6 +25,7 @@ public class SystemServiceImpl extends BaseServiceImpl<SystemInfoEntityVO> imple
         data.setTime(System.currentTimeMillis());
         data.setName("SOYSHTTPOverMC");
         data.setPort(port);
+        data.setMcVersion(org.bukkit.Bukkit.getBukkitVersion());
         data.setOnline(true);
         return data;
     }

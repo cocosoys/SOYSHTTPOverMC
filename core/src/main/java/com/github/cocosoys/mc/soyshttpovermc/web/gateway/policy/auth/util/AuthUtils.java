@@ -9,6 +9,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.SecureRandom;
 import java.util.*;
+import java.util.function.Function;
 
 /**
  * 鉴权工具类：集中提供凭证头解析、Cookie 解析、路径匹配、常量时间比较与令牌生成，
@@ -17,6 +18,31 @@ import java.util.*;
 public final class AuthUtils {
 
     private static final SecureRandom RANDOM = new SecureRandom();
+
+    /**
+     * Swagger 调试栏「未登录游客」标记头（值与前端 swagger-initializer.js 的 DEBUG_GUEST_HEADER 保持一致）。
+     * 前端在该模式下为调试请求附加 {@code X-Soys-Debug-Guest: <nonce>}；本类仅在 {@link #debugGuestVerifier}
+     * 校验该 nonce 有效（由 Swagger 守卫服务端签发、短期有效、仅已登录 OP 可获取）后才剥离一切身份凭证
+     * （X-API-Key / Bearer / Basic / Cookie），使被调试请求以真正「未登录游客」身份进入网关
+     * （需认证 API → 401，{@code @Anonymous} 端点 → 放行）。
+     * 客户端无法自行声明游客身份（无 nonce / 伪造 nonce 均按正常凭证解析），不存在全局鉴权后门。
+     */
+    public static final String DEBUG_GUEST_HEADER = "X-Soys-Debug-Guest";
+
+    /**
+     * 游客 nonce 校验器（由主插件装配时经 {@link #setDebugGuestVerifier} 注入，指向
+     * SwaggerGuardInterceptor#isValidDebugGuest）。null=未装配（独立使用场景）→ 标记头被忽略。
+     */
+    private static volatile Function<String, Boolean> debugGuestVerifier;
+
+    /**
+     * 注入游客 nonce 校验器（Swagger 调试会话凭证核验；主插件装配 Swagger 守卫时调用）。
+     *
+     * @param verifier nonce → 是否有效（存在且未过期）；传 null 可停用游客剥离
+     */
+    public static void setDebugGuestVerifier(Function<String, Boolean> verifier) {
+        debugGuestVerifier = verifier;
+    }
 
     private AuthUtils() {
     }
@@ -82,6 +108,16 @@ public final class AuthUtils {
                                                              boolean acceptBearer,
                                                              boolean acceptBasic,
                                                              boolean acceptCookie) {
+        // Swagger 调试栏「未登录游客」模式：头值必须通过服务端签发的 nonce 校验（存在且未过期）才剥离
+        // X-API-Key / Bearer / Basic / Cookie 四来源（全视角一致呈现「未登录游客」：网关认证门、网页登录态、
+        // API 权限判定）。未装配校验器 / nonce 无效 / 伪造 → 忽略该头，按正常凭证解析，不产生降权行为。
+        String guest = getHeader(headers, DEBUG_GUEST_HEADER);
+        if (guest != null && !guest.isEmpty()) {
+            Function<String, Boolean> verifier = debugGuestVerifier;
+            if (verifier != null && Boolean.TRUE.equals(verifier.apply(guest))) {
+                return new CredentialPresentation(null, null, null, null, Collections.<String, String>emptyMap());
+            }
+        }
         String apiKey = acceptHeader ? getHeader(headers, apiKeyHeader) : null;
         if (apiKey != null && apiKey.isEmpty()) apiKey = null;
 
@@ -122,6 +158,7 @@ public final class AuthUtils {
                                                java.util.List<CredentialIssuer> issuers,
                                                Set<String> keys,
                                                ApiKeyStore apiKeyStore) {
+        // 游客模式剥离统一在 extractPresentation 处理（网关 / 网页登录态 / API 权限判定全视角一致）
         CredentialPresentation p = extractPresentation(headers, apiKeyHeader,
                 acceptHeader, acceptBearer, acceptBasic, acceptCookie);
         // 1) 静态 key：X-API-Key 头 / Bearer / Basic 用户名=key

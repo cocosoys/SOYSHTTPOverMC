@@ -18,14 +18,19 @@ import java.util.Map;
  *       可通过 getResult() 跳转拦截 / 拒绝 / 替换）</li>
  *   <li>{@link WebResourcesEvent.WebResourcesLoadedEvent} —— 全部资源<b>加载完毕</b>（每请求最多一次；纯通知）</li>
  * </ul>
+ *
+ * <p><b>异步事件</b>：两者均在 HTTP worker 线程触发（非主线程），基类构造固定 {@code super(true)}。
+ * 监听器回调也运行在 HTTP worker 线程，<b>不得直接操作 Bukkit 世界/实体 API</b>；
+ * 需要主线程操作时自行 {@code Bukkit.getScheduler().runTask(plugin, ...)} 调度。</p>
  */
 public abstract class WebResourcesEvent extends Event {
 
     /**
-     * 默认同步构造（web 资源事件在 HTTP worker 线程触发）。
+     * 默认异步构造（web 资源事件在 HTTP worker 线程触发，必须 async=true，
+     * 否则 Bukkit 会抛 "cannot be triggered asynchronously from another thread"）。
      */
     protected WebResourcesEvent() {
-        super(false);
+        super(true);
     }
 
     protected WebResourcesEvent(boolean async) {
@@ -69,11 +74,11 @@ public abstract class WebResourcesEvent extends Event {
      * 监听器修改不会影响已登记内容；{@link #getResult()} 为独立可写对象，仅影响本次响应，
      * 调用 redirect / deny / replace 后短路请求（不再触发后续监听器、直接返回）。</p>
      *
-     * <p><b>线程模型</b>：在 HTTP worker 线程触发（非主线程）；监听器如需主线程操作请自行调度
+     * <p><b>线程模型</b>：在 HTTP worker 线程触发（非主线程，异步事件）；监听器如需主线程操作请自行调度
      * （如 {@code Bukkit.getScheduler().runTask(plugin, ...)}）。</p>
      */
     @Getter
-        public static class WebResourcesAccessEvent extends WebResourcesEvent {
+    public static class WebResourcesAccessEvent extends WebResourcesEvent {
 
         /**
          * 独立 HandlerList。
@@ -183,11 +188,11 @@ public abstract class WebResourcesEvent extends Event {
      * <p><b>参数</b>：{@link #getAccessed()} 携带本次请求<b>全部</b>已加载资源的 {@link WebResourceAccess}
      * 上下文（copy 快照列表；单请求正常 1 项，链式资源访问时累积多项；修改不会影响已登记内容）。</p>
      *
-     * <p><b>线程模型</b>：HTTP worker 线程触发（非主线程）；如需主线程操作请自行调度
+     * <p><b>线程模型</b>：HTTP worker 线程触发（非主线程，异步事件）；如需主线程操作请自行调度
      * （如 {@code Bukkit.getScheduler().runTask(plugin, ...)}）。</p>
      */
     @Getter
-        public static class WebResourcesLoadedEvent extends WebResourcesEvent {
+    public static class WebResourcesLoadedEvent extends WebResourcesEvent {
 
         /**
          * 独立 HandlerList。

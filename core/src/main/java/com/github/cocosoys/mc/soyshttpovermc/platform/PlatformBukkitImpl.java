@@ -4,6 +4,7 @@ import com.github.cocosoys.mc.soyshttpovermc.i18n.I18n;
 import com.github.cocosoys.mc.soyshttpovermc.spi.ConfigSection;
 import com.github.cocosoys.mc.soyshttpovermc.spi.Platform;
 import org.bukkit.configuration.file.YamlConfiguration;
+import org.bukkit.plugin.Plugin;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitTask;
 
@@ -126,6 +127,12 @@ public class PlatformBukkitImpl implements Platform {
         if (task instanceof BukkitScheduledTask) {
             ((BukkitScheduledTask) task).task.cancel();
         }
+    }
+
+    @Override
+    public Plugin getProvidingPlugin(Class<?> clazz) {
+        // 透传 Bukkit 标准 API（1.7.10+）；1.6.x 由 v1_6x 适配器覆写为兼容实现
+        return JavaPlugin.getProvidingPlugin(clazz);
     }
 
     /**

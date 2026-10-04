@@ -7,8 +7,10 @@
     "use strict";
 
     var DEBUG_BASE = "/swagger/debug";
-    var debugToken = null; // 切换玩家签发的 st_ Bearer（仅内存）
-    var debugKey = null;   // 粘贴并校验通过的 X-API-Key（仅内存）
+    var DEBUG_GUEST_HEADER = "X-Soys-Debug-Guest"; // 与后端 AuthUtils.DEBUG_GUEST_HEADER 保持一致
+    var debugToken = null;         // 切换玩家签发的 st_ Bearer（仅内存）
+    var debugKey = null;           // 粘贴并校验通过的 X-API-Key（仅内存）
+    var debugGuestNonce = null;    // 未登录游客模式：switch-guest 服务端签发的一次性 nonce（仅内存，TTL 5 分钟）
     var apiKeyHeader = "X-API-Key"; // auth.yml 可配头名，经 current-user 下发
 
     // ===== 调试栏渲染 =====
@@ -21,6 +23,8 @@
             label = "调试身份: " + state.label + "（Bearer）";
         } else if (state.mode === "apikey") {
             label = "X-API-Key: " + state.label;
+        } else if (state.mode === "guest") {
+            label = "未登录游客（无任何身份凭证）";
         } else {
             label = "当前用户: " + state.label;
         }
@@ -38,6 +42,9 @@
             '<div style="margin-top:4px;">' +
             '<button id="soys-sw-reset" type="button" style="font-size:12px;padding:2px 8px;">恢复当前用户</button>' +
             "</div>" +
+            '<div style="margin-top:4px;">' +
+            '<button id="soys-sw-guest" type="button" style="font-size:12px;padding:2px 8px;">切换到未登录游客</button>' +
+            "</div>" +
             '<div id="soys-sw-msg" style="margin-top:4px;color:#a14e50;font-size:11px;line-height:1.4;"></div>';
         bindBar();
     }
@@ -46,9 +53,11 @@
         var doBtn = document.getElementById("soys-sw-do");
         var keyBtn = document.getElementById("soys-sw-keydo");
         var resetBtn = document.getElementById("soys-sw-reset");
+        var guestBtn = document.getElementById("soys-sw-guest");
         if (doBtn) doBtn.onclick = switchPlayer;
         if (keyBtn) keyBtn.onclick = useKey;
         if (resetBtn) resetBtn.onclick = resetDebug;
+        if (guestBtn) guestBtn.onclick = switchGuest;
     }
 
     function msg(text) {
@@ -86,6 +95,7 @@
                 if (j && j.code === 200 && j.token) {
                     debugToken = j.token;
                     debugKey = null;
+                    debugGuestNonce = null;
                     renderBar({ mode: "token", label: j.player || name });
                     msg("已切换为 " + (j.player || name) + "（仅本页调试请求生效，刷新自动恢复）");
                 } else {
@@ -111,6 +121,7 @@
                 if (j && j.code === 200) {
                     debugKey = key;
                     debugToken = null;
+                    debugGuestNonce = null;
                     var label = j.boundPlayer || ("指纹 " + (j.fingerprint || "?"));
                     renderBar({ mode: "apikey", label: label });
                     msg("已启用 X-API-Key（仅本页调试请求生效）");
@@ -126,9 +137,30 @@
     function resetDebug() {
         debugToken = null;
         debugKey = null;
+        debugGuestNonce = null;
         renderBar({ mode: "cookie", label: "…" });
         msg("已恢复浏览器当前用户身份");
         getCurrentUser();
+    }
+
+    // ===== 未登录游客（先经 switch-guest 获取服务端签发的 nonce，调试请求才被剥离身份） =====
+
+    function switchGuest() {
+        fetch(DEBUG_BASE + "/switch-guest", { method: "POST" })
+            .then(function (r) { return r.json(); })
+            .then(function (j) {
+                if (j && j.code === 200 && j.nonce) {
+                    debugToken = null;
+                    debugKey = null;
+                    debugGuestNonce = j.nonce;
+                    renderBar({ mode: "guest", label: "未登录游客" });
+                    msg("已切换为未登录游客：调试请求携带服务端签发的 nonce（" +
+                        (j.ttlSeconds || 300) + " 秒有效），后端核验通过后剥离 X-API-Key / Bearer / Cookie 身份");
+                } else {
+                    msg((j && j.msg) || "获取游客 nonce 失败");
+                }
+            })
+            .catch(function () { msg("游客切换请求失败"); });
     }
 
     // ===== SwaggerUI 装配 =====
@@ -146,9 +178,13 @@
                 SwaggerUIBundle.plugins.DownloadUrl
             ],
             layout: "StandaloneLayout",
-            // 调试身份注入：切换玩家 → Bearer；粘贴 X-API-Key → 对应头名；均无 → 回落浏览器 cookie
+            // 调试身份注入：游客 → 附加服务端签发 nonce（后端核验后才剥离身份）；
+            // 切换玩家 → Bearer；粘贴 X-API-Key → 对应头名；均无 → 回落浏览器 cookie
             requestInterceptor: function (req) {
-                if (debugToken) {
+                if (debugGuestNonce) {
+                    req.headers = req.headers || {};
+                    req.headers[DEBUG_GUEST_HEADER] = debugGuestNonce;
+                } else if (debugToken) {
                     req.headers = req.headers || {};
                     req.headers.Authorization = "Bearer " + debugToken;
                 } else if (debugKey) {
