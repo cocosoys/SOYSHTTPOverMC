@@ -17,11 +17,20 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Set up JDK 8
+      # 全量构建需多 JDK：common/core/v1_6x/v1_7x 走默认 JDK8，
+      # v1_16x→JDK11、v1_20x→JDK17、v1_21x→JDK21、v1_26x→JDK25（经 maven-toolchains-plugin 切换）。
+      # 数组首个版本 = runner 默认 JAVA_HOME（Maven 主进程跑在 JDK8 上）；
+      # 多版本安装后自动导出 $JAVA_HOME_{VER}_X64 环境变量，供下一步生成 toolchains.xml。
+      - name: Set up JDKs (8/11/17/21/25)
         uses: actions/setup-java@v5
         with:
-          java-version: '8'
           distribution: 'temurin'
+          java-version: |
+            8
+            11
+            17
+            21
+            25
           # 固定 Maven 版本：runner 预装 Maven（3.9.13+）环境存在“生命周期重复执行”问题，
           # setup-java 安装官方发行版 3.9.12（本地已验证单次执行 + BUILD SUCCESS）以消除环境差异。
           maven-version: '3.9.12'
@@ -37,6 +46,47 @@ jobs:
           else
             echo "VERSION=" >> $GITHUB_OUTPUT
           fi
+
+      # 动态生成 Linux 版 toolchains.xml（覆盖入库的 Windows 绝对路径版）：
+      # 入库 toolchains.xml 的 jdkHome 是本机 Windows 路径（D:\WorkTools\JDK\*），CI Linux runner 上不存在，
+      # 各 adapter 模块 require toolchain 时会全部失效导致构建失败（run #14 失败根因）。
+      # setup-java 多版本安装后自动导出 $JAVA_HOME_{VER}_X64，按其生成 toolchain 条目；
+      # provides.version 与各 adapter pom 的 require version 一一对应（1.8 / 11 / 17 / 21 / 25）。
+      # .mvn/maven.config 固定 --toolchains toolchains.xml（项目根相对路径），覆盖后即生效。
+      - name: Generate Linux toolchains.xml
+        run: |
+          cat > toolchains.xml <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <toolchains>
+            <toolchain>
+              <type>jdk</type>
+              <provides><version>1.8</version><vendor>temurin</vendor></provides>
+              <configuration><jdkHome>$JAVA_HOME_8_X64</jdkHome></configuration>
+            </toolchain>
+            <toolchain>
+              <type>jdk</type>
+              <provides><version>11</version><vendor>temurin</vendor></provides>
+              <configuration><jdkHome>$JAVA_HOME_11_X64</jdkHome></configuration>
+            </toolchain>
+            <toolchain>
+              <type>jdk</type>
+              <provides><version>17</version><vendor>temurin</vendor></provides>
+              <configuration><jdkHome>$JAVA_HOME_17_X64</jdkHome></configuration>
+            </toolchain>
+            <toolchain>
+              <type>jdk</type>
+              <provides><version>21</version><vendor>temurin</vendor></provides>
+              <configuration><jdkHome>$JAVA_HOME_21_X64</jdkHome></configuration>
+            </toolchain>
+            <toolchain>
+              <type>jdk</type>
+              <provides><version>25</version><vendor>temurin</vendor></provides>
+              <configuration><jdkHome>$JAVA_HOME_25_X64</jdkHome></configuration>
+            </toolchain>
+          </toolchains>
+          EOF
+          echo "===== generated toolchains.xml ====="
+          cat toolchains.xml
 
       # 组装Maven参数：只有tag触发时追加 -Drevision=xxx
       # 注意：不用 clean —— CI 每次是全新 runner + 干净 checkout，无 target 残留；
