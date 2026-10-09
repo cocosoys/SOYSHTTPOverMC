@@ -181,6 +181,19 @@
                     <configuration>
                         <source>${java.version}</source>
                         <target>${java.version}</target>
+                        <!--
+                          显式声明 Lombok 为 annotation processor（CI 干净环境无法靠 javac
+                          classpath 自动发现 processor，否则 @Slf4j/@Getter/@Setter 生成的符号全部缺失，
+                          common 模块报 cannot find symbol）。子模块可用自己的 configuration 覆盖版本
+                          （如 v1_26x 的 1.18.38 + JDK25 需 proc=full）。
+                        -->
+                        <annotationProcessorPaths>
+                            <path>
+                                <groupId>org.projectlombok</groupId>
+                                <artifactId>lombok</artifactId>
+                                <version>1.18.36</version>
+                            </path>
+                        </annotationProcessorPaths>
                     </configuration>
                 </plugin>
                 <plugin>
