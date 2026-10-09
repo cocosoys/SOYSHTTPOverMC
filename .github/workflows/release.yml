@@ -136,14 +136,14 @@ jobs:
             ${{ steps.get_commit.outputs.COMMIT_MSG }}
 
             ### 📦 下载
-            - `SOYSHTTPOverMC-1_12-${{ steps.get_version.outputs.VERSION }}.jar` —— Spigot 1.12.2 后端插件（当前服务器，单服或群组服子服，放各子服 plugins/）
+            - `SOYSHTTPOverMC-1_12-${{ steps.get_version.outputs.VERSION }}.jar` —— Spigot 1.12.2 后端插件（单服或群组服子服，群组服建议每个子服都添加）
             - `SOYSHTTPOverMC-1_6-${{ steps.get_version.outputs.VERSION }}.jar` —— 1.6.x 低版本适配（JDK8 运行）
             - `SOYSHTTPOverMC-1_7-${{ steps.get_version.outputs.VERSION }}.jar` —— 1.7.x 适配（JDK8 运行）
             - `SOYSHTTPOverMC-1_16-${{ steps.get_version.outputs.VERSION }}.jar` —— 1.13 ~ 1.16.5 适配（JDK8/11 运行）
             - `SOYSHTTPOverMC-1_20-${{ steps.get_version.outputs.VERSION }}.jar` —— 1.17 ~ 1.20.4 适配（JDK17 运行）
             - `SOYSHTTPOverMC-1_21-${{ steps.get_version.outputs.VERSION }}.jar` —— 1.20.5 ~ 1.21+ 适配（JDK21 运行）
             - `SOYSHTTPOverMC-1_26-${{ steps.get_version.outputs.VERSION }}.jar` —— 1.26+ 适配（JDK25 运行）
-            - `SOYSHTTPOverMC-Proxy-${{ steps.get_version.outputs.VERSION }}.jar` —— BungeeCord/Velocity 代理端插件（本地构建，创建 Release 后手动附加）
+            - `SOYSHTTPOverMC-Proxy-${{ steps.get_version.outputs.VERSION }}.jar` —— BungeeCord/Velocity 代理端插件（单服/群组子服不加载）
           files: |
             core/target/SOYSHTTPOverMC-1_12-*.jar
             adapter/v1_6x/target/SOYSHTTPOverMC-1_6-*.jar

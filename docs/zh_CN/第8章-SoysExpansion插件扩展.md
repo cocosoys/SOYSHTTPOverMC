@@ -19,11 +19,11 @@ SoysExpansion 是本插件面向**第三方附属插件**推荐的一体化注�
 ```
 public abstract class SoysExpansion {
 
-&#x20;   public abstract String getIdentifier();   // 唯一必填
+    public abstract String getIdentifier();   // 唯一必填
 
-&#x20;   public final boolean register()   { ... } // final 骨架，自动按序执行
+    public final boolean register()   { ... } // final 骨架，自动按序执行
 
-&#x20;   public final boolean unregister() { ... }
+    public final boolean unregister() { ... }
 
 }
 ```
@@ -57,9 +57,9 @@ import com.github.cocosoys.mc.soyshttpovermc.api.SoysExpansion;
 
 public class ShopExpansion extends SoysExpansion {
 
-&#x20;   @Override
+    @Override
 
-&#x20;   public String getIdentifier() { return "shop"; }   // 唯一必填元信息
+    public String getIdentifier() { return "shop"; }   // 唯一必填元信息
 
 }
 ```
@@ -73,11 +73,11 @@ public class ShopExpansion extends SoysExpansion {
 
 public void onEnable() {
 
-&#x20;   if (!new ShopExpansion().register()) {
+    if (!new ShopExpansion().register()) {
 
-&#x20;       getLogger().warning("ShopExpansion 注册失败（identifier 冲突？主插件未就绪？）");
+        getLogger().warning("ShopExpansion 注册失败（identifier 冲突？主插件未就绪？）");
 
-&#x20;   }
+    }
 
 }
 
@@ -85,7 +85,7 @@ public void onEnable() {
 
 public void onDisable() {
 
-&#x20;   new ShopExpansion().unregister();   // 精确反注册（框架亦按 owner 插件名兜底清理）
+    new ShopExpansion().unregister();   // 精确反注册（框架亦按 owner 插件名兜底清理）
 
 }
 ```
@@ -120,17 +120,17 @@ public void onDisable() {
 ```
 public class ShopExpansion extends SoysExpansion {
 
-&#x20;   @Override
+    @Override
 
-&#x20;   public String getIdentifier() { return "shop"; }
+    public String getIdentifier() { return "shop"; }
 
-&#x20;   @GetMapping("/items")
+    @GetMapping("/items")
 
-&#x20;   public AjaxResult items(@RequestParam(name = "page", defaultValue = "1") int page) {
+    public AjaxResult items(@RequestParam(name = "page", defaultValue = "1") int page) {
 
-&#x20;       return AjaxResult.success("...");
+        return AjaxResult.success("...");
 
-&#x20;   }
+    }
 
 }
 ```
@@ -146,7 +146,7 @@ public class ShopExpansion extends SoysExpansion {
 
 protected List\<Object> buildControllers() {
 
-&#x20;   return Arrays.asList(new ShopAdminController(), new ShopQueryController());
+    return Arrays.asList(new ShopAdminController(), new ShopQueryController());
 
 }
 ```
@@ -160,7 +160,7 @@ protected List\<Object> buildControllers() {
 
 protected List\<Object> buildProxyControllers() {
 
-&#x20;   return Arrays.asList(new ShopApiController());
+    return Arrays.asList(new ShopApiController());
 
 }
 ```
@@ -188,11 +188,11 @@ protected List\<Object> buildProxyControllers() {
 >
 > （见 8.10），
 >
-> **无需重写&#x20;**
+> **无需重写 **
 >
 > `registerControllers()`
 >
-> **&#x20;聚合方法**
+> ** 聚合方法**
 >
 > 。
 
@@ -205,7 +205,7 @@ protected List\<Object> buildProxyControllers() {
 ```
 plugins/<插件名>/\<resourceRoot>   磁盘优先（惰性登记：请求时才读盘，支持热替换）
 
-&#x20;  ↓ 目录不存在时回退
+   ↓ 目录不存在时回退
 
 jar 内 /\<resourceRoot>            打包默认目录
 ```
@@ -255,15 +255,15 @@ protected String resourceRoot() { return "dist"; }   // 自动托管 dist
 
 protected CorsSpec\[] cors() {
 
-&#x20;   return new CorsSpec\[]{
+    return new CorsSpec\[]{
 
-&#x20;       new CorsSpec("/api", "\*"),                          // 2 参简写：路径前缀 + 允许来源
+        new CorsSpec("/api", "\*"),                          // 2 参简写：路径前缀 + 允许来源
 
-&#x20;       new CorsSpec("/admin", "https://example.com",
+        new CorsSpec("/admin", "https://example.com",
 
-&#x20;                    "GET,POST", "Authorization,Content-Type", true) // 5 参全量
+                     "GET,POST", "Authorization,Content-Type", true) // 5 参全量
 
-&#x20;   };
+    };
 
 }
 ```
@@ -301,7 +301,7 @@ protected int schemaVersion()       { return 2; }   // 会执行 V1\_\_...sql �
 
 ## 8.8 注册顺序与失败回滚
 
-`register()`（final）按以下顺序执行，**任一环节失败 / 抛异常 → 回滚已成功部分并返回&#x20;**`false`：
+`register()`（final）按以下顺序执行，**任一环节失败 / 抛异常 → 回滚已成功部分并返回 **`false`：
 
 
 
@@ -310,18 +310,18 @@ protected int schemaVersion()       { return 2; }   // 会执行 V1\_\_...sql �
 
 2\. 端点登记      registerControllers()  （registerCommonController() 遍历 buildControllers()
 
-&#x20;                                       → registerProxyController() 遍历 buildProxyControllers()）
+                                        → registerProxyController() 遍历 buildProxyControllers()）
 
 3\. 页面托管      registerPages()         （resourceRoot 磁盘优先惰性 / jar 回退，打 expansion:\<id> tag，
 
-&#x20;                                         设置目录索引与 SPA 回退规则）
+                                          设置目录索引与 SPA 回退规则）
 
 4\. CORS          registerCors()          （逐条登记 cors()）
 
 5\. 回调          onRegister()            （默认 true；返回 false 或抛异常同样回滚）
 ```
 
-`unregister()`（final）按相反方向摘除：页面（按 tag）→ 代理端点 → 正常端点 → CORS → `onUnregister()` 回调（此时已从注册表移除）。`unregister()`**&#x20;只摘登记，永不删除数据**（卸载数据请走 `/soyshttp data` 数据层自动化运维）。
+`unregister()`（final）按相反方向摘除：页面（按 tag）→ 代理端点 → 正常端点 → CORS → `onUnregister()` 回调（此时已从注册表移除）。`unregister()`** 只摘登记，永不删除数据**（卸载数据请走 `/soyshttp data` 数据层自动化运维）。
 
 ## 8.9 生命周期回调
 
@@ -373,7 +373,7 @@ protected boolean registerProxyController()  { /\* 只注册 buildProxyControlle
 
 ## 8.12 与门面 API 的关系
 
-`SoysExpansion` 内部正是**门面 API（**`SoysHttpOverMcApi`**&#x20;7 个能力组）的组合调用**：数据层走 `DataRegistration`、端点走 `ApiRegistration`、页面走 `WebPage`、CORS 走 WebRegistry。因此：
+`SoysExpansion` 内部正是**门面 API（**`SoysHttpOverMcApi`** 7 个能力组）的组合调用**：数据层走 `DataRegistration`、端点走 `ApiRegistration`、页面走 `WebPage`、CORS 走 WebRegistry。因此：
 
 
 
@@ -383,19 +383,19 @@ protected boolean registerProxyController()  { /\* 只注册 buildProxyControlle
 
 ## 8.13 常见问题
 
-**Q1：**`register()`**&#x20;返回 false？**
+**Q1：**`register()`** 返回 false？**
 
 重复 identifier（已注册过同名扩展）或主插件未就绪（`getApi()` 为 null）。可在日志中打印 `registered()` 检查冲突来源。
 
-**Q2：页面前缀为什么是&#x20;**`/web/plugins/<插件名>`**&#x20;而不是 identifier？**
+**Q2：页面前缀为什么是 **`/web/plugins/<插件名>`** 而不是 identifier？**
 
-页面 URL 前缀按 **owner 插件名**（`getProvidingPlugin`）计算，与 identifier 无关 —— 同一个插件即使注册多个 Expansion 实例，它们也共享同一页面前缀，**不要在同一插件内托管两份含&#x20;**`index.html`**&#x20;的前端**（`index` / SPA 回退规则按插件名注册，后注册覆盖先注册）。
+页面 URL 前缀按 **owner 插件名**（`getProvidingPlugin`）计算，与 identifier 无关 —— 同一个插件即使注册多个 Expansion 实例，它们也共享同一页面前缀，**不要在同一插件内托管两份含 **`index.html`** 的前端**（`index` / SPA 回退规则按插件名注册，后注册覆盖先注册）。
 
-**Q3：插件禁用时还需要手动&#x20;**`unregister()`**&#x20;吗？**
+**Q3：插件禁用时还需要手动 **`unregister()`** 吗？**
 
 建议在 `onDisable` 调用（精确、即时）；框架也会按 owner 插件名兜底清理该插件名下的端点 / 页面 / CORS。
 
-**Q4：**`unregister()`**&#x20;会删数据吗？**
+**Q4：**`unregister()`** 会删数据吗？**
 
 不会。数据层自动化运维（初始化 / 更新 / 重装 / 卸载）由 `/soyshttp data <插件> ...` 与 `soys_schema_meta` 版本记录负责，与注册表解耦。
 

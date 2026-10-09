@@ -277,13 +277,13 @@ new ShopExpansion().unregister();
 
 ```powershell
 # 全量构建（根目录一条命令；core 走 JDK8，v1_20x/v1_21x/v1_26x 经 toolchains 自动切 JDK17/21/25）
-& "D:\WorkTools\Maven\apache-maven-3.9.9\bin\mvn.cmd" clean package "-Drevision=1.4.0"
+mvn clean package "-Drevision=1.4.0"
 
 # 仅构建主插件并切换目标版本（profile：1_12 默认 / 1_8 / 1_16 / 1_17 / 1_20_5）
-& "D:\WorkTools\Maven\apache-maven-3.9.9\bin\mvn.cmd" -f core\pom.xml clean package -P1_17 "-Drevision=1.4.0"
+mvn -f core/pom.xml clean package -P1_17 "-Drevision=1.4.0"
 
 # 仅构建版本兼容模块（依赖 common/core 已 install 到本地仓库）
-& "D:\WorkTools\Maven\apache-maven-3.9.9\bin\mvn.cmd" -f adapter\pom.xml clean package "-Drevision=1.4.0"
+mvn -f adapter/pom.xml clean package "-Drevision=1.4.0"
 ```
 
 产物（各模块 `target/`，并自动复制一份到根 `output/` 便于直接取用）：
