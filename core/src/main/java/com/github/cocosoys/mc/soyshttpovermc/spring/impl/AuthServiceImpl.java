@@ -2,6 +2,7 @@ package com.github.cocosoys.mc.soyshttpovermc.spring.impl;
 
 import com.github.cocosoys.mc.soyshttpovermc.api.event.GatewayEvent;
 import com.github.cocosoys.mc.soyshttpovermc.enums.LoginMode;
+import com.github.cocosoys.mc.soyshttpovermc.spring.entity.SoysSsoTicket;
 import com.github.cocosoys.mc.soyshttpovermc.spring.entity.vo.AuthStatusEntityVO;
 import com.github.cocosoys.mc.soyshttpovermc.spring.entity.vo.LoginModeEntityVO;
 import com.github.cocosoys.mc.soyshttpovermc.spring.entity.vo.LoginResultEntityVO;
@@ -108,9 +109,8 @@ public class AuthServiceImpl implements IAuthService {
             String rememberToken = bridge.issueRemember(player);
             if (rememberToken != null) {
                 extra = new HashMap<>();
-                extra.put("Set-Cookie", bridge.getRememberCookieName() + "=" + rememberToken
-                        + "; Path=/; Max-Age=" + bridge.getRememberTtlSeconds()
-                        + "; HttpOnly; SameSite=Lax");
+                extra.put("Set-Cookie", bridge.buildSetCookie(bridge.getRememberCookieName(), rememberToken,
+                        bridge.getRememberTtlSeconds()));
                 data.setRemember(true);
                 data.setRememberCookieName(bridge.getRememberCookieName());
                 data.setRememberTtlSeconds(bridge.getRememberTtlSeconds());
@@ -256,9 +256,8 @@ public class AuthServiceImpl implements IAuthService {
                     }
                     String token = bridge.issueForRemember(rememberedPlayer);
                     if (token != null) {
-                        String cookie = bridge.getCookieName() + "=" + token
-                                + "; Path=/; Max-Age=" + bridge.getTtlSeconds()
-                                + "; HttpOnly; SameSite=Lax";
+                        String cookie = bridge.buildSetCookie(bridge.getCookieName(), token,
+                                bridge.getTtlSeconds());
                         Map<String, String> extra = new HashMap<>();
                         extra.put("Set-Cookie", cookie);
                         LoginMode mode = bridge.getLoginModePolicy().decideLogin(rememberedPlayer);
@@ -322,9 +321,7 @@ public class AuthServiceImpl implements IAuthService {
         if (clientIp != null && !clientIp.equals("0.0.0.0")) {
             bridge.recordWebLogin(player, clientIp);
         }
-        String cookie = bridge.getCookieName() + "=" + token
-                + "; Path=/; Max-Age=" + bridge.getTtlSeconds()
-                + "; HttpOnly; SameSite=Lax";
+        String cookie = bridge.buildSetCookie(bridge.getCookieName(), token, bridge.getTtlSeconds());
         Map<String, String> extra = new HashMap<>();
         extra.put("Set-Cookie", cookie);
         AuthStatusEntityVO data = new AuthStatusEntityVO();
@@ -393,9 +390,8 @@ public class AuthServiceImpl implements IAuthService {
             String rememberToken = bridge.issueRemember(player);
             if (rememberToken != null) {
                 extra = new HashMap<>();
-                extra.put("Set-Cookie", bridge.getRememberCookieName() + "=" + rememberToken
-                        + "; Path=/; Max-Age=" + bridge.getRememberTtlSeconds()
-                        + "; HttpOnly; SameSite=Lax");
+                extra.put("Set-Cookie", bridge.buildSetCookie(bridge.getRememberCookieName(), rememberToken,
+                        bridge.getRememberTtlSeconds()));
                 data.setRemember(true);
                 data.setRememberCookieName(bridge.getRememberCookieName());
                 data.setRememberTtlSeconds(bridge.getRememberTtlSeconds());
@@ -415,6 +411,47 @@ public class AuthServiceImpl implements IAuthService {
                     new GatewayEvent.GatewayLoginResultEvent(player, success, reason, ip));
         } catch (Throwable ignored) {
         }
+    }
+
+    /**
+     * SSO 跨域回跳换票（GET /api/auth/sso/callback?ticket=）：
+     * 消费一次性票据 → 为本服签发会话 Cookie → 302 回票据登记的 redirectUrl（白名单校验）。
+     * 票据无效/已消费/过期 → 302 回登录页（不暴露错误细节，防探测）。
+     */
+    @Override
+    public ApiResponse ssoCallback(String ticket) {
+        if (bridge == null) {
+            return ApiResponse.jsonErrorT(503, "ajax.auth.issuer-not-enabled", "会话令牌颁发器未启用");
+        }
+        SoysSsoTicket row = bridge.consumeTicketRow(ticket);
+        if (row == null || row.getSubject() == null || row.getSubject().isEmpty()) {
+            return redirect302("/login.html");
+        }
+        String subject = row.getSubject();
+        LoginMode mode = bridge.getLoginModePolicy() == null
+                ? LoginMode.OFFLINE
+                : bridge.getLoginModePolicy().decideLogin(subject);
+        String token = bridge.issueToken(subject, mode);
+        if (token == null) {
+            return redirect302("/login.html");
+        }
+        // 回跳目标白名单校验（相对路径=站内放行；跨域 URL origin 须在 sso.allowed-origins）
+        String target = row.getRedirectUrl();
+        if (target == null || target.isEmpty() || !bridge.isSsoTargetAllowed(target)) {
+            target = "/";
+        }
+        Map<String, String> extra = new HashMap<>();
+        extra.put("Set-Cookie", bridge.buildSetCookie(bridge.getCookieName(), token, bridge.getTtlSeconds()));
+        extra.put("Location", target);
+        fireLogin(subject, true, "SSO 跨域回跳登录", row.getClientIp());
+        return ApiResponse.status(302, AjaxResult.success("ok", ""), extra);
+    }
+
+    /** 302 跳转（空响应体）。 */
+    private static ApiResponse redirect302(String location) {
+        Map<String, String> headers = new HashMap<>();
+        headers.put("Location", location);
+        return ApiResponse.status(302, AjaxResult.success("ok", ""), headers);
     }
 
     /**

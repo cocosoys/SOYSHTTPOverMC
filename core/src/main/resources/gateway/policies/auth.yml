@@ -57,3 +57,33 @@ auto:
 #                                 （权限判定走 local：管理员用 /soyshttp apikey grant <id|指纹> <权限> 为 key 配置权限）
 api-key:
   local-fallback-all: false
+
+# Cookie 属性（会话 / 记住我 cookie 统一拼装；群组服 SSO 共享用）：
+#   cookie.domain   — Cookie Domain（默认空=精确 host）：
+#                     · 同域名多端口部署：浏览器 cookie 按 host 不按端口，天然共享，无需配置；
+#                     · 多子域名部署（srv1.example.com / srv2.example.com）：配 ".example.com"
+#                       （前导点）→ 所有子域共享 cookie，零配置 SSO；
+#                     · 额外域名（example.com 与 other.net）：任何 cookie 属性都救不了，
+#                       走下方 sso 跨域票据回跳链。
+#   cookie.secure   — false=默认；true=仅 HTTPS 下发送 cookie（跨域名回跳必须 HTTPS）。
+#   cookie.same-site— Lax=默认（跨域顶层 GET 导航 / 302 回跳 Lax 即足够）；Strict=None 需配合 secure。
+cookie:
+  domain: ""
+  secure: false
+  same-site: Lax
+
+# SSO 跨域回跳链（群组服多域名 / 额外域名兜底；同域名多端口 / 子域靠 cookie.* 自动共享，无需本段）：
+#   sso.login-url      — 统一登录页地址（默认空=不启用回跳链）：
+#                        浏览器 HTML 请求未登录时不再收 401 JSON，而是 302 跳到这里
+#                        并附带 ?redirect=<原完整URL>。通常指向主站登录页
+#                        （如 https://mc.example.com/login.html）。
+#   sso.allowed-origins— 允许回跳的来源白名单（origin=scheme://host[:port]，列表）：
+#                        仅当当前请求 origin 命中本列表才发 302（防开放跳转/被当跳板）；
+#                        消费票据后的 callback 回跳目标 URL origin 也在本列表校验。
+#                        例: ["https://mc.example.com", "https://srv2.example.com"]
+# 链路: 子服 HTML 未登录 → 302 主站登录页?redirect=原地址 → 登录成功 mint 一次性票据
+#       → 302 本子服 /api/auth/sso/callback?ticket=xxx → 消费换 cookie → 302 回目标页。
+#       票据一次性 60s（复用 auto.login.ticket.ttl）；跨域名部署必须 HTTPS（cookie.secure: true）。
+sso:
+  login-url: ""
+  allowed-origins: []

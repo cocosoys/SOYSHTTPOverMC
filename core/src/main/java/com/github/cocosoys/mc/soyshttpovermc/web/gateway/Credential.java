@@ -22,10 +22,15 @@ public class Credential {
 
     private final String subject;   // 脱敏主体标识：api-key:<fp> / bearer:<fp> / issuer:<name>
     private final String source;    // 凭证来源：api-key / bearer / basic / issuer:<name>
-    private final Set<String> permissions; // 预留权限集合；null = 全部权限（当前默认）
+    private final Set<String> permissions; // 预留权限集合；null = 全权限（当前默认）
+    /**
+     * 权限判定器（null = 全权限）。非空时 {@link #hasPermission} 委托它逐节点判定
+     * （如本地表 X-API-Key：委托 ApiKeyStore → localStore 两遍否定/通配扫描）。
+     */
+    private final java.util.function.Predicate<String> permissionTester;
 
     public Credential(String subject, String source) {
-        this(subject, source, null);
+        this(subject, source, (Set<String>) null);
     }
 
     public Credential(String subject, String source, Set<String> permissions) {
@@ -33,6 +38,19 @@ public class Credential {
         this.source = source;
         this.permissions = permissions == null || permissions.isEmpty()
                 ? null : Collections.unmodifiableSet(new LinkedHashSet<>(permissions));
+        this.permissionTester = null;
+    }
+
+    /**
+     * 带权限判定器的构造（本地表 X-API-Key 等非全权限主体用）。
+     *
+     * @param permissionTester 逐节点权限判定器（null=全权限）；如 {@code apiKeyStore::checkPermission}
+     */
+    public Credential(String subject, String source, java.util.function.Predicate<String> permissionTester) {
+        this.subject = subject;
+        this.source = source;
+        this.permissions = null;
+        this.permissionTester = permissionTester;
     }
 
     /**
@@ -50,11 +68,22 @@ public class Credential {
     }
 
     /**
-     * 是否拥有某权限：当前预留实现恒为 true（有效 X-API-KEY = 拥有全部权限）。
-     * 未来改为按 {@link #permissions} 集合判定即可实现细粒度控制。
+     * 是否拥有某权限：
+     * <ul>
+     *   <li>未注入判定器（玩家会话 / 静态 key / issuer）→ 恒 true（全权限，逐端点细判走
+     *       CombinedPermissionService）；</li>
+     *   <li>已注入判定器（本地表 X-API-Key）→ 委托判定器逐节点查本地权限表（否定优先 + 通配）。</li>
+     * </ul>
      */
     public boolean hasPermission(String permission) {
-        return true; // 预留：未来 return permissions == null || permissions.contains(permission);
+        if (permissionTester == null) {
+            return permissions == null || permissions.contains(permission);
+        }
+        try {
+            return permissionTester.test(permission);
+        } catch (RuntimeException e) {
+            return false;
+        }
     }
 
     /**

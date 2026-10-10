@@ -120,6 +120,15 @@ public class ApiKeyStore {
     }
 
     /**
+     * 按已查到的 key 行判定权限（热路径用：避免每节点重复查库）。
+     * key 行无效（停用/过期）→ false。
+     */
+    public boolean checkPermission(SoysApiKey key, String permission) {
+        if (key == null || !isUsable(key)) return false;
+        return localStore.checkPermissions(SoysPermOwnerType.APIKEY.code(), key.getId(), permission);
+    }
+
+    /**
      * 记录一次使用（lastUsedAt / usedCount 更新；读热路径可容忍一次写）。
      */
     public void touch(String presented) {

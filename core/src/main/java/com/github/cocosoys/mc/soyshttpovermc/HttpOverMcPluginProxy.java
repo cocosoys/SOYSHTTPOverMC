@@ -34,6 +34,7 @@ import com.github.cocosoys.mc.soyshttpovermc.spring.entity.SoysPermGroup;
 import com.github.cocosoys.mc.soyshttpovermc.spring.entity.SoysPermPermission;
 import com.github.cocosoys.mc.soyshttpovermc.spring.entity.SoysPermUser;
 import com.github.cocosoys.mc.soyshttpovermc.spring.entity.SoysPermUserGroup;
+import com.github.cocosoys.mc.soyshttpovermc.spring.entity.SoysSsoTicket;
 import com.github.cocosoys.mc.soyshttpovermc.spring.impl.AuthServiceImpl;
 import com.github.cocosoys.mc.soyshttpovermc.spring.impl.StatusServiceImpl;
 import com.github.cocosoys.mc.soyshttpovermc.spring.impl.SystemServiceImpl;
@@ -219,7 +220,7 @@ public class HttpOverMcPluginProxy {
         // 3.95) 自动运维：meta 版本表 + 全事务（默认文件复制 / init.sql / 迁移 / 种子；受 auto.ops.* 控制）
         DataSpec autoOpsSpec = new DataSpec();
         autoOpsSpec.setPluginName("SOYSHTTPOverMC");
-        autoOpsSpec.setSchemaVersion(3); // 主插件 schema 版本（V1 建索引 / V2 加 vip_level / V3 权限表主键自增改造）
+        autoOpsSpec.setSchemaVersion(4); // 主插件 schema 版本（V1 建索引 / V2 加 vip_level / V3 权限表主键自增 / V4 加 soys_sso_ticket）
         autoOpsSpec.setDataRoots(new String[]{"data"});
         autoOpsSpec.setSqlRoots(new String[]{"sql"});
         autoOpsSpec.setTableClasses(new Class<?>[]{
@@ -228,7 +229,8 @@ public class HttpOverMcPluginProxy {
                 SoysPermPermission.class,
                 SoysPermUserGroup.class,
                 RememberCredential.class,
-                SoysApiKey.class
+                SoysApiKey.class,
+                SoysSsoTicket.class
         });
         String autoOpsErr = AutoOps.install(
                 plugin.getPlatform(), plugin.getClass().getClassLoader(), autoOpsSpec);
@@ -726,6 +728,16 @@ public class HttpOverMcPluginProxy {
         boolean ticketLink = authPolicy == null || authPolicy.isTicketLinkEnabled();
         plugin.getAuthLoginBridge().setAutoLoginConfig(ttlEnable, ttlDays * 86400_000L, ipEnabled,
                 fpEnabled, fpStrict, ticketTtl, ticketLink);
+        // 票据签发审计：本服标识（与 JWT 颁发器同一来源）
+        plugin.getAuthLoginBridge().setServerId(storageServerId());
+        // Cookie 属性（多子域名共享 / HTTPS 加固；auth.yml cookie.*）
+        plugin.getAuthLoginBridge().setCookieAttributes(
+                authPolicy == null ? "" : authPolicy.getCookieDomain(),
+                authPolicy != null && authPolicy.isCookieSecure(),
+                authPolicy == null ? "Lax" : authPolicy.getCookieSameSite());
+        // SSO 回跳来源白名单（callback 回跳目标 origin 校验复用）
+        plugin.getAuthLoginBridge().setSsoAllowedOrigins(
+                authPolicy == null ? null : authPolicy.getSsoAllowedOrigins());
         if (plugin.getApiRegistry() != null) {
             plugin.getApiRegistry().setTokenUpgrader(plugin.getAuthLoginBridge()::upgradeHeadersIfOnline);
         }

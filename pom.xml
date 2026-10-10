@@ -20,7 +20,7 @@
 
     <properties>
         <java.version>1.8</java.version>
-        <revision>1.4.0</revision>
+        <revision>1.4.1</revision>
         <!-- protobuf 生成基线固定 3.21.x：FrameProto 按 protoc 3.21.12 生成（旧式 MapField 签名），
              与 1.20.4 服务器自带 protobuf-java 3.21.9 及 1.21+/26+ 自带 4.x 运行时双向兼容；
              3.25+ 生成代码在 3.21 运行时会 VerifyError（MapFieldReflectionAccessor 接口缺失）。

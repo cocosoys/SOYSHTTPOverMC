@@ -149,3 +149,26 @@ CREATE TABLE IF NOT EXISTS `soys_records` (
   `create_time` VARCHAR(255)          COMMENT '创建时间（yyyy-MM-dd HH:mm:ss）',
   `update_time` VARCHAR(255)          COMMENT '最后更新时间（yyyy-MM-dd HH:mm:ss）'
 );
+
+-- ---------- SSO 一次性登录票据表（soys_sso_ticket） ----------
+-- 游戏内免登链接 / 跨域名 SSO 回跳共用；一次性、短 TTL（默认 60s），消费置 consumed_at 保留审计
+-- ticket:        tk_ 前缀随机串（业务查询键，全局唯一）
+-- redirect_url:   跨域回跳目标地址（游戏内链接场景为空）
+-- issued_server:  签发服标识（群组服 server-name / 独立服 standalone-<host>:<port>）
+-- client_ip:      可选绑定 IP（空 = 不校验）
+-- consumed_at:    消费毫秒时间戳（空 = 未消费；非空 = 已消费，重复消费拒绝）
+-- expires_at:     过期毫秒时间戳（超过即视为无效；过期行由读取方惰性清理）
+-- 群组服接同一 MySQL 时票据全局可消费（跨域名 SSO）；YAML 后端 = 独立服仅本服有效。
+CREATE TABLE IF NOT EXISTS `soys_sso_ticket` (
+  `id`             BIGINT       PRIMARY KEY AUTO_INCREMENT COMMENT '自增主键',
+  `ticket`         VARCHAR(64)  NOT NULL COMMENT '票据串（tk_ 前缀随机，业务查询键）',
+  `subject`        VARCHAR(255)          COMMENT '绑定玩家名',
+  `redirect_url`    VARCHAR(1024)         COMMENT '目标回跳地址（跨域 SSO 用）',
+  `issued_server`  VARCHAR(255)          COMMENT '签发服标识（审计）',
+  `client_ip`      VARCHAR(64)           COMMENT '客户端 IP（可空 = 不绑定）',
+  `consumed_at`    BIGINT                COMMENT '消费毫秒时间戳（空 = 未消费）',
+  `expires_at`     BIGINT                COMMENT '过期毫秒时间戳',
+  `create_time`    VARCHAR(255)          COMMENT '创建时间（yyyy-MM-dd HH:mm:ss）',
+  `update_time`    VARCHAR(255)          COMMENT '最后更新时间（yyyy-MM-dd HH:mm:ss）',
+  UNIQUE KEY `uk_sso_ticket` (`ticket`)
+);

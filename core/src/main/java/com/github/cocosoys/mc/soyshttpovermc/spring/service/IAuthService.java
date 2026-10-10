@@ -80,4 +80,13 @@ public interface IAuthService {
      * （auto.login.ttl.enable 启用时）→ 返回成功（前端随后调 /api/auth/status 自动登录）。
      */
     ApiResponse bindDevice(String body);
+
+    /**
+     * SSO 跨域回跳换票：{@code GET /api/auth/sso/callback?ticket=...}（匿名）。
+     * <p>浏览器经统一登录页登录后，主站 mint 一次性票据并 302 回本服；本端点消费票据
+     * 校验一次性/未过期 → 为本服签发会话 Cookie → 302 回票据登记的 redirectUrl
+     * （回跳目标 origin 须在 sso.allowed-origins 白名单内）。</p>
+     * 票据无效/已消费/过期 → 302 回统一登录页（不暴露错误细节）。
+     */
+    ApiResponse ssoCallback(String ticket);
 }

@@ -2,6 +2,7 @@ package com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.bridge;
 
 import com.github.cocosoys.mc.soyshttpovermc.enums.LoginMode;
 import com.github.cocosoys.mc.soyshttpovermc.orm.DATA;
+import com.github.cocosoys.mc.soyshttpovermc.spring.entity.SoysSsoTicket;
 import com.github.cocosoys.mc.soyshttpovermc.util.AjaxResult;
 import com.github.cocosoys.mc.soyshttpovermc.util.ApiResponse;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.bridge.spi.LoginProvider;
@@ -11,6 +12,7 @@ import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.issuer.Sess
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.login.DefaultLoginModePolicy;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.login.LoginModePolicy;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.util.AuthUtils;
+import lombok.CustomLog;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 
@@ -18,6 +20,7 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -42,6 +45,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * <p>登录模式（{@link LoginModePolicy}）：玩家在线 → 签发 ONLINE 令牌（完整镜像权限）；
  * 玩家不在线 → 默认允许 OFFLINE 离线模式登录（离线专属 cookie），玩家进游戏登录后自动升级为 ONLINE。</p>
  */
+@CustomLog
 public class AuthLoginBridge {
 
     private final SessionTokenIssuer issuer;
@@ -55,13 +59,10 @@ public class AuthLoginBridge {
     private volatile LoginModePolicy loginModePolicy = new DefaultLoginModePolicy();
 
     /**
-     * 一次性登录票据 → 玩家名（使用即删除）。
+     * 本服标识（群组服=server-name；独立服=standalone-&lt;host&gt;:&lt;port&gt;），票据签发审计；
+     * 由 {@link HttpOverMcPluginProxy} 装配后注入。
      */
-    private final Map<String, String> loginTickets = new ConcurrentHashMap<>();
-    /**
-     * 一次性登录票据 → 过期毫秒（mintTicket 记录；消费/查看时校验，防重放 + 防无限增长）。
-     */
-    private final Map<String, Long> ticketExpiry = new ConcurrentHashMap<>();
+    private volatile String serverId = "unknown";
     /**
      * 玩家名 → 已签发的会话令牌（LoginEvent 时登记）。
      */
@@ -126,6 +127,16 @@ public class AuthLoginBridge {
     }
 
     /**
+     * 注入本服标识（群组服=server-name；独立服=standalone-&lt;host&gt;:&lt;port&gt;），
+     * 票据签发审计字段；由 {@link HttpOverMcPluginProxy} 装配后调用。
+     */
+    public void setServerId(String serverId) {
+        if (serverId != null && !serverId.isEmpty()) {
+            this.serverId = serverId;
+        }
+    }
+
+    /**
      * 绑定登录插件提供者（bridge 创建/重建后由网关调用；幂等）。
      */
     public void setLoginProvider(LoginProvider provider) {
@@ -155,49 +166,133 @@ public class AuthLoginBridge {
 
     /**
      * 生成一次性登录票据（返回给玩家点开的链接）：登记玩家 + 记录过期时刻（TTL=auto.login.ticket.ttl，
-     * 默认 60s），消费/查看时校验，超时自动失效。顺带惰性清理过期票据（防 map 无限增长）。
+     * 默认 60s），落 ORM 实体 {@link SoysSsoTicket}（SQL/YAML 双后端；群组服接同一 MySQL 时
+     * 票据全局可消费，跨域名 SSO 回跳链复用本池）。消费/查看时校验，超时自动失效。
      */
     public String mintTicket(String player) {
+        return mintTicket(player, null, null);
+    }
+
+    /**
+     * 生成一次性登录票据（跨域名 SSO 回跳版）：除 {@link #mintTicket(String)} 语义外，
+     * 额外记录目标回跳地址与客户端 IP（可选绑定校验）。
+     *
+     * @param redirectUrl 目标回跳地址（null=游戏内链接场景）
+     * @param clientIp    客户端 IP（null=不绑定）
+     */
+    public String mintTicket(String player, String redirectUrl, String clientIp) {
         String ticket = AuthUtils.generateToken("tk_", 16);
         long now = System.currentTimeMillis();
-        loginTickets.put(ticket, player);
-        ticketExpiry.put(ticket, now + ticketTtlMillis);
-        // 惰性清理：票据池超过阈值时剔除过期项（任一消费即失效，这里只清已过期，不影响未过期一次性语义）
-        if (ticketExpiry.size() > 512) {
-            loginTickets.keySet().removeIf(t -> isExpiredTicket(t, now));
-            ticketExpiry.entrySet().removeIf(e -> e.getValue() <= now);
+        SoysSsoTicket row = new SoysSsoTicket();
+        row.setTicket(ticket);
+        row.setSubject(player);
+        row.setRedirectUrl(redirectUrl);
+        row.setIssuedServer(serverId);
+        row.setClientIp(clientIp);
+        row.setConsumedAt(null);
+        row.setExpiresAt(now + ticketTtlMillis);
+        row.setCreateTime(new Date(now));
+        row.setUpdateTime(new Date(now));
+        try {
+            DATA.insert(row);
+        } catch (Exception ex) {
+            // 存储不可用（双后端均异常）时退化为无效票据——不静默成功，调用方按 null 处理
+            log.warnT("log.auth.ticket-mint-fail", "SSO 票据签发失败: {0}", ex.getMessage());
+            return null;
         }
+        lazyCleanExpiredTickets(now);
         return ticket;
     }
 
     /**
-     * 查看票据对应玩家（不消费；校验存在且未过期）。无效/已过期 → null。
+     * 查看票据对应玩家（不消费；校验存在、未消费且未过期）。无效/已过期 → null。
      * 供 {@link #serveLoginPage} 二次验证页判定票据有效性（登录页打开不销毁，保留一次性语义）。
      */
     public String peekTicket(String ticket) {
-        if (ticket == null) return null;
-        long now = System.currentTimeMillis();
-        if (isExpiredTicket(ticket, now)) return null;
-        return loginTickets.get(ticket);
+        SoysSsoTicket row = findTicket(ticket);
+        return row == null ? null : row.getSubject();
     }
 
     /**
-     * 消费一次性票据（使用即删除；校验存在且未过期，防重放）。无效/已过期 → null。
+     * 消费一次性票据（置 consumedAt，保留审计行；校验存在、未消费且未过期，防重放）。
+     * 无效/已过期/已消费 → null。
      * 供 {@link #issue}（票据+密码）与设备绑定（ticket+fingerprint）共用同一票据池——任一成功即失效。
      */
     public String consumeTicket(String ticket) {
-        if (ticket == null) return null;
-        String player = peekTicket(ticket);
-        if (player == null) return null;
-        loginTickets.remove(ticket);
-        ticketExpiry.remove(ticket);
-        return player;
+        SoysSsoTicket row = consumeTicketRow(ticket);
+        return row == null ? null : row.getSubject();
     }
 
-    private boolean isExpiredTicket(String ticket, long now) {
-        Long exp = ticketExpiry.get(ticket);
-        if (exp == null) return true;          // 无过期记录（未走 mintTicket）视为无效
-        return exp <= now;
+    /**
+     * 消费一次性票据并返回完整行（含 redirectUrl，跨域名 SSO callback 用）。
+     * 校验存在/未消费/未过期后置 consumedAt；无效 → null。
+     */
+    public SoysSsoTicket consumeTicketRow(String ticket) {
+        SoysSsoTicket row = findTicket(ticket);
+        if (row == null) {
+            return null;
+        }
+        row.setConsumedAt(System.currentTimeMillis());
+        row.setUpdateTime(new Date());
+        try {
+            DATA.updateById(row);
+        } catch (Exception ex) {
+            log.warnT("log.auth.ticket-consume-fail", "SSO 票据消费落库失败: {0}", ex.getMessage());
+            return null;
+        }
+        return row;
+    }
+
+    /**
+     * 按 ticket 串查实体，校验：存在 + 未消费 + 未过期。任一不满足返回 null。
+     */
+    private SoysSsoTicket findTicket(String ticket) {
+        if (ticket == null || ticket.isEmpty()) {
+            return null;
+        }
+        try {
+            java.util.List<SoysSsoTicket> list = DATA.select(SoysSsoTicket.class,
+                    q -> q.eq(SoysSsoTicket::getTicket, ticket));
+            if (list == null || list.isEmpty()) {
+                return null;
+            }
+            SoysSsoTicket row = list.get(0);
+            long now = System.currentTimeMillis();
+            if (row.getConsumedAt() != null) {
+                return null; // 已消费（防重放）
+            }
+            if (row.getExpiresAt() == null || row.getExpiresAt() <= now) {
+                return null; // 已过期
+            }
+            return row;
+        } catch (Exception ex) {
+            log.warnT("log.auth.ticket-lookup-fail", "SSO 票据查询失败: {0}", ex.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * 惰性清理过期票据行（短命票，不启定时任务；任一签发时顺带清理）。
+     */
+    private void lazyCleanExpiredTickets(long now) {
+        try {
+            java.util.List<SoysSsoTicket> all = DATA.select(SoysSsoTicket.class);
+            int removed = 0;
+            for (SoysSsoTicket row : all) {
+                Long exp = row.getExpiresAt();
+                boolean expired = exp == null || exp <= now;
+                boolean staleConsumed = row.getConsumedAt() != null && (row.getConsumedAt() + 30_000L) <= now;
+                if (expired || staleConsumed) {
+                    DATA.deleteById(SoysSsoTicket.class, row.getId());
+                    removed++;
+                }
+            }
+            if (removed > 0) {
+                log.infoT("log.auth.ticket-cleanup", "SSO 票据惰性清理: {0} 行", removed);
+            }
+        } catch (Exception ignored) {
+            // 清理失败不影响主流程
+        }
     }
 
     /**
@@ -350,6 +445,84 @@ public class AuthLoginBridge {
      */
     public String getRememberCookieName() {
         return REMEMBER_COOKIE;
+    }
+
+    // ===== Cookie 属性（auth.cookie.* 配置；跨子域名共享 / HTTPS 加固） =====
+
+    /**
+     * Cookie Domain（空 = 精确 host，同域名多端口自动共享；
+     * 配 {@code .example.com} = 所有子域共享，多子域名 SSO 用）。
+     */
+    private volatile String cookieDomain = "";
+    /**
+     * Cookie Secure 标记（HTTPS 部署开启；跨域名回跳必须 HTTPS）。
+     */
+    private volatile boolean cookieSecure = false;
+    /**
+     * Cookie SameSite（默认 Lax；跨域顶层 GET 导航/302 回跳 Lax 即足够）。
+     */
+    private volatile String cookieSameSite = "Lax";
+
+    /**
+     * 注入 Cookie 属性（由 {@link HttpOverMcPluginProxy} 从 auth.cookie.* 装配后调用）。
+     */
+    public void setCookieAttributes(String domain, boolean secure, String sameSite) {
+        this.cookieDomain = domain == null ? "" : domain.trim();
+        this.cookieSecure = secure;
+        this.cookieSameSite = sameSite == null || sameSite.trim().isEmpty() ? "Lax" : sameSite.trim();
+    }
+
+    /**
+     * 统一拼装 Set-Cookie 行（会话 / 记住我 / 升级换发全部走此一处，domain/secure/same-site 可配）。
+     *
+     * @param name           cookie 名
+     * @param value          cookie 值（删除 cookie 传空串）
+     * @param maxAgeSeconds  Max-Age（秒；删除 cookie 传 0）
+     */
+    public String buildSetCookie(String name, String value, long maxAgeSeconds) {
+        StringBuilder sb = new StringBuilder();
+        sb.append(name).append('=').append(value).append("; Path=/");
+        if (maxAgeSeconds >= 0) {
+            sb.append("; Max-Age=").append(maxAgeSeconds);
+        }
+        if (!cookieDomain.isEmpty()) {
+            sb.append("; Domain=").append(cookieDomain);
+        }
+        if (cookieSecure) {
+            sb.append("; Secure");
+        }
+        sb.append("; SameSite=").append(cookieSameSite).append("; HttpOnly");
+        return sb.toString();
+    }
+
+    /**
+     * SSO 允许回跳的来源白名单（origin = scheme://host[:port]；由 AuthPolicy sso.allowed-origins 装配）。
+     */
+    private volatile java.util.List<String> ssoAllowedOrigins = new java.util.ArrayList<>();
+
+    /**
+     * 注入 SSO 回跳来源白名单（由 {@link HttpOverMcPluginProxy} 从 auth.yml sso.allowed-origins 装配）。
+     */
+    public void setSsoAllowedOrigins(java.util.List<String> origins) {
+        this.ssoAllowedOrigins = origins == null ? new java.util.ArrayList<String>() : origins;
+    }
+
+    /**
+     * 校验 SSO 回跳目标 URL 的 origin 是否在白名单内（防开放跳转）。
+     * 同源相对路径（不以 scheme:// 开头）视为本服内部跳转，放行。
+     */
+    public boolean isSsoTargetAllowed(String targetUrl) {
+        if (targetUrl == null || targetUrl.isEmpty()) return false;
+        // 相对路径（站内回跳）直接放行
+        if (!targetUrl.startsWith("http://") && !targetUrl.startsWith("https://")) return true;
+        int slash = targetUrl.indexOf('/', targetUrl.indexOf("://") + 3);
+        String origin = slash < 0 ? targetUrl : targetUrl.substring(0, slash);
+        String o = origin.endsWith("/") ? origin.substring(0, origin.length() - 1) : origin;
+        for (String allow : ssoAllowedOrigins) {
+            String a = allow.endsWith("/") ? allow.substring(0, allow.length() - 1) : allow;
+            if (a.equalsIgnoreCase(o)) return true;
+        }
+        return false;
     }
 
     /**
@@ -787,8 +960,7 @@ public class AuthLoginBridge {
         String fresh = upgradeOfflineIfOnline(p);
         if (fresh == null) return null;
         Map<String, String> h = new HashMap<>();
-        h.put("Set-Cookie", issuer.getCookieName() + "=" + fresh
-                + "; Path=/; Max-Age=" + issuer.getTtlSeconds() + "; HttpOnly; SameSite=Lax");
+        h.put("Set-Cookie", buildSetCookie(issuer.getCookieName(), fresh, issuer.getTtlSeconds()));
         h.put("X-Soys-New-Token", fresh);
         return h;
     }
@@ -855,9 +1027,7 @@ public class AuthLoginBridge {
      * data 携带玩家名供前端展示；cookie 语义保留（HttpOnly，浏览器自动携带）。
      */
     private ApiResponse jsonWithCookie(String player, String token) {
-        String cookie = issuer.getCookieName() + "=" + token
-                + "; Path=/; Max-Age=" + issuer.getTtlSeconds()
-                + "; HttpOnly; SameSite=Lax";
+        String cookie = buildSetCookie(issuer.getCookieName(), token, issuer.getTtlSeconds());
         Map<String, String> extra = new HashMap<>();
         extra.put("Set-Cookie", cookie);
         return ApiResponse.status(200, AjaxResult.success("ok", player), extra);

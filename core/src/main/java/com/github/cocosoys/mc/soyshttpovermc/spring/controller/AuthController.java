@@ -98,4 +98,11 @@ public class AuthController {
     public ApiResponse bindDevice(@RequestBody String body) {
         return authService.bindDevice(body);
     }
+
+    @ApiName("SSO 票据回跳换票")
+    @Anonymous
+    @GetMapping("/sso/callback")
+    public ApiResponse ssoCallback(@RequestParam(name = "ticket") String ticket) {
+        return authService.ssoCallback(ticket);
+    }
 }

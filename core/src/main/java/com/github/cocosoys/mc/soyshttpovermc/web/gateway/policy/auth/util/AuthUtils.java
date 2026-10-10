@@ -3,6 +3,7 @@ package com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.util;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.Credential;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.issuer.CredentialIssuer;
 import com.github.cocosoys.mc.soyshttpovermc.permission.local.ApiKeyStore;
+import com.github.cocosoys.mc.soyshttpovermc.spring.entity.SoysApiKey;
 import com.github.cocosoys.mc.soyshttpovermc.web.gateway.policy.auth.issuer.CredentialPresentation;
 
 import java.nio.charset.StandardCharsets;
@@ -172,15 +173,29 @@ public final class AuthUtils {
             return new Credential("basic:" + fingerprint(p.getBasicUser()), "basic");
         }
         // 1.5) 本地 API Key 表（soys_api_key；SHA-256 哈希匹配，不比较明文）
+        // 命中即注入权限判定器（委托 apiKeyStore.checkPermission → localStore 两遍否定/通配扫描），
+        // 使 Credential.hasPermission 对本地表 key 逐节点生效（静态 key / issuer 仍全权限）。
         if (apiKeyStore != null) {
-            if (acceptHeader && apiKeyStore.isValid(p.getApiKey())) {
-                return new Credential("api-key:" + fingerprint(p.getApiKey()), "api-key");
+            if (acceptHeader) {
+                SoysApiKey row = apiKeyStore.findByPresented(p.getApiKey());
+                if (row != null && apiKeyStore.isValid(p.getApiKey())) {
+                    return new Credential(apiKeySubject(row, p.getApiKey()), "api-key",
+                            node -> apiKeyStore.checkPermission(row, node));
+                }
             }
-            if (acceptBearer && apiKeyStore.isValid(p.getBearer())) {
-                return new Credential("bearer:" + fingerprint(p.getBearer()), "bearer");
+            if (acceptBearer) {
+                SoysApiKey row = apiKeyStore.findByPresented(p.getBearer());
+                if (row != null && apiKeyStore.isValid(p.getBearer())) {
+                    return new Credential(apiKeySubject(row, p.getBearer()), "bearer",
+                            node -> apiKeyStore.checkPermission(row, node));
+                }
             }
-            if (acceptBasic && apiKeyStore.isValid(p.getBasicUser())) {
-                return new Credential("basic:" + fingerprint(p.getBasicUser()), "basic");
+            if (acceptBasic) {
+                SoysApiKey row = apiKeyStore.findByPresented(p.getBasicUser());
+                if (row != null && apiKeyStore.isValid(p.getBasicUser())) {
+                    return new Credential(apiKeySubject(row, p.getBasicUser()), "basic",
+                            node -> apiKeyStore.checkPermission(row, node));
+                }
             }
         }
         // 2) 启用的颁发器校验（Bearer / X-API-Key / Cookie 均可识别）
@@ -207,6 +222,18 @@ public final class AuthUtils {
             if (constantTimeEquals(k, presented)) return true;
         }
         return false;
+    }
+
+    /**
+     * 本地表 key 的脱敏 subject：{@code api-key:<指纹>}；已绑定玩家时附加
+     * {@code @<玩家名>}（仅日志/事件可读，不暴露密钥）。
+     */
+    private static String apiKeySubject(SoysApiKey row, String presented) {
+        String s = "api-key:" + fingerprint(presented);
+        if (row != null && row.getPlayer() != null && !row.getPlayer().isEmpty()) {
+            s += "@" + row.getPlayer();
+        }
+        return s;
     }
 
     /**

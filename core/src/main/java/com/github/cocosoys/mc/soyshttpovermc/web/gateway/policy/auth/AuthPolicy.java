@@ -71,6 +71,31 @@ public class AuthPolicy extends SecurityPolicy {
      * false=不可用时按无权限拒绝（安全优先，默认）。
      */
     private boolean apiKeyLocalFallbackAll = false;
+    /**
+     * Cookie Domain（auth.yml cookie.domain，默认空=精确 host）：
+     * 配 {@code .example.com} 后所有子域共享 cookie（多子域名 SSO）；
+     * 同域名多端口部署浏览器按 host 共享，无需配置。
+     */
+    private String cookieDomain = "";
+    /**
+     * Cookie Secure 标记（auth.yml cookie.secure，默认 false）：HTTPS 部署开启；跨域名回跳必须 HTTPS。
+     */
+    private boolean cookieSecure = false;
+    /**
+     * Cookie SameSite（auth.yml cookie.same-site，默认 Lax）：跨域顶层 GET 导航/302 回跳 Lax 即足够。
+     */
+    private String cookieSameSite = "Lax";
+    /**
+     * SSO 统一登录页地址（auth.yml sso.login-url，默认空=不启用回跳链）：
+     * 浏览器 HTML 请求未登录时不返 401 JSON，而是 302 跳到此地址并附带 ?redirect=<原URL>。
+     * 留空=行为不变（API 与 HTML 一律 401）。
+     */
+    private String ssoLoginUrl = "";
+    /**
+     * SSO 允许回跳的来源白名单（auth.yml sso.allowed-origins，origin = scheme://host[:port]）：
+     * 仅当当前请求 origin 命中本列表时才发 302（否则回退 401），防开放跳转 / 被当跳板。
+     */
+    private List<String> ssoAllowedOrigins = new ArrayList<>();
     private volatile List<CredentialIssuer> issuers = new ArrayList<>();
     /**
      * 本地 API Key 表（soys_api_key 实体；懒创建）。
@@ -137,6 +162,21 @@ public class AuthPolicy extends SecurityPolicy {
         // X-API-Key 本地权限降级开关（api-key.local-fallback-all，默认 false）
         ConfigurationSection apiKeyCfg = cfg.getConfigurationSection("api-key");
         apiKeyLocalFallbackAll = apiKeyCfg != null && apiKeyCfg.getBoolean("local-fallback-all", false);
+        // Cookie 属性（cookie.*；多子域名共享 / HTTPS 加固）
+        ConfigurationSection cookieCfg = cfg.getConfigurationSection("cookie");
+        cookieDomain = cookieCfg == null ? "" : cookieCfg.getString("domain", "").trim();
+        cookieSecure = cookieCfg != null && cookieCfg.getBoolean("secure", false);
+        String ss = cookieCfg == null ? "Lax" : cookieCfg.getString("same-site", "Lax");
+        cookieSameSite = (ss == null || ss.trim().isEmpty()) ? "Lax" : ss.trim();
+        // SSO 跨域回跳链（sso.*；login-url 空=不启用）
+        ConfigurationSection ssoCfg = cfg.getConfigurationSection("sso");
+        ssoLoginUrl = ssoCfg == null ? "" : ssoCfg.getString("login-url", "").trim();
+        ssoAllowedOrigins.clear();
+        if (ssoCfg != null) {
+            for (String o : ssoCfg.getStringList("allowed-origins")) {
+                if (o != null && !o.trim().isEmpty()) ssoAllowedOrigins.add(o.trim());
+            }
+        }
     }
 
     /**
@@ -208,6 +248,41 @@ public class AuthPolicy extends SecurityPolicy {
      */
     public boolean isApiKeyLocalFallbackAll() {
         return apiKeyLocalFallbackAll;
+    }
+
+    /**
+     * Cookie Domain（auth.yml cookie.domain，空=精确 host；配 .example.com = 多子域共享）。
+     */
+    public String getCookieDomain() {
+        return cookieDomain == null ? "" : cookieDomain;
+    }
+
+    /**
+     * Cookie Secure 标记（auth.yml cookie.secure，默认 false；HTTPS 部署开启）。
+     */
+    public boolean isCookieSecure() {
+        return cookieSecure;
+    }
+
+    /**
+     * Cookie SameSite（auth.yml cookie.same-site，默认 Lax）。
+     */
+    public String getCookieSameSite() {
+        return cookieSameSite;
+    }
+
+    /**
+     * SSO 统一登录页地址（auth.yml sso.login-url，空=未启用回跳链）。
+     */
+    public String getSsoLoginUrl() {
+        return ssoLoginUrl == null ? "" : ssoLoginUrl;
+    }
+
+    /**
+     * SSO 允许回跳的来源白名单（origin 列表）。
+     */
+    public List<String> getSsoAllowedOrigins() {
+        return ssoAllowedOrigins;
     }
 
     /**
@@ -307,7 +382,57 @@ public class AuthPolicy extends SecurityPolicy {
     @Override
     public PolicyResult check(GatewayContext ctx) {
         if (resolve(ctx) != null) return PolicyResult.ALLOW;
+        // 浏览器 HTML 导航请求未登录 → 302 SSO 回跳统一登录页（而非 401 JSON）
+        PolicyResult sso = ssoRedirectIfHtml(ctx);
+        if (sso != null) return sso;
         return PolicyResult.deny(401, "Unauthorized: missing or invalid credential");
+    }
+
+    /**
+     * 浏览器 HTML 导航请求未登录时，302 跳统一登录页并附带 redirect=原URL。
+     * 仅当全部条件满足时返回 302，否则返回 null（回退 401）：
+     * sso.login-url 已配置；GET + Accept 含 text/html；当前 origin 在 allowed-origins 白名单；
+     * 不是对登录页 / SSO callback 自身的请求（防 302 循环）。
+     */
+    private PolicyResult ssoRedirectIfHtml(GatewayContext ctx) {
+        if (ssoLoginUrl.isEmpty()) return null;
+        if (!"GET".equalsIgnoreCase(ctx.getMethod())) return null;
+        String accept = ctx.getHeader("Accept");
+        if (accept == null || !accept.toLowerCase().contains("text/html")) return null;
+        String path = ctx.getPath();
+        // 防循环：登录页 / SSO callback 自身不跳
+        if (path.contains("/auth/login") || path.contains("/auth/sso/") || path.endsWith("login.html")) return null;
+        // 当前请求 origin（scheme://host[:port]）必须在白名单
+        String host = ctx.getHeader("Host");
+        if (host == null || host.isEmpty()) return null;
+        String origin = (ctx.isTls() ? "https://" : "http://") + host;
+        if (!originAllowed(origin)) return null;
+        // redirect = 当前完整 URL（scheme://host + 原始路径含 query）
+        String redirect = origin + ctx.getRawPath();
+        String sep = ssoLoginUrl.contains("?") ? "&" : "?";
+        String location = ssoLoginUrl + sep + "redirect=" + urlEncode(redirect);
+        java.util.Map<String, String> headers = new java.util.HashMap<>();
+        headers.put("Location", location);
+        return PolicyResult.deny(302, "", headers);
+    }
+
+    /** origin 白名单匹配（尾部去斜杠归一，大小写不敏感）。 */
+    private boolean originAllowed(String origin) {
+        if (ssoAllowedOrigins.isEmpty()) return false;
+        String o = origin.endsWith("/") ? origin.substring(0, origin.length() - 1) : origin;
+        for (String allow : ssoAllowedOrigins) {
+            String a = allow.endsWith("/") ? allow.substring(0, allow.length() - 1) : allow;
+            if (a.equalsIgnoreCase(o)) return true;
+        }
+        return false;
+    }
+
+    private static String urlEncode(String s) {
+        try {
+            return java.net.URLEncoder.encode(s, "UTF-8");
+        } catch (Exception e) {
+            return s;
+        }
     }
 
     /**
