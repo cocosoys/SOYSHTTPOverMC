@@ -362,7 +362,7 @@ protected boolean registerProxyController()  { /* 只注册 buildProxyController
 
 建议在 `onDisable` 调用（精确、即时）；框架也会按 owner 插件名兜底清理该插件名下的端点 / 页面 / CORS。
 
-**Q4：**`unregister()`** 会删数据吗？**
+**Q4：**`unregister()`**会删数据吗？**
 
 不会。数据层自动化运维（初始化 / 更新 / 重装 / 卸载）由 `/soyshttp data <插件> ...` 与 `soys_schema_meta` 版本记录负责，与注册表解耦。
 
