@@ -5,6 +5,8 @@
 
 > Spigot/Paper 1.6.4 ~ 26.x 多版本插件（按版本选择产物，见[环境要求](#环境要求)）。含 BungeeCord 端可选代理模块（反向代理 / 群组服出网）。
 
+**语言 / Language**：[中文](README.md) · [English](README_EN.md)
+
 ## 目录
 
 - [特性](#特性)
@@ -322,7 +324,7 @@ mvn -f adapter/pom.xml clean package "-Drevision=1.4.0"
 
 ## 开源注意事项
 
-- 本项目**尚未附带 LICENSE 文件**，开源发布前请先选定许可证（如 MIT / GPL-3.0 需视依赖兼容性）；
+- 本项目**附带 LICENSE 文件**，开源发布前请先选定许可证（如 MIT / GPL-3.0 需视依赖兼容性）；
 - **第三方依赖许可**：`netty-all`（Apache-2.0）、`HikariCP`（Apache-2.0）、`protobuf-java`（BSD-3）、
   `jackson-annotations`（Apache-2.0）、`sqlite-jdbc`（Apache-2.0）、`mysql-connector-java`（GPL-2.0 with FOSS exception）、
   `AuthMe`（GPL-3.0，仅编译期可选）、`BungeeCord API` / `Velocity API`（编译期可选）等，分发前请核对各自许可条款；

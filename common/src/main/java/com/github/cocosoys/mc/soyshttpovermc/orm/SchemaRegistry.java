@@ -69,9 +69,13 @@ public final class SchemaRegistry {
         return owners;
     }
 
-    /** 是否已安装（存在插件级记录即视为已初始化）。 */
+    /**
+     * 是否已安装（存在插件级记录且状态非 UNINSTALLED 即视为已初始化）。
+     * purge 后 meta 行打 UNINSTALLED（保留卸载审计），重装按全新安装处理。
+     */
     public static boolean isInstalled(String plugin) {
-        return getPlugin(plugin) != null;
+        SoysSchemaMeta row = getPlugin(plugin);
+        return row != null && !SchemaState.UNINSTALLED.code().equalsIgnoreCase(row.getState());
     }
 
     // ===== 写入 =====
@@ -123,6 +127,23 @@ public final class SchemaRegistry {
             ok &= DATA.deleteById(SoysSchemaMeta.class, m.getId());
         }
         return ok;
+    }
+
+    /**
+     * 标记某插件全部表级记录为 UNINSTALLED（purge 后保留卸载审计痕迹，不立即删 meta 行）；
+     * 同时删除插件级行（版本/脚本记录随卸载失效）。重装时 {@link #isInstalled} 返回 false →
+     * 按全新安装处理；若业务表数据残留，由 AutoOps.hasLegacyData 自动走升级路径兜底。
+     */
+    public static void markUninstalled(String plugin) {
+        for (SoysSchemaMeta m : byPlugin(plugin)) {
+            if (PLUGIN_ROW.equals(m.getTableName())) {
+                DATA.deleteById(SoysSchemaMeta.class, m.getId());
+            } else {
+                m.setState(SchemaState.UNINSTALLED.code());
+                m.setUpdateTime(new Date());
+                upsert(m);
+            }
+        }
     }
 
     // ===== 内部 =====

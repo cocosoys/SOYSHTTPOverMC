@@ -96,6 +96,22 @@ public class HomePageResolver {
         }
         HttpURLConnection conn = null;
         try {
+            // 优先委托开发者注册的自定义 NetworkTransport（加密/签名/私有协议）；
+            // 无注册或全部失败 → 回退默认 HttpURLConnection 直连
+            byte[] viaTransport = null;
+            try {
+                viaTransport = NetworkTransports.fetch(url);
+            } catch (Exception ignored) {
+                // 传输器失败 → 落默认直连
+            }
+            if (viaTransport != null) {
+                String ct = MimeTypes.forPath(url);
+                remoteBytes = viaTransport;
+                remoteContentType = ct;
+                remoteCachedAt = System.currentTimeMillis();
+                log.infoT("log.web.home-fetch-ok", "首页网络拉取成功（经自定义传输器）: {0} ({1} B)", url, viaTransport.length);
+                return new Result("home.html", viaTransport, ct);
+            }
             conn = (HttpURLConnection) new URL(url).openConnection();
             conn.setRequestMethod("GET");
             conn.setConnectTimeout(5000);

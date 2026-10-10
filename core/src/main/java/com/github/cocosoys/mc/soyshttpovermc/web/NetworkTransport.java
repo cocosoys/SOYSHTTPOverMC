@@ -1,12 +1,14 @@
 package com.github.cocosoys.mc.soyshttpovermc.web;
 
 /**
- * 网络传输实例化入口（<b>预留接口，暂不接入加载链路</b>）。
+ * 网络传输实例化入口。
  *
- * <p>未来版本将用本接口统一「网络页（{@link NetworkPage}）」与「首页远程拉取（{@code web.home}
- * 网络 URL）」的底层传输层，支持开发者注入自定义传输（如加密/签名校验/私有协议）。
- * 当前版本：调用 {@code WebPageApi.registerNetworkTransport(transport)} 仅作占位存储与日志，
- * <b>不参与任何加载</b>——网络页仍由 {@link NetworkPage#load()} 自行实现传输。</p>
+ * <p>开发者经 {@code WebPageApi.registerNetworkTransport(transport)} 注入自定义传输
+ * （加密 / 签名校验 / 私有协议）后，<b>首页远程拉取（{@code web.home} 网络 URL）</b>
+ * 自动优先委托本传输器 {@link #fetch(String)}，失败回退默认 {@code HttpURLConnection} 直连。</p>
+ *
+ * <p>网络页（{@link NetworkPage}）仍由其 {@link NetworkPage#load()} 自行实现传输——
+ * 开发者可在自己的 load() 内通过 {@link NetworkTransports#fetch(String)} 复用已注册传输器。</p>
  */
 public interface NetworkTransport {
 

@@ -5,9 +5,7 @@ import com.github.cocosoys.mc.soyshttpovermc.web.http.sniffer.HttpSnifferInstall
 import lombok.CustomLog;
 
 /**
- * 1.21.x {@link HttpSnifferInstaller} 实现（初始化骨架）。
- *
- * <p>当前 install 返回 null，让 core 回退到内置 SocketSniffer。</p>
+ * 1.21.x {@link HttpSnifferInstaller}：标准 io.netty 反射桥同端口嗅探。
  */
 @CustomLog
 public class V1_21HttpSnifferInstaller implements HttpSnifferInstaller {
@@ -24,11 +22,16 @@ public class V1_21HttpSnifferInstaller implements HttpSnifferInstaller {
 
     @Override
     public Object install(HttpSnifferDeps deps) throws Exception {
-        log.infoT("log.adapter.v121.installer-skip", "[adapter/v1_21] 使用内置 SocketSniffer（版本特化嗅探器待实现）");
-        return null;
+        V1_21HttpSniffer sniffer = new V1_21HttpSniffer(deps);
+        Object handle = sniffer.install();
+        log.infoT("log.adapter.v121.installer-installed", "[adapter/v1_21] 版本兼容嗅探器已安装（io.netty 反射桥）");
+        return handle;
     }
 
     @Override
     public void uninstall(Object handle) {
+        if (handle instanceof V1_21HttpSniffer) {
+            ((V1_21HttpSniffer) handle).uninstall();
+        }
     }
 }

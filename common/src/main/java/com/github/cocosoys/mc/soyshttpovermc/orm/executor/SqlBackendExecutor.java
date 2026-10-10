@@ -335,6 +335,45 @@ public class SqlBackendExecutor implements IBackendExecutor {
     }
 
     /**
+     * 在单个 JDBC 事务中执行一组写操作（purge 多表 DROP 等场景：要么全部成功，要么全部回滚）。
+     * 回调使用的是事务内同一连接；失败时回滚并抛出，连接归还连接池。SQLite/MySQL 通用。
+     */
+    public void runInTransaction(java.util.function.Consumer<java.sql.Connection> action) {
+        if (action == null) {
+            return;
+        }
+        java.sql.Connection conn = null;
+        try {
+            conn = ex().getConnectionSupplier().get();
+            conn.setAutoCommit(false);
+            action.accept(conn);
+            conn.commit();
+        } catch (Throwable t) {
+            if (conn != null) {
+                try {
+                    conn.rollback();
+                } catch (Exception ignored) {
+                    // 回滚失败不掩盖原始异常
+                }
+            }
+            throw t instanceof RuntimeException ? (RuntimeException) t : new RuntimeException(t);
+        } finally {
+            if (conn != null) {
+                try {
+                    conn.setAutoCommit(true);
+                } catch (Exception ignored) {
+                    // 恢复默认提交模式失败不掩盖原始异常
+                }
+                try {
+                    conn.close();
+                } catch (Exception ignored) {
+                    // 连接归还失败不掩盖原始异常
+                }
+            }
+        }
+    }
+
+    /**
      * 探测表是否存在（JDBC DatabaseMetaData，MySQL / SQLite 通用）。
      * 用于区分"全新安装"与"老版本升级但 meta 缺失"（避免把老数据当新装处理）。
      */

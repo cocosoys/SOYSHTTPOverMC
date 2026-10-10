@@ -452,8 +452,10 @@ public class WebPageImpl implements WebPageApi {
     public NetworkTransport registerNetworkTransport(NetworkTransport transport) {
         if (transport == null) return null;
         networkTransports.add(transport);
-        // 预留接口：仅占位存储，暂不接入加载链路（网络页传输仍由 NetworkPage.load() 自行实现）
-        log.warnT("log.web.transport-reserved", "registerNetworkTransport 为预留接口（暂不接入加载链路）: {0}", transport.name());
+        // 接入全局注册表：首页远程拉取等内置网络读取点优先委托已注册传输器（失败回退默认直连）
+        NetworkTransports.register(transport);
+        log.infoT("log.web.transport-registered", "自定义网络传输器已登记: {0}（当前 {1} 个，首页远程拉取将优先委托）",
+                transport.name(), NetworkTransports.size());
         return transport;
     }
 

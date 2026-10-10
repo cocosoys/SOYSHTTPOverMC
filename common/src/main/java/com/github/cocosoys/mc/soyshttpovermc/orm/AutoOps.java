@@ -178,10 +178,21 @@ public final class AutoOps {
                 }
             }
             if (DATA.sqlEnabled()) {
-                for (String t : tables) {
-                    SchemaRegistry.sql().execSql("DROP TABLE IF EXISTS `" + t + "`");
+                SqlBackendExecutor sql = SqlBackendExecutor.get();
+                if (sql != null) {
+                    // 多表 DROP 包在同一事务：中途失败全部回滚，不留半删状态
+                    final Set<String> tablesRef = tables;
+                    sql.runInTransaction(conn -> {
+                        try (java.sql.Statement st = conn.createStatement()) {
+                            for (String t : tablesRef) {
+                                st.execute("DROP TABLE IF EXISTS `" + t + "`");
+                            }
+                        } catch (java.sql.SQLException e) {
+                            throw new RuntimeException(e);
+                        }
+                    });
                 }
-                log.infoT("log.autoops.purged", "[自动运维] 已清理 SQL 表: {0}（{1} 张）", name, tables.size());
+                log.infoT("log.autoops.purged", "[自动运维] 已清理 SQL 表: {0}（{1} 张，事务包裹）", name, tables.size());
             } else {
                 File dataDir = YAML.Pojo.getDataDir();
                 int removed = 0;
@@ -193,7 +204,8 @@ public final class AutoOps {
                 }
                 log.infoT("log.autoops.purged", "[自动运维] 已清理 YAML 文件: {0}（{1} 个）", name, removed);
             }
-            SchemaRegistry.removePlugin(name);
+            // 打 UNINSTALLED 审计标记（保留表级 meta 痕迹），而非直接删除全部 meta 行
+            SchemaRegistry.markUninstalled(name);
             return null;
         } catch (Exception e) {
             log.warnT("log.autoops.fail", "[自动运维] {0} 清理失败: {1}", name, String.valueOf(e.getMessage()));

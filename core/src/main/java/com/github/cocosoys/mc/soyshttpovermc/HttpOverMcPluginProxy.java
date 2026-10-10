@@ -287,6 +287,8 @@ public class HttpOverMcPluginProxy {
     public void onDisable() {
         LoginProviderFactory.shutdownAll();
         plugin.setLoginProvider(null);
+        // 清空自定义网络传输全局注册表（避免旧实例 / 附属插件卸载后传输器泄漏）
+        com.github.cocosoys.mc.soyshttpovermc.web.NetworkTransports.clear();
         if (plugin.getSniffer() != null) {
             plugin.getSniffer().uninstall();
         }
