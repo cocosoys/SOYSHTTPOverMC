@@ -1,4 +1,4 @@
-# 第 8 章 插件扩展：SoysExpansion 极简注册
+﻿# 第 8 章 插件扩展：SoysExpansion 极简注册
 
 SoysExpansion 是本插件面向**第三方附属插件**推荐的一体化注册入口（类似 PlaceholderAPI 的 Expansion 语义）：继承一个抽象类、覆写声明式钩子、在 `onEnable` 中调用一次 `register()`，即可一次性完成**数据层初始化、端点登记、前端页面托管、CORS 声明与卸载登记**，框架自动识别所属插件（owner）、自动拼接前缀、自动打标签，开发者无需感知 `ApiRegistrationApi` / `WebPageApi` 等内部 API。
 
@@ -43,7 +43,7 @@ version: 1.0.0
 
 api-version: 1.13
 
-softdepend: \[SOYSHTTPOverMC]   # 弱依赖：没有主插件也能加载，只是不注册
+softdepend: [SOYSHTTPOverMC]   # 弱依赖：没有主插件也能加载，只是不注册
 ```
 
 ### 8.2.2 扩展类
@@ -253,9 +253,9 @@ protected String resourceRoot() { return "dist"; }   // 自动托管 dist
 ```
 @Override
 
-protected CorsSpec\[] cors() {
+protected CorsSpec[] cors() {
 
-    return new CorsSpec\[]{
+    return new CorsSpec[]{
 
         new CorsSpec("/api", "\*"),                          // 2 参简写：路径前缀 + 允许来源
 
@@ -288,11 +288,11 @@ protected CorsSpec\[] cors() {
 ```
 @Override
 
-protected String\[] dataRoots()      { return new String\[]{"data"}; }
+protected String[] dataRoots()      { return new String[]{"data"}; }
 
 @Override
 
-protected String\[] sqlRoots()       { return new String\[]{"sql"}; }
+protected String[] sqlRoots()       { return new String[]{"sql"}; }
 
 @Override
 
