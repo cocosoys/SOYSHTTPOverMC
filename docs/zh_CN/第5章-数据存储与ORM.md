@@ -165,6 +165,10 @@ Page<User> page = YAML.Pojo.searchPage(User.class, 1, 10, "steve", "name");
 
 ```java
 ConfigSection raw = YAML.Pojo.get(User.class);   // 实体对应文件的原始视图
+raw.set("extra", "value");  // 写入
+YAML.Pojo.save(User.class);  // 保存回数据库
+```
+
 ## 5.7 跨服同步
 
 - `storage.cross-server: true` + MySQL（所有实例指向同一数据库）：令牌黑名单 / 审计 / 心跳 / 全局密钥（实体表 `soys_records`）跨服可见；
@@ -265,7 +269,7 @@ data.tablesOf("MCERP");                      // 归属表清单
 
 ### 5.8.6 运维命令 /soyshttp data
 
-```
+```bash
 /soyshttp data <插件> status                   # 状态（版本/脚本/归属表/存储后端/句柄）
 /soyshttp data <插件> update [版本]             # 显式迁移（默认到声明版本，可指定目标）
 /soyshttp data <插件> reinstall                # 保留数据重装

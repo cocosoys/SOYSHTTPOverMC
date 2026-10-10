@@ -196,7 +196,7 @@ Supported plugins: `luckperms` (recommended, offline queries), `permsex` (offlin
 
 Pairs with `offline-fallback: local` (or `providers: ["local"]`); the plugin maintains built-in user/group/permission tables:
 
-```
+```bash
 /soyshttp perm group create <id> [weight] [display]      # create group (higher weight = higher priority)
 /soyshttp perm group delete <id>                         # delete group (cascades permissions & member refs)
 /soyshttp perm group weight <id> <weight>                # adjust weight
@@ -223,7 +223,7 @@ Rules (real implementation):
 
 Local API keys live in the `soys_api_key` table (YAML / SQL dual backend, hashed — never plaintext), letting programmatic callers reach the gateway via the `X-API-Key` header (replacing the legacy static `keys` in auth.yml):
 
-```
+```bash
 /soyshttp apikey generate <note>              # generate a key (platform-random; shown only once)
 /soyshttp apikey list                         # list (masked; full keys never displayed)
 /soyshttp apikey enable|disable <id>          # enable/disable

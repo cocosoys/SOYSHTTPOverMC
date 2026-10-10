@@ -16,7 +16,7 @@ SoysExpansion 是本插件面向**第三方附属插件**推荐的一体化注�
 
 
 
-```
+```java
 public abstract class SoysExpansion {
 
     public abstract String getIdentifier();   // 唯一必填
@@ -34,7 +34,7 @@ public abstract class SoysExpansion {
 
 
 
-```
+```yaml
 name: MyShop
 
 main: com.example.myshop.MyShop
@@ -50,7 +50,7 @@ softdepend: [SOYSHTTPOverMC]   # 弱依赖：没有主插件也能加载，只�
 
 
 
-```
+```java
 package com.example.myshop;
 
 import com.github.cocosoys.mc.soyshttpovermc.api.SoysExpansion;
@@ -68,7 +68,7 @@ public class ShopExpansion extends SoysExpansion {
 
 
 
-```
+```java
 @Override
 
 public void onEnable() {
@@ -117,7 +117,7 @@ public void onDisable() {
 
 
 
-```
+```java
 public class ShopExpansion extends SoysExpansion {
 
     @Override
@@ -141,7 +141,7 @@ public class ShopExpansion extends SoysExpansion {
 
 
 
-```
+```java
 @Override
 
 protected List<Object> buildControllers() {
@@ -155,7 +155,7 @@ protected List<Object> buildControllers() {
 
 
 
-```
+```java
 @Override
 
 protected List<Object> buildProxyControllers() {
@@ -178,7 +178,7 @@ plugins/<插件名>/\<resourceRoot>   磁盘优先（惰性登记：请求时才
 
    ↓ 目录不存在时回退
 
-jar 内 /\<resourceRoot>            打包默认目录
+jar内 或者 \<resourceRoot>            打包默认目录
 ```
 
 托管效果：
@@ -193,7 +193,7 @@ jar 内 /\<resourceRoot>            打包默认目录
 
 
 
-```
+```java
 @Override
 
 protected String resourceRoot() { return "dist"; }   // 自动托管 dist
@@ -217,7 +217,7 @@ protected String resourceRoot() { return "dist"; }   // 自动托管 dist
 
 
 
-```
+```java
 @Override
 
 protected CorsSpec[] cors() {
@@ -252,7 +252,7 @@ protected CorsSpec[] cors() {
 
 
 
-```
+```java
 @Override
 
 protected String[] dataRoots()      { return new String[]{"data"}; }
@@ -315,16 +315,16 @@ protected int schemaVersion()       { return 2; }   // 会执行 V1\_\_...sql �
 
 
 
-```
+```java
 // 示例：既想正常登记又想代理登记时，分别覆写两个子钩子即可，无需重写聚合方法
 
 @Override
 
-protected boolean registerCommonController() { /\* 只注册 buildControllers() \*/ }
+protected boolean registerCommonController() { /* 只注册 buildControllers() */ }
 
 @Override
 
-protected boolean registerProxyController()  { /\* 只注册 buildProxyControllers() \*/ }
+protected boolean registerProxyController()  { /* 只注册 buildProxyControllers() */ }
 ```
 
 ## 8.11 静态辅助
@@ -350,7 +350,7 @@ protected boolean registerProxyController()  { /\* 只注册 buildProxyControlle
 
 ## 8.13 常见问题
 
-**Q1：**`register()`** 返回 false？**
+**Q1：** `register()` **Q1：返回 false？**
 
 重复 identifier（已注册过同名扩展）或主插件未就绪（`getApi()` 为 null）。可在日志中打印 `registered()` 检查冲突来源。
 

@@ -171,7 +171,7 @@ SoysHttpOverMcApi api = HttpOverMcPlugin.getInstance().getApi();
 
 ## A.10 命令速查
 
-```
+```bash
 /soyshttp eula | status | report | reload | help [子指令|页码]
 /soyshttp key <主体>
 /soyshttp send <url|/page> [显示文字] [玩家]

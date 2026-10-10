@@ -171,7 +171,7 @@ All live in `com.github.cocosoys.mc.soyshttpovermc.api.event`; events are **nest
 
 ## A.10 Command Quick Reference
 
-```
+```bash
 /soyshttp eula | status | report | reload | help [subcommand|page]
 /soyshttp key <subject>
 /soyshttp send <url|/page> [display text] [player]

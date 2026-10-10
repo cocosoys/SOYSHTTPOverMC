@@ -244,16 +244,21 @@ Internally, `SoysExpansion` is exactly a **combination of facade calls (`SoysHtt
 ## 8.13 FAQ
 
 **Q1: `register()` returns false?**
+
 Duplicate identifier (an extension with the same id is already registered) or the main plugin is not ready (`getApi()` is null). Print `registered()` to inspect the conflict source.
 
 **Q2: Why is the page prefix `/web/plugins/<pluginName>` instead of the identifier?**
+
 The page URL prefix is derived from the **owner plugin name** (`getProvidingPlugin`), independent of the identifier — even multiple expansion instances of the same plugin share one page prefix, so **do not host two front ends containing `index.html` in the same plugin** (`index` / SPA fallback rules are registered per plugin name; the later registration overwrites the earlier).
 
 **Q3: Do I still need to call `unregister()` manually on disable?**
+
 Recommended in `onDisable` (precise and immediate); the framework also cleans up endpoints / pages / CORS under that plugin name as a fallback.
 
 **Q4: Does `unregister()` delete data?**
+
 No. Data-layer auto ops (init / update / reinstall / uninstall) are handled by `/soyshttp data <plugin> ...` and the `soys_schema_meta` version records, decoupled from the registration table.
 
 **Q5: Which dist wins, disk or in-jar?**
+
 Disk wins: if `plugins/<pluginName>/<resourceRoot>` exists it is lazily registered from disk (hot-replace supported); otherwise the in-jar resource directory of the same name is used.

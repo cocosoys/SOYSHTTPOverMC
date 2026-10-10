@@ -349,7 +349,7 @@ pages:
 
 Granting (op):
 
-```
+```bash
 /soyshttp perm user Steve add shop.manager        # direct user node ('-' prefix = deny; ':' ≡ '.')
 /soyshttp perm group create vip 50 VIP组          # create a permission group
 /soyshttp perm group add vip shop.vip             # add a node to the group

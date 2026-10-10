@@ -261,7 +261,7 @@ data.tablesOf("MCERP");                      // owned tables
 
 ### 5.8.6 Ops Command /soyshttp data
 
-```
+```bash
 /soyshttp data <plugin> status                   # status (version/scripts/tables/backend/handle)
 /soyshttp data <plugin> update [version]          # explicit migration (default: declared version; target optional)
 /soyshttp data <plugin> reinstall                 # reinstall keeping data
