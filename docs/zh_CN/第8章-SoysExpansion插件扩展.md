@@ -144,7 +144,7 @@ public class ShopExpansion extends SoysExpansion {
 ```
 @Override
 
-protected List\<Object> buildControllers() {
+protected List<Object> buildControllers() {
 
     return Arrays.asList(new ShopAdminController(), new ShopQueryController());
 
@@ -158,43 +158,14 @@ protected List\<Object> buildControllers() {
 ```
 @Override
 
-protected List\<Object> buildProxyControllers() {
+protected List<Object> buildProxyControllers() {
 
     return Arrays.asList(new ShopApiController());
 
 }
 ```
 
-> 两个来源
->
-> **可同时使用**
->
-> ：同一实例也可以同时出现在 
->
-> `buildControllers()`
->
->  与 
->
-> `buildProxyControllers()`
->
-> （登记两次、路径不同）；注销按实例幂等，先清后空操作无害。
-> 若需完全自定义 "先正常后代理 / 只代理" 等顺序，可分别覆写 
->
-> `registerCommonController()`
->
->  / 
->
-> `registerProxyController()`
->
-> （见 8.10），
->
-> **无需重写 **
->
-> `registerControllers()`
->
-> ** 聚合方法**
->
-> 。
+> 两个来源可同时使用：同一实例也可以同时出现在 `buildControllers()` 与 `buildProxyControllers()`（登记两次、路径不同）；注销按实例幂等，先清后空操作无害。若需完全自定义“先正常后代理 / 只代理”等顺序，可分别覆写 `registerCommonController()` / `registerProxyController()`（见 8.10），**无需重写 `registerControllers()` 聚合方法**。
 
 ## 8.5 前端页面托管（resourceRoot）
 
@@ -238,11 +209,7 @@ protected String resourceRoot() { return "dist"; }   // 自动托管 dist
 | `indexFile()`            | `"index"` | 目录索引兜底目标（不含扩展名；经 .html 智能匹配命中 `index.html`）                                                                                               |
 | `spaFallback()`          | `true`    | history 模式 SPA 回退：`<无扩展名路径>` 未命中 → 回退该插件根下 `index.html`（HTTP 200，交由前端 vue-router 判定）；**带扩展名路径**（.js/.css/…）未命中保持 404、绝不回退（两层 404，详见第 3 章） |
 
-> 三个钩子仅在 
->
-> `resourceRoot()`
->
->  非空时生效。
+> 三个钩子仅在 `resourceRoot()` 非空时生效。
 
 ## 8.6 CORS 声明（cors）
 
@@ -306,19 +273,19 @@ protected int schemaVersion()       { return 2; }   // 会执行 V1\_\_...sql �
 
 
 ```
-1\. 数据层初始化  registerData()        （dataRoots 复制 + sqlRoots 执行 + seedData 种子 + schemaVersion 迁移）
+1. 数据层初始化  registerData()        （dataRoots 复制 + sqlRoots 执行 + seedData 种子 + schemaVersion 迁移）
 
-2\. 端点登记      registerControllers()  （registerCommonController() 遍历 buildControllers()
+2. 端点登记      registerControllers()  （registerCommonController() 遍历 buildControllers()
 
                                         → registerProxyController() 遍历 buildProxyControllers()）
 
-3\. 页面托管      registerPages()         （resourceRoot 磁盘优先惰性 / jar 回退，打 expansion:\<id> tag，
+3. 页面托管      registerPages()         （resourceRoot 磁盘优先惰性 / jar 回退，打 expansion:\<id> tag，
 
                                           设置目录索引与 SPA 回退规则）
 
-4\. CORS          registerCors()          （逐条登记 cors()）
+4. CORS          registerCors()          （逐条登记 cors()）
 
-5\. 回调          onRegister()            （默认 true；返回 false 或抛异常同样回滚）
+5. 回调          onRegister()            （默认 true；返回 false 或抛异常同样回滚）
 ```
 
 `unregister()`（final）按相反方向摘除：页面（按 tag）→ 代理端点 → 正常端点 → CORS → `onUnregister()` 回调（此时已从注册表移除）。`unregister()`** 只摘登记，永不删除数据**（卸载数据请走 `/soyshttp data` 数据层自动化运维）。

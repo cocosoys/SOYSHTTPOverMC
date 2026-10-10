@@ -208,10 +208,7 @@ auto:
 - Script locations (per-backend directories, no mixing): `sql/migrations/V<n>/<table>.sql` (MySQL dialect) and
   `data/migrations/V<n>/<table>.yml` (YAML backend, declarative field backfill); `V<n>` increments from 1;
   YAML and SQL migrations **share the same version number** (one `V<n>` may carry both channel files);
-- Execution rules: **fresh installs skip migrations** — data/*.yml and init.sql already hold the latest full structure,
-  so meta is marked at the highest version right after init; **existing (old) installs run V(meta+1)..V(schemaVersion)
-  incrementally**; no meta but old data detected also takes the upgrade path; **meta is written after each successful
-  script** (a mid-run failure does not re-run successful items);
+- Execution rules: **fresh installs skip migrations** — data/*.yml and init.sql already hold the latest full structure, so meta is marked at the highest version right after init; **existing (old) installs run V(meta+1)..V(schemaVersion) incrementally**; no meta but old data detected also takes the upgrade path; **meta is written after each successful script** (a mid-run failure does not re-run successful items);
 - Upgrade path: raise `schemaVersion()` (e.g. 1→2) and add the new `V2` files; restart or
   `/soyshttp data <plugin> update` applies them incrementally.
 
