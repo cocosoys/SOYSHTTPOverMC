@@ -188,3 +188,11 @@ All live in `com.github.cocosoys.mc.soyshttpovermc.api.event`; events are **nest
 ```
 
 Short alias `/shttp`; master permission `soyshttp.admin` (OP by default).
+
+---
+
+> **← Previous** [Chapter 8 Plugin Extension: SoysExpansion](Chapter-8-SoysExpansion-Extension.md)
+>
+> SoysExpansion minimal registration: template methods + declarative hooks - one register() call wires everything up.
+>
+> **Back to README**: [README_EN.md](../README_EN.md)

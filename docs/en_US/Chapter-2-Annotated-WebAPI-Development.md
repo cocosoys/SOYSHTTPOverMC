@@ -220,3 +220,14 @@ These endpoints are exempted from auth by default in `gateway/policies/auth.yml`
 
 - On 1.12.2, firing async events from the main thread throws `IllegalStateException`; therefore **registration/unregistration events are forced synchronous** (see the `GatewayEvent` class comment);
 - Annotations, `ApiRequestContext` and `ApiResponse` live in common / core and behave identically on all supported versions.
+
+---
+
+> **← Previous** [Chapter 1 Overview & Quick Start](Chapter-1-Overview-and-Quick-Start.md)
+>
+> The same-port sniffing architecture, installation artifacts, data directory layout and your first third-party integration.
+>
+> **→ Next** [Chapter 3 Web Pages & Static Resource Hosting](Chapter-3-Web-Pages-and-Static-Resources.md)
+>
+> Web pages & static resource hosting: namespace conventions, pages.yml configuration, caching and access permissions.
+>

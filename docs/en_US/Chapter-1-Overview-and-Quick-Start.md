@@ -171,3 +171,14 @@ Equivalently, listen for `HttpConfigReloadEvent` (see Chapter 7).
 ## 1.8 Multi-Version Packaging (Build Side)
 
 The repository builds multiple jars from one source via Maven multi-module + version profiles: `core` and `common` stay Java-8 bytecode, and each `adapter` version module picks its spigot-api dependency and compile JDK (see Chapter 6, 6.8). For your third-party plugin, **do not depend on `soyshttpovermc-core`** (that jar is the plugin itself; its classes are shaded into the runtime classpath automatically when SOYSHTTPOverMC is installed) — declare `softdepend: [SOYSHTTPOverMC]` and integrate at runtime through the facade. If you only need the annotations / ORM classes at compile time, add `soyshttpovermc-common` (no Bukkit dependency; compilable on any JDK) as a `provided`-scope dependency.
+
+---
+
+> **← Previous** [Introduction](Introduction.md)
+>
+> What this project is, supported versions, core capabilities and reading conventions.
+>
+> **→ Next** [Chapter 2 Annotation-based Web API Development](Chapter-2-Annotated-WebAPI-Development.md)
+>
+> Build your first annotated Web API from scratch: concepts, annotation set, minimal example and unified response body.
+>

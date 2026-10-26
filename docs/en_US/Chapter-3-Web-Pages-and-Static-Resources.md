@@ -204,3 +204,14 @@ api.getWebPage().registerNetworkPage(this, new NetworkPage() {
 ## 3.8 Version Notes
 
 - `MimeTypes`, caching and permission semantics are identical across versions; on 1.6.4 / 1.7.10 static file reads go through the adapter's `YamlIo` with explicit UTF-8.
+
+---
+
+> **← Previous** [Chapter 2 Annotation-based Web API Development](Chapter-2-Annotated-WebAPI-Development.md)
+>
+> Build your first annotated Web API from scratch: concepts, annotation set, minimal example and unified response body.
+>
+> **→ Next** [Chapter 4 Authentication & Security Management](Chapter-4-Authentication-and-Security.md)
+>
+> Authentication & security: gateway policies, credential system, login-plugin integration and the local permission table.
+>

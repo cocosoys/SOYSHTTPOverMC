@@ -285,3 +285,14 @@ data.tablesOf("MCERP");                      // 归属表清单
 - **1.6.4 / 1.7.10 旧驱动兼容**：服务端自带旧版 JDBC3 驱动（`org.sqlite.Conn` / `com.mysql.jdbc.ConnectionImpl` 无 `isValid(int)`），adapter 各版本模块的 `JdbcCompat` 已自动兼容（isValid→isClosed 包装 + connectionTestQuery + detectMysqlDriver），无需补丁脚本；
 - sqlite 主存储 + ORM 已在 1.6.4 / 1.7.10 实测通过；
 - 跨端搜索接口的**默认实现**抛 `UnsupportedOperationException`（"当前后端不支持跨端搜索"），YAML 与 SQL 后端均已实现；新增第三方后端时需 override `search` / `searchPage`。
+
+---
+
+> **← 上一章** [第4章 鉴权与安全管理](第4章-鉴权与安全管理.md)
+>
+> 鉴权与安全管理：网关策略、凭证体系、登录插件接入与本地权限表。
+>
+> **→ 下一章** [第6章 进阶能力与最佳实践](第6章-进阶能力与最佳实践.md)
+>
+> 进阶能力与最佳实践：HTTP 客户端、扩展接入、国际化与群组服部署。
+>

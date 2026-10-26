@@ -177,3 +177,14 @@ public void onReload(HttpConfigReloadEvent e) {
 
 - All events behave identically on 1.12.2 and the other supported versions; the 1.6.4 / 1.7.10 sniffer thread pools also provide async gateway events;
 - Do not do blocking work inside synchronous handlers (they would stall the main thread tick).
+
+---
+
+> **← Previous** [Chapter 6 Advanced Capabilities & Best Practices](Chapter-6-Advanced-Capabilities-and-Best-Practices.md)
+>
+> Advanced capabilities & best practices: HTTP client, extensions, i18n and proxy-network deployment.
+>
+> **→ Next** [Chapter 8 Plugin Extension: SoysExpansion](Chapter-8-SoysExpansion-Extension.md)
+>
+> SoysExpansion minimal registration: template methods + declarative hooks - one register() call wires everything up.
+>

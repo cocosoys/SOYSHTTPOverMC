@@ -277,3 +277,14 @@ data.tablesOf("MCERP");                      // owned tables
 - **Old-driver compatibility on 1.6.4 / 1.7.10**: the server bundles legacy JDBC3 drivers (`org.sqlite.Conn` / `com.mysql.jdbc.ConnectionImpl` without `isValid(int)`); each adapter module's `JdbcCompat` auto-compensates (isValid→isClosed wrapper + connectionTestQuery + detectMysqlDriver); no patch scripts needed;
 - SQLite primary + ORM verified on 1.6.4 / 1.7.10;
 - The cross-backend search **interface default** throws `UnsupportedOperationException` ("current backend does not support cross-backend search"); the YAML and SQL backends both implement it; third-party backends must override `search` / `searchPage`.
+
+---
+
+> **← Previous** [Chapter 4 Authentication & Security Management](Chapter-4-Authentication-and-Security.md)
+>
+> Authentication & security: gateway policies, credential system, login-plugin integration and the local permission table.
+>
+> **→ Next** [Chapter 6 Advanced Capabilities & Best Practices](Chapter-6-Advanced-Capabilities-and-Best-Practices.md)
+>
+> Advanced capabilities & best practices: HTTP client, extensions, i18n and proxy-network deployment.
+>

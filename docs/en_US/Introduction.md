@@ -71,3 +71,11 @@ If you are new to plugin development, finish a "HelloWorld" plugin first and com
 - Method signatures, config paths and default values in this documentation were verified against the current source and can be used as a reference.
 
 Ready? Start with [Chapter 1 Overview & Quick Start](Chapter-1-Overview-and-Quick-Start.md).
+
+---
+
+> **→ Next** [Chapter 1 Overview & Quick Start](Chapter-1-Overview-and-Quick-Start.md)
+>
+> The same-port sniffing architecture, installation artifacts, data directory layout and your first third-party integration.
+>
+> **Back to README**: [README_EN.md](../README_EN.md)

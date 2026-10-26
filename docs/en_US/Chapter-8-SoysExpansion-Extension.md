@@ -262,3 +262,14 @@ No. Data-layer auto ops (init / update / reinstall / uninstall) are handled by `
 **Q5: Which dist wins, disk or in-jar?**
 
 Disk wins: if `plugins/<pluginName>/<resourceRoot>` exists it is lazily registered from disk (hot-replace supported); otherwise the in-jar resource directory of the same name is used.
+
+---
+
+> **← Previous** [Chapter 7 Event System](Chapter-7-Event-System.md)
+>
+> The event system: event summary, SoysReadyEvent and registering API / gateway / web-resource events.
+>
+> **→ Next** [Appendix API Reference](Appendix-API-Reference.md)
+>
+> The facade SoysHttpOverMcApi's seven capability groups, event API, configuration index and command quick reference.
+>

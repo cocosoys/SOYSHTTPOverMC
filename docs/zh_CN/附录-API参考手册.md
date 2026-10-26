@@ -188,3 +188,11 @@ SoysHttpOverMcApi api = HttpOverMcPlugin.getInstance().getApi();
 ```
 
 简写 `/shttp`；主权限 `soyshttp.admin`（默认 OP）。
+
+---
+
+> **← 上一章** [第8章 SoysExpansion插件扩展](第8章-SoysExpansion插件扩展.md)
+>
+> SoysExpansion 极简注册：模板方法 + 声明式钩子，一行 register() 完成全部注册。
+>
+> **返回 README 目录**：[README.md](../README.md)

@@ -369,3 +369,14 @@ protected boolean registerProxyController()  { /* 只注册 buildProxyController
 **Q5：磁盘 dist 与 jar 内 dist 哪个优先？**
 
 磁盘优先：`plugins/<插件名>/<resourceRoot>` 存在即惰性登记磁盘目录（支持热替换），不存在时回退 jar 内同名资源目录。
+
+---
+
+> **← 上一章** [第7章 事件系统](第7章-事件系统（使用与注册）.md)
+>
+> 事件系统：事件总表、SoysReadyEvent 与 API / 网关 / 网页资源事件的使用注册。
+>
+> **→ 下一章** [附录 API参考手册](附录-API参考手册.md)
+>
+> 总门面 SoysHttpOverMcApi 七个能力组、事件 API、配置索引与命令速查。
+>

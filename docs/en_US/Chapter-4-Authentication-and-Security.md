@@ -267,3 +267,14 @@ IssuedCredential cred = api.getAuthCredential().issueCredential("Steve");
 
 - TLS depends on the runtime JDK: on 1.6.4 running under JDK7, TLS is capped at TLSv1.1/1.2, and old clients supporting only TLSv1.0 may fail the handshake;
 - On proxy networks, enable MySQL shared storage (`storage.cross-server: true`) so all backend servers verify JWTs with the same secret.
+
+---
+
+> **← Previous** [Chapter 3 Web Pages & Static Resource Hosting](Chapter-3-Web-Pages-and-Static-Resources.md)
+>
+> Web pages & static resource hosting: namespace conventions, pages.yml configuration, caching and access permissions.
+>
+> **→ Next** [Chapter 5 Data Storage & ORM](Chapter-5-Data-Storage-and-ORM.md)
+>
+> Data storage & ORM: entity annotations, dual-backend facades, condition chains and automated data-layer ops.
+>

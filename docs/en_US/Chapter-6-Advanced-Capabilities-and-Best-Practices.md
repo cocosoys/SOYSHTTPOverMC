@@ -454,3 +454,14 @@ public final class V1_7SocketSnifferAdapter implements SocketSnifferAdapter {
 ```
 
 Declare `V1_7AdapterActivator` in `META-INF/services/com.github.cocosoys.mc.soyshttpovermc.adapter.spi.AdapterActivator`; adapter/common `AdapterActivators` discovers and activates it.
+
+---
+
+> **← Previous** [Chapter 5 Data Storage & ORM](Chapter-5-Data-Storage-and-ORM.md)
+>
+> Data storage & ORM: entity annotations, dual-backend facades, condition chains and automated data-layer ops.
+>
+> **→ Next** [Chapter 7 Event System](Chapter-7-Event-System.md)
+>
+> The event system: event summary, SoysReadyEvent and registering API / gateway / web-resource events.
+>
